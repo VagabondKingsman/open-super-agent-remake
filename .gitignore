@@ -10,3 +10,14 @@ osa/static/dist/
 
 logs/
 *.osabak
+
+# Third-party AI Native payloads: no redistribution grant found; local only.
+/skills-pack/ai-native/ai-work-method/
+/skills-pack/ai-native/vibecode-kit/
+/skills-pack/ai-native/refinery/
+/skills-pack/ai-native/sot-kernel-in-a-box/
+/skills-pack/ai-native/html3d-slides/
+/skills-pack/ai-native/unslop/
+/skills-pack/ai-native/unslop-vi/
+/skills-pack/ai-native/*.zip
+/skills-pack/ai-native/source-hashes.json
