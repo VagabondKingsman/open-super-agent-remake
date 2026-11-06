@@ -126,3 +126,98 @@ Cap đặt trước: 3 USD ước tính, 160 request, 1.000.000 reported tokens,
 - Chứng minh độc lập: `paging-proof.json`, `usage-by-case.json`, `run-checks.json`, `scores.json`, `R*/E07/objective-checks.json`, `R3/E02/patch-validation.json` và validation-workspace.
 - Source code observer/harness nằm ở `live-eval/serve_eval.py`, `run_eval.py`; không còn chạy sau bàn giao.
 - DB backup trước cleanup chỉ để local, không commit/chia sẻ. `cleanup.json` ghi đúng bot eval đã xóa; 4 bot gốc được giữ.
+
+
+## v2 — verify_facts và full run grok-4.7
+
+Cập nhật 07/11/2026 03:13 (Asia/Saigon), base `adbe518`, branch `i18n-vi`. Quyết định **NO-GO; không push**. Có cải thiện thực tế ở số học và số minh họa slide, nhưng chưa đạt tất cả AC bàn giao.
+
+### Phạm vi và model
+
+- Danh sách model do native `GET /api/providers/xai/models?refresh=true` trả về có đúng **grok-4.7**. Chuyển bốn role sang id này bằng `/api/settings`, không đọc lộ key. Cả 60 completion thực tế trả model grok-4.7.
+- Giữ nguyên prompt/baseline/rubric E01–E08 từ v1; tạo bot mới cho từng bài và gửi qua WebSocket `/ws` thật. Full `V2` có 8 bài. Sau một vòng sửa tooling, rerun E02/E04 ở `V2-fix`; tổng 10 case runs, không thay đề để giúp model qua bài.
+- Tất cả call vẫn là Router. Worker có tool và integration test FakeLLM nhưng live Worker/Computer chưa được kiểm. Không channel send; scheduler/channels/MCP tạm dừng trong memory như v1.
+- Đã lưu previous-roles.json và **khôi phục cả bốn role về grok-4.6 sau đánh giá**. Khởi động normal server; xóa đúng 10 bot eval đã archive, giữ 4 bot gốc.
+- Đây là so sánh hệ thống **4.6 + tooling cũ** với **4.7 + verifier/mentor mới**, không phải thử nghiệm cô lập năng lực hai model. Một mẫu mỗi bài, điểm review của executor, không phải benchmark thống kê hoặc blind A/B.
+
+### Công cụ tất định và sửa sau full V2
+
+Thêm `osa/verification.py`, nối schema/handler/prompt vào Router và Worker. `verify_facts` tính token khoảng trắng và Unicode code points cho VI/EN; cộng Decimal; so số và quote source/draft; AC checklist chỉ derive từ check ids. Hỗ trợ min/max và đối chiếu claimed count/total, SHA-256 của draft/text. Không eval, đọc file, shell, mạng hoặc gọi LLM. Tool output quá 7.500 ký tự báo lỗi chia batch thay vì cắt JSON. Chi tiết: [contract verify_facts](deterministic-verification.md).
+
+Mentor và cả bảy adapter yêu cầu gọi tool trước count/total/AC PASS, copy số trả về và kiểm lại sau sửa. Không lấy PASS số học thay runtime/render/bites. Đây là **instruction**, chưa phải hard gate mọi câu trả lời tự do; vẫn có thể chọn sai phạm vi hoặc truyền input thiếu.
+
+Full V2 phát hiện:
+
+- E02 nháp R1..R5 là 2/0/2/2/2 nhưng tự ghi 6; tool trả đúng 8, model vẫn nghi tổng đúng. Model còn truyền `2+4` làm số dòng mới dù diff thực có 5 dòng thêm: phép cộng đúng trên input sai không kiểm được patch.
+- E04 regex ban đầu có thể nuốt dấu phẩy CSV thành dấu phân nhóm số. Sửa regex en/vi chỉ nhận nhóm ba chữ số; unit test trên dòng CSV thật của fixture.
+- Thêm `calculation_status=COMPLETE` và giải thích FAIL là assertion sai, không phải total không biết; thêm `diffs` đếm hunk trực tiếp từ diff, không tin số dòng tự khai. Chỉ kiểm hunk counts, không giả apply/test.
+- Rerun E02: Rubric **8/10** đúng, hai hunk counts **3→5** và **0→19** đúng. Runtime vẫn NOT_CHECKED. Rerun E04: quote 120000000 và 135000000 PASS; nháp count sai bị bắt rồi sửa, không đưa count sai ra bản cuối.
+
+Không có retry model sau hai bài affected này. Bản full V2 ban đầu và mọi draft/tool failure vẫn lưu đủ, không chọn bản tốt nhất để che lỗi.
+
+### Điểm cạnh nhau
+
+Vector R/C/P/E/O/N giữ cùng sáu chiều 1–5 của v1. Cột 4.6 dùng các lượt mới nhất đã ghi trong báo cáo v1, không lấy R1 tốt hơn cho E07. Cột 4.7 dùng lượt mới nhất từng bài; chỉ E02/E04 đã retest sau fix, các bài khác vẫn là full V2 ban đầu.
+
+| Bài | Chủ đề | 4.6 | Lượt 4.7 | R/C/P/E/O/N | 4.7 | Nhận xét |
+|---|---|---|---|---|---|---|
+| E01 | Một bước | 30/30 | V2 | 5/5/5/5/5/5 | 30/30 | Trả thẳng câu sửa; không skill/TIP/check thừa. |
+| E02 | Code | 26/30 | V2-fix | 5/5/5/4/3/4 | 26/30 | Rubric 8 đúng; hunk counts đúng. Patch chưa apply được vào fixture nguyên trạng; giữ UNVERIFIED/NOT READY. |
+| E03 | Refinery | 27/30 | V2 | 5/5/4/5/4/5 | 28/30 | Nguồn sao chép không nâng corroborated; Beta disputed, thiếu số honest-null; phân bố 6 ô khớp. |
+| E04 | SOT | 27/30 | V2-fix | 5/5/4/4/4/4 | 26/30 | Owner chưa chốt, không chọn doanh thu, gate đóng. Tool bắt quote/count sai trong nháp; số nguồn cuối khớp. |
+| E05 | HTML 3D | 24/30 | V2 | 5/5/5/5/5/4 | 29/30 | 12 claim phân bố khớp; 360 giây khớp; bite-fail đóng gate, ghi rõ demo/NOT_CHECKED. |
+| E06 | VI prose | 30/30 | V2 | 5/5/5/5/5/5 | 30/30 | Giữ command/Docker/chưa benchmark, bỏ văn rỗng; không thêm số. |
+| E07 | EN blog | 22/30 | V2 | 5/4/4/3/3/4 | 23/30 | 186 từ nếu bỏ mọi heading, 206 nếu tính H2 trong thân bài; SEO 40/143 ký tự đúng. Còn giả định vị trí ngoài các ngõ đông. |
+| E08 | Đọc dài | 30/30 | V2 | 5/5/5/5/5/5 | 30/30 | Đọc thẳng resource đúng skill, đủ 9051 ký tự; EOF/suffix khớp; không bịa Trigger. |
+
+Tổng **216/240 → 222/240**; trung bình toàn rubric **4,50 → 4,625**. Trung bình riêng output **4,00 → 4,25/5**, đạt ngưỡng 4, nhưng không đủ thay các hard gate.
+
+### Ba lỗi mục tiêu và vấn đề còn lại
+
+| Vấn đề v1 | Bằng chứng v2 | Kết luận |
+|---|---|---|
+| Rubric cộng sai | Sau fix, tool và final đều 8 từ 2+0+2+2+2 | Đã sửa ở lượt cuối; full V2 đầu vẫn mắc |
+| Slide phân bố 12 nhưng cộng 8, gate còn bite fail vẫn mở | 4+3+2+2+1=12; trong/ngoài 4/8; 70+110+110+70=360; case bite-fail gate đóng | Đã sửa trong full V2, số giả lập có nhãn |
+| Blog báo 185 dù 222 từ | Final có 186 từ ở các paragraph và tool trả đúng 186; H1/SEO loại khỏi đếm. **Nếu tính cả H2 thuộc thân bài thì 206**, không đạt 160–200 theo cách đếm strict | Phép đếm không còn bịa; scope đếm vẫn hở, chưa xác nhận AC độ dài toàn thân bài |
+
+SEO title/meta thực tế **40/143** ký tự, khớp claim. Không giấu phần scope ambiguity bằng cách chỉ báo 186 PASS. V1 không có nhiều H2 như bản này; cần khóa cách đếm trước khi so word-limit AC một cách tuyệt đối.
+
+Patch E02 cuối dù đúng hunk counts vẫn **không apply được vào fixture nguyên trạng**: context bỏ dòng comment `# discount.py` trong code được cung cấp; patch còn tạo test_discount.py trong khi fixture vật lý đã có file ấy. Lỗi thứ hai là giới hạn/harness-context: prompt không liệt kê file test sẵn có nên không quy hết cho model. Không tự chữa patch để cho PASS. V1 R3 đã apply/test được; v2 chưa đạt bằng chứng đó. Giữ UNVERIFIED là trung thực, nhưng chưa thể đánh dấu AC code hoàn tất. Xem `V2-fix/E02/patch-validation.json`.
+
+### Paging
+
+Full V2 E08 gọi offsets **0/5500**, trả ranges [0,5500)/[5500,9051), COMPLETE/EOF. Nối tool content **khớp toàn bộ file gốc 9.051 ký tự**; câu trích `OVERALL STATUS: READY / NEEDS FIXES / MAJOR ISSUES` nằm đúng 900 ký tự cuối. Model bác tiền đề Trigger sai. Không shell/LLM phụ trong bài. Đây vẫn là đọc tài nguyên skill, không phải nghiệm thu PDF/document stack tùy ý.
+
+### Tokens, chi phí và giới hạn
+
+| Tập so sánh | Runs | Calls | Input | Cached (nằm trong input) | Output | USD ước tính |
+|---|---:|---:|---:|---:|---:|---:|
+| 4.6_initial_R1 | 8 | 39 | 349802 | 253824 | 5432 | 0.351460 |
+| 4.6_latest_mixed | 8 | 36 | 360196 | 250112 | 5942 | 0.380876 |
+| 4.6_all_v1 | 16 | 68 | 641546 | 433664 | 11320 | 0.700516 |
+| 4.7_full_V2 | 8 | 47 | 773108 | 579712 | 23423 | 0.817186 |
+| 4.7_latest_mixed | 8 | 47 | 779492 | 537600 | 24887 | 0.901906 |
+| 4.7_all_v2 | 10 | 60 | 1004528 | 713600 | 33233 | 1.138054 |
+
+Đợt v2: **1,138054 USD**, gồm full 8 bài **0,817186 USD** và hai affected reruns **0,320868 USD**. Tổng cả v1+v2 **1,838570 USD**, dưới ngân sách 5 USD. Tổng v2 input+output **1.037.761 tokens**; cache đã nằm trong input, không cộng lần hai.
+
+Cap observer v2 **4,25 USD** để kể cả v1 vẫn dưới 5 USD; 160 requests, 1,5 triệu reported tokens, 3.072 output tokens/request. Theo metadata OSA/models.dev: input/cache/output 2/0,5/6 USD trên triệu token, không phải hóa đơn xAI. Không provider error, usage thiếu, budget stop hoặc length truncation. Giá trị tiền trong bảng dùng dấu chấm theo định dạng kỹ thuật JSON.
+
+### Regression và publish gate
+
+- `uv run pytest -q`: **147 passed** (21 test verifier mới; target verifier+skillpack 37 pass).
+- Frontend **15 passed**, production build PASS; còn cảnh báo bundle >500 kB cũ.
+- i18n en/vi: backend 500, frontend 883; thiếu/thừa 0, Chinese UI chưa bọc 0.
+- Normal server HTTP 200, bốn bot gốc, đủ tám shared skill. 129 byte-source hashes bên thứ ba giữ nguyên; chỉ sửa wrapper/mentor, không commit nguồn hoặc transcript chứa source.
+- Routing đúng domain: PASS; paging: PASS; regression phần mềm: PASS; average output ≥4: PASS.
+- Zero inaccurate/scope-misleading self-reported numbers: **PARTIAL**, vì count paragraph đúng nhưng chưa khóa/đạt word-limit thân bài có H2. Artifact code apply/test so với lượt 4.6 cuối: **NOT MET**.
+- **NO-GO cho push theo điều kiện nghiệm thu của người dùng**. Không cần tăng phí để ép một mẫu ngẫu nhiên thành PASS. Bước cần làm tiếp là khóa counting scope và kiểm context/apply thật, không chỉ thêm lời nhắc “hãy tự kiểm”. Tool đúng phép tính vẫn không chứng minh model đã truyền input đúng/đủ.
+
+### Artifacts v2
+
+- Root riêng: `/workspace/osa-ui-shots/ai-native/live-eval-v2/`.
+- `models.json`, `previous-roles.json`, `active-config.json`, `TIP.md`, `cases.json`, `RUBRIC.md`.
+- Full `V2/E01..E08/` + `V2-fix/E02,E04/`: transcript.json/md, events.jsonl, tool-trace.jsonl, model-transcript.jsonl. Global `trace.jsonl` gồm request/chunks/results thật, private, không public git.
+- `scores.json`, `usage-comparison.json`, `usage-by-case.json`, `run-checks.json`, `paging-proof.json`, `blog-final-check.json`, `V2-fix/E02/patch-validation.json`.
+- Regression logs: pytest.log, i18n.log, frontend-tests.log, frontend-build.log. `cleanup.json` ghi model phục hồi và bot tạm đã xóa.
+- Zip local-only cập nhật: `/workspace/osa-ui-shots/ai-native-osa-pack.zip`. Bản zip không thay được Python tool mới; để có verify_facts phải cập nhật code repo, không chỉ import SKILL.md.

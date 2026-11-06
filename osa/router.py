@@ -6,7 +6,7 @@ import json
 import time
 from .computer import tools as ctools
 from .config import CFG, call_kwargs, client_for
-from . import approvals, bots, dm, i18n, library, memories, memory, routines, search, skills, skillpacks, tasklog
+from . import approvals, bots, dm, i18n, library, memories, memory, routines, search, skills, skillpacks, tasklog, verification
 from . import worker as worker_mod
 from .worker import Task, run_worker, run_heavy
 
@@ -117,7 +117,7 @@ DIRECT_PC = {"computer_screenshot", "computer_click", "computer_type",
              "computer_key", "computer_scroll", "browser_open", "browser_snapshot", "browser_click",
              "browser_type", "browser_key", "browser_scroll", "browser_back", "browser_read"}
 
-ROUTER_TOOLS = [*skillpacks.SCHEMAS, *[s for s in ctools.SCHEMAS if s["function"]["name"] in DIRECT_PC],
+ROUTER_TOOLS = [verification.SCHEMA, *skillpacks.SCHEMAS, *[s for s in ctools.SCHEMAS if s["function"]["name"] in DIRECT_PC],
     {"type": "function", "function": {"name": "dispatch", "description": "派发后台任务",
         "parameters": {"type": "object", "properties": {
             "goal": {"type": "string", "description": "完整、自包含的任务描述"},
@@ -343,7 +343,7 @@ class Router:
             name=b["name"], instructions=b["instructions"] or "你的具体职责以用户在对话里交代的为准。",
             date=time.strftime("%Y-%m-%d"), skills=skills.summary(self.bot_id), routines=self._routine_list(),
             capabilities=self._capabilities(), memories=memories.prompt_block(self.bot_id),
-            group=self._group_block(chat), others=self._others()) + i18n.model_hint() + skillpacks.runtime_hint(self.bot_id)
+            group=self._group_block(chat), others=self._others()) + i18n.model_hint() + verification.HINT + skillpacks.runtime_hint(self.bot_id)
         recent = memories.turn_block(self.bot_id, related)
         state = STATE_PROMPT.format(tasks=self._task_list(), approvals=approvals.summary(self.bot_id),
                                     memories="\n\n" + recent if recent else "", turn=self._turn_block())
@@ -401,6 +401,8 @@ class Router:
         return None
 
     async def _tool(self, name: str, args: dict) -> str:
+        if name == "verify_facts":
+            return verification.tool(args)
         if name in skillpacks.NAMES:
             return skillpacks.tool(self.bot_id, name, args)
         if name == "dispatch":

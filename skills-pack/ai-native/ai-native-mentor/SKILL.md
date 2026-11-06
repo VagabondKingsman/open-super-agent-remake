@@ -69,6 +69,19 @@ Chỉ đưa claim vào nguồn chuẩn sau khi owner duyệt. `sot-kernel-in-a-b
 
 Slide/code chỉ đọc bản dữ liệu đã qua gate. Nguồn đổi thì kiểm lại digest; không sửa số trực tiếp trong slide để né lỗi kho chuẩn.
 
+## Kiểm số và AC bằng công cụ tất định
+
+Trước khi nói artifact đạt AC hoặc báo số từ/ký tự/tổng tự tính, **bắt buộc gọi `verify_facts`**. Không tự nhẩm rồi ghi “đã đối chiếu”. Áp dụng cả prose ngắn nếu có claim số lượng; sửa một lỗi chính tả không có claim số thì trả thẳng.
+
+- `draft`: bản cuối nguyên văn trước ghi chú kiểm tra. `texts`: đoạn cần đếm, mỗi mục có id/text và min_words/max_words khi có giới hạn. Blog chỉ đếm thân bài, bỏ title/SEO/tóm tắt. `words` là token tách theo khoảng trắng của Python; tiếng Việt không phải số từ ngôn ngữ học. `chars` là Unicode code points.
+- `sums`: id, values và claimed_total để kiểm tổng Rubric hoặc phân bố trạng thái. Ví dụ values=[2,0,1,2,2], claimed_total=4 sẽ FAIL và trả total đúng. Tổng trong bản cuối phải lấy từ kết quả công cụ. Không tự đổi các điểm thành phần chỉ để đủ gate.
+- `number_checks`: expected/actual là số canonical, kèm source_quote/draft_quote nguyên văn; truyền source đúng input và draft thật. Công cụ kiểm số và vị trí quote, không xác nhận ý nghĩa/đơn vị hoặc tính xác thực của nguồn. `source_number_format`/`draft_number_format` xử lý VI/EN khác nhau; ví dụ số canonical là 650000, không dùng chuỗi 650.000 làm giá trị JSON.
+- `checklist`: id + check_ids trỏ tới các phép kiểm đã tính. AC chạy test/render/gate chưa có bằng chứng máy phải để check_ids rỗng, nhận NOT_CHECKED. PASS số từ không chứng minh bài đúng sự thật; PASS phép cộng không chứng minh test đã chạy.
+- `diffs`: gửi unified diff nguyên văn để công cụ đếm hunk từ dòng thật; phép cộng trên số dòng tự khai không kiểm được patch. Công cụ chỉ kiểm số dòng, không apply/test.
+- `calculation_status=COMPLETE` nghĩa là số tính được đáng dùng cho input đã truyền. FAIL là claim/giới hạn sai, không phải công cụ không biết cộng; sửa draft theo total/count trả về, không giữ số nhẩm rồi gắn NOT_CHECKED cho tổng đúng.
+- Copy kết quả đúng, sửa draft nếu FAIL rồi gọi lại trên bản đã sửa. SHA-256 trong kết quả gắn với đúng text/draft; không đổi thân bài sau kiểm. Kết quả quá lớn báo lỗi thì chia batch, không coi lỗi là PASS.
+- Số minh họa trong slide phải ghi giả lập, phân bố cộng đúng mẫu số. Gate chỉ mở khi các điều kiện bắt buộc thật sự đạt; demo còn bite FAIL hoặc chưa chạy thì gate đóng/NOT_CHECKED. Số liệu trích từ input phải giữ provenance, không tự biến thành “đã xác minh”.
+
 ## 6. Giới hạn và bàn giao
 
 - Skill là phương pháp, không tạo thêm shell, browser, connector hay quyền truy cập.

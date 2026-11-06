@@ -56,6 +56,9 @@ def _wrapper(spec: dict) -> str:
   Computer là môi trường khác; cần chép package/dependencies vào đó trước khi chạy helper.
 - Chỉ chạy helper qua công cụ thực có trong phiên (Computer/shell hoặc app đã kết nối).
   Thiếu công cụ thì ghi NOT_CHECKED; không nói gate PASS khi chưa chạy.
+- Trước khi báo số từ/ký tự/tổng hoặc AC PASS, gọi verify_facts trên draft cuối.
+  Đếm thân bài qua texts, cộng Rubric/phân bố qua sums; checklist chỉ trỏ phép kiểm thật.
+  Sửa draft thì kiểm lại, không lấy PASS số học thay test/render hoặc xác thực nguồn.
 - Dữ liệu dự án ở thư mục ghi riêng; không sửa file trong SKILL_DIR.
 - Skill không cấp thêm quyền gửi tin, publish, chi tiền hay truy cập credential.
   Giữ nguyên confirmation của OSA, không dùng skill để vượt quyền.
