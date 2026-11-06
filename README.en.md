@@ -11,7 +11,7 @@ An open-source alternative to [Grok Bot](https://x.ai/bot). Bring your own model
 ![Python](https://img.shields.io/badge/python-3.11%2B-3776ab)
 ![Status](https://img.shields.io/badge/status-alpha-orange)
 
-[简体中文](README.md) · English
+[Tiếng Việt](README.md) · English · [简体中文](README.zh.md)
 
 <a href="docs/images/demo.mp4"><img src="docs/images/demo.gif" alt="Demo: Scout researches on the computer and hands off to Quill in a group chat; teaching a task; the library" width="860"></a>
 

@@ -2,73 +2,74 @@
 
 # open-super-agent
 
-**可以自己部署的常驻 AI 队友：会聊天，会派活，还有一台能看、能接手的电脑。**
+**AI teammate tự host, luôn sẵn sàng: chat, giao việc nền, và có một Computer bạn xem được, nhận quyền điều khiển được.**
 
-开源，可替代 [Grok Bot](https://x.ai/bot)。模型自选，按 token 计费。
+Bản remake nguồn mở, thay thế [Grok Bot](https://x.ai/bot). Chọn model theo ý, tính phí theo token. Fork từ [kadaliao/open-super-agent](https://github.com/kadaliao/open-super-agent) với i18n tiếng Việt.
 
 [![CI](https://github.com/kadaliao/open-super-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/kadaliao/open-super-agent/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-3776ab)
 ![Status](https://img.shields.io/badge/status-alpha-orange)
 
-简体中文 · [English](README.en.md)
+**Tiếng Việt** · [English](README.en.md) · [简体中文](README.zh.md)
 
-<a href="docs/images/demo.mp4"><img src="docs/images/demo.gif" alt="演示：群聊里 Scout 在电脑上查资料后交给 Quill 写介绍；演示一遍生成技能；资料库" width="860"></a>
+<a href="docs/images/demo.mp4"><img src="docs/images/demo.gif" alt="Demo: Scout nghiên cứu trên Computer rồi handoff cho Quill trong group chat; Teach a task; Library" width="860"></a>
 
-<sub>群聊交接 → 演示一遍生成技能 → 资料库（等待模型的部分已加速）· <a href="docs/images/demo.mp4">看高清版 MP4</a></sub>
+<sub>Group handoff → Teach a task → Library (phần chờ model đã tăng tốc) · <a href="docs/images/demo.mp4">Xem MP4 HD</a></sub>
 
 </div>
 
-## 为什么做这个
+## Vì sao làm cái này
 
-Grok Bot 的体验很好，但价格高，模型也换不了。open-super-agent 的交互方式参照 Grok Bot：常驻的 Bot、后台任务、一台能实时观看的电脑。架构借鉴 DeepSeek 的 Super-agent 设计（Router / Worker / Watchdog）。部署在你自己的机器上，模型和花费由你决定。
+Grok Bot dùng rất đã, nhưng đắt và model khóa cứng. open-super-agent bắt chước cách tương tác đó: Bot luôn sẵn, task nền, Computer xem realtime. Kiến trúc lấy cảm hứng từ DeepSeek Super-agent (Router / Worker / Watchdog). Chạy trên máy của bạn — model và chi phí do bạn quyết.
 
-## 功能
+## Tính năng
 
-- 🤖 **多个 Bot**：每个 Bot 有名字、头像、人设和独立对话；回复流式输出，思考过程可以折叠。
-- 👥 **群聊**：2–6 个 Bot 一个群。`@` 谁谁回答，`@所有人` 大家都说；不 @ 的消息由协调者接，它会分给合适的 Bot。Bot 之间能交接工作，比如一个查完资料，自动交给另一个写总结。要你确认的操作只出现在各自的私聊里。
-- ✉️ **Bot 之间私信**：不用拉群，Bot 也能私信另一个 Bot 请它帮忙（“让 postman 看看有没有 Anthropic 的邮件”）。对方在自己的私聊里处理，做完结果自动回到原来的对话，再由它告诉你。
-- ⚡ **后台任务**：耗时的活交给 Worker 在后台做，你可以接着聊。**Heavy 模式**下多个 Worker 各自做一遍，再互审汇总。
-- 🖥️ **电脑**：所有 Bot 共用一台 Linux 桌面（Chromium 和终端）。网页通过 CDP 直接控制，按元素操作、读页面文字，又快又准；你能实时看屏幕，随时接手和交还；遇到验证码、登录这类步骤，Bot 会请你来做。
-- 🔌 **应用市场**：侧栏“应用”里挑应用连接。Notion、flomo、腾讯文档、钉钉、滴答清单、Todoist 等点一下、用账号登录就行；Gmail、QQ 邮箱、飞书、企业微信、GitHub 填一个密码、token 或链接；Slack 建个应用后登录；也能接任意 MCP server。聊天里用 `@` 指定。每个应用是一份清单文件，[写一份提个 PR](docs/apps.md) 就能上架。
-- ✅ **确认与保险库**：写操作先弹卡片问你（允许一次 / 拒绝 / 总是允许），规则可在设置里管理；密钥加密保存，不进聊天记录。
-- 🧩 **技能**：输入 `/名字` 调用可复用的做事方法；可以让 Bot 把刚才的做法存成技能，也能在右栏编辑。点**演示一遍**，在电脑上亲手做一次，Bot 把录下的操作整理成技能草稿给你审核。技能可以导出成文件、生成分享链接，别人粘贴链接就能装；Claude 等用的 `SKILL.md` 也能直接导入。
-- 🎁 **Bot 模板**：新建 Bot 时挑一个现成的（资讯助手、邮件管家、项目观察员、出行助手），技能和定时任务都配好了。自己调好的 Bot 也能做成模板分享出去，[写一个模板](docs/templates.md)提 PR 就能放进内置。
-- 🧠 **记忆**：每个 Bot 记得你的偏好和它做过的事；名字、时区这类关于你的基本事实所有 Bot 共享。说“记住……”就行，也能在右栏查看、修改、删除，或从 ChatGPT 等助手导入。聊久了可以点“新话题”，之前的对话不再带进上下文，记忆还在。记忆和资料库能按意思找：Bot 会自己去查以前记下的事和做过的页面。
-- 📚 **资料库**：Bot 做好的报告和网页存成页面，可以置顶、生成分享链接；共用电脑里的文件可以浏览、上传、下载。聊天时也能直接发附件。
-- ⏰ **定时任务**：每个 Bot 自己的定时任务（每天 / 每周几定时、每隔一段时间、webhook），支持暂停、恢复、测试，保留最近 20 次运行记录。在对话里说“每天 9 点帮我……”就能建。webhook 事件先过关键词过滤，再交给便宜的模型判断要不要处理。
-- 💬 **聊天软件**：在 Telegram、飞书、钉钉、企业微信、Discord 里直接和 Bot 说话，和网页上是同一个对话；要你确认的操作变成消息里的按钮，发文件、发语音（钉钉、企业微信）也行。服务器不需要公网地址，[几步就能连上](docs/channels.md)。
-- 📱 **手机**：能添加到主屏幕当应用用；有语音输入；不开着页面时，需要你确认的事、做完的任务会推送到手机。手机上也能看屏幕、接手电脑打字、处理确认。
-- 💰 **费用透明**：按角色、任务和天统计 token 和金额，有每日预算；Watchdog 会自动取消卡住、死循环或超预算的任务。
-- 📦 **备份与迁移**：全部数据（连同密钥）导出成一个加密文件，换机器、从本机搬到服务器时上传就能接着用；服务器上也能用命令行定时备份。
-- 🔄 **模型自选**：在设置里添加模型服务（DeepSeek、OpenAI、OpenRouter、硅基流动、阿里云百炼、智谱、Kimi、Ollama，或任何兼容 OpenAI 的接口），填 API Key、点一下测试就能用；对话、后台任务等各自选模型，单价自动获取。
+- 🤖 **Nhiều Bot**: mỗi Bot có tên, avatar, persona và hội thoại riêng; trả lời streaming, phần thinking có thể gập/mở.
+- 👥 **Group chat**: 2–6 Bot trong một nhóm. `@` Bot nào Bot đó trả lời, `@everyone` thì tất cả nói; tin không `@` do coordinator nhận rồi phân cho Bot phù hợp. Bot handoff cho nhau (một Bot research xong, giao Bot khác viết tóm tắt). Approval chỉ hiện trong private chat của từng Bot.
+- ✉️ **DM giữa các Bot**: không cần group. Bot có thể DM Bot khác nhờ giúp (“nhờ Postman xem có mail Anthropic không”); bên kia làm trong chat riêng, kết quả tự về hội thoại gốc.
+- ⚡ **Background task**: việc lâu đưa cho Worker làm nền, bạn vẫn chat tiếp. **Heavy mode** chạy nhiều Worker song song rồi reviewer gộp kết quả.
+- 🖥️ **Computer**: mọi Bot dùng chung một Linux desktop (Chromium + terminal). Web điều khiển qua CDP (theo element, đọc text trang) — nhanh và chính xác; xem màn hình live, take over / hand back bất cứ lúc nào; captcha và login thì Bot nhờ bạn làm.
+- 🔌 **App market**: chọn app ở sidebar Apps. Notion, flomo, Tencent Docs, DingTalk, TickTick, Todoist… thường one-click + login; Gmail, QQ Mail, Feishu, WeCom, GitHub cần password / token / link; Slack tạo app rồi login; MCP server bất kỳ cũng nối được. Trong chat dùng `@app`. Mỗi app là một manifest — [viết một file rồi mở PR](docs/apps.md) là lên catalog.
+- ✅ **Approval & vault**: thao tác ghi hiện card (allow once / deny / always allow), rule quản trong Settings; secret mã hóa, không vào chat log.
+- 🧩 **Skills**: gọi `/tên` để tái dùng quy trình; nhờ Bot lưu cách vừa làm thành skill, hoặc sửa ở side panel. **Teach a task**: bạn làm một lần trên Computer, Bot biến recording thành skill draft để duyệt. Export file hoặc share link; người khác dán link là cài; `SKILL.md` (Claude và tương tự) import được.
+- 🎁 **Bot templates**: tạo Bot mới từ template sẵn (news digest, inbox helper, GitHub watcher, trip planner) kèm skills + routines. Bot đã chỉnh có thể xuất thành template để share; [viết template](docs/templates.md) rồi PR để đưa vào built-in.
+- 🧠 **Memory**: mỗi Bot nhớ preference và việc đã làm; fact cơ bản về bạn (tên, timezone) dùng chung mọi Bot. Nói “nhớ…” hoặc xem/sửa/xóa/import (vd. từ ChatGPT) ở side panel. **New topic** bỏ message cũ khỏi context nhưng giữ memory. Memory và Library tìm theo nghĩa; Bot tự lookup note/page cũ.
+- 📚 **Library**: báo cáo và trang web lưu thành Pages (pin, share link); browse/upload/download file trên Computer dùng chung; đính kèm file trong chat.
+- ⏰ **Routines**: lịch riêng từng Bot (hàng ngày / theo thứ, mỗi N phút, webhook) — pause / resume / test, giữ 20 lần chạy gần nhất. Nói “mỗi ngày 9 giờ…” là tạo được. Webhook qua keyword filter rồi model rẻ quyết định có xử lý không.
+- 💬 **Chat apps**: nói với Bot qua Telegram, Feishu/Lark, DingTalk, WeCom, Discord — cùng conversation với web UI. Approval thành nút; gửi file (và voice trên DingTalk / WeCom). Không cần public IP ([hướng dẫn](docs/channels.md)).
+- 📱 **Mobile**: thêm ra home screen (PWA); voice input; push khi cần approval hoặc task xong dù không mở trang. Xem màn hình, take over, gõ chữ, xử lý approval trên điện thoại.
+- 💰 **Chi phí rõ**: thống kê token/tiền theo role, task và ngày; daily budget; Watchdog hủy task bị treo, loop hoặc vượt budget.
+- 📦 **Backup & migration**: export toàn bộ data (kèm secret) thành file mã hóa; máy mới upload là tiếp tục; server có thể cron backup CLI.
+- 🔄 **Model tùy chọn**: thêm provider trong Settings (DeepSeek, OpenAI, OpenRouter, SiliconFlow, Alibaba Bailian, Zhipu, Kimi, Ollama, hoặc endpoint OpenAI-compatible bất kỳ), dán API key, test một click; chọn model theo role; giá tự lấy.
 
-## 快速开始
+## Bắt đầu nhanh
 
-用 Docker Compose，只需要装 Docker：
+Docker Compose — chỉ cần Docker:
 
 ```bash
-git clone https://github.com/kadaliao/open-super-agent.git && cd open-super-agent
-cp .env.example .env     # 可以先填上 DEEPSEEK_API_KEY，也可以打开后在 设置 → 模型 里填
-docker compose up -d     # 第一次要构建镜像，大约 5–10 分钟；打开 http://127.0.0.1:8765
+git clone https://github.com/VagabondKingsman/open-super-agent-remake.git && cd open-super-agent-remake
+git checkout i18n-vi
+cp .env.example .env     # có thể điền DEEPSEEK_API_KEY, hoặc mở Settings → Models sau
+docker compose up -d     # build lần đầu ~5–10 phút; mở http://127.0.0.1:8765
 ```
 
-第一次打开会有引导：接上一个模型服务、认识你的 Bot（或从模板装一个）、连一个常用应用，三步就能开始用。
+Lần đầu mở sẽ có onboarding: nối model provider, làm quen Bot (hoặc cài từ template), nối một app thường dùng.
 
-自动 HTTPS、电脑改用 Instabox、国内镜像源、备份，见 [用 Docker Compose 部署](docs/docker.md)。
+HTTPS tự động, Computer dùng Instabox, mirror mạng Trung Quốc, backup: xem [Deploy với Docker Compose](docs/docker.md). Hướng dẫn vận hành tiếng Việt: [docs/huong-dan-vi.md](docs/huong-dan-vi.md). Cập nhật từ upstream: [docs/cap-nhat-tu-upstream.md](docs/cap-nhat-tu-upstream.md).
 
 <details>
-<summary>不用 Docker 运行</summary>
+<summary>Chạy không dùng Docker Compose (dev)</summary>
 
-需要 Python ≥ 3.11 和 [uv](https://docs.astral.sh/uv/)、Node ≥ 20；本地电脑仍要 Docker（用 Instabox 时不需要）。
+Cần Python ≥ 3.11 và [uv](https://docs.astral.sh/uv/), Node ≥ 20; Computer backend local vẫn cần Docker (Instabox thì không).
 
 ```bash
-export DEEPSEEK_API_KEY=sk-...              # 可选，也可以打开后在 设置 → 模型 里填；环境变量一览见 .env.example
-(cd web && npm ci && npm run build)         # 构建前端
-uv run uvicorn osa.server:app --port 8765   # 打开 http://127.0.0.1:8765
+export DEEPSEEK_API_KEY=sk-...              # tùy chọn; xem .env.example
+(cd web && npm ci && npm run build)
+uv run uvicorn osa.server:app --port 8765   # mở http://127.0.0.1:8765
 ```
 
-第一次用电脑时会自动构建本地镜像，需要几分钟。国内网络可以先手动构建，用镜像源加速：
+Lần đầu dùng Computer sẽ build image local vài phút. Mạng chậm có thể build tay kèm mirror:
 
 ```bash
 docker build --build-arg APT_MIRROR=mirrors.ustc.edu.cn -t osa-computer:1 osa/computer/image
@@ -77,44 +78,49 @@ docker build --build-arg APT_MIRROR=mirrors.ustc.edu.cn -t osa-computer:1 osa/co
 </details>
 
 > [!WARNING]
-> 默认**不用登录**，只能在本机或内网（例如 Tailscale）使用。要部署到公网，先设置 `OSA_PASSWORD` 打开登录，再用 HTTPS 访问，见 [配置 → 部署到公网服务器](docs/configuration.md#部署到公网服务器) 和 [SECURITY.md](SECURITY.md)。
+> Mặc định **không login** — chỉ dùng localhost hoặc mạng riêng (vd. Tailscale). Public internet: đặt `OSA_PASSWORD` bật login và phục vụ HTTPS. Xem [configuration](docs/configuration.md) và [SECURITY.md](SECURITY.md).
 
-## 文档
+## Tài liệu
 
-| 文档 | 内容 |
+| Tài liệu | Nội dung |
 |---|---|
-| [用 Docker Compose 部署](docs/docker.md) | 一条命令跑起来、自动 HTTPS、数据和备份、国内网络 |
-| [配置](docs/configuration.md) | 模型服务和各项工作用的模型、限额与单价、电脑后端、应用、确认规则与保险库、定时任务、远程访问 |
-| [架构](docs/architecture.md) | 各组件如何协作、代码目录、设计约定 |
-| [开发](docs/development.md) | 本地开发、测试方法、调试技巧 |
-| [聊天软件](docs/channels.md) | 连接 Telegram、飞书、钉钉、企业微信、Discord，配对，权限和常见问题 |
-| [给应用市场加应用](docs/apps.md) | 应用清单的格式、图标、在本机试、提 PR |
-| [写一个 Bot 模板](docs/templates.md) | 模板的格式、从现有 Bot 导出、加进内置 |
-| [路线图](docs/roadmap.md) | 接下来的方向和先后顺序；之前对齐 Grok Bot 的计划见 [这里](docs/grok-bot-parity.md) |
-| [更新日志](CHANGELOG.md) | 各版本的变化 |
+| [Hướng dẫn tiếng Việt](docs/huong-dan-vi.md) | Vận hành bot remake hiện tại (VI) |
+| [Cập nhật từ upstream](docs/cap-nhat-tu-upstream.md) | Fetch/merge upstream, push, build (VI) |
+| [i18n](docs/i18n.md) | Locale VI/EN/ZH |
+| [Deploy với Docker Compose](docs/docker.md) | Một lệnh chạy, HTTPS, data & backup |
+| [Configuration](docs/configuration.md) | Model, limit & giá, Computer backend, apps, approval & vault, routines, remote |
+| [Architecture](docs/architecture.md) | Thành phần, thư mục code, convention |
+| [Development](docs/development.md) | Dev local, test, debug |
+| [Chat apps](docs/channels.md) | Telegram, Feishu, DingTalk, WeCom, Discord — pair, quyền, FAQ |
+| [Thêm app vào market](docs/apps.md) | Format manifest, icon, thử local, PR |
+| [Viết Bot template](docs/templates.md) | Format template, export từ Bot, đưa vào built-in |
+| [Roadmap](docs/roadmap.md) | Hướng tiếp theo; plan parity Grok Bot: [grok-bot-parity](docs/grok-bot-parity.md) |
+| [Changelog](CHANGELOG.md) | Thay đổi theo version |
 
-## 路线图
+## Roadmap
 
-和 Grok Bot 对齐的功能已经全部做完（v0.3.0，见 [更新日志](CHANGELOG.md)）。接下来的方向：
+Tính năng parity với Grok Bot đã xong ở v0.3.0 (xem [Changelog](CHANGELOG.md)). Hướng tiếp theo:
 
-- **应用生态**：应用和 Bot 模板主要靠社区提 PR 收录，项目补齐清单格式和连接方式上缺的能力。
-- **更多客户端**：macOS / Windows 桌面端（菜单栏、快捷键、系统通知，还能把你自己的电脑借给 Bot 用）；iOS / Android 原生 App；在聊天软件的群里使用机器人。
-- **电脑**：多台电脑并行；“演示一遍”从浏览器扩展到整个桌面；快照与回滚。
-- **Bot 能力**：语音对话。
-- **好部署、好上手**：界面英文版。
+- **App ecosystem**: app và Bot templates chủ yếu từ community PR; project bổ sung format manifest và cách kết nối còn thiếu.
+- **Thêm client**: desktop macOS / Windows (menu bar, hotkey, system notification, cho Bot mượn máy thật của bạn); native iOS / Android; dùng bot trong group chat của app chat ngoài.
+- **Computer**: nhiều máy song song; Teach a task mở rộng ra cả desktop; snapshot & rollback.
+- **Năng lực Bot**: voice conversation.
+- **Dễ deploy / dễ dùng**: UI tiếng Anh (bản remake này đã có VI/EN/ZH).
 
-每个方向的考虑和先后顺序见 [docs/roadmap.md](docs/roadmap.md)。想要的功能欢迎提 issue。
+Chi tiết và thứ tự ưu tiên: [docs/roadmap.md](docs/roadmap.md). Muốn tính năng nào thì mở issue.
 
-## 参与贡献
+## Đóng góp
 
-欢迎提 issue 和 PR，开始前请先读 [CONTRIBUTING.md](CONTRIBUTING.md)。
+Issue và PR đều welcome — đọc [CONTRIBUTING.md](CONTRIBUTING.md) trước khi bắt đầu.
 
-## 致谢
+Upstream gốc: [kadaliao/open-super-agent](https://github.com/kadaliao/open-super-agent). Remake này: [VagabondKingsman/open-super-agent-remake](https://github.com/VagabondKingsman/open-super-agent-remake).
 
-- DeepSeek Super-agent（2026-10 技术博客）：Router / Worker / Watchdog / Inline & Spill 的架构思路
-- [Grok Bot](https://x.ai/bot)：产品形态和交互方式
-- [Instabox](https://instabox.sh)、[noVNC](https://github.com/novnc/noVNC)、[Model Context Protocol](https://modelcontextprotocol.io)
+## Cảm ơn
 
-## 许可证
+- DeepSeek Super-agent (blog kỹ thuật 2026-10): ý tưởng kiến trúc Router / Worker / Watchdog / Inline & Spill
+- [Grok Bot](https://x.ai/bot): hình thái sản phẩm và tương tác
+- [Instabox](https://instabox.sh), [noVNC](https://github.com/novnc/noVNC), [Model Context Protocol](https://modelcontextprotocol.io)
+
+## License
 
 [MIT](LICENSE) © Kada Liao
