@@ -1,0 +1,132 @@
+{
+  "message_bot": {
+    "description": "私信另一个 Bot，请它帮忙做事。它在自己的私聊里处理，回信会自动回到当前对话，你到时再接着说",
+    "params": {
+      "to": "Bot 的名字",
+      "text": "要它做什么，写完整、自包含（它看不到这里的对话）"
+    }
+  },
+  "handoff": {
+    "description": "在群聊里把工作交给另一个 Bot，它会马上接着做",
+    "params": {
+      "to": "成员的名字",
+      "request": "要它做什么，写完整（它能看到群里之前的消息）"
+    }
+  },
+  "dispatch": {
+    "description": "派发后台任务",
+    "params": {
+      "goal": "完整、自包含的任务描述",
+      "handoff_to": "只在群聊里用：任务完成后把结果交给哪个成员接着做",
+      "handoff_note": "交接时要对方做什么"
+    }
+  },
+  "save_skill": {
+    "description": "保存或覆盖一个技能（可复用的做事方法）",
+    "params": {
+      "name": "简短的名字，用于 /名字 调用，不含空格",
+      "description": "一句话说明什么时候用",
+      "body": "完整的做法：步骤、要用的网站或应用、输出格式"
+    }
+  },
+  "create_routine": {
+    "description": "新建定时任务",
+    "params": {
+      "name": "名字；webhook 类只能用字母数字 - _",
+      "prompt": "每次运行要做的事，写完整",
+      "skill": "可选：每次按哪个技能做（不带 /）",
+      "times": "daily 用：HH:MM 列表",
+      "days": "daily 用：周几运行，周一=1，留空=每天",
+      "minutes": "every 用：间隔分钟，至少 5"
+    }
+  },
+  "remember": {
+    "description": "记下一条长期记忆（以后的对话都会带着）",
+    "params": {
+      "text": "独立完整的一句话，例如“用户希望回答先给结论”",
+      "shared": "关于用户本人的基本事实（名字、时区、所在城市等）为 true，所有 Bot 共享",
+      "replace_id": "可选：用这条替换已有的那条记忆"
+    }
+  },
+  "forget": {
+    "description": "删除一条长期记忆",
+    "params": {}
+  },
+  "list_tasks": {
+    "description": "查看任务状态",
+    "params": {}
+  },
+  "cancel_task": {
+    "description": "取消任务",
+    "params": {}
+  },
+  "resolve_approval": {
+    "description": "处理一个待确认的写操作",
+    "params": {
+      "note": "用户附带的意见，例如修改要求",
+      "always": "用户明确说以后同类操作都不用问时为 true"
+    }
+  },
+  "recall": {
+    "description": "按 id 取回早先消息原文",
+    "params": {}
+  },
+  "look_at_screen": {
+    "description": "看一眼共用电脑现在的屏幕（截图 + 当前窗口标题）。用户问屏幕上有什么、某个任务做到哪了、或者你要判断下一步该派什么任务时用。只看不操作；要操作就派任务。",
+    "params": {}
+  },
+  "browser_open": {
+    "description": "在电脑的浏览器里打开网址（当前标签页），返回页面上可操作元素的编号列表和正文开头"
+  },
+  "browser_snapshot": {
+    "description": "查看浏览器当前页面：可操作元素（带编号 [n]）、正文开头、滚动位置。页面变了或不确定时用。"
+  },
+  "browser_click": {
+    "description": "点击页面元素，ref 是 browser_snapshot 里的编号"
+  },
+  "browser_type": {
+    "description": "在输入框里输入文字（先清空原内容）。ref 是输入框编号；submit=true 时输入完按回车。"
+  },
+  "browser_key": {
+    "description": "在页面上按一个键：Enter、Tab、Escape、Backspace、ArrowDown、ArrowUp、PageDown 等"
+  },
+  "browser_scroll": {
+    "description": "页面滚动一屏"
+  },
+  "browser_back": {
+    "description": "浏览器后退"
+  },
+  "browser_read": {
+    "description": "读取当前页面的完整正文（每次最多 12000 字，用 offset 往后翻）"
+  },
+  "computer_screenshot": {
+    "description": "截取电脑屏幕，返回图片。要看页面画面（图片、图表、布局、验证码）时用；网页内容和元素用 browser_snapshot。"
+  },
+  "computer_click": {
+    "description": "【备用】在屏幕坐标 (x, y) 点击。只在 browser_click 做不到时用（浏览器外的窗口、画布）。"
+  },
+  "computer_type": {
+    "description": "【备用】在当前焦点处输入文字。网页输入框用 browser_type"
+  },
+  "computer_key": {
+    "description": "按键或组合键，例如 Enter、Tab、ctrl+l、ctrl+a、Escape"
+  },
+  "computer_scroll": {
+    "description": "【备用】滚动鼠标所在位置。网页用 browser_scroll"
+  },
+  "computer_shell": {
+    "description": "在电脑的终端执行 bash 命令（工作目录 /data/workspace，文件会保留）。适合下载、处理数据、运行脚本。"
+  },
+  "computer_read_file": {
+    "description": "读取电脑里的文本文件"
+  },
+  "computer_write_file": {
+    "description": "在电脑里写入文本文件（会覆盖）"
+  },
+  "ask_human": {
+    "description": "遇到只有人能完成的步骤（登录、验证码、扫码、支付验证、需要用户本人决定的选择）时调用：用户会接手电脑处理，处理完交还给你后再继续。说明清楚需要用户做什么。"
+  },
+  "ask_approval": {
+    "description": "在执行有后果的操作之前调用，例如提交表单、下单付款、发送消息或邮件、删除数据、发布内容。说明要做什么、影响是什么。用户同意后才能继续。"
+  }
+}

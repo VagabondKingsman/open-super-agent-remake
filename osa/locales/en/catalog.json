@@ -1,0 +1,728 @@
+{
+  "categories": {
+    "notes": "Notes & docs",
+    "mail": "Mail & calendar",
+    "files": "Files",
+    "tasks": "Tasks & collab",
+    "design": "Design",
+    "dev": "Dev",
+    "web": "Search & web",
+    "life": "Life"
+  },
+  "apps": {
+    "airtable": {
+      "title": "Airtable",
+      "desc": "Read/write Airtable bases, tables, records",
+      "example": "@airtable add today’s three contacted clients to Customers with status Contacted",
+      "about": "Official Airtable connector. Pick allowed bases at auth; the Bot can query/add/update records, comment, inspect schema, add fields, create tables.",
+      "can": [
+        "Query records and aggregate",
+        "Add or update records",
+        "Inspect schema, add fields, create tables"
+      ],
+      "by": "Official Airtable"
+    },
+    "amap": {
+      "title": "Amap",
+      "desc": "Maps, POI, weather via Amap",
+      "example": "@amap Saturday Wangjing→Summer Palace: how long by metro vs car?",
+      "fields": {
+        "key": {
+          "label": "Web service key"
+        }
+      },
+      "about": "Official Amap remote MCP. With a Web Service Key the Bot can look up places, routes, ETAs, and weather.",
+      "can": [
+        "Search places, addresses, and coordinates",
+        "Plan driving, transit, walking, cycling routes",
+        "Check city weather"
+      ],
+      "steps": [
+        "Sign in to Amap console → Apps → My apps, create an app",
+        "Add a Key to the app; choose Web Service platform",
+        "Copy the generated key below"
+      ],
+      "how": "Enter a key",
+      "link_label": "Open Amap console",
+      "by": "Official Amap"
+    },
+    "baidu-netdisk": {
+      "title": "Baidu Netdisk",
+      "desc": "Browse Baidu Netdisk",
+      "example": "@baidu-netdisk find last year’s checkup PDF and put it in My files",
+      "fields": {
+        "token": {
+          "label": "access_token",
+          "invalid": "Copy only the part after access_token=, not the whole URL"
+        }
+      },
+      "about": "Official Baidu Netdisk connector. Search by name/meaning, list folders/quota, create folders, move/copy/rename, save from URL, share links; asks before changes. Cannot delete files.",
+      "can": [
+        "Search files by keyword or meaning; list by docs/images/videos",
+        "Create folders; move/copy/rename files (asks first)",
+        "Save a URL to the drive and make a share link (asks first)"
+      ],
+      "steps": [
+        "Click below to open Baidu auth — scan or sign in",
+        "Keep both permissions checked, click Authorize",
+        "You’ll land on a blank page with access_token=… in the URL. Copy the value after access_token= until the next &, paste below"
+      ],
+      "how": "After auth, paste a token",
+      "note": "Auth expires in 30 days — re-authorize, then Change secret and paste the new one. Revoke anytime in Baidu auth management.",
+      "link_label": "Open Baidu auth page",
+      "by": "Official Baidu Netdisk"
+    },
+    "canva": {
+      "title": "Canva",
+      "desc": "Create and edit Canva designs",
+      "example": "@canva make a vertical poster for Saturday’s book club, warm colors",
+      "about": "Official Canva connector. After auth, search designs, generate posters/social/slides, edit text/images, export images or PDFs.",
+      "can": [
+        "Search and view your designs and folders",
+        "Generate designs from a brief using brand templates",
+        "Edit text/images on existing designs; export PNG or PDF"
+      ],
+      "note": "Sign in with canva.com. China canva.cn is a separate account system.",
+      "by": "Official Canva"
+    },
+    "context7": {
+      "title": "Context7",
+      "desc": "Up-to-date library documentation lookup",
+      "example": "@context7 how is DI written in the latest FastAPI?",
+      "about": "Have the Bot look up current library docs instead of relying on stale model memory.",
+      "can": [
+        "Find docs by knowledge-base name",
+        "Get latest usage and sample code for a topic"
+      ],
+      "by": "Official Upstash"
+    },
+    "deepwiki": {
+      "title": "DeepWiki",
+      "desc": "Understand any public GitHub repo: architecture, modules, usage",
+      "example": "@deepwiki how is routing cache implemented in vercel/next.js?",
+      "about": "DeepWiki builds docs for public GitHub repos. Ask how a repo is designed or where a feature lives.",
+      "can": [
+        "Browse repo docs tree and content",
+        "Ask about a repo and get sourced answers"
+      ],
+      "by": "Official Cognition"
+    },
+    "dida": {
+      "title": "TickTick / Dida",
+      "desc": "View and add todos, plan today's tasks",
+      "example": "@dida add those three items as to-dos due by Friday",
+      "about": "Official Dida List connector. After auth, the Bot can view lists/tasks and add, edit, or complete to-dos.",
+      "can": [
+        "View today’s or this week’s tasks",
+        "Add tasks with dates and reminders",
+        "Edit or complete tasks"
+      ],
+      "by": "Official TickTick / Dida"
+    },
+    "dingtalk-aitable": {
+      "title": "DingTalk AI Table",
+      "desc": "Query tables, add records, edit fields",
+      "example": "@dingtalk-aitable add today’s three expense forms to the Expense log table",
+      "about": "Official DingTalk connector. After QR auth, the Bot can read/write AI Tables — query/add/update rows and fields for ledgers, CRM, progress sheets.",
+      "can": [
+        "Query records and summarize",
+        "Add or update records",
+        "View and adjust fields"
+      ],
+      "note": "Sign in with a DingTalk account that belongs to an org.",
+      "by": "Official DingTalk"
+    },
+    "dingtalk-calendar": {
+      "title": "DingTalk Calendar",
+      "desc": "View calendar, create events, book free meeting rooms",
+      "example": "@dingtalk-calendar tomorrow afternoon find a free room for a 30-min Product standup",
+      "about": "Official DingTalk connector. After QR auth, the Bot can view/create events and book free meeting rooms.",
+      "can": [
+        "View today’s or this week’s calendar",
+        "Create calendar event",
+        "Find a free meeting room and book it"
+      ],
+      "note": "Sign in with a DingTalk account that belongs to an org.",
+      "by": "Official DingTalk"
+    },
+    "dingtalk-doc": {
+      "title": "DingTalk Docs",
+      "desc": "Find and create DingTalk documents",
+      "example": "@dingtalk-doc turn this week’s meeting notes into a DingTalk doc",
+      "about": "Official DingTalk connector. After QR auth, the Bot can find docs you can access, create docs, and write organized content.",
+      "can": [
+        "Find docs by title or keywords",
+        "Create a doc and write organized content"
+      ],
+      "note": "Sign in with a DingTalk account that belongs to an org.",
+      "by": "Official DingTalk"
+    },
+    "dingtalk-report": {
+      "title": "DingTalk Reports",
+      "desc": "Write daily/weekly reports, view logs",
+      "example": "@dingtalk-report draft today’s daily report for review before submit",
+      "about": "Official DingTalk connector. After QR auth, the Bot can read report templates/history and draft daily/weekly reports.",
+      "can": [
+        "Read report templates",
+        "View submitted reports",
+        "Write daily/weekly reports from templates"
+      ],
+      "note": "Sign in with a DingTalk account that belongs to an org.",
+      "by": "Official DingTalk"
+    },
+    "dingtalk-todo": {
+      "title": "DingTalk Todos",
+      "desc": "View, add, and complete DingTalk todos",
+      "example": "@dingtalk-todo add those two meeting action items to DingTalk to-dos",
+      "about": "Official DingTalk connector. After QR auth, the Bot can query DingTalk to-dos, create them, and mark done/undone.",
+      "can": [
+        "Filter to-dos by condition",
+        "Create a to-do",
+        "Mark done or undone"
+      ],
+      "note": "Sign in with a DingTalk account that belongs to an org.",
+      "by": "Official DingTalk"
+    },
+    "dropbox": {
+      "title": "Dropbox",
+      "desc": "Find, read, and organize files in Dropbox",
+      "example": "@dropbox find last year’s tax docs",
+      "about": "Official Dropbox connector. After auth, the Bot can search/read files and organize folders.",
+      "can": [
+        "Search files, read content",
+        "Move, rename, organize folders"
+      ],
+      "by": "Official Dropbox"
+    },
+    "evernote": {
+      "title": "Evernote",
+      "desc": "Search, read, and create Evernote notes",
+      "example": "@evernote find the renovation checklist I wrote last year",
+      "about": "Official Evernote connector (international accounts). After auth, the Bot can find, read, and create notes.",
+      "can": [
+        "Search or read notes",
+        "Create a note"
+      ],
+      "note": "International Evernote only — China Yinxiang accounts won’t work.",
+      "by": "Official Evernote"
+    },
+    "exa": {
+      "title": "Exa",
+      "desc": "Semantic web search (Exa)",
+      "example": "@exa find a few 2026 English articles on MCP auth",
+      "about": "Exa’s free remote search — good for English sources and similar pages. Free tier is rate-limited.",
+      "can": [
+        "Semantic web search",
+        "Read page body"
+      ],
+      "by": "Official Exa"
+    },
+    "feishu": {
+      "title": "Feishu",
+      "desc": "Feishu/Lark messages, docs, calendar, tasks",
+      "example": "@feishu find last week’s meeting notes and list open items",
+      "fields": {
+        "url": {
+          "label": "Server URL",
+          "placeholder": "https://mcp.feishu.cn/mcp/mcp_…",
+          "invalid": "Copy the Server URL starting with https://mcp.feishu.cn/mcp/mcp_"
+        }
+      },
+      "about": "Official Feishu personal MCP link (includes your auth). As you, the Bot can search/read cloud docs, comment, create/edit docs; asks before changes.",
+      "can": [
+        "Search and read cloud docs you can access",
+        "Create docs or edit existing ones",
+        "View and add comments"
+      ],
+      "steps": [
+        "Open Feishu MCP, sign in, click Create MCP service on the left",
+        "In MCP tool settings, confirm it’s your own account",
+        "On Add tools click Add → Cloud docs → Add; when prompted, Authorize",
+        "Under How to use MCP, copy Server URL and paste below"
+      ],
+      "how": "Paste a link",
+      "note": "Links expire in 7 days — re-authorize on Feishu MCP before then. Feishu plans to phase out personal links.",
+      "link_label": "Open Feishu MCP page",
+      "by": "Official Feishu"
+    },
+    "fetch": {
+      "title": "Fetch",
+      "desc": "Fetch URL content",
+      "example": "@fetch read this article and list the author’s three main points: https://…",
+      "about": "The Bot can already search/read the web; this turns long pages into cleaner Markdown for better reading.",
+      "can": [
+        "Read page body without ads/nav",
+        "Read long pages in chunks"
+      ],
+      "by": "Official MCP"
+    },
+    "filesystem": {
+      "title": "Filesystem",
+      "desc": "Read/write the local workspace folder",
+      "example": "@filesystem save this weekly report as weekly/this-week.md",
+      "fields": {
+        "path": {
+          "label": "Allowed directory"
+        }
+      },
+      "about": "Let the Bot read/write one server folder (reports, files). Only the directory you allow.",
+      "can": [
+        "List, read, search files",
+        "Create/edit files, make folders"
+      ],
+      "by": "Official MCP"
+    },
+    "flomo-api": {
+      "title": "flomo quick notes",
+      "desc": "Write notes into flomo via API link (write-only)",
+      "example": "@flomo-api save today’s three takeaways to flomo with #journal",
+      "fields": {
+        "url": {
+          "label": "API link",
+          "placeholder": "https://flomoapp.com/iwh/……",
+          "invalid": "The link should start with https://flomoapp.com/iwh/"
+        }
+      },
+      "about": "For flomo PRO: use flomo’s API link so the Bot can write notes. Create-only — no search.",
+      "can": [
+        "Save as a memo, optionally with #tags"
+      ],
+      "steps": [
+        "Open flomo API settings (PRO required)",
+        "Copy the page link that starts with https://flomoapp.com/iwh/",
+        "Paste below"
+      ],
+      "how": "Paste API link",
+      "link_label": "Open flomo API settings",
+      "by": "Community"
+    },
+    "flomo": {
+      "title": "flomo",
+      "desc": "Quick notes on flomo",
+      "example": "@flomo save this note with a #reading tag",
+      "about": "Official flomo connector. The Bot can save ideas to flomo and search/review your notes.",
+      "can": [
+        "Save chat ideas and excerpts as memos",
+        "Search old notes by keyword or tag",
+        "Review what you wrote on a topic"
+      ],
+      "note": "Requires flomo MAX. On PRO only, use Quick flomo capture below.",
+      "by": "Official flomo"
+    },
+    "github": {
+      "title": "GitHub",
+      "desc": "GitHub issues, PRs, repos",
+      "example": "@github what new issues landed on kadaliao/open-super-agent this week?",
+      "fields": {
+        "token": {
+          "label": "Personal access token",
+          "placeholder": "github_pat_……"
+        }
+      },
+      "about": "Official GitHub remote MCP. With a PAT the Bot can read code, inspect issues/PRs, and open issues.",
+      "can": [
+        "Search code, read files",
+        "View/create issues & PRs, write comments",
+        "View Actions run results"
+      ],
+      "steps": [
+        "Open the GitHub create-token page",
+        "Pick repos and scopes (read-only → Read only)",
+        "Generate, then copy and paste below"
+      ],
+      "how": "Paste a token",
+      "link_label": "Open GitHub token settings",
+      "by": "Official GitHub"
+    },
+    "gmail": {
+      "title": "Gmail",
+      "desc": "Read/send Gmail",
+      "example": "@gmail which emails need a reply today? draft responses",
+      "fields": {
+        "email": {
+          "label": "Email address",
+          "placeholder": "you@example.com",
+          "invalid": "Invalid email format"
+        },
+        "password": {
+          "label": "App password"
+        }
+      },
+      "about": "Connect Gmail over IMAP. Search/read/archive mail and draft replies; asks before send/delete. No Google Cloud app — an app password is enough.",
+      "can": [
+        "Search mail by sender, subject, time; read body and attachments",
+        "Archive, move, mark as read",
+        "Draft, reply, forward, send (asks first)"
+      ],
+      "steps": [
+        "Turn on Google 2FA first (skip if already on)",
+        "Open App passwords, name it (e.g. Super Agent), click Create",
+        "Copy the 16-character password below"
+      ],
+      "how": "Email + a password",
+      "link_label": "Open Google app passwords",
+      "by": "IMAP · Community"
+    },
+    "kuaidi100": {
+      "title": "Kuaidi100",
+      "desc": "Track packages, estimate shipping cost and ETA",
+      "example": "@kuaidi100 where is this tracking number: SF1234567890123",
+      "fields": {
+        "key": {
+          "label": "Auth key"
+        }
+      },
+      "about": "Official Kuaidi100 connector. Track parcels (auto-detect carrier), estimate shipping cost/ETA. Lookup only — no shipping orders.",
+      "can": [
+        "Track parcels by number; auto-detect carrier",
+        "Estimate shipping cost",
+        "Estimate delivery time"
+      ],
+      "steps": [
+        "Register on Kuaidi100 API (form needs company name and phone)",
+        "After login, click Admin (top-right)",
+        "Under Auth params find Auth key, reveal it, copy below (not customer)"
+      ],
+      "note": "Free trial quota after signup; top up when used up.",
+      "link_label": "Open Kuaidi100 API platform",
+      "by": "Official Kuaidi100"
+    },
+    "linear": {
+      "title": "Linear",
+      "desc": "Linear issues",
+      "example": "@linear file those three bugs as issues assigned to me",
+      "about": "Official Linear connector. After auth, the Bot can search, create, update issues, and comment.",
+      "can": [
+        "Search and read issues and projects",
+        "Create issues, assign, set priority",
+        "Update status, write comments"
+      ],
+      "by": "Official Linear"
+    },
+    "mail163": {
+      "title": "NetEase 163 Mail",
+      "desc": "Read/search/organize inbox, draft and send for you",
+      "example": "@mail163 which emails need a reply today? draft responses",
+      "fields": {
+        "email": {
+          "label": "Email address",
+          "placeholder": "you@example.com",
+          "invalid": "Invalid email format"
+        },
+        "password": {
+          "label": "Auth code"
+        }
+      },
+      "about": "Connect NetEase 163 Mail over IMAP. The Bot can search/read/archive mail and draft replies; asks before send/delete.",
+      "can": [
+        "Search mail by sender, subject, time; read body and attachments",
+        "Archive, move, mark as read",
+        "Draft, reply, forward, send (asks first)"
+      ],
+      "steps": [
+        "163 Mail web: Settings → POP3/SMTP/IMAP",
+        "Enable IMAP/SMTP and create an auth code as prompted",
+        "Paste the auth code below (not your login password)"
+      ],
+      "how": "Email + a password",
+      "link_label": "Open 163 Mail",
+      "by": "IMAP · Community"
+    },
+    "metaso": {
+      "title": "Metaso AI Search",
+      "desc": "Chinese web search, read full page text",
+      "example": "@metaso find last week’s EV subsidy policy news with sources",
+      "fields": {
+        "key": {
+          "label": "API Key"
+        }
+      },
+      "about": "Official Metaso connector. Search Chinese web/academic/news, read pages, or get sourced answers. Read-only.",
+      "can": [
+        "Search Chinese web, academic, and news",
+        "Read full page text",
+        "Have Metaso answer with sources"
+      ],
+      "steps": [
+        "Sign in to Metaso AI Search and open the API Key page",
+        "Click Create new key, name it, click Create",
+        "Click copy in the API Key column and paste below"
+      ],
+      "note": "Pay-per-call credits; new accounts get free credits; balance under Stats.",
+      "link_label": "Open Metaso API key page",
+      "by": "Official Metaso"
+    },
+    "notion": {
+      "title": "Notion",
+      "desc": "Notion pages and databases",
+      "example": "@notion turn that discussion into meeting notes in the Meetings database",
+      "about": "Use the official Notion connector. After login pick allowed pages; the Bot can research, write pages, and add database rows.",
+      "can": [
+        "Search and read pages across the workspace",
+        "Create/edit pages; organize meeting notes and weekly reports",
+        "Add database rows, edit properties"
+      ],
+      "by": "Official Notion"
+    },
+    "qqmail": {
+      "title": "QQ Mail",
+      "desc": "Read/search/organize inbox, draft and send for you",
+      "example": "@qqmail which emails need a reply today? draft responses",
+      "fields": {
+        "email": {
+          "label": "Email address",
+          "placeholder": "you@example.com",
+          "invalid": "Invalid email format"
+        },
+        "password": {
+          "label": "Auth code"
+        }
+      },
+      "about": "Connect QQ Mail over IMAP. The Bot can search/read/archive mail and draft replies; asks before send/delete.",
+      "can": [
+        "Search mail by sender, subject, time; read body and attachments",
+        "Archive, move, mark as read",
+        "Draft, reply, forward, send (asks first)"
+      ],
+      "steps": [
+        "QQ Mail web: Settings → Account & security → Security",
+        "Enable IMAP/SMTP; after verification you get an auth code",
+        "Paste the auth code below (not your QQ password)"
+      ],
+      "how": "Email + a password",
+      "link_label": "Open QQ Mail",
+      "by": "IMAP · Community"
+    },
+    "sentry": {
+      "title": "Sentry",
+      "desc": "Inspect production errors, analyze root causes",
+      "example": "@sentry what new production errors yesterday? which is worst?",
+      "about": "Official Sentry connector. After auth, the Bot can inspect project errors/events and help analyze causes.",
+      "can": [
+        "View recent issues and error details",
+        "Search events by project, time, or keyword"
+      ],
+      "by": "Official Sentry"
+    },
+    "slack": {
+      "title": "Slack",
+      "desc": "Slack channels and messages",
+      "example": "@slack summarize #product today into three bullets",
+      "fields": {
+        "client_id": {
+          "label": "Client ID",
+          "invalid": "Client ID is two number groups with a dot, under App Credentials"
+        },
+        "client_secret": {
+          "label": "Client Secret"
+        }
+      },
+      "about": "Official Slack connector. Slack has no auto-signup — create a workspace-only app (~3 min), then sign in. Search messages/files, read channels/threads/canvases, post or create canvases; asks before sending.",
+      "can": [
+        "Search messages, files, and members",
+        "Read channels, threads, and DMs",
+        "Send messages or create canvases (asks first)"
+      ],
+      "steps": [
+        "Open Slack app console → Create New App → From a manifest, pick your workspace",
+        "Paste the whole config below over the old one, then Next → Create",
+        "Under Agents on the left, find Slack MCP Server and enable it",
+        "Left: Basic Information → App Credentials — copy Client ID and Client Secret below"
+      ],
+      "how": "Create a Slack app, then sign in",
+      "note": "Don’t enable public distribution — workspace only. If third-party apps are restricted, get admin approval.",
+      "link_label": "Open Slack app console",
+      "by": "Official Slack",
+      "copy": {
+        "label": "App configuration (App Manifest)"
+      }
+    },
+    "tencent-docs": {
+      "title": "Tencent Docs",
+      "desc": "Tencent Docs / sheets",
+      "example": "@tencent-docs create a doc and turn this week’s to-dos into a table",
+      "about": "Official Tencent Docs connector. After QQ/WeChat auth, the Bot can read/write your docs and sheets.",
+      "can": [
+        "Search and read docs and sheets",
+        "Create a doc and write organized content into it",
+        "Edit existing docs"
+      ],
+      "by": "Official Tencent Docs"
+    },
+    "ticktick": {
+      "title": "TickTick",
+      "desc": "TickTick tasks",
+      "example": "@ticktick what’s on my list tomorrow morning?",
+      "about": "Official TickTick (international) connector. After auth, the Bot can view and manage your tasks.",
+      "can": [
+        "View tasks and lists",
+        "Add, edit, or complete tasks"
+      ],
+      "by": "Official TickTick"
+    },
+    "todoist": {
+      "title": "Todoist",
+      "desc": "Todoist tasks",
+      "example": "@todoist what’s left today? pick the top three",
+      "about": "Official Todoist connector. After auth, the Bot can view, add, and complete your tasks.",
+      "can": [
+        "View today’s and upcoming tasks",
+        "Add tasks with due dates and priority",
+        "Complete or edit tasks"
+      ],
+      "by": "Official Todoist"
+    },
+    "train": {
+      "title": "12306 Trains",
+      "desc": "China 12306 train tickets",
+      "example": "@train any 2nd-class seats Beijing→Shanghai next Friday afternoon?",
+      "about": "Look up 12306 trains, seats, fares, and transfers. Lookup only — no purchasing.",
+      "can": [
+        "Look up trains and seats by date and cities",
+        "Check stops and transfer plans"
+      ],
+      "by": "Community"
+    },
+    "wecom-doc": {
+      "title": "WeCom Docs",
+      "desc": "WeCom documents",
+      "example": "@wecom-doc create a doc and put today’s meeting notes in it",
+      "fields": {
+        "url": {
+          "label": "StreamableHttp URL",
+          "placeholder": "https://qyapi.weixin.qq.com/mcp/…?apikey=…",
+          "invalid": "Copy the StreamableHttp URL starting with https://qyapi.weixin.qq.com/mcp/"
+        }
+      },
+      "about": "Official WeCom connector via Smart bots. Search/read docs, create/append/rewrite, read/write sheets; asks before changes.",
+      "can": [
+        "Search and read documents",
+        "Create a doc, append or rewrite content",
+        "Read/write sheets and smart tables"
+      ],
+      "steps": [
+        "In WeCom: Workbench → Smart bots → Create → Manual → API mode → long connection; set visibility and save (skip if already created)",
+        "Go to Smart bots → Manage, find this bot, click Edit",
+        "Under Available permissions, authorize all Docs-related items",
+        "Click > next to Docs, copy StreamableHttp URL, paste below"
+      ],
+      "how": "Paste a link",
+      "note": "Auth expires in 7 days — re-authorize, Change secret, paste the new link. Orgs >10 people: the Bot can only edit docs it created.",
+      "by": "Official WeCom"
+    },
+    "wecom-schedule": {
+      "title": "WeCom Calendar",
+      "desc": "View, create, and edit calendar events",
+      "example": "@wecom-schedule create an event next Wed 2pm: Marketing retro, 1 hour",
+      "fields": {
+        "url": {
+          "label": "StreamableHttp URL",
+          "placeholder": "https://qyapi.weixin.qq.com/mcp/…?apikey=…",
+          "invalid": "Copy the StreamableHttp URL starting with https://qyapi.weixin.qq.com/mcp/"
+        }
+      },
+      "about": "Official WeCom connector via Smart bots. The Bot can view/search calendar and create/edit/cancel events; asks before changes.",
+      "can": [
+        "View or search calendar",
+        "Create, edit, or cancel events (asks first)"
+      ],
+      "steps": [
+        "In WeCom: Workbench → Smart bots → Create → Manual → API mode → long connection; set visibility and save (skip if already created)",
+        "Go to Smart bots → Manage, find this bot, click Edit",
+        "Under Available permissions, authorize all Calendar-related items",
+        "Click > next to Calendar, copy StreamableHttp URL, paste below"
+      ],
+      "how": "Paste a link",
+      "note": "Auth expires in 7 days — re-authorize in WeCom, Change secret, paste the new link. Orgs >10 people: the Bot acts as a robot with fewer powers.",
+      "by": "Official WeCom"
+    },
+    "wecom-todo": {
+      "title": "WeCom Todos",
+      "desc": "View, add, and complete WeCom todos",
+      "example": "@wecom-todo add the three action items from the meeting to WeCom to-dos",
+      "fields": {
+        "url": {
+          "label": "StreamableHttp URL",
+          "placeholder": "https://qyapi.weixin.qq.com/mcp/…?apikey=…",
+          "invalid": "Copy the StreamableHttp URL starting with https://qyapi.weixin.qq.com/mcp/"
+        }
+      },
+      "about": "Official WeCom connector via Smart bots. The Bot can view/create/edit/complete to-dos; asks before delete.",
+      "can": [
+        "View to-do list",
+        "Create or edit to-dos",
+        "Mark done"
+      ],
+      "steps": [
+        "In WeCom: Workbench → Smart bots → Create → Manual → API mode → long connection; set visibility and save (skip if already created)",
+        "Go to Smart bots → Manage, find this bot, click Edit",
+        "Under Available permissions, authorize all To-do-related items",
+        "Click > next to To-dos, copy StreamableHttp URL, paste below"
+      ],
+      "how": "Paste a link",
+      "note": "Auth expires in 7 days — re-authorize in WeCom, Change secret, paste the new link. Orgs >10 people: the Bot acts as a robot with fewer powers.",
+      "by": "Official WeCom"
+    },
+    "wolfram": {
+      "title": "Wolfram",
+      "desc": "Math, unit conversion, look up many kinds of data",
+      "example": "@wolfram save ¥3000/month at 2.5% APY compounded monthly — total after 10 years?",
+      "about": "Official Wolfram connector, no signup. Solve equations, integrate, convert units, look up countries/chemicals/celestial data; harder math via Wolfram Language. Wolfram|Alpha is English-only — the Bot translates first.",
+      "can": [
+        "Solve equations, integrate, run stats",
+        "Convert units/currency, date intervals",
+        "Look up countries, cities, chemicals, celestial data, etc."
+      ],
+      "note": "Wolfram says this is free for light personal use.",
+      "by": "Official Wolfram"
+    },
+    "yuque": {
+      "title": "Yuque",
+      "desc": "Yuque docs",
+      "example": "@yuque in the Product KB find the last requirements doc and summarize",
+      "fields": {
+        "token": {
+          "label": "Personal token"
+        }
+      },
+      "about": "Official Yuque MCP. With a personal token, the Bot can find, read, and write in your knowledge bases.",
+      "can": [
+        "List knowledge bases and docs, read bodies",
+        "Search documents",
+        "Create or update docs and notes"
+      ],
+      "steps": [
+        "Open Yuque Token settings and click Create",
+        "Check only needed scopes (read-only = read), confirm",
+        "Copy the generated token and paste below"
+      ],
+      "note": "Yuque personal tokens may require a premium plan.",
+      "link_label": "Open Yuque token settings",
+      "by": "Official Yuque"
+    },
+    "zhihu": {
+      "title": "Zhihu",
+      "desc": "Search Zhihu and the web, see hot lists, ask Zhihu Direct",
+      "example": "@zhihu how does Zhihu view buying second-hand homes now? summarize top answers",
+      "fields": {
+        "secret": {
+          "label": "Access Secret"
+        }
+      },
+      "about": "Official Zhihu connector. Search Q&A/articles/web, view hot lists, answer via Direct Answer. Read-only — won’t post for you.",
+      "can": [
+        "Search Zhihu Q&A, articles, and the wider web",
+        "View Zhihu hot list",
+        "Answer with Zhihu Direct Answer"
+      ],
+      "steps": [
+        "Sign in to Zhihu Open Platform → Profile → Overview",
+        "Under Access Secret management, request a new secret → Confirm",
+        "Click Copy then I’ve saved it (it disappears after), paste below"
+      ],
+      "note": "Daily free quota; real-name verification raises it a lot; overage is pay-per-use.",
+      "link_label": "Open Zhihu Open Platform",
+      "by": "Official Zhihu"
+    }
+  }
+}

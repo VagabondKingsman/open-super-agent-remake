@@ -1,0 +1,98 @@
+# 模型按角色配置；任何 OpenAI 兼容接口都可以（DeepSeek / OpenRouter / Ollama / vLLM）。
+# 这里是默认值：界面上 设置 → 模型 里能添加服务、填 API Key（存进保险库）、换模型，改过的优先
+providers:
+  deepseek:
+    base_url: https://api.deepseek.com
+    api_key_env: DEEPSEEK_API_KEY      # 只写环境变量名，不写明文
+  # ollama:
+  #   base_url: http://localhost:11434/v1
+  #   api_key_env: OLLAMA_API_KEY      # 可以是任意非空值
+
+roles:
+  router:   {provider: deepseek, model: deepseek-flash}
+  worker:   {provider: deepseek, model: deepseek-flash}
+  reviewer: {provider: deepseek, model: deepseek-flash}
+  filter:   {provider: deepseek, model: deepseek-flash}   # webhook 事件的 LLM 过滤，用便宜模型
+  # 每个角色还可以加：thinking: false（关闭思考模式，更快更便宜）、reasoning_effort: low/high/max
+
+heavy:
+  workers: 3                 # Heavy 模式并行 Worker 数（类似 Grok Heavy）
+
+search:
+  searxng_url: ""            # 例如 http://localhost:8080 ；留空则用 DuckDuckGo HTML
+
+limits:
+  worker_max_steps: 30        # 电脑操作一步一个动作，步数要多一些
+  task_timeout_s: 600
+  watchdog_interval_s: 15
+  approval_timeout_s: 1800   # 写操作等待确认的时限，超时按拒绝
+  daily_token_budget: 2000000
+
+memory:
+  db: data/osa.db
+  inline_messages: 20        # 最近 N 条留在上下文，更早的移出（Inline & Spill）
+  task_log_days: 90          # 后台任务的过程（每一步做了什么）留多少天，0 表示一直留着；任务结果在对话里，不受影响
+
+# 可选：按意思检索记忆和资料库。provider 填模型服务的名字，任何兼容 OpenAI /embeddings 接口的都行
+# （OpenAI 的 text-embedding-3-small、硅基流动的 BAAI/bge-m3、Ollama 的 nomic-embed-text……）。
+# 不填也能用：按关键词找（中文按两个字一组）。界面上 设置 → 模型 里也能选
+embedding:
+  provider: ""
+  model: ""
+
+# 单价：元 / 百万 tokens。不用自己填：每天自动从 models.dev 获取（美元按 usd_rate 换算）。
+# 下面 models 里写了的以它为准，用于 models.dev 没有的情况，比如 DeepSeek 的高峰、空闲两档价（2026-11-04 抄自官网）。
+# 两档的：工作日 peak_hours 内按第一个数计，其余时段按第二个
+pricing:
+  currency: "¥"
+  usd_rate: 7.1                  # 1 美元换多少人民币
+  # source: https://models.dev/api.json   # 单价从哪里取；连不上时可以换成镜像地址
+  peak_hours: ["09:00-12:00", "14:00-18:00"]     # 北京时间，周一至周五
+  models:
+    deepseek-flash:  {cache_hit: [0.04, 0.02], input: [2, 1],   output: [8, 4]}       # [高峰, 空闲]
+    deepseek-v4-pro: {cache_hit: [0.30, 0.15], input: [9, 4.5], output: [27, 13.5]}
+  # 本机和内网的模型按 0 计
+
+# 旧版触发器：只在首次启动时导入成主 Bot 的定时任务，之后请在界面右栏“定时”里管理
+triggers:
+  - name: daily-brief
+    type: schedule
+    at: ["09:00"]                 # 每天定时；也可以用 every: 3600（秒）
+    enabled: false
+    prompt: "整理今天 AI agent 领域值得关注的新闻，5 条以内，附链接。"
+  - name: github
+    type: webhook                 # POST /hooks/github ，请求头 X-OSA-Token 要等于环境变量 OSA_WEBHOOK_TOKEN
+    enabled: true
+    include: ["issue", "bug", "error", "fail"]    # 规则过滤：至少命中一个（不区分大小写；留空则全部通过）
+    exclude: ["dependabot"]
+    llm_filter: "只有报告 bug、故障或需要回复的问题才处理；机器人消息、纯通知忽略。"
+    prompt: "收到一个 GitHub 事件，请判断要不要处理，需要的话派任务：\n{event}"
+
+# 外部能力：MCP server，工具会以 <名字>__<工具> 的形式交给 Worker。只在第一次启动时导入，之后在界面的“应用”里管理
+# 本机命令写 command / args；远程地址写 url（可加 headers，或 oauth: true 在界面里登录授权）
+mcp_servers: {}
+  # mytools:
+  #   enabled: true
+  #   command: npx
+  #   args: ["-y", "some-mcp-server"]
+  #   env_from: [SOME_TOKEN]        # 只写变量名，值从环境变量读取
+  #   deny: ["delete", "archive"]   # 工具名包含这些词的不开放
+  #   confirm: auto                 # 写操作前要你确认：auto（只读放行，写入词要确认）/ all / none / 词列表
+  # linear:
+  #   enabled: true
+  #   url: https://mcp.linear.app/mcp
+  #   oauth: true                   # 导入后在“应用”页点“重新登录”完成授权
+
+# 手机推送（Web Push）：联系地址，推送服务出问题时可能用它联系你；不写就用项目地址
+# push:
+#   subject: "mailto:you@example.com"
+
+# 电脑：所有 Bot 共用一台（浏览器 + 终端），任务排队独占；用户能实时观看、接手
+computer:
+  enabled: true
+  backend: auto              # auto：有 INSTABOX_API_KEY 用 Instabox，否则本地 Docker；也可以写 instabox / local
+  width: 1280
+  height: 800
+  idle_pause_s: 900          # 闲置 15 分钟自动暂停（暂停时保留内存，恢复很快）
+  instabox_template: agent-browser
+  instabox_machine: ""            # 用已有的 Instabox 机器 id（免费版只能有一台，比如 m_xxx）；留空则自动创建

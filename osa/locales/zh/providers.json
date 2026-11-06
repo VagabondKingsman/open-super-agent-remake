@@ -1,0 +1,34 @@
+{
+  "deepseek": {
+    "desc": "便宜，中文好；默认配置用它"
+  },
+  "openai": {
+    "desc": "GPT 系列"
+  },
+  "openrouter": {
+    "desc": "一个密钥用几百个模型"
+  },
+  "siliconflow": {
+    "title": "硅基流动",
+    "desc": "开源模型多，有免费的 embedding"
+  },
+  "dashscope": {
+    "title": "阿里云百炼",
+    "desc": "通义千问"
+  },
+  "zhipu": {
+    "title": "智谱",
+    "desc": "GLM 系列"
+  },
+  "moonshot": {
+    "desc": "月之暗面"
+  },
+  "ollama": {
+    "desc": "本机跑的模型，不用密钥",
+    "note": "用 Docker 部署时，地址写 http://host.docker.internal:11434/v1"
+  },
+  "custom": {
+    "title": "其他",
+    "desc": "任何兼容 OpenAI 的接口：vLLM、LM Studio、one-api……"
+  }
+}

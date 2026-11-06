@@ -1,0 +1,185 @@
+{
+  "message_bot": {
+    "description": "Nhắn riêng Bot khác nhờ giúp. Nó xử lý trong chat riêng; thư trả lời tự về hội thoại này và bạn sẽ nói tiếp",
+    "params": {
+      "to": "Tên Bot",
+      "text": "Việc cần nó làm, viết đủ, tự chứa (nó không thấy đoạn chat này)"
+    }
+  },
+  "handoff": {
+    "description": "Trong nhóm, giao việc cho Bot khác — nó sẽ làm tiếp ngay",
+    "params": {
+      "to": "Tên thành viên",
+      "request": "Việc cần nó làm, viết đủ (nó thấy tin nhóm trước đó)"
+    }
+  },
+  "dispatch": {
+    "description": "Giao task nền",
+    "params": {
+      "goal": "Mô tả task đầy đủ, tự chứa",
+      "handoff_to": "Chỉ dùng trong nhóm: sau task giao kết quả cho thành viên nào",
+      "handoff_note": "Khi giao, đối phương cần làm gì"
+    }
+  },
+  "save_skill": {
+    "description": "Lưu hoặc ghi đè một kỹ năng (quy trình tái sử dụng)",
+    "params": {
+      "name": "Tên ngắn để gọi /tên, không khoảng trắng",
+      "description": "Một câu khi nào dùng",
+      "body": "Cách làm đủ: bước, web/app, format đầu ra"
+    }
+  },
+  "create_routine": {
+    "description": "Tạo lịch / routine mới",
+    "params": {
+      "name": "Tên; loại webhook chỉ chữ/số - _",
+      "prompt": "Mỗi lần chạy cần làm gì, viết đủ",
+      "skill": "Tuỳ chọn: làm theo kỹ năng nào (không có /)",
+      "times": "daily: danh sách HH:MM",
+      "days": "daily: thứ trong tuần, T2=1, trống=mỗi ngày",
+      "minutes": "every: khoảng phút, tối thiểu 5"
+    }
+  },
+  "remember": {
+    "description": "Ghi một mục nhớ dài hạn (mọi hội thoại sau đều mang theo)",
+    "params": {
+      "text": "Một câu độc lập đầy đủ, vd “người dùng muốn kết luận trước”",
+      "shared": "Sự thật cơ bản về người dùng (tên, TZ, thành phố…) = true, mọi Bot dùng chung",
+      "replace_id": "Tuỳ chọn: thay mục nhớ có sẵn bằng mục này"
+    }
+  },
+  "forget": {
+    "description": "Xóa một mục nhớ dài hạn",
+    "params": {}
+  },
+  "list_tasks": {
+    "description": "Xem trạng thái task",
+    "params": {}
+  },
+  "cancel_task": {
+    "description": "Hủy task",
+    "params": {}
+  },
+  "resolve_approval": {
+    "description": "Xử lý một thao tác ghi đang chờ xác nhận",
+    "params": {
+      "note": "Ý kiến kèm theo của người dùng",
+      "always": "true nếu họ nói lần sau cùng loại khỏi hỏi"
+    }
+  },
+  "recall": {
+    "description": "Lấy nguyên văn tin nhắn cũ theo id",
+    "params": {}
+  },
+  "look_at_screen": {
+    "description": "Xem nhanh màn hình máy dùng chung (ảnh + tiêu đề cửa sổ). Dùng khi hỏi màn hình có gì / task tới đâu / quyết định task tiếp. Chỉ xem, không thao tác; muốn thao tác thì dispatch.",
+    "params": {}
+  },
+  "browser_open": {
+    "description": "Mở URL trong trình duyệt trên máy tính (tab hiện tại); trả về danh sách phần tử có số và đầu nội dung",
+    "params": {
+      "url": "URL"
+    }
+  },
+  "browser_snapshot": {
+    "description": "Xem trang hiện tại: phần tử có số [n], đầu nội dung, vị trí cuộn. Dùng khi trang đổi hoặc chưa chắc."
+  },
+  "browser_click": {
+    "description": "Click phần tử trang; ref là số từ browser_snapshot",
+    "params": {
+      "ref": "Số phần tử"
+    }
+  },
+  "browser_type": {
+    "description": "Gõ vào ô nhập (xóa nội dung cũ trước). ref là số ô; submit=true thì Enter sau khi gõ.",
+    "params": {
+      "ref": "Số ô nhập",
+      "text": "Nội dung",
+      "submit": "Enter sau khi gõ"
+    }
+  },
+  "browser_key": {
+    "description": "Nhấn một phím trên trang: Enter, Tab, Escape, Backspace, ArrowDown, ArrowUp, PageDown…",
+    "params": {
+      "key": "Tên phím"
+    }
+  },
+  "browser_scroll": {
+    "description": "Cuộn trang một màn hình",
+    "params": {
+      "direction": "up hoặc down"
+    }
+  },
+  "browser_back": {
+    "description": "Trình duyệt quay lại"
+  },
+  "browser_read": {
+    "description": "Đọc toàn bộ nội dung trang hiện tại (tối đa 12000 ký tự mỗi lần; dùng offset để tiếp)",
+    "params": {
+      "offset": "Vị trí bắt đầu"
+    }
+  },
+  "computer_screenshot": {
+    "description": "Chụp màn hình máy tính, trả ảnh. Dùng khi cần xem hình (ảnh, biểu đồ, layout, captcha); nội dung/phần tử web dùng browser_snapshot."
+  },
+  "computer_click": {
+    "description": "[Dự phòng] Click tọa độ màn hình (x,y). Chỉ khi browser_click không làm được (cửa sổ ngoài trình duyệt, canvas).",
+    "params": {
+      "x": "Tọa độ X",
+      "y": "Tọa độ Y",
+      "button": "left/right/middle",
+      "double": "Click đúp"
+    }
+  },
+  "computer_type": {
+    "description": "[Dự phòng] Gõ tại focus hiện tại. Ô web dùng browser_type",
+    "params": {
+      "text": "Nội dung"
+    }
+  },
+  "computer_key": {
+    "description": "Nhấn phím hoặc tổ hợp, ví dụ Enter, Tab, ctrl+l, ctrl+a, Escape",
+    "params": {
+      "keys": "Phím hoặc tổ hợp"
+    }
+  },
+  "computer_scroll": {
+    "description": "[Dự phòng] Cuộn tại vị trí chuột. Web dùng browser_scroll",
+    "params": {
+      "direction": "up/down/left/right",
+      "amount": "Mức cuộn"
+    }
+  },
+  "computer_shell": {
+    "description": "Chạy lệnh bash trên terminal máy tính (cwd /data/workspace, file được giữ). Phù hợp tải/xử lý dữ liệu, chạy script.",
+    "params": {
+      "cmd": "Lệnh bash",
+      "timeout": "Timeout giây"
+    }
+  },
+  "computer_read_file": {
+    "description": "Đọc file văn bản trên máy tính",
+    "params": {
+      "path": "Đường dẫn"
+    }
+  },
+  "computer_write_file": {
+    "description": "Ghi file văn bản trên máy tính (ghi đè)",
+    "params": {
+      "path": "Đường dẫn",
+      "content": "Nội dung"
+    }
+  },
+  "ask_human": {
+    "description": "Gọi khi cần bước chỉ người làm được (đăng nhập, captcha, quét mã, xác minh thanh toán, lựa chọn phải do người dùng quyết): người dùng nhận máy xử lý rồi trả lại. Nêu rõ họ cần làm gì.",
+    "params": {
+      "reason": "Người dùng cần làm gì"
+    }
+  },
+  "ask_approval": {
+    "description": "Gọi trước thao tác có hậu quả: gửi form, đặt hàng/thanh toán, gửi tin/email, xóa dữ liệu, đăng nội dung. Nêu việc và ảnh hưởng. Chỉ tiếp sau khi người dùng đồng ý.",
+    "params": {
+      "action": "Việc sẽ làm và ảnh hưởng"
+    }
+  }
+}

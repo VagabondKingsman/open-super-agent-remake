@@ -1,0 +1,9 @@
+name: 功能建议 / Feature request
+description: 想要的新功能
+labels: [enhancement]
+body:
+  - type: textarea
+    attributes: { label: 想解决什么问题 }
+    validations: { required: true }
+  - type: textarea
+    attributes: { label: 设想的做法, description: 如果属于路线图里的某个方向（应用生态、客户端、电脑、Bot 能力、部署），请注明 }
