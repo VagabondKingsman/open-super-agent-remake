@@ -1,5 +1,7 @@
 # LIVE EVAL: AI Native skills trên OSA
 
+**Kết quả mới nhất: v3 GO cho handoff patch/PR, xem cuối tài liệu. Các NO-GO v1/v2 bên dưới giữ lại để truy nguyên.**
+
 Thời điểm bàn giao: 07/11/2026 02:28 (Asia/Saigon). Base: `1d0ce52`, branch `i18n-vi`. Không push.
 
 ## Kết luận
@@ -221,3 +223,60 @@ Cap observer v2 **4,25 USD** để kể cả v1 vẫn dưới 5 USD; 160 request
 - `scores.json`, `usage-comparison.json`, `usage-by-case.json`, `run-checks.json`, `paging-proof.json`, `blog-final-check.json`, `V2-fix/E02/patch-validation.json`.
 - Regression logs: pytest.log, i18n.log, frontend-tests.log, frontend-build.log. `cleanup.json` ghi model phục hồi và bot tạm đã xóa.
 - Zip local-only cập nhật: `/workspace/osa-ui-shots/ai-native-osa-pack.zip`. Bản zip không thay được Python tool mới; để có verify_facts phải cập nhật code repo, không chỉ import SKILL.md.
+
+
+## v3 — Kiểm patch thật và khóa phạm vi đếm thân bài
+
+Cập nhật 06/11/2026 20:30 (Asia/Saigon), base `9f989ec`, branch `i18n-vi`. **GO để parent chuyển bộ patch sang CloudAgent/PR remake**, không tuyên bố mọi output đã đạt chuẩn xuất bản. Hai hard AC mới đều PASS ngay vòng V3-R1; không chạy vòng hai. Không push trực tiếp.
+
+### Hai thay đổi
+
+- Thêm `inspect_repo` / `check_patch` cho cả Router và Worker. Operator phải đăng ký allowlist ngoài git; model không nhập command hoặc tự cấp quyền. Inspect đọc file thật, test đang có và trả snapshot SHA-256. Checker từ chối snapshot cũ, traversal/symlink và create/delete/rename/mode changes; test cũ append-only. Chạy git apply --check → apply → pytest trên temp copy trong bubblewrap offline, với acceptance test read-only do operator giữ. Chỉ giao đúng patch SHA đã PASS và repo gốc không đổi. Fail closed khi thiếu sandbox; không có host-shell fallback. Xem [contract/limits](local-patch-checks.md).
+- `verify_facts` thêm `texts[].mode=markdown_body`: bỏ YAML front matter đầu bài, dòng Markdown #-heading, fenced/indented code. Gửi nguyên phần blog gồm H1/H2, không SEO/tóm tắt/ghi chú. Mode plain giữ tương thích. Test VI/EN, fence lồng, front matter chưa đóng, count-scope cũ. Mentor/vibecode-kit/unslop adapters ghi rõ gate và quy tắc này.
+
+Đường local này chỉ kiểm fixture nhỏ được cấp quyền, không thay Docker Computer hoặc tự chạy refinery/SOT/slide helpers trên host. Bubblewrap cần Linux/user namespaces, bwrap, prlimit, ps, git, Python/pytest. Test isolation thật xác nhận không thấy host canary và không chạm localhost host.
+
+### Hai bài chạy thật, giữ nguyên prompt
+
+Native `/ws` → safe_handle → Router với xAI **grok-4.7**, không gọi model riêng để viết thay OSA. V3-R1 có đúng E02/E07, bot mới mỗi bài; 19 completion trả grok-4.7, không provider error/length truncation/missing usage/budget-stop. Chặn channel/scheduler/MCP chỉ trong observer memory; không gửi thật. Cả 19 call là Router; Worker wiring và tests có, **chưa có live Worker run**.
+
+| Bài | v2 cuối | v3 | Bằng chứng quyết định |
+|---|---|---|---|
+| E02 | Patch không apply vào fixture nguyên trạng; 26/30 | **PASS**, 28/30 (5/5/4/5/5/4) | inspect thấy comment và test cũ; exact patch git check/apply/pytest exit 0/0/0; **10 passed** (5 fixture + 5 acceptance); giữ test cũ, repo gốc không đổi |
+| E07 | Scope mơ hồ 186/206; 23/30 | **PASS word-count AC**, 27/30 (5/5/4/5/4/4) | Tool bắt draft 205 từ vượt limit, sửa và kiểm lại; final **172 từ** theo markdown_body, nằm 160–200, tự báo đúng 172 |
+
+E02 patch SHA-256 `b069be311645069f50fff74fc537afd1117f1aa87c0fc1ccf2770c722d4dca47`, tool evidence `074bd7f3d21446f6881f1012f9021abf`. Executor trích **nguyên diff cuối**, không sửa hộ, chạy lại độc lập qua checker trên source chưa đổi: PASS, evidence `664450c7836842d2b4f2c926862d5ac9`. Hash hai file fixture trước/sau giống nhau. Rubric 2+2+2+2+2=**10** do verify_facts tính, final khớp; script retro_rubric.py vẫn NOT_CHECKED, không nói đã chạy script.
+
+E07 toàn phần blog có H1 khớp **nguyên input lần verify cuối**; SHA-256 `b06657510e422a35816a381ed877b7f3c31d50f350910dd97d6d8fc569bfbb1f`. Executor tính lại từ artifact cuối được 172. SEO title/meta có **50/113** Unicode code points, khớp tool và self-report. Không chỉ đếm bản nháp thuận lợi rồi giao bản khác.
+
+**Không che phần chưa đạt:** E02 có SCAN/AC/QA nhưng TIP trước BUILD và requirement-coverage report chưa trình bày đầy đủ; chấm P=4. verify_facts lần đầu thiếu source quotes, lần sau sửa; AC-2 checklist trong verifier vẫn NOT_CHECKED nhưng actual pytest đã chứng minh range PASS. E07 regex không hiểu chữ “four” nên check rooms trả NOT_CHECKED (không phải số sai). Bài còn giả định “quieter street than the center” không có nguồn và lời khuyên phương tiện đi lại; cần biên tập trước xuất bản. Không chấm O=5 hoặc nói numeric checker chứng minh nội dung đúng hết.
+
+Cùng rubric sáu chiều của v1/v2, điểm do executor review, không blind benchmark. Ghép latest E02/E07 vào bảng v2, giữ sáu bài kia **không rerun**, được **228/240**, mean **4,75/5**, mean riêng output **4,625/5**. Đây là mixed-latest, không phải full 8-task v3 hoặc so sánh model cô lập. Paging E08 đã PASS v2; v3 E02 cũng đọc hết hai trang source 10.533 ký tự, mentor 8.834 và Retro 8.864 tới EOF.
+
+### Regression, runtime và quyền phân phối
+
+- Backend: **160 passed**, không skip trên box; thêm 13 test (9 sandbox, 4 Markdown). Target 50 passed.
+- Frontend: **15 passed**; production build PASS, cảnh báo bundle >500 kB cũ còn nguyên.
+- i18n en/vi: backend 500/frontend 883, thiếu/thừa 0; Chinese UI chưa bọc 0.
+- Normal server khởi động bằng scripts/osa-start.sh, HTTP 200; đã **khôi phục cả bốn role grok-4.6**, archive rồi xóa đúng hai eval bot, giữ bốn bot gốc. Tám shared skill vẫn hiện đủ.
+- **129 file nguồn** bên thứ ba hash không đổi ở pack và bản installed; không commit payload/zip/full transcripts/DB/operator registry. License audit cũ vẫn áp dụng. Zip riêng đã cập nhật nhưng Python tools phải đi cùng code update.
+
+### Usage và quyết định
+
+| Bài | Calls | Input | Cached trong input | Output | USD ước tính |
+|---|---:|---:|---:|---:|---:|
+| E02 | 8 | 162453 | 110336 | 3084 | 0.177906 |
+| E07 | 11 | 170191 | 115712 | 2488 | 0.181742 |
+| Tổng v3 | **19** | **332644** | **226048** | **5572** | **0.359648** |
+
+Dưới cap mới 1 USD; cap observer 60 calls/650.000 reported tokens/3.072 output mỗi call, reserve trước request. Pricing metadata input/cache/output 2/0,5/6 USD mỗi triệu; đây là ước tính, không phải hóa đơn xAI. Tổng mọi đợt v1+v2+v3 **2,198218 USD**. Không chạy lại chỉ để làm đẹp prose khi hai AC được giao đã đạt.
+
+**GO theo điều kiện đợt này:** exact final patch applies + tests PASS; exact final body 172 và self-report khớp; regression PASS; routing/paging giữ đúng, output mean ≥4. GO cho review code/PR, không phải bảo đảm không bao giờ model quên gate. Prompt vẫn là instruction, không hard-gate mọi natural-language statement.
+
+### Artifacts và handoff push
+
+Root riêng `/workspace/osa-ui-shots/ai-native/live-eval-v3/`: V3-R1/E02,E07 có transcript.json/md, events.jsonl, tool-trace.jsonl, model-transcript.jsonl. Proofs gồm independent-patch-check.json, final.patch, independent-word-check.json, fixture-before/after.json, sandbox-smoke.json, source-integrity.json, usage-by-case.json, run-checks.json, scores.json và cleanup.json. Full traces vẫn private.
+
+Không có local tracking ref origin/i18n-vi. Native GitHub read trả branch head `afdea0e629c951044f840995a4593a8f176f9af9`; đã so Git blob IDs: mọi path trong skill patch series có base content khớp public. Ba path khác ở local pre-pack base là osa/i18n.py, tests/test_locale_fallback.py, web/tests/i18n.cjs; không path nào bị series sửa. Parent cần apply bốn commit skill theo thứ tự lên **public branch hiện hành**, giữ nguyên các khác biệt i18n đó và chạy CI/kiểm lại tại PR; không đẩy nguyên local branch để ghi đè lịch sử. Public-base-check.json giữ proof.
+
+Nếu public branch đổi sau snapshot này, CloudAgent phải kiểm apply/test lại. Bộ format-patch đặt ở `/workspace/osa-ui-shots/ai-native/push/`, gồm ba commit 1d0ce52/adbe518/9f989ec và commit v3 mới. Chỉ xuất sau hai AC/regression PASS; không tự tạo PR hay push từ box.

@@ -13,7 +13,7 @@ CANONICAL = re.compile(r"[-+]?\d{1,50}(?:\.\d{1,50})?\Z")
 SCOPE = "Supplied inputs only. Not source authentication, semantic review, test execution or publish approval."
 HINT = ("\n\nDeterministic verification: Before claiming a deliverable/AC passes or stating a self-computed "
         "word/character count or numeric total, call verify_facts on the EXACT final draft. "
-        "Use texts for counts/limits (blog body only, no title/SEO); sums for Rubric/status distributions; "
+        "Use texts mode=markdown_body for blog counts/limits: pass the whole blog section INCLUDING headings; exclude only SEO/summary notes; the tool removes #-headings, front matter and code blocks. sums for Rubric/status distributions; "
         "number_checks with exact source/draft quotes for numeric facts; checklist references computed check ids. "
         "Copy returned numbers, never mental estimates. FAIL means an assertion failed, not that computed counts/totals are unknown: correct the draft using the computed value. Any later edit requires rechecking. "
         "Manual runtime ACs remain NOT_CHECKED; PASS here is not tests/render/source verification. "
@@ -24,6 +24,29 @@ def _text(value):
     if not isinstance(value, str) or len(value) > MAX_TEXT:
         raise ValueError("Text must be a string of at most 100000 Unicode code points")
     return value
+
+
+def markdown_body(text):
+    """Explicit count scope: strip YAML frontmatter, ATX headings and fenced/indented code."""
+    lines = text.splitlines()
+    start = next((i for i, line in enumerate(lines) if line.strip()), len(lines))
+    if start < len(lines) and lines[start].lstrip("\ufeff").strip() == "---":
+        end = next((i for i in range(start+1, len(lines)) if lines[i].strip() in ("---", "...")), None)
+        if end is None:
+            raise ValueError("Unclosed front matter")
+        lines = lines[end+1:]
+    body, fence = [], None
+    for line in lines:
+        marker = re.match(r"^ {0,3}(`{3,}|~{3,})(.*)$", line)
+        if fence:
+            if marker and marker[1][0] == fence[0] and len(marker[1]) >= len(fence) and not marker[2].strip():
+                fence = None
+            continue
+        if marker:
+            fence = marker[1]
+        elif not re.match(r"^ {0,3}#{1,6}(?:\s|$)", line) and not line.startswith(("    ", "\t")):
+            body.append(line)
+    return "\n".join(body)
 
 
 def _decimal(value):
@@ -74,8 +97,12 @@ def verify(args):
 
         for item in groups["texts"]:
             ident, text = identify(item), _text(item.get("text"))
-            counts = {"words": len(text.split()), "chars": len(text),
-                      "chars_without_whitespace": sum(not c.isspace() for c in text)}
+            mode = item.get("mode", "plain")
+            if mode not in ("plain", "markdown_body"):
+                raise ValueError("mode must be plain or markdown_body")
+            counted = markdown_body(text) if mode == "markdown_body" else text
+            counts = {"words": len(counted.split()), "chars": len(counted),
+                      "chars_without_whitespace": sum(not c.isspace() for c in counted)}
             failed = []
             for key in ("words", "chars"):
                 lo, hi, claimed = (item.get(p + key) for p in ("min_", "max_", "claimed_"))
@@ -87,7 +114,7 @@ def verify(args):
                     failed.append(key + "_limit")
                 if claimed is not None and counts[key] != claimed:
                     failed.append("claimed_" + key)
-            checks.append({"id": ident, "kind": "text", "status": "FAIL" if failed else "PASS", **counts,
+            checks.append({"id": ident, "kind": "text", "status": "FAIL" if failed else "PASS", **counts, "mode": mode, "input_chars": len(text),
                            "failed": failed, "sha256": hashlib.sha256(text.encode()).hexdigest()})
         with localcontext() as ctx:
             ctx.prec = 128
@@ -179,7 +206,7 @@ SCHEMA = {"type": "function", "function": {"name": "verify_facts",
         "number_format": {"type": "string", "enum": ["en", "vi"], "description": "Quote numbers: en 650,000.5 or vi 650.000,5. JSON numeric values always canonical."},
         "source_number_format": {"type": "string", "enum": ["en", "vi"]},
         "draft_number_format": {"type": "string", "enum": ["en", "vi"]},
-        "texts": _items({"id": STR, "text": {"type": "string", "description": "Exact section to count; blog BODY ONLY, omit heading/SEO."},
+        "texts": _items({"id": STR, "text": {"type": "string", "description": "Whole blog section INCLUDING headings for mode markdown_body. Exclude SEO/summary notes."}, "mode": {"type": "string", "enum": ["plain", "markdown_body"]},
                          **{k: COUNT for k in ("min_words", "max_words", "min_chars", "max_chars", "claimed_words", "claimed_chars")}}, ["id", "text"]),
         "sums": _items({"id": STR, "values": {"type": "array", "items": NUM}, "claimed_total": NUM}, ["id", "values"]),
         "number_checks": _items({"id": STR, "expected": NUM, "actual": NUM, "source_quote": STR, "draft_quote": STR}, ["id", "expected", "actual", "source_quote", "draft_quote"]),

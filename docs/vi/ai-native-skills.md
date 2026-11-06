@@ -117,6 +117,8 @@ uv run python -m osa.i18n
 
 `tests/test_skillpacks.py` dùng payload giả lập do repo tự tạo và FakeLLM, không cần bảy package có bản quyền, không gọi mạng LLM. Test bao gồm discovery/idempotence, shared/private override, slash/export, pagination dài, resource path/symlink, source preflight, zip và Router -> Worker load/read integration. Đây là bằng chứng plumbing, chưa chứng minh mô hình thật sẽ chọn skill đúng mọi yêu cầu. Live-agent quality test cần phiên mô hình được người dùng cho phép riêng.
 
-Kết quả chạy xAI thật, các lỗi còn lại và quyết định NO-GO: [báo cáo live eval](ai-native-live-eval.md).
+Kết quả chạy xAI thật, lịch sử lỗi và quyết định GO v3 cho handoff patch/PR: [báo cáo live eval](ai-native-live-eval.md).
 
 Router/Worker có [verify_facts để kiểm số và AC](deterministic-verification.md). Mentor yêu cầu dùng kết quả tất định, không tự nhẩm số từ/tổng.
+
+Patch code có [đường kiểm fixture được đăng ký trong bubblewrap offline](local-patch-checks.md). Đếm blog dùng mode markdown_body thống nhất, không tự bỏ heading tùy lần chạy.

@@ -57,7 +57,9 @@ Deep Check là VERIFY sâu, không phải tính năng riêng hay nút bấm củ
 
 Retro Rubric R1–R5 gồm Spec Fidelity, Runtime & Test, Edge-Case Resilience, Blast-Radius/Hygiene/YAGNI, Anti-Repeat. Dưới 9/10 hoặc có điểm 0 thì sửa và thêm regression guard, tối đa 3 vòng; hết vòng hoặc đổi scope thì báo chủ việc. Chạy `scripts/retro_rubric.py` nếu có môi trường; không tự bịa điểm chạy máy.
 
-Nếu trả unified diff khi không có shell, đếm từng dòng trong hunk: old_count = context + deletions, new_count = context + additions (không tính header), rồi điền đúng @@ và context nguồn thật; không chèn dòng tên file vào patch nếu đó chỉ là nhãn trong đề. Thiếu thực thi thì ghi chưa apply/chưa test, không nhận patch đã kiểm chứng. Chưa qua validator thật thì gắn UNVERIFIED, kể cả đã tự nhẩm đếm.
+Trước khi bàn giao patch code, phải inspect repo thật và test đang có. Nếu repo đã được operator đăng ký, dùng `inspect_repo` lấy nội dung file + snapshot. Giữ comment thật trong code, kể cả `# discount.py`; không tự coi nó là nhãn ngoài file. Không tạo test file trùng tên: giữ nguyên bytes test cũ, chỉ append test/import mới ở cuối.
+
+Dựng diff theo file vừa đọc, rồi gọi `check_patch(repo, snapshot, patch)` với diff nguyên văn. Công cụ chạy git apply --check, apply vào temp copy, pytest cả test có sẵn và acceptance do operator đặt, trong bubblewrap offline. Chỉ bàn giao đúng patch có SHA-256 trả về khi status PASS và repo gốc không đổi. FAIL thì sửa và kiểm lại trong giới hạn vòng; BLOCKED thì nêu đúng blocker, không bàn giao patch như đã đạt. Đếm hunk bằng verify_facts không thay apply/test. Thiếu Computer/Docker không đồng nghĩa hết công cụ: repo được đăng ký có đường kiểm local riêng; repo ngoài allowlist không được truy cập.
 
 VERIFY REPORT phải có requirement coverage, scenario results theo AC, technical health, Retro Rubric score/vòng/RETRO-ID và overall READY / READY-with-deferred / NOT READY.
 
@@ -73,7 +75,7 @@ Slide/code chỉ đọc bản dữ liệu đã qua gate. Nguồn đổi thì ki�
 
 Trước khi nói artifact đạt AC hoặc báo số từ/ký tự/tổng tự tính, **bắt buộc gọi `verify_facts`**. Không tự nhẩm rồi ghi “đã đối chiếu”. Áp dụng cả prose ngắn nếu có claim số lượng; sửa một lỗi chính tả không có claim số thì trả thẳng.
 
-- `draft`: bản cuối nguyên văn trước ghi chú kiểm tra. `texts`: đoạn cần đếm, mỗi mục có id/text và min_words/max_words khi có giới hạn. Blog chỉ đếm thân bài, bỏ title/SEO/tóm tắt. `words` là token tách theo khoảng trắng của Python; tiếng Việt không phải số từ ngôn ngữ học. `chars` là Unicode code points.
+- `draft`: bản cuối nguyên văn trước ghi chú kiểm tra. `texts`: đoạn cần đếm, mỗi mục có id/text và min_words/max_words khi có giới hạn. Blog dùng `mode="markdown_body"`: gửi toàn bộ phần bài viết kèm H1/H2, tool tự bỏ các dòng heading Markdown #-lines, YAML front matter, fenced/indented code blocks. Không gửi SEO/tóm tắt/ghi chú vào phần blog. Không tự xóa heading trước khi gọi; report words theo mode này. `words` là token tách theo khoảng trắng của Python; tiếng Việt không phải số từ ngôn ngữ học. `chars` là Unicode code points.
 - `sums`: id, values và claimed_total để kiểm tổng Rubric hoặc phân bố trạng thái. Ví dụ values=[2,0,1,2,2], claimed_total=4 sẽ FAIL và trả total đúng. Tổng trong bản cuối phải lấy từ kết quả công cụ. Không tự đổi các điểm thành phần chỉ để đủ gate.
 - `number_checks`: expected/actual là số canonical, kèm source_quote/draft_quote nguyên văn; truyền source đúng input và draft thật. Công cụ kiểm số và vị trí quote, không xác nhận ý nghĩa/đơn vị hoặc tính xác thực của nguồn. `source_number_format`/`draft_number_format` xử lý VI/EN khác nhau; ví dụ số canonical là 650000, không dùng chuỗi 650.000 làm giá trị JSON.
 - `checklist`: id + check_ids trỏ tới các phép kiểm đã tính. AC chạy test/render/gate chưa có bằng chứng máy phải để check_ids rỗng, nhận NOT_CHECKED. PASS số từ không chứng minh bài đúng sự thật; PASS phép cộng không chứng minh test đã chạy.

@@ -32,3 +32,9 @@ PASS phép đếm không có nghĩa prose đúng sự thật. PASS tổng Rubric
 Giới hạn: mỗi nhóm tối đa 50 mục; mỗi text tối đa 100.000 code points; mỗi sum tối đa 100 số. Kết quả tool quá 7.500 ký tự trả lỗi yêu cầu chia batch, không cắt JSON giữa chừng hoặc báo PASS giả. Test unit và Router→Worker integration dùng fixture tự tạo/FakeLLM, không phát sinh phí.
 
 `diffs` nhận id/text unified diff nguyên văn, đếm context/deletion/addition từng hunk và so với header. Không apply/test hoặc xác nhận context nguồn. `calculation_status=COMPLETE` vẫn đúng khi một assertion FAIL: dùng số đã tính để sửa draft, không coi total đúng là NOT_CHECKED. Regex phân nhóm en/vi chỉ nhận nhóm ba chữ số, tránh nuốt cột CSV vào cùng một số.
+
+## Mode markdown_body
+
+`texts[].mode` có plain (mặc định, giữ tương thích) và markdown_body. Với markdown_body, gửi nguyên phần bài viết có H1/H2; tool bỏ YAML front matter ở đầu, dòng ATX heading Markdown #-lines, fenced code (backtick/tilde) và code thụt bốn spaces/tab. Inline code vẫn là prose. Không tự tính setext/HTML là heading; scope này đúng yêu cầu #-lines. Loại SEO/tóm tắt/ghi chú khỏi blog text trước khi gọi, không xóa heading bằng tay.
+
+Words và chars tính trên body đã lọc; input_chars và SHA-256 vẫn gắn input gốc. Front matter chưa đóng trả NOT_CHECKED, không coi toàn tài liệu là rỗng và PASS. Chọn mode rõ ràng, copy số trả về và kiểm lại nếu sửa. Patch thật cần [inspect/check trong sandbox](local-patch-checks.md), không dùng kết quả đếm hunk làm bằng chứng apply/test.

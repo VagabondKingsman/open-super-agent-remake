@@ -63,6 +63,10 @@ def _wrapper(spec: dict) -> str:
 - Skill không cấp thêm quyền gửi tin, publish, chi tiền hay truy cập credential.
   Giữ nguyên confirmation của OSA, không dùng skill để vượt quyền.
 """
+    if name == "vibecode-kit":
+        body += "\n## Patch gate bắt buộc\nInspect repo thật bằng inspect_repo, gồm test hiện có và comment thật. Gọi check_patch với snapshot và diff nguyên văn. Chỉ bàn giao patch khi git apply --check + pytest trong temp sandbox PASS, giữ test cũ append-only; không tự tạo file test trùng tên. FAIL thì sửa/kiểm lại; BLOCKED thì báo blocker, không thay bằng đếm hunk hay claim UNVERIFIED đã đạt.\n"
+    if name in {"unslop", "unslop-vi"}:
+        body += '\n## Quy ước đếm thân bài\nDùng verify_facts texts mode="markdown_body" với toàn bộ phần bài viết gồm H1/H2; tool loại dòng heading #-lines, YAML front matter và code blocks. Đưa SEO/tóm tắt/ghi chú ra ngoài blog text. Copy words từ tool, sửa bài thì kiểm lại; không tự đếm hay đổi phạm vi.\n'
     return "---\n" + yaml.safe_dump({"name": name, "description": spec["description"]}, allow_unicode=True, sort_keys=False) + "---\n\n" + body
 
 

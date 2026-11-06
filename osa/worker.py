@@ -4,7 +4,7 @@ import json
 import time
 from dataclasses import dataclass, field
 from .config import CFG, call_kwargs, client_for
-from . import approvals, i18n, library, memories, memory, mcp_hub, search, skillpacks, tasklog, tools, verification
+from . import approvals, i18n, library, memories, memory, mcp_hub, search, skillpacks, tasklog, tools, verification, local_checks
 from .computer import tools as ctools
 
 PROGRESS = None   # 由 router 设置：async (task, text) -> None，把动作推送到任务卡片
@@ -120,6 +120,8 @@ async def _tool(task: Task, log: tasklog.Log, step: dict, name: str, raw: str, p
     """执行一个工具调用，返回 (给模型的结果, 这一步的状态)。工具出错交给模型自己处理。"""
     try:
         args = json.loads(raw or "{}")
+        if name in local_checks.NAMES:
+            return local_checks.tool(name, args), "done"
         if name == "verify_facts":
             return verification.tool(args), "done"
         if name in skillpacks.NAMES:
@@ -162,11 +164,11 @@ async def _run_worker(task: Task, goal: str, label: str = "") -> str:
     pages = not label   # Heavy 模式的几个 Worker 只出草稿，不各自存页面
     system = WORKER_PROMPT.format(date=time.strftime("%Y-%m-%d"), lang=ANSWER_LANG[i18n.lang()]) + ("\n" + PAGE_HINT if pages else "") \
         + ("\n\n" + ctools.SYSTEM_HINT if use_pc else "")
-    system += verification.HINT + skillpacks.runtime_hint(task.bot_id)
+    system += verification.HINT + local_checks.runtime_hint() + skillpacks.runtime_hint(task.bot_id)
     if known := memories.worker_block(task.bot_id):
         system += f"\n\n关于用户（长期记忆，做事时遵守其中的偏好）：\n{known}"
     msgs = [{"role": "system", "content": system}, {"role": "user", "content": goal}]
-    schemas = [verification.SCHEMA] + skillpacks.SCHEMAS + tools.schemas() + ([library.SAVE_PAGE] if pages else []) + [library.READ_PAGE, search.SEARCH_TOOL] \
+    schemas = local_checks.SCHEMAS + [verification.SCHEMA] + skillpacks.SCHEMAS + tools.schemas() + ([library.SAVE_PAGE] if pages else []) + [library.READ_PAGE, search.SEARCH_TOOL] \
         + (ctools.SCHEMAS if use_pc else [])
     log = tasklog.Log(task, label)
 
