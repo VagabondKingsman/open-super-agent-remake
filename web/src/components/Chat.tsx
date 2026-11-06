@@ -6,6 +6,11 @@ import Composer from './Composer'
 import Markdown from './Markdown'
 import { locale, t, tn } from '../i18n'
 
+// Stored headers can use any supported language, regardless of the current UI language.
+const TASK_DISPATCH = /^\[(?:任务已派发|Task dispatched|Đã giao tác vụ)\]\s*/ // i18n-ignore: stored headers
+const TASK_RESULT = /^\[(?:任务 #(\d+) 结果|Task #(\d+) result|Kết quả tác vụ #(\d+))\]\n?/ // i18n-ignore: stored headers
+const ROUTINE_LABEL = /^\[(?:定时任务|Routine|Lịch) [^\]]+\]\s*/ // i18n-ignore: stored labels
+
 const time = (ts: number) => new Date(ts * 1000).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
 const VIA: Record<string, string> = {
   telegram: t('来自 Telegram'), feishu: t('来自飞书'), dingtalk: t('来自钉钉'), wecom: t('来自企业微信'), discord: t('来自 Discord'),
@@ -15,9 +20,9 @@ const secs = (s: number) => (s < 60 ? t('{n} 秒', { n: Math.round(s) }) : t('{m
 // 旧版本的任务记录没有 kind，从文字里推断
 function taskKind(m: Message): { kind: string; taskId?: number } {
   if (m.meta.kind) return { kind: m.meta.kind, taskId: m.meta.task_id ?? (m.meta.kind === 'dispatch' ? m.id : undefined) }
-  if (m.content.startsWith('[任务已派发]')) return { kind: 'dispatch', taskId: m.id }   // i18n-ignore：存在消息里的标记
-  const r = m.content.match(/^\[任务 #(\d+) 结果\]/)   // i18n-ignore：存在消息里的标记
-  if (r) return { kind: 'result', taskId: Number(r[1]) }
+  if (TASK_DISPATCH.test(m.content)) return { kind: 'dispatch', taskId: m.id }   // i18n-ignore：存在消息里的标记
+  const r = m.content.match(TASK_RESULT)   // i18n-ignore：存在消息里的标记
+  if (r) return { kind: 'result', taskId: Number(r[1] || r[2] || r[3]) }
   if (/^\[任务 #\d+ 已取消/.test(m.content)) return { kind: 'cancel' }   // i18n-ignore：存在消息里的标记
   if (m.content.startsWith('[触发器')) return { kind: 'trigger' }   // i18n-ignore：存在消息里的标记
   return { kind: 'note' }
@@ -68,7 +73,7 @@ function TaskCard({ m, task, owner, handoffTo, replyTo }: { m: Message; task?: T
     const timer = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(timer)
   }, [status])
-  const goal = m.content.replace(/^\[任务已派发\]\s*/, '')   // i18n-ignore：存在消息里的标记
+  const goal = m.content.replace(TASK_DISPATCH, '')   // i18n-ignore：存在消息里的标记
   const label: Record<string, string> = { running: task?.waiting_approval ? t('等你确认') : t('进行中'), done: t('已完成'), failed: t('失败'), cancelled: t('已取消'), interrupted: t('已中断') }
   const heavy = m.meta.mode === 'heavy'
   const name = owner ? (heavy ? t('{name} 的Heavy 任务', { name: owner.name }) : t('{name} 的后台任务', { name: owner.name })) : heavy ? t('Heavy 任务') : t('后台任务')
@@ -98,7 +103,7 @@ function SavePageBtn({ bot, text, goal, taskId }: { bot?: Bot; text: string; goa
     setBusy(true)
     try {
       const h1 = text.match(/^#\s+(.+)$/m)?.[1]
-      const title = (h1 || goal.split('\n').find(l => l.trim()) || t('任务 #{id} 的结果', { id: taskId ?? '' })).replace(/^\[定时任务 [^\]]+\]\s*/, '').slice(0, 60)   // i18n-ignore：去掉存在消息里的标记
+      const title = (h1 || goal.split('\n').find(l => l.trim()) || t('任务 #{id} 的结果', { id: taskId ?? '' })).replace(ROUTINE_LABEL, '').slice(0, 60)   // i18n-ignore：去掉存在消息里的标记
       const p = await api('/api/pages', { method: 'POST', body: { bot_id: bot?.id, title, content: text, task_id: taskId } })
       setSaved(p.id)
     } finally { setBusy(false) }
@@ -107,7 +112,7 @@ function SavePageBtn({ bot, text, goal, taskId }: { bot?: Bot; text: string; goa
 }
 
 function ResultMessage({ bot, m, goal, showName }: { bot?: Bot; m: Message; goal: string; showName?: boolean }) {
-  const text = m.content.replace(/^\[任务 #\d+ 结果\]\n?/, '')   // i18n-ignore：存在消息里的标记
+  const text = m.content.replace(TASK_RESULT, '')   // i18n-ignore：存在消息里的标记
   const [open, setOpen] = useState(text.length < 1800)
   const status = m.meta.status || 'done'
   return (
@@ -337,7 +342,7 @@ export default function Chat({ onToggleDetails }: { onToggleDetails: () => void 
             // 没有新内容的定时任务（跑完才知道）不显示，运行记录在右栏“定时”里
             if (k.kind === 'dispatch') return attached.has(m.id) || m.meta.quiet || tasks[m.id]?.quiet ? null : task(m.id)
             if (k.kind === 'result') return <ResultMessage key={m.id} bot={speaker(m)} m={m} showName={group}
-              goal={(k.taskId && byId.get(k.taskId)?.content.replace(/^\[任务已派发\]\s*/, '')) || ''} />   // i18n-ignore：存在消息里的标记
+              goal={(k.taskId && byId.get(k.taskId)?.content.replace(TASK_DISPATCH, '')) || ''} />   // i18n-ignore：存在消息里的标记
             if (k.kind === 'handoff') return <HandoffLine key={m.id} from={botOf(m.bot_id)} to={botOf(m.meta.to)} text={m.meta.note || m.content} />
             if (k.kind === 'dm') return <DmLine key={m.id} m={m} from={botOf(m.bot_id)} to={botOf(m.meta.to)} here={chat.id} />
             if (k.kind === 'dm_reply' && m.meta.sent) return <div key={m.id} className="sys-line">↩ {t('已把回信发给 {name}', { name: botOf(m.meta.to)?.name || t('已删除的 Bot') })}

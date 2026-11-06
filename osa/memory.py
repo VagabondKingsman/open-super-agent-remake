@@ -9,6 +9,10 @@ import sqlite3
 import time
 from .config import CFG, ROOT
 
+# Persisted task headers follow the UI language; read older records in any language.
+TASK_DISPATCH = re.compile(r"^\[(?:任务已派发|Task dispatched|Đã giao tác vụ)\]\s*")
+TASK_RESULT = re.compile(r"^\[(?:任务 #\d+ 结果|Task #\d+ result|Kết quả tác vụ #\d+)\]\n?")
+
 db_path = ROOT / CFG["memory"]["db"]
 db_path.parent.mkdir(parents=True, exist_ok=True)
 conn = sqlite3.connect(db_path, check_same_thread=False)
@@ -215,7 +219,7 @@ def usage_stats() -> dict:
         "currency": CFG["pricing"]["currency"],
         "today": total(day0), "week": total(now - 7 * 86400), "month": total(now - 30 * 86400),
         "by_role": [{"role": r, "model": m, "cost": round(c, 4), "tokens": t} for r, m, c, t in by_role],
-        "by_task": [{"id": i, "cost": round(c, 4), "tokens": t, "goal": (g or "").removeprefix("[任务已派发] ")[:60]}
+        "by_task": [{"id": i, "cost": round(c, 4), "tokens": t, "goal": TASK_DISPATCH.sub("", g or "")[:60]}
                     for i, c, t, g in by_task],
         "by_day": [{"day": d, "cost": round(c, 4)} for d, c in by_day],
     }
