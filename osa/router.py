@@ -585,7 +585,7 @@ class Router:
         quiet_ok：定时任务用，结果只有“无新内容”时不发结果消息、对话里也不显示这个任务（见 routines.QUIET）。
         notes：只给 Worker 看的补充说明，接在 goal 后面，不显示也不存进对话。"""
         cid = chat_id or self.chat_id
-        tid = await self.add("task", f"[任务已派发] {label + ' ' if label else ''}{goal}", cid, kind="dispatch",
+        tid = await self.add("task", f"{i18n.t('[任务已派发]')} {label + ' ' if label else ''}{goal}", cid, kind="dispatch",
                              mode=mode, status="running", **({"handoff_to": handoff["to"]} if handoff else {}),
                              **({"reply_to": reply["bot"]} if reply else {}))
         task = Task(id=tid, goal=goal, mode=mode, bot_id=self.bot_id, chat_id=cid, approval_chat_id=self.chat_id,
@@ -630,7 +630,7 @@ class Router:
             await self._done(task)
             return
         memory.update_meta(task.id, status=task.status, elapsed=round(time.time() - task.started), steps=task.steps)
-        await self.add("task", f"[任务 #{task.id} 结果]\n{task.result}", task.chat_id, kind="result", task_id=task.id,
+        await self.add("task", i18n.t("[任务 #{id} 结果]", id=task.id) + f"\n{task.result}", task.chat_id, kind="result", task_id=task.id,
                        status=task.status, elapsed=round(time.time() - task.started))
         await self.emit({"type": "task", "task": task.public()}, task.chat_id)
         if task.handoff:

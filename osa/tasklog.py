@@ -13,9 +13,9 @@
 """
 import asyncio
 import json
-import re
 import time
 from .config import CFG
+from . import memory
 from .memory import conn
 
 notify = None   # 由 server 设置：async (event) -> None
@@ -114,7 +114,7 @@ def steps(task_id: int) -> list[dict]:
 def _task(row) -> dict:
     i, ts, content, meta, chat_id, bot_id = row
     m = json.loads(meta or "{}")
-    return {"id": i, "ts": ts, "goal": content.removeprefix("[任务已派发]").strip(), "mode": m.get("mode", "single"),
+    return {"id": i, "ts": ts, "goal": memory.TASK_DISPATCH.sub("", content).strip(), "mode": m.get("mode", "single"),
             "status": m.get("status", "done"), "elapsed": m.get("elapsed"), "steps": m.get("steps"),
             "chat_id": chat_id, "bot_id": bot_id, "handoff_to": m.get("handoff_to")}
 
@@ -146,7 +146,7 @@ def detail(task_id: int) -> dict | None:
         and json_extract(meta, '$.task_id')=? and json_extract(meta, '$.kind')='result' order by id limit 1""",
                        (t["chat_id"], task_id, task_id)).fetchone()
     if res:
-        t["result"] = re.sub(r"^\[任务 #\d+ 结果\]\n?", "", res[0])
+        t["result"] = memory.TASK_RESULT.sub("", res[0])
         t["finished"] = res[2]
         t["elapsed"] = t["elapsed"] or json.loads(res[1] or "{}").get("elapsed")
     cost, tokens = conn.execute("select coalesce(sum(cost), 0), coalesce(sum(cache_hit+cache_miss+output), 0) "
