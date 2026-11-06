@@ -23,7 +23,7 @@ Nêu một dòng Skill Flow ở đầu việc nhiều bước. Chỉ nạp skill
 ## 2. Nạp đúng trên OSA
 
 1. Gọi `load_skill(name="ai-work-method")` và từng skill trong chuỗi trước bước tương ứng.
-2. Kết quả có `next_offset` thì đọc tiếp đến `null`. Với adapter, đọc `SKILL.source.md` bằng `read_skill_resource`, rồi đọc references đúng bước. Không coi mô tả ngắn là toàn bộ quy trình.
+2. Kết quả có `read_status=CONTINUE_REQUIRED` thì chưa đọc hết; dùng `next_offset` đọc tiếp đến `null`/`COMPLETE`. Với adapter, đọc `SKILL.source.md` bằng `read_skill_resource`, rồi đọc references đúng bước. Không coi mô tả ngắn là toàn bộ quy trình.
 3. `read_skill_resource(name=..., path="")` liệt kê file. Đường dẫn luôn tương đối với skill; lệnh chỉ đọc, không chạy helper.
 4. `resource_dir` là thư mục trên máy chủ OSA. Không đoán `/mnt/skills`, không gọi công cụ Skill của Grok Bot, không coi thư mục máy chủ là thư mục Docker.
 5. Khi dispatch, goal phải tự đủ: yêu cầu người dùng, Skill Flow, input/artifact, TIP/AC, quyền được cấp và phần chưa biết. Worker phải nạp lại skill; nó không thấy tool result riêng của Router.
@@ -47,7 +47,7 @@ Mỗi handoff gồm artifact + schema/phiên bản + nguồn + trạng thái AC 
 
 ## 4. Code và Deep Check
 
-Nạp `vibecode-kit` và các references QA/Retro khi dùng. Tám bước là SCAN, RRI, VISION, BLUEPRINT, TASK GRAPH, BUILD, VERIFY, REFINE. Bug nhỏ rút gọn thành SCAN -> TIP -> BUILD -> VERIFY.
+Nạp `vibecode-kit` và các references QA/Retro khi dùng. Tám bước là SCAN, RRI, VISION, BLUEPRINT, TASK GRAPH, BUILD, VERIFY, REFINE. Bug nhỏ vẫn dùng ai-work-method + vibecode-kit, rút gọn thành SCAN -> TIP -> BUILD -> VERIFY. Khi yêu cầu kiểm tra sâu, đọc references/qa-protocol.md và references/retro-rubric-protocol.md trước khi kết luận.
 
 Deep Check là VERIFY sâu, không phải tính năng riêng hay nút bấm của OSA:
 
@@ -56,6 +56,8 @@ Deep Check là VERIFY sâu, không phải tính năng riêng hay nút bấm củ
 - Tier 3: performance, accessibility và security theo rủi ro/phạm vi; ghi rõ phần không áp dụng hoặc chưa chạy.
 
 Retro Rubric R1–R5 gồm Spec Fidelity, Runtime & Test, Edge-Case Resilience, Blast-Radius/Hygiene/YAGNI, Anti-Repeat. Dưới 9/10 hoặc có điểm 0 thì sửa và thêm regression guard, tối đa 3 vòng; hết vòng hoặc đổi scope thì báo chủ việc. Chạy `scripts/retro_rubric.py` nếu có môi trường; không tự bịa điểm chạy máy.
+
+Nếu trả unified diff khi không có shell, đếm từng dòng trong hunk: old_count = context + deletions, new_count = context + additions (không tính header), rồi điền đúng @@ và context nguồn thật; không chèn dòng tên file vào patch nếu đó chỉ là nhãn trong đề. Thiếu thực thi thì ghi chưa apply/chưa test, không nhận patch đã kiểm chứng. Chưa qua validator thật thì gắn UNVERIFIED, kể cả đã tự nhẩm đếm.
 
 VERIFY REPORT phải có requirement coverage, scenario results theo AC, technical health, Retro Rubric score/vòng/RETRO-ID và overall READY / READY-with-deferred / NOT READY.
 

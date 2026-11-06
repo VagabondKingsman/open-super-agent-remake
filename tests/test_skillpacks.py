@@ -195,3 +195,27 @@ def test_archive_inside_pack_does_not_include_itself(pack):
     with ZipFile(output) as z:
         assert "ai-native/self.zip" not in z.namelist()
         assert z.testzip() is None
+
+
+def test_page_status_and_large_safe_default(make_bot):
+    bot = make_bot()
+    text = "x" * 5600
+    skills.save(bot["id"], "reading-status", text)
+    first = json.loads(skillpacks.load_skill(bot["id"], "reading-status"))
+    assert first["end_offset"] == first["next_offset"] == 5500
+    assert first["read_status"] == "CONTINUE_REQUIRED"
+    last = json.loads(skillpacks.load_skill(bot["id"], "reading-status", 5500))
+    assert last["next_offset"] is None and last["end_offset"] == 5600
+    assert last["read_status"] == "COMPLETE"
+    assert first["content"] + last["content"] == text
+
+
+def test_adapter_advertises_required_full_method(pack, make_bot):
+    root, _ = pack
+    bot = make_bot()
+    skillpacks.install(root, bot["id"])
+    result = json.loads(skillpacks.load_skill(bot["id"], "vibecode-kit"))
+    source = result["method_source"]
+    assert source["tool"] == "read_skill_resource"
+    assert source["name"] == "vibecode-kit" and source["path"] == "SKILL.source.md"
+    assert source["offset"] == 0 and "every source page" in source["required"]

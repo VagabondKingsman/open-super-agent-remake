@@ -11,10 +11,10 @@ OSA v0.6 lưu skill trong bảng `skills` của SQLite, đường dẫn lấy t�
 
 Bộ chuyển giao thêm hai công cụ chỉ đọc vào Router và Worker:
 
-- `load_skill(name, offset=0)`: nạp body của skill mà bot hiện tại nhìn thấy.
+- `load_skill(name, offset=0)`: nạp body của skill mà bot hiện tại nhìn thấy. Adapter có `method_source` chỉ rõ lệnh đọc phương pháp đầy đủ; body adapter không thay bản nguồn.
 - `read_skill_resource(name, path="", offset=0)`: path rỗng liệt kê file; path tương đối đọc references/helper dưới thư mục skill đã cài.
 
-Đọc tiếp `next_offset` đến `null`. Mỗi trang tối đa 3.000 ký tự nội dung, tự giảm khi JSON escape dài; kết quả nằm dưới giới hạn 8.000 ký tự tool output của Worker. Không cắt bỏ bản đầy đủ của unslop/unslop-vi. Chặn đường dẫn tuyệt đối, `..`, symlink và file không phải UTF-8; công cụ không có quyền chạy code hoặc đọc ngoài package.
+Đọc tiếp `next_offset` đến `null`; `read_status=CONTINUE_REQUIRED` nghĩa là chưa hết, `COMPLETE` nghĩa là đã trả tới cuối. Mỗi trang tối đa 5.500 ký tự nội dung, tự giảm khi JSON escape dài; kết quả nằm dưới giới hạn 8.000 ký tự tool output của Worker. Không cắt bỏ bản đầy đủ của unslop/unslop-vi. Chặn đường dẫn tuyệt đối, `..`, symlink và file không phải UTF-8; công cụ không có quyền chạy code hoặc đọc ngoài package.
 
 Khi thấy skill `ai-native-mentor`, Router và Worker được nhắc dùng mentor cho việc nhiều bước, nạp skill phù hợp và giữ Skill Flow/TIP/AC trong goal lúc dispatch. Không ép gọi cả bộ cho câu hỏi một bước. Đây là hướng dẫn để mô hình làm theo, không phải bộ định tuyến tất định hay bảo đảm năng lực như Build Bot.
 
@@ -116,3 +116,5 @@ uv run python -m osa.i18n
 ```
 
 `tests/test_skillpacks.py` dùng payload giả lập do repo tự tạo và FakeLLM, không cần bảy package có bản quyền, không gọi mạng LLM. Test bao gồm discovery/idempotence, shared/private override, slash/export, pagination dài, resource path/symlink, source preflight, zip và Router -> Worker load/read integration. Đây là bằng chứng plumbing, chưa chứng minh mô hình thật sẽ chọn skill đúng mọi yêu cầu. Live-agent quality test cần phiên mô hình được người dùng cho phép riêng.
+
+Kết quả chạy xAI thật, các lỗi còn lại và quyết định NO-GO: [báo cáo live eval](ai-native-live-eval.md).

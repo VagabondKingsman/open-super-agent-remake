@@ -16,7 +16,7 @@ from . import memory, skills
 from .config import ROOT
 
 PACK = ROOT / "skills-pack" / "ai-native"
-PAGE_SIZE = 3000  # JSON + text must fit Worker's 8000-character tool-result cap.
+PAGE_SIZE = 5500  # JSON + text must fit Worker's 8000-character tool-result cap.
 
 
 def resource_root() -> Path:
@@ -134,7 +134,9 @@ def _page(text: str, offset: int) -> dict:
     while len(json.dumps(text[offset:end], ensure_ascii=False)) > 6000:
         end = offset + (end - offset) // 2
     return {"offset": offset, "next_offset": end if end < len(text) else None,
-            "total_chars": len(text), "content": text[offset:end]}
+            "end_offset": end, "total_chars": len(text),
+            "read_status": "COMPLETE" if end == len(text) else "CONTINUE_REQUIRED",
+            "content": text[offset:end]}
 
 
 def load_skill(bot_id: int, name: str, offset: int = 0) -> str:
@@ -150,6 +152,10 @@ def load_skill(bot_id: int, name: str, offset: int = 0) -> str:
         if directory.is_dir() and skills.NAME_RE.fullmatch(s["name"]):
             out["resource_dir"] = str(directory)
             out["resource_hint"] = "Use read_skill_resource with an empty path to list files."
+            if (directory / "SKILL.source.md").is_file():
+                out["method_source"] = {"tool": "read_skill_resource", "name": s["name"],
+                                        "path": "SKILL.source.md", "offset": 0,
+                                        "required": "This is an adapter, not the method. Read every source page before applying it."}
         return json.dumps(out, ensure_ascii=False)
     except ValueError as e:
         return json.dumps({"error": str(e)})
@@ -211,7 +217,14 @@ def runtime_hint(bot_id: int) -> str:
     return ("\n\nAI Native skills (installed by the user):\n" + skills.summary(bot_id) +
             "\nBefore multi-step work, load_skill ai-native-mentor, then ai-work-method and the relevant skills. "
             "For small single-step tasks, use only the relevant skill or answer directly. "
-            "Read full bodies/references through load_skill/read_skill_resource; follow next_offset until null. "
+            "Read full bodies/references through load_skill/read_skill_resource; CONTINUE_REQUIRED means keep reading next_offset until null. "
+            "When load_skill returns method_source, the adapter alone is not sufficient; read that source completely. "
+            "Do not leave a requested reference at CONTINUE_REQUIRED and claim full reading. "
+            "Even small code fixes use the abbreviated ai-work-method + vibecode-kit flow (not all eight skills). "
+            "For deep code QA, read vibecode-kit references/qa-protocol.md and references/retro-rubric-protocol.md; "
+            "report Tier 1/2/3 and R1-R5 with real evidence or NOT_CHECKED. "
+            "Before returning a unified diff, count actual hunk lines: old_count=context+deletions; new_count=context+additions, excluding file/hunk headers. "
+            "Match these counts in @@ and the exact supplied source; if not mechanically validated, label the patch UNVERIFIED and never claim it was checked/applied/tested. "
             "These instructions do not grant tools, permissions, spending or external-write approval. "
             "When dispatching, preserve Skill Flow, TIP/AC and constraints in the self-contained goal.")
 
