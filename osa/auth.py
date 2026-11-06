@@ -4,8 +4,6 @@
 改密码或删掉 session.key 后，所有设备都要重新登录。
 不用登录就能访问的：登录页、分享页（/s/、/skill/、/template/ 和 /api/shared/）、webhook（有自己的 token）、前端静态文件。
 """
-
-from .i18n import s as _s
 import asyncio
 import hashlib
 import hmac
@@ -17,6 +15,7 @@ import time
 from urllib.parse import parse_qs, quote, urlsplit
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
+from . import i18n
 from .memory import db_path
 
 COOKIE = "osa_session"
@@ -122,7 +121,7 @@ class AuthMiddleware:
         path, method = scope["path"], scope.get("method", "GET")
         if (scope["type"] == "websocket" or method not in ("GET", "HEAD", "OPTIONS")) \
                 and not path.startswith("/hooks/") and not _same_origin(headers):
-            return await _deny(scope, send, 403, _s('audit_2b079a0785'))
+            return await _deny(scope, send, 403, i18n.t("跨站请求被拒绝"))
         if _public(path):
             return await self.app(scope, receive, send)
         exp = check_token(_cookies(headers).get(COOKIE))
@@ -133,7 +132,7 @@ class AuthMiddleware:
                 qs = scope.get("query_string", b"").decode("latin-1")
                 nxt = path + ("?" + qs if qs else "")
                 return await _redirect(send, "/login" + ("" if nxt == "/" else "?next=" + quote(nxt, safe="")))
-            return await _deny(scope, send, 401, _s('audit_a323ce0e3b'))
+            return await _deny(scope, send, 401, i18n.t("请先登录"))
         if scope["type"] == "http" and exp - time.time() < RENEW_BELOW:
             cookie = _cookie_header(new_token(), MAX_AGE, scope.get("scheme") == "https").encode("latin-1")
 
@@ -194,12 +193,17 @@ button:hover{opacity:.88}.err{color:var(--bad);font-size:13px;margin:0;text-alig
 {error}<button type="submit">{login}</button></form></body></html>"""
 
 
-def _page(nxt: str, error: str = "", status: int = 200) -> HTMLResponse:
+def _lang(request: Request) -> str:
+    """登录前也要知道用哪种语言：设过就用设置里的，没设过按浏览器的。"""
+    return i18n.lang()
+
+
+def _page(request: Request, nxt: str, error: str = "", status: int = 200) -> HTMLResponse:
+    lang = _lang(request)
     err = f'<p class="err">{html.escape(error)}</p>' if error else ""
-    from .i18n import get_locale
-    body = (PAGE.replace("{lang}", get_locale()).replace("{login}", html.escape(_s("auth_login")))
-            .replace("{password}", html.escape(_s("auth_password")))
-            .replace("{next}", html.escape(nxt, quote=True)).replace("{error}", err))
+    body = PAGE.replace("{next}", html.escape(nxt, quote=True)).replace("{error}", err)
+    body = body.replace("{lang}", lang).replace("{login}", i18n.t("登录", in_lang=lang)) \
+        .replace("{password}", i18n.t("密码", in_lang=lang))
     return HTMLResponse(body, status, headers={"cache-control": "no-store"})
 
 
@@ -208,7 +212,7 @@ async def login_page(request: Request):
     nxt = _safe_next(request.query_params.get("next"))
     if not enabled() or check_token(request.cookies.get(COOKIE)):
         return RedirectResponse(nxt, 303)
-    return _page(nxt)
+    return _page(request, nxt)
 
 
 @router.post("/login")
@@ -219,11 +223,11 @@ async def login(request: Request):
         return RedirectResponse(nxt, 303)
     ip = request.client.host if request.client else "?"
     if _blocked(ip):
-        return _page(nxt, _s('audit_9a84b5edbe'), 429)
+        return _page(request, nxt, i18n.t("输错次数太多，请 10 分钟后再试", in_lang=_lang(request)), 429)
     if not check_password(form.get("password", "")):
         _fails.setdefault(ip, []).append(time.time())
         await asyncio.sleep(1)
-        return _page(nxt, _s('audit_9096053a7c'), 401)
+        return _page(request, nxt, i18n.t("密码不对", in_lang=_lang(request)), 401)
     _fails.pop(ip, None)
     r = RedirectResponse(nxt, 303)
     r.headers.append("set-cookie", _cookie_header(new_token(), MAX_AGE, request.url.scheme == "https"))

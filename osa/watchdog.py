@@ -1,10 +1,8 @@
 """Watchdog：独立于 Worker 的定时巡检。发现超时、无进展、重复调用（死循环）或超预算时取消任务并通知。"""
-
-from .i18n import s as _s
 import asyncio
 import time
 from .config import CFG
-from . import memory
+from . import i18n, memory
 
 
 async def watchdog():
@@ -21,12 +19,12 @@ async def watchdog():
                 continue
             reason = None
             if now - t.started - t.paused_s > lim["task_timeout_s"]:
-                reason = _s('audit_68e625e03f', v0=lim['task_timeout_s'])
+                reason = i18n.t("运行超过 {n} 秒", n=lim["task_timeout_s"])
             elif now - t.last_progress > 180:
-                reason = _s('audit_ab5193747b')
+                reason = i18n.t("3 分钟没有进展")
             elif len(t.recent_calls) >= 4 and len(set(t.recent_calls[-4:])) == 1:
-                reason = _s('audit_bc864269ea')
+                reason = i18n.t("连续重复同一个工具调用，疑似死循环")
             elif memory.tokens_today() > lim["daily_token_budget"]:
-                reason = _s('audit_339ee90e46')
+                reason = i18n.t("今日 token 预算用完")
             if reason:
-                cancel(t.id, f"Watchdog：{reason}")
+                cancel(t.id, i18n.t("Watchdog：{reason}", reason=reason))

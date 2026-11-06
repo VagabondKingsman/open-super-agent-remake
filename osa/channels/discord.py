@@ -10,20 +10,19 @@
   卡片之后用 PATCH 改成结果。
 - 服务器在国内连不上 Discord，要设置 HTTPS_PROXY（httpx 和 websockets 都会用）。
 """
-
-from ..i18n import s as _s
 import asyncio
 import json
 import os
 import random
 import httpx
 import websockets
+from .. import i18n
 from . import Channel, fmt
 
 API = os.environ.get("OSA_DISCORD_API", "https://discord.com/api/v10").rstrip("/")   # 测试时换成假的服务器
 INTENTS = 1 << 12          # DIRECT_MESSAGES
-FATAL = {4004: _s('audit_24de406428'), 4010: _s('audit_345f68831d'), 4011: _s('audit_605d57ce7f'),
-         4012: _s('audit_f51ac80e6d'), 4013: _s('audit_5e1c67164b'), 4014: _s('audit_3e5734000c')}
+FATAL = {4004: i18n.N_("token 失效了（被重置或机器人被删除），删掉这个连接重新添加"), 4010: i18n.N_("分片参数不对"),
+         4011: i18n.N_("需要分片"), 4012: i18n.N_("Gateway 版本不对"), 4013: i18n.N_("意图参数不对"), 4014: i18n.N_("没有开通需要的意图")}
 ORANGE, GREY = 0xF59E0B, 0x9CA3AF
 STYLE = {"primary": 1, "danger": 4}
 
@@ -78,16 +77,18 @@ class Discord(Channel):
         if token.lower().startswith("bot "):
             token = token[4:].strip()
         if len(token) < 50 or token.count(".") != 2:
-            raise ValueError(_s('audit_517fbdc25b'))
+            raise ValueError(i18n.t("token 格式不对：在 Developer Portal 应用的 Bot 页面点 Reset Token 拿到（三段，用点隔开）"))
         async with httpx.AsyncClient(timeout=20) as c:
             try:
                 me = await _call(c, token, "GET", "/users/@me")
                 app = await _call(c, token, "GET", "/oauth2/applications/@me")
             except DiscordError as e:
-                raise ValueError(_s('audit_ee3ca20282') if e.status == 401 else _s('audit_fc26d2ac0b', v0=e.msg))
+                raise ValueError(i18n.t("token 不对，或者已经被重置") if e.status == 401
+                                 else i18n.t("Discord 返回错误：{error}", error=e.msg))
             except httpx.HTTPError as e:
-                raise ValueError(_s('audit_4933da48a3', v0=type(e).__name__))
-        return {"name": me.get("username") or app.get("name") or _s('audit_39a9ca1b99'),
+                raise ValueError(i18n.t("连不上 Discord（{error}）。服务器在国内的话，要给 open-super-agent 设置 HTTPS_PROXY",
+                                        error=type(e).__name__))
+        return {"name": me.get("username") or app.get("name") or i18n.t("Discord 机器人"),
                 "config": {"bot_id": me["id"], "app_id": app.get("id") or me["id"], "username": me.get("username", "")},
                 "secret": token}
 
@@ -119,19 +120,20 @@ class Discord(Channel):
                     backoff = 3
             except DiscordError as e:
                 if e.status == 401:
-                    self.set_state("error", FATAL[4004])
+                    self.set_state("error", i18n.later(FATAL[4004]))
                     return
-                self.set_state("error", _s('audit_93d5f3a2fe', v0=e.msg))
+                self.set_state("error", i18n.later("Discord 返回错误：{error}，稍后自动重试", error=e.msg))
             except websockets.ConnectionClosed as e:
                 code = e.rcvd.code if e.rcvd else 0
                 if code in FATAL:
-                    self.set_state("error", _s('audit_25e7ff42ef', v0=FATAL[code]))
+                    self.set_state("error", i18n.later("Discord 断开了连接：{error}", error=i18n.t(FATAL[code])))
                     return
                 if code in (4007, 4009):   # seq 不对、会话超时：重新 Identify
                     self._session = ""
-                self.set_state("error", _s('audit_4cfffa6da3'))
+                self.set_state("error", i18n.later("长连接断了，正在重连"))
             except (OSError, asyncio.TimeoutError, httpx.HTTPError, websockets.WebSocketException, ValueError, KeyError) as e:
-                self.set_state("error", _s('audit_f2c375aded', v0=type(e).__name__))
+                self.set_state("error", i18n.later("连不上 Discord（{error}），稍后自动重试。服务器在国内的话，要设置 HTTPS_PROXY",
+                                               error=type(e).__name__))
             await asyncio.sleep(backoff + random.random() * 2)
             backoff = min(backoff * 2, 60)
 
@@ -202,7 +204,7 @@ class Discord(Channel):
         files = [(a.get("filename") or f"file_{a.get('id')}", a["url"]) for a in m.get("attachments") or [] if a.get("url")]
         if (m.get("flags") or 0) & 8192:   # 语音消息
             if peer == self.row["peer"]:
-                self.say(_s('audit_e728acb4e2'))
+                self.say(i18n.t("暂时听不了语音消息，请打字。"))
             return
         await self.inbound(peer, who, text, files)
 
@@ -212,7 +214,7 @@ class Discord(Channel):
         peer = "" if d.get("guild_id") else d.get("channel_id") or (d.get("channel") or {}).get("id", "")
         job = asyncio.create_task(self.press(peer, (d.get("data") or {}).get("custom_id", "")))
         done, _ = await asyncio.wait({job}, timeout=2.5)   # Discord 要 3 秒内回应；交还电脑这类慢的先回一句，接着做
-        toast = job.result() if done else _s('audit_e220c3405a')
+        toast = job.result() if done else i18n.t("收到，正在处理")
         await self.call("POST", f"/interactions/{d['id']}/{d['token']}/callback",
                         {"type": 4, "data": {"content": toast[:2000], "flags": 64}})
 

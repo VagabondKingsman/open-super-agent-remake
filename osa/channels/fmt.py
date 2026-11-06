@@ -7,10 +7,9 @@
 - dingtalk_md：钉钉的 markdown 消息里单个换行不换行，行尾补两个空格（标准的硬换行）；代码块原样保留。
 - discord_md：Discord 只认一到三级标题，更小的改成加粗；表格不支持，放进代码块里等宽显示。
 """
-
-from ..i18n import s as _s
 import html
 import re
+from .. import i18n
 
 FENCE = re.compile(r"^\s*(```|~~~)")
 _CODE_BLOCK = re.compile(r"^([ \t]*)(```|~~~)([^\n]*)\n(.*?)(?:\n[ \t]*\2[ \t]*$|\Z)", re.S | re.M)
@@ -103,7 +102,7 @@ def telegram_html(md: str) -> str:
 
 def plain(md: str) -> str:
     """退回纯文本时用：去掉最显眼的 Markdown 记号。"""
-    text = _LINK.sub(lambda m: f"{m[1]}（{m[2]}）", md)
+    text = _LINK.sub(lambda m: i18n.t("{text}（{url}）", text=m[1], url=m[2]), md)
     text = _BOLD.sub(lambda m: m[1] or m[2], text)
     return _HEADING.sub(lambda m: m[1], text)
 
@@ -166,4 +165,4 @@ def title_line(md: str, limit: int = 30) -> str:
         line = re.sub(r"^[#>\-*+\s]+|[`*_~]", "", line).strip()
         if line:
             return line[:limit]
-    return _s('audit_dc6de3fa86')
+    return i18n.t("消息")

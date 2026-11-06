@@ -1,176 +1,242 @@
-"""Locale packs for system prompts and backend user-facing strings.
+"""界面语言。中文原文就是翻译的键：t("没有这个 Bot") 在英文界面返回 locales/en.json 里对应的英文，没有翻译就返回中文。
 
-Set OSA_LOCALE=vi|en|zh (default: vi). Falls back to English, never silently to Chinese in Vietnamese mode.
-Keys stay stable across locales so upstream merges stay clean.
-"""
-from __future__ import annotations
+只翻用户会看到的文字（接口报错、对话里的系统消息、卡片、推送、聊天软件里的按钮）；写给模型的提示词和工具说明保持中文。
+存进数据库、之后还要按原文比对的标记（比如 “[新话题]”）不要翻，在显示的地方翻。
 
-import os
-from functools import lru_cache
-from importlib import import_module
-from typing import Any
+语言存在 settings 表的 language 里，前后端共用。没设过时：默认越南语；旧 remake 的 overrides.locale 迁移一次，已设的 language 优先。
 
-SUPPORTED = ("vi", "en", "zh")
-DEFAULT = "vi"
-FALLBACKS = ("en",)
+`uv run python -m osa.i18n` 检查前后端：代码里用到但 en.json 里没有的、en.json 里多余的、占位符对不上的，
+以及前端还没包进 t() 的中文；EN 和 VI 都要检查。"""
+import json
+import re
+from pathlib import Path
 
-_override: str | None = None
-
-
-def set_locale(loc: str | None) -> str:
-    """Runtime locale override (Settings API). Pass None to clear."""
-    global _override
-    loc = (loc or "").strip().lower() or None
-    if loc and loc not in SUPPORTED:
-        raise ValueError(f"unsupported locale: {loc}")
-    _override = loc
-    clear_cache()
-    return get_locale()
+LANGS = ("vi", "zh", "en")
+EN: dict = json.loads((Path(__file__).parent / "locales" / "en.json").read_text())
+VI: dict = json.loads((Path(__file__).parent / "locales" / "vi.json").read_text())
+_lang: str | None = None
 
 
-def get_locale() -> str:
-    if _override in SUPPORTED:
-        return _override  # type: ignore
-    loc = (os.environ.get("OSA_LOCALE") or DEFAULT).strip().lower()
-    return loc if loc in SUPPORTED else DEFAULT
+def chosen() -> str:
+    """设过的语言；没设过返回空。"""
+    global _lang
+    if _lang is None:
+        from .memory import conn
+        r = conn.execute("select value from settings where key='language'").fetchone()
+        value = json.loads(r[0]) if r else ""
+        _lang = value if value in LANGS else ""
+        if not _lang:
+            # The v0.5 remake stored its preference under overrides.locale.
+            legacy = conn.execute("select value from settings where key='overrides'").fetchone()
+            overrides = json.loads(legacy[0]) if legacy else {}
+            value = overrides.get("locale") if isinstance(overrides, dict) else None
+            if value in LANGS:
+                set_lang(value)
+    return _lang or ""
 
 
-@lru_cache(maxsize=8)
-def _pack(locale: str) -> Any:
-    return import_module(f"osa.locales.{locale}")
+def lang() -> str:
+    return chosen() or "vi"
 
 
-def _resolve(locale: str, attr: str, default: str | None = None) -> str:
-    for loc in (locale, *FALLBACKS):
-        if loc not in SUPPORTED:
-            continue
-        mod = _pack(loc)
-        if hasattr(mod, attr):
-            return getattr(mod, attr)
-    if default is not None:
-        return default
-    raise AttributeError(f"i18n key missing: {attr}")
+def set_lang(value: str):
+    global _lang
+    if value not in LANGS:
+        raise ValueError(t("不支持这种语言：{lang}", lang=value))
+    from .memory import conn
+    conn.execute("insert or replace into settings values('language', ?)", (json.dumps(value),))
+    conn.commit()
+    _lang = value
 
 
-def prompt(key: str, **kwargs) -> str:
-    """Load a prompt template by key and format placeholders."""
-    text = _resolve(get_locale(), key)
-    return text.format(**kwargs) if kwargs else text
+def from_header(accept: str | None) -> str:
+    """按 Accept-Language 第一项识别 vi* / zh*，其余是英文；默认 UI 不调用探测。"""
+    first = (accept or "").split(",")[0].strip().lower()
+    return "vi" if first.startswith("vi") else "zh" if first.startswith("zh") else "en"
 
 
-@lru_cache(maxsize=8)
-def _strings(locale: str) -> dict:
-    import json
-    from pathlib import Path
-    path = Path(__file__).parent / "locales" / locale / "strings.json"
-    return {**getattr(_pack(locale), "STRINGS", {}),
-            **(json.loads(path.read_text()) if path.exists() else {})}
+def _fill(s: str, kw: dict) -> str:
+    # 只替换给了值的 {名字}，原文里别的花括号（JSON 例子之类）原样保留
+    return re.sub(r"\{(\w+)\}", lambda m: str(kw[m[1]]) if m[1] in kw else m[0], s) if kw else s
 
 
-def strings() -> dict:
-    """Current strings for standalone helpers; no credentials or user data."""
-    out = {}
-    for locale in reversed((get_locale(), *FALLBACKS)):
-        out.update(_strings(locale))
-    return out
+def t(zh: str, /, in_lang: str | None = None, **kw) -> str:
+    """翻译一句话，变量写成 {名字}：t("最多 {n} MB", n=5)。英文可以写成 ["{n} task", "{n} tasks"]，按 n 是不是 1 选。
+    in_lang 指定语言（比如登录页还没设语言时按浏览器的）；不给就用设置里的。"""
+    s = zh
+    if (language := in_lang or lang()) != "zh":
+        v = (VI if language == "vi" else EN).get(zh)
+        if isinstance(v, list):
+            v = v[0 if kw.get("n") == 1 else 1]
+        if v:
+            s = v
+    return _fill(s, kw)
 
 
-def s(key: str, **kwargs) -> str:
-    """Short user-facing string from the current locale pack."""
-    for candidate in (get_locale(), *FALLBACKS):
-        values = _strings(candidate)
-        if key in values:
-            text = values[key]
-            return text.format(**kwargs) if kwargs else text
-    return key
+class Later:
+    """存起来、过一会儿才显示的说明（应用的连接状态、聊天软件的报错）：str() 时才按当时的语言翻，中途切换语言也对。
+    两个 Later 的原文和变量一样就算相等，状态没变时不会白白通知前端。"""
+    __slots__ = ("zh", "kw")
+
+    def __init__(self, zh: str, kw: dict):
+        self.zh, self.kw = zh, kw   # 变量原样留着：t() 要按 n == 1 选单复数
+
+    def __str__(self) -> str:
+        return t(self.zh, **{k: str(v) if isinstance(v, Later) else v for k, v in self.kw.items()})
+
+    def _key(self):
+        return self.zh, {k: str(v) for k, v in self.kw.items()}
+
+    def __eq__(self, other):
+        return isinstance(other, Later) and self._key() == other._key()
+
+    def __hash__(self):
+        return hash(self.zh)
 
 
-def clear_cache():
-    _pack.cache_clear()
-    _strings.cache_clear()
+def later(zh: str, /, **kw) -> Later:
+    """和 t() 一样，但到显示的时候才翻。用的地方要 str() 一下。"""
+    return Later(zh, kw)
 
 
-def tool_pack() -> dict:
-    """Tool schema text overlays for the current locale."""
-    import json
-    from pathlib import Path
-    loc = get_locale()
-    for candidate in (loc, *FALLBACKS):
-        path = Path(__file__).parent / "locales" / candidate / "tools.json"
-        if path.exists():
-            return json.loads(path.read_text())
-    return {}
+def N_(zh: str) -> str:
+    """只标记、不翻译：模块里的常量表（名字、说明）用它包起来，检查时能找到；显示的时候再 t(变量)。
+    语言能在运行中切换，所以后端不要在 import 时就翻好。"""
+    return zh
 
 
-def localize_tools(schemas: list) -> list:
-    """Return a deep-copied tool schema list with descriptions overlaid from locale packs."""
-    from copy import deepcopy
-    pack = tool_pack()
-    out = []
-    for schema in schemas:
-        s = deepcopy(schema)
-        fn = (s.get("function") or {}).get("name")
-        if fn and fn in pack:
-            info = pack[fn]
-            if info.get("description"):
-                s["function"]["description"] = info["description"]
-            props = (s["function"].get("parameters") or {}).get("properties") or {}
-            for pname, pdesc in (info.get("params") or {}).items():
-                if pname in props and isinstance(props[pname], dict):
-                    props[pname]["description"] = pdesc
-        out.append(s)
-    return out
+def model_hint() -> str:
+    """写给模型的一句话：英文界面时默认用英文回复。中文界面什么都不加，行为和以前一样。"""
+    if lang() == "vi":
+        return "\nNgôn ngữ giao diện là tiếng Việt: mặc định trả lời, tạo trang và ghi nhớ bằng tiếng Việt; nếu người dùng dùng ngôn ngữ khác thì theo họ."
+    return "" if lang() == "zh" else "\n用户的界面语言是英文：默认用英文回复，结果、页面和记下的记忆也用英文；用户用别的语言说话时跟着用那种语言。"
 
 
-def task_dispatch_goal(text: str) -> str:
-    import re
-    return re.sub(r"^\[(?:任务已派发|Đã giao task|Task dispatched)\]\s*", "", text or "")
+def both(zh: str) -> set[str]:
+    """一句话的中英文两种说法：解析用户回复的文字命令时，两种语言都认。"""
+    values = {zh}
+    for dictionary in (EN, VI):
+        value = dictionary.get(zh)
+        values.update([value] if isinstance(value, str) else value or [])
+    return values
 
 
-def task_result_body(text: str) -> str:
-    import re
-    return re.sub(r"^\[(?:任务 #\d+ 结果|Kết quả task #\d+|Task #\d+ result)\]\s*", "", text or "")
+# ---------- 检查 ----------
+ROOT = Path(__file__).resolve().parent.parent
+CJK = re.compile(r"[㐀-鿿＀-￯　-〿]")
+PH = re.compile(r"\{(\w+)\}")
 
 
-LEGACY_ROUTINE_DEFAULTS = ("legacy_routine_news", "legacy_routine_github", "legacy_routine_github_filter")
+def _py_keys() -> dict[str, list[str]]:
+    import ast
+    keys: dict[str, list[str]] = {}
+    for f in sorted((ROOT / "osa").rglob("*.py")):
+        tree = ast.parse(f.read_text(), str(f))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            fn = node.func
+            name = fn.id if isinstance(fn, ast.Name) else fn.attr if isinstance(fn, ast.Attribute) else ""
+            if name not in ("t", "N_", "later", "both") or not node.args:
+                continue
+            a = node.args[0]
+            where = f"{f.relative_to(ROOT)}:{node.lineno}"
+            if isinstance(a, ast.Constant) and isinstance(a.value, str):
+                keys.setdefault(a.value, []).append(where)
+            elif isinstance(a, ast.JoinedStr):
+                keys.setdefault("!f-string", []).append(where)
+    return keys
 
 
-def legacy_routine_default(text: str) -> str:
-    """Translate only exact upstream seeded defaults, never arbitrary user instructions."""
-    for key in LEGACY_ROUTINE_DEFAULTS:
-        if any(text == _strings(loc).get(key) for loc in SUPPORTED):
-            return s(key)
-    return text
+# t('…') / tn("…")，tc('场景', '…')：取引号里的内容
+_Q = r"""(['"`])((?:\\.|(?!\{q}).)*?)\{q}"""
+_JS_T = re.compile(r"\b(?:t|tn)\(\s*" + _Q.format(q=1), re.S)
+_JS_TC = re.compile(r"\btc\(\s*" + _Q.format(q=1) + r"\s*,\s*" + _Q.format(q=3), re.S)
+HAN = re.compile(r"[\u3400-\u9fff]")
 
 
-def _legacy_schedule(text: str) -> str:
-    import re
-    if match := re.fullmatch(r"每\s*(\d+)\s*(小时|分钟)", text):
-        return s("routine_every_hours" if match[2] == "小时" else "routine_every_minutes", n=match[1])
-    if text.startswith("每天 "):
-        return s("routine_daily", times=text[3:].replace("、", s("list_join")))
-    if match := re.fullmatch(r"每周([一二三四五六日、]+) (.+)", text):
-        days = s("list_join").join(s(f"weekday_{'一二三四五六日'.index(day) + 1}") for day in match[1] if day != "、")
-        return s("routine_weekly", days=days, times=match[2].replace("、", s("list_join")))
-    if text in ("收到 webhook 时", "收到 webhook", "webhook"):
-        return s("routine_webhook")
-    return text
+def _js_unescape(s: str) -> str:
+    return re.sub(r"\\(.)", lambda m: {"n": "\n", "t": "\t"}.get(m[1], m[1]), s)
 
 
-def localize_task_goal(text: str) -> str:
-    """Read-time projection of known old task chrome; leaves free-form content untouched."""
-    import re
-    text = task_dispatch_goal(text)
-    if get_locale() == "zh":
-        return text
-    text = re.sub(r"\[定时任务 ([^\]]+)\]", lambda m: s("routine_task_label", name=m[1]), text)
-    text = re.sub(r"这是定时任务「([^」]+)」（([^）]+)）的一次运行。",
-                  lambda m: s("routine_run_intro", name=m[1], when=_legacy_schedule(m[2])), text)
-    text = re.sub(r"^要求：", lambda _: s("routine_run_prompt", prompt=""), text, flags=re.M)
-    text = re.sub(r"^按技能 /([^\s]+) 的做法执行：", lambda m: s("routine_run_skill", name=m[1], body="").rstrip(), text, flags=re.M)
-    text = re.sub(r"^触发事件：", lambda _: s("routine_run_event", event="").rstrip(), text, flags=re.M)
-    for key in LEGACY_ROUTINE_DEFAULTS:
-        old = _strings("zh").get(key)
-        if old:
-            text = text.replace(old, s(key))
-    return text
+def _strip_js_comments(src: str) -> str:
+    # 粗略去掉注释：/* … */、{/* … */} 和 // …（前面是空白或行首，避免误伤网址）；保留换行，行号不变
+    src = re.sub(r"/\*.*?\*/", lambda m: "\n" * m[0].count("\n"), src, flags=re.S)
+    return re.sub(r"(^|\s)//.*$", r"\1", src, flags=re.M)
+
+
+def _js_scan() -> tuple[dict[str, list[str]], list[str]]:
+    keys: dict[str, list[str]] = {}
+    left: list[str] = []
+    for f in sorted((ROOT / "web" / "src").rglob("*.ts*")):
+        rel = f.relative_to(ROOT)
+        raw_lines = f.read_text().split("\n")
+        src = _strip_js_comments("\n".join(raw_lines))
+        found = [(m, None, m[2]) for m in _JS_T.finditer(src)] + [(m, m[2], m[4]) for m in _JS_TC.finditer(src)]
+        for m, ctx, key in found:
+            where = f"{rel}:{src.count(chr(10), 0, m.start()) + 1}"
+            if "${" in key:
+                keys.setdefault("!template", []).append(where)
+                continue
+            key = _js_unescape(key)
+            keys.setdefault(f"{_js_unescape(ctx)}::{key}" if ctx else key, []).append(where)
+        rest = _JS_TC.sub(lambda m: " " * len(m[0]), _JS_T.sub(lambda m: " " * len(m[0]), src))
+        for i, ln in enumerate(rest.split("\n")):
+            if HAN.search(ln) and "i18n-ignore" not in raw_lines[i]:
+                left.append(f"{rel}:{i + 1}: {ln.strip()[:120]}")
+    return keys, left
+
+
+def _report(name: str, used: dict[str, list[str]], path: Path) -> int:
+    d = json.loads(path.read_text())
+    bad = 0
+    for k in ("!f-string", "!template"):
+        for w in used.pop(k, []):
+            print(f"  {w}: 翻译的键不能是 f-string / 带 ${{}} 的模板字符串，改成 {{名字}} 占位符")
+            bad += 1
+    plain = {k.split("::", 1)[-1] for k in used}
+    missing = [k for k in used if k not in d and not ("::" in k and k.split("::", 1)[1] in d)]
+    unused = [k for k in d if k not in used and k not in plain]
+    for k in missing:
+        print(f"  缺翻译 {used[k][0]}: {k!r}")
+    for k in unused:
+        print(f"  多余的 {k!r}")
+    for k, v in d.items():
+        want = set(PH.findall(k.split("::", 1)[-1]))
+        forms = v if isinstance(v, list) else [v]
+        if isinstance(v, list) and len(v) != 2:
+            print(f"  单复数要正好两个 {k!r}")
+            bad += 1
+        for i, s in enumerate(forms):
+            # 单数那个可以不写 {n}："Every hour"；其余的占位符要和中文一样
+            got = set(PH.findall(s)) if isinstance(s, str) else set()
+            ok = got <= want and want - got <= {"n"} if isinstance(v, list) and i == 0 else got == want
+            if not isinstance(s, str) or not s:
+                print(f"  空的翻译 {k!r}")
+                bad += 1
+            elif not ok:
+                print(f"  占位符对不上 {k!r} → {s!r}")
+                bad += 1
+            elif CJK.search(s):
+                print(f"  翻译里有中文 {k!r} → {s!r}")
+                bad += 1
+    print(f"{name}：用到 {len(used)} 句，{path.name} {len(d)} 句，缺 {len(missing)}，多余 {len(unused)}")
+    return bad + len(missing)
+
+
+def check() -> int:
+    bad = 0
+    keys, left = _js_scan()
+    for language in ("en", "vi"):
+        print(f"Language: {language}")
+        bad += _report("后端", _py_keys(), ROOT / "osa" / "locales" / f"{language}.json")
+        bad += _report("前端", dict(keys), ROOT / "web" / "src" / "locales" / f"{language}.json")
+    for ln in left:
+        print("  没翻译 " + ln)
+    print(f"前端还有 {len(left)} 行中文没包进 t()（数据、协议标记这类不用翻的，在行尾注释 i18n-ignore）")
+    return bad + len(left)
+
+
+if __name__ == "__main__":
+    import sys
+    sys.exit(1 if check() else 0)

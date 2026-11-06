@@ -1,4 +1,3 @@
-import { useTranslation } from 'react-i18next'
 import { useEffect, useState } from 'react'
 import { bootstrap, chatById, connect, getState, openApps, openChat, openLibrary, useStore } from './store'
 import Chat from './components/Chat'
@@ -11,7 +10,6 @@ import { BotPanel, NewBotDialog } from './components/BotEditor'
 import { GroupPanel, NewGroupDialog } from './components/Groups'
 
 export default function App() {
-  const { i18n } = useTranslation()
   const ready = useStore(s => s.ready)
   const view = useStore(s => s.view)
   const chat = useStore(s => chatById(s, s.active))
@@ -26,9 +24,9 @@ export default function App() {
   // 对话里点“接手电脑”：打开右栏的电脑标签并接手
   useEffect(() => {
     const h = (e: Event) => {
-      const { botId, takeover } = (e as CustomEvent).detail
+      const { botId, takeover, taskId } = (e as CustomEvent).detail
       setDetails(true); setTab('computer')
-      if (takeover) setTimeout(() => window.dispatchEvent(new CustomEvent('osa-takeover', { detail: botId })), 300)
+      if (takeover) setTimeout(() => window.dispatchEvent(new CustomEvent('osa-takeover', { detail: { botId, taskId } })), 300)
     }
     window.addEventListener('osa-open-computer', h)
     return () => window.removeEventListener('osa-open-computer', h)
@@ -98,7 +96,7 @@ export default function App() {
 
   if (!ready) return <div className="loading">◆</div>
   return (
-    <div key={i18n.language} className={'app' + (details && view === 'chat' ? ' with-panel' : '') + (details && tab === 'computer' ? ' wide-panel' : details && tab === 'tasks' ? ' mid-panel' : '') + (side ? ' side-open' : '')}>
+    <div className={'app' + (details && view === 'chat' ? ' with-panel' : '') + (details && tab === 'computer' ? ' wide-panel' : details && tab === 'tasks' ? ' mid-panel' : '') + (side ? ' side-open' : '')}>
       <button className="mobile-menu icon-btn" onClick={() => setSide(true)}>☰</button>
       <div className="side-mask" onClick={() => setSide(false)} />
       <Sidebar onNewBot={() => setNewBot(true)} onNewGroup={() => setNewGroup(true)} onSettings={() => setSettings('')} onClose={() => setSide(false)} />

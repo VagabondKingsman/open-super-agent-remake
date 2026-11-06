@@ -10,9 +10,9 @@ import fnmatch
 import itertools
 import json
 import time
+from . import i18n
 from .config import CFG
 from .memory import conn
-from . import i18n
 
 conn.execute("""create table if not exists rules(
   id integer primary key, pattern text, action text, note text default '', created real)""")
@@ -48,16 +48,17 @@ def default_confirm(rule, tool) -> bool:
 
 # ---------- 规则 ----------
 def rules() -> list[dict]:
-    return [{"id": i, "pattern": p, "action": a, "note": n, "created": c}
+    # 自动生成的说明存的是中文原文，显示时按界面语言翻；用户自己写的原样
+    return [{"id": i, "pattern": p, "action": a, "note": i18n.t(n) if n else n, "created": c}
             for i, p, a, n, c in conn.execute("select id, pattern, action, note, created from rules order by id")]
 
 
 def add_rule(pattern: str, action: str, note: str = "") -> dict:
     pattern = pattern.strip()
     if not pattern:
-        raise ValueError(i18n.s("rule_empty"))
+        raise ValueError(i18n.t("规则不能为空"))
     if action not in ("allow", "ask"):
-        raise ValueError(i18n.s("rule_action_invalid"))
+        raise ValueError(i18n.t("action 只能是 allow 或 ask"))
     old = conn.execute("select id from rules where pattern=? and action=?", (pattern, action)).fetchone()
     if old:
         return next(r for r in rules() if r["id"] == old[0])
@@ -77,12 +78,12 @@ def decide(tool: str) -> tuple[bool, str]:
     rs = rules()
     for r in rs:
         if r["action"] == "ask" and fnmatch.fnmatchcase(tool, r["pattern"]):
-            return True, i18n.s("rule_ask", pattern=r["pattern"])
+            return True, f"规则「{r['pattern']}」要求先问"
     for r in rs:
         if r["action"] == "allow" and fnmatch.fnmatchcase(tool, r["pattern"]):
-            return False, i18n.s("rule_allow", pattern=r["pattern"])
+            return False, f"规则「{r['pattern']}」自动允许"
     from . import mcp_hub
-    return (tool in mcp_hub.CONFIRM), i18n.s("default_policy")
+    return (tool in mcp_hub.CONFIRM), "默认策略"
 
 
 # ---------- 确认请求 ----------
@@ -105,7 +106,7 @@ async def request(task, tool: str, args: dict, kind: str = "approval") -> tuple[
     try:
         ok, note = await asyncio.wait_for(fut, timeout)
     except asyncio.TimeoutError:
-        ok, note = False, i18n.s("approval_timeout", minutes=timeout // 60)
+        ok, note = False, f"{timeout // 60} 分钟内没有确认，按拒绝处理"
         if notify:
             await notify({"type": "approval", "id": aid, "status": "expired", "chat_id": chat_id})
     finally:
@@ -120,21 +121,22 @@ async def request(task, tool: str, args: dict, kind: str = "approval") -> tuple[
 def resolve(aid: int, ok: bool, note: str = "", always: bool = False) -> str:
     item = pending.get(aid)
     if not item or item["future"].done():
-        return i18n.s("no_pending", aid=aid)
+        return i18n.t("没有待确认的请求 #{id}", id=aid)
     if ok and always and item["kind"] == "approval":
-        add_rule(item["tool"], "allow", i18n.s("always_allow_note"))
+        add_rule(item["tool"], "allow", i18n.N_("在确认卡片上点了总是允许"))
     item["future"].set_result((ok, note))
     if notify:
         asyncio.create_task(notify({"type": "approval", "id": aid, "chat_id": item["chat_id"],
                                     "status": "approved" if ok else "rejected", "always": ok and always}))
-    return (i18n.s("resolved_allow", aid=aid) if ok else i18n.s("resolved_deny", aid=aid)) + (i18n.s("resolved_always_suffix") if ok and always else "")
+    return (i18n.t("已允许请求 #{id}", id=aid) if ok else i18n.t("已拒绝请求 #{id}", id=aid)) \
+        + (i18n.t("，以后同类操作自动允许") if ok and always else "")
 
 
 def cancel_for_task(task_id: int):
     """任务被取消时，清掉它的待确认请求。"""
     for aid, item in list(pending.items()):
         if item["task_id"] == task_id and not item["future"].done():
-            item["future"].set_result((False, i18n.s("task_cancelled")))
+            item["future"].set_result((False, "任务已取消"))
             if notify:
                 asyncio.create_task(notify({"type": "approval", "id": aid, "status": "cancelled",
                                             "chat_id": item["chat_id"]}))
@@ -145,6 +147,5 @@ def public(item: dict) -> dict:
 
 
 def summary(bot_id: int | None = None) -> str:
-    rows = [f"#{a['id']} (task #{a['task_id']}) {a['tool']} args:{a['args'][:200]}"
-            for a in pending.values() if bot_id is None or a["bot_id"] == bot_id]
-    return "\n".join(rows) or i18n.s("approvals_none")
+    return "\n".join(f"#{a['id']}（任务 #{a['task_id']}）{a['tool']} 参数：{a['args'][:200]}"
+                     for a in pending.values() if bot_id is None or a["bot_id"] == bot_id) or "无"

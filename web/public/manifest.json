@@ -1,7 +1,7 @@
 {
   "name": "Open Super Agent",
   "short_name": "Super Agent",
-  "description": "Đồng đội AI tự triển khai, luôn sẵn sàng",
+  "description": "自己部署的常驻 AI 队友",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
