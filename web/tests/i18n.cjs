@@ -33,6 +33,11 @@ function load(saved = {}, browser = 'en-US') {
   return { api: sandbox.exports, data, document: sandbox.document, reloads: () => reloads }
 }
 
+test('raw HTML shell language is vi-VN before JavaScript init', () => {
+  const html = fs.readFileSync(path.join(__dirname, '../index.html'), 'utf8')
+  const match = html.match(/<html\b[^>]*\blang="([^"]*)"/)
+  assert.equal(match?.[1], 'vi-VN')
+})
 test('fresh install defaults to Vietnamese, independent of browser', () => {
   const { api, document } = load()
   assert.equal(api.lang, 'vi')

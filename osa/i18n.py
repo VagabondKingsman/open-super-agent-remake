@@ -1,4 +1,5 @@
-"""界面语言。中文原文就是翻译的键：t("没有这个 Bot") 在英文界面返回 locales/en.json 里对应的英文，没有翻译就返回中文。
+"""界面语言。中文原文就是翻译的键：t("没有这个 Bot") 在英文界面返回 locales/en.json 里对应的英文。
+越南语缺这句时改用英文；英文也没有就返回中文原文。语言包缺失、读不出、JSON 坏了或不是对象时记一条警告并当作空目录，导入不会因此失败。
 
 只翻用户会看到的文字（接口报错、对话里的系统消息、卡片、推送、聊天软件里的按钮）；写给模型的提示词和工具说明保持中文。
 存进数据库、之后还要按原文比对的标记（比如 “[新话题]”）不要翻，在显示的地方翻。
@@ -8,12 +9,42 @@
 `uv run python -m osa.i18n` 检查前后端：代码里用到但 en.json 里没有的、en.json 里多余的、占位符对不上的，
 以及前端还没包进 t() 的中文；EN 和 VI 都要检查。"""
 import json
+import logging
 import re
 from pathlib import Path
 
+log = logging.getLogger(__name__)
+
 LANGS = ("vi", "zh", "en")
-EN: dict = json.loads((Path(__file__).parent / "locales" / "en.json").read_text())
-VI: dict = json.loads((Path(__file__).parent / "locales" / "vi.json").read_text())
+
+
+def _catalog_path(name: str) -> Path:
+    return Path(__file__).parent / "locales" / f"{name}.json"
+
+
+def _load_catalog(name: str) -> dict:
+    """读一种语言。缺失、读不出、不是合法 JSON 或不是对象时警告并返回空目录。"""
+    path = _catalog_path(name)
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        log.warning("语言包 %s 读不了，改用空目录：%s", path.name, exc)
+        return {}
+    if not isinstance(data, dict):
+        log.warning("语言包 %s 不是对象，改用空目录", path.name)
+        return {}
+    return data
+
+
+def _load_locales() -> None:
+    global EN, VI
+    en, vi = _load_catalog("en"), _load_catalog("vi")
+    EN, VI = en, vi
+
+
+EN: dict = {}
+VI: dict = {}
+_load_locales()
 _lang: str | None = None
 
 
@@ -62,14 +93,18 @@ def _fill(s: str, kw: dict) -> str:
 
 def t(zh: str, /, in_lang: str | None = None, **kw) -> str:
     """翻译一句话，变量写成 {名字}：t("最多 {n} MB", n=5)。英文可以写成 ["{n} task", "{n} tasks"]，按 n 是不是 1 选。
-    in_lang 指定语言（比如登录页还没设语言时按浏览器的）；不给就用设置里的。"""
+    in_lang 指定语言（比如登录页还没设语言时按浏览器的）；不给就用设置里的。
+    越南语没有这句时用英文，英文也没有就用中文原文。"""
     s = zh
-    if (language := in_lang or lang()) != "zh":
-        v = (VI if language == "vi" else EN).get(zh)
+    language = in_lang or lang()
+    catalogs = (VI, EN) if language == "vi" else (EN,) if language == "en" else ()
+    for catalog in catalogs:
+        v = catalog.get(zh)
         if isinstance(v, list):
             v = v[0 if kw.get("n") == 1 else 1]
         if v:
             s = v
+            break
     return _fill(s, kw)
 
 
