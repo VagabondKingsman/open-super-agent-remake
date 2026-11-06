@@ -14,6 +14,7 @@ export type Message = {
 export type Task = {
   id: number; goal: string; mode: string; status: string; steps: number
   bot_id: number; chat_id: number; started: number; waiting_approval: number | null; elapsed: number; last_action?: string
+  quiet?: boolean   // 定时任务这次没有新内容：对话里不显示
 }
 // 任务过程的一步。kind：think 思考、text 正在写、say 调工具前说的话、tool 工具调用（detail 参数、body 返回）、
 // answer 写出的结果（Heavy 里研究员的草稿也是）、note 过程提示。worker：Heavy 里的研究员 h0、h1……，汇总是 review
@@ -28,8 +29,11 @@ export type TaskInfo = {
   started?: number; waiting_approval?: number | null; last_action?: string
   result?: string; finished?: number; cost?: number; tokens?: number; currency?: string
 }
+// 正在用电脑的任务：每个占一个浏览器窗口（window：已经开了窗口）
+export type ComputerUser = { key: string; label: string; task_id: number | null; bot_id: number | null; window: boolean }
 export type ComputerState = {
   bot_id: number; backend: string; controller: 'bot' | 'human'; state: string; detail: string; width: number; height: number
+  parallel?: number; users?: ComputerUser[]; waiting?: string[]; watch?: string | null; exclusive?: string
 }
 export type Approval = {
   id: number; kind?: 'approval' | 'help'; task_id: number; bot_id: number; chat_id: number; origin_chat_id?: number; tool: string; goal: string
@@ -54,16 +58,17 @@ export type ModelItem = { id: string; kind: string; vision?: boolean; input?: nu
 export type ModelList = { name: string; ok: boolean; error: string; note: string; models: string[]; items: ModelItem[]; ts: number }
 export type Role = { provider: string; model: string; thinking?: boolean; reasoning_effort?: string }
 export type Settings = {
-  locale?: string
   providers: Provider[]
   presets: Preset[]
   roles: Record<string, Role>
   limits: Record<string, number>
   heavy_workers: number
+  computer_parallel: number
   embedding: { provider: string; model: string }
   model_info: Record<string, ModelInfo>   // 键是 服务/模型
   prices: { source: string; updated: number; error: string; rate: number; currency: string; models: number }
   problem: string                         // 对话或后台任务的模型没法用的原因；能用是空
+  language: 'vi' | 'zh' | 'en'                   // 界面语言
 }
 export type SearchHit = { kind: 'memory' | 'page'; ref: number; title: string; snippet: string; bot_id: number | null; sub: string; score: number }
 export type AppState = 'connected' | 'connecting' | 'login' | 'needs_login' | 'off' | 'error'
@@ -114,7 +119,7 @@ export type Teach = { bot_id: number; started: number; note: string; max_s: numb
 export type TeachDraft = { bot_id: number; draft: { name: string; description: string; body: string }; steps: string[] }
 export type FileEntry ={ name: string; path: string; dir: boolean; size: number; mtime: number; missing?: boolean }
 export type FileListing =
-  | { running: false; state: string; path: string; root: string }
+  | { running: false; state: string; detail?: string; path: string; root: string }
   | { running: true; path: string; root: string; entries: FileEntry[]; pins: FileEntry[] }
 export type ChannelKind = 'telegram' | 'feishu' | 'dingtalk' | 'wecom' | 'discord'
 export type Channel = {

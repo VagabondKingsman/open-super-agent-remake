@@ -3,14 +3,13 @@
 明文只在两个地方出现：用户在界面上录入的那一刻，以及启动应用时注入进程环境变量。
 接口和模型只能看到名字。主密钥优先取环境变量 OSA_VAULT_KEY，没有就在数据目录生成一个（权限 600）。
 """
-
-from .i18n import s as _s
 import base64
 import hashlib
 import os
 import re
 import time
 from cryptography.fernet import Fernet, InvalidToken
+from . import i18n
 from .memory import conn, db_path
 
 conn.execute("create table if not exists vault(name text primary key, ciphertext blob, created real)")
@@ -40,9 +39,9 @@ def _key() -> Fernet:
 
 def put(name: str, value: str):
     if not NAME.match(name):
-        raise ValueError(_s('audit_3db4de6982'))
+        raise ValueError(i18n.t("名字只能用字母、数字和下划线，且不能以数字开头"))
     if not value:
-        raise ValueError(_s('audit_1f88f683ac'))
+        raise ValueError(i18n.t("值不能为空"))
     conn.execute("insert or replace into vault values(?,?,?)", (name, _key().encrypt(value.encode()), time.time()))
     conn.commit()
 

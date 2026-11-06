@@ -1,11 +1,9 @@
 import os
 from pathlib import Path
 import yaml
-from dotenv import load_dotenv
 from openai import AsyncOpenAI
 
 ROOT = Path(__file__).resolve().parent.parent
-load_dotenv(ROOT / ".env")
 CFG = yaml.safe_load((ROOT / os.environ.get("OSA_CONFIG", "config.yaml")).read_text())
 
 

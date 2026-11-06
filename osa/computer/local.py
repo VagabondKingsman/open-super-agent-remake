@@ -4,12 +4,11 @@
 指定一个命名卷（也可以是宿主机上的绝对路径）。
 VNC 没有密码，只监听电脑容器里的 127.0.0.1，由服务经 docker exec 在电脑里转发：服务在不在容器里都能连上。
 """
-
-from ..i18n import s as _s
 import asyncio
 import json
 import os
 from pathlib import Path
+from .. import i18n
 from ..config import CFG, ROOT
 from .base import Computer, ComputerError, ExecResult
 
@@ -27,7 +26,7 @@ for _ in range(50):
     except OSError:
         time.sleep(0.2)
 else:
-    sys.exit(__OSA_VNC_ERROR__)
+    sys.exit("VNC 没有启动")
 def up():
     while True:
         d = os.read(0, 65536)
@@ -57,7 +56,7 @@ async def _run(*args, stdin: str | None = None, timeout: float = 120) -> tuple[i
     except asyncio.TimeoutError:
         p.kill()
         await p.wait()
-        return 124, "", _s('audit_ff06c243d7')
+        return 124, "", i18n.t("超时")
     return p.returncode, out.decode(errors="replace"), err.decode(errors="replace")
 
 
@@ -88,12 +87,11 @@ class LocalComputer(Computer):
         self._starting = asyncio.Lock()
 
     async def status(self) -> dict:
-        from .. import i18n
         code, out, err = await _run("docker", "inspect", "-f", "{{json .State}}", self.name, timeout=15)
         if code == 127 or err == "docker-missing":
-            return {"state": "unavailable", "detail": i18n.s("pc_docker_missing"), "reason": "docker_missing"}
+            return {"state": "unavailable", "detail": i18n.t("未安装 Docker，无法使用本地电脑"), "reason": "docker_missing"}
         if code:
-            return {"state": "none", "detail": i18n.s("pc_not_created")}
+            return {"state": "none", "detail": i18n.t("还没有创建")}
         st = json.loads(out)
         state = {"running": "running", "paused": "paused", "exited": "stopped", "created": "stopped",
                  "restarting": "starting"}.get(st.get("Status"), "error")
@@ -105,15 +103,14 @@ class LocalComputer(Computer):
             code, out, err = await _run("docker", "build", "--platform", await platform(), "-t", IMAGE,
                                         str(IMAGE_DIR), timeout=1800)
             if code:
-                raise ComputerError(_s('audit_72f7cee7fb') + (err or out)[-800:])
+                raise ComputerError(i18n.t("电脑镜像构建失败：{error}", error=(err or out)[-800:]))
 
     async def start(self):
         async with self._starting:
-            st_info = await self.status()
-            st = st_info["state"]
+            info = await self.status()
+            st = info["state"]
             if st == "unavailable":
-                from .. import i18n
-                raise ComputerError(st_info.get("detail") or i18n.s("pc_docker_missing"))
+                raise ComputerError(info["detail"])
             if st == "running":
                 return
             if st == "paused":
@@ -130,13 +127,13 @@ class LocalComputer(Computer):
                     "-e", f"SCREEN_W={self.width}", "-e", f"SCREEN_H={self.height}",
                     "--label", "osa=computer", IMAGE, timeout=120)
                 if code:
-                    raise ComputerError(_s('audit_74bf4175e6') + (err or out)[-500:])
+                    raise ComputerError(i18n.t("电脑启动失败：{error}", error=(err or out)[-500:]))
             for _ in range(60):   # 等桌面就绪
                 r = await self.exec("DISPLAY=:1 xdotool getdisplaygeometry", 10)
                 if r.exit_code == 0:
                     return
                 await asyncio.sleep(0.5)
-            raise ComputerError(_s('audit_249c1133d1'))
+            raise ComputerError(i18n.t("桌面没有在 30 秒内启动"))
 
     async def pause(self):
         if (await self.status())["state"] == "running":
@@ -149,13 +146,13 @@ class LocalComputer(Computer):
 
     async def open_vnc(self):
         p = await asyncio.create_subprocess_exec(
-            "docker", "exec", "-i", self.name, "python3", "-c", _VNC_RELAY.replace("__OSA_VNC_ERROR__", repr(_s("pc_vnc_not_started"))),
+            "docker", "exec", "-i", self.name, "python3", "-c", _VNC_RELAY,
             stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
 
         async def recv() -> bytes:
             data = await p.stdout.read(65536)
             if not data:
-                raise ConnectionError(_s('audit_1730effc19'))
+                raise ConnectionError("VNC 连接已关闭")
             return data
 
         async def send(data: bytes):

@@ -3,13 +3,12 @@
 接口依据 https://api.instabox.sh/v1/openapi.json 和 Instabox 文档编写。
 需要环境变量 INSTABOX_API_KEY（scope 至少 machines:write）。
 """
-
-from ..i18n import s as _s
 import asyncio
 import os
 import uuid
 import httpx
 import websockets
+from .. import i18n
 from ..memory import conn
 from .base import Computer, ComputerError, ExecResult
 
@@ -22,7 +21,7 @@ STATE = {"running": "running", "suspended": "paused", "stopped": "stopped", "cre
 def _headers(extra: dict | None = None) -> dict:
     key = os.environ.get("INSTABOX_API_KEY")
     if not key:
-        raise ComputerError(_s('audit_a9457cfc41'))
+        raise ComputerError(i18n.t("没有设置 INSTABOX_API_KEY"))
     return {"X-API-Key": key, **(extra or {})}
 
 
@@ -66,7 +65,7 @@ class InstaboxComputer(Computer):
 
     def use_machine(self, mid: str):
         if self.fixed_machine:
-            raise ComputerError(_s('audit_18e49809d6'))
+            raise ComputerError(i18n.t("config.yaml 的 computer.instabox_machine 已经指定了机器，要换请先清空那一项"))
         self._save_id(mid)
 
     async def _req(self, method: str, path: str, json: dict | None = None, idem: bool = False, timeout: float | None = None):
@@ -85,13 +84,13 @@ class InstaboxComputer(Computer):
         while op.get("state") not in ("succeeded", "failed"):
             op = await self._req("GET", f"/v1/operations/{op['id']}?wait=25s", timeout=40)
         if op["state"] == "failed":
-            raise ComputerError(_s('audit_ff1093cc4b', v0=op.get('error')))
+            raise ComputerError(i18n.t("Instabox 操作失败：{error}", error=op.get("error")))
         return op
 
     async def status(self) -> dict:
         mid = self.machine_id
         if not mid:
-            return {"state": "none", "detail": _s('audit_cfe09cf844')}
+            return {"state": "none", "detail": i18n.t("还没有创建")}
         try:
             m = await self._req("GET", f"/v1/machines/{mid}")
         except ComputerError as e:
@@ -109,7 +108,8 @@ class InstaboxComputer(Computer):
                     "autoSuspendAfterSeconds": self.idle_seconds, "metadata": {"app": "open-super-agent", "role": "shared"}})
                 except ComputerError as e:
                     if " 429 " in str(e):
-                        raise ComputerError(_s('audit_9268703ada')) from e
+                        raise ComputerError(i18n.t("Instabox 账号的机器数量到上限了（免费版只能有一台）。"
+                                                   "可以在电脑面板里选“用已有的电脑”，或者去 Instabox 删掉一台。")) from e
                     raise
                 op = await self._wait_op(op)
                 self._save_id(op["machineId"])
@@ -129,7 +129,7 @@ class InstaboxComputer(Computer):
                     await asyncio.sleep(3)
                     d = await self._req("POST", f"/v1/machines/{mid}/desktop", json={"action": "status"})
                     if d.get("failed"):
-                        raise ComputerError(_s('audit_74b2f96664') + str(d.get("log", ""))[:300])
+                        raise ComputerError(i18n.t("桌面安装失败：{error}", error=str(d.get("log", ""))[:300]))
                     if d.get("installed"):
                         break
                 await self._req("POST", f"/v1/machines/{mid}/desktop", timeout=100,
@@ -149,7 +149,7 @@ class InstaboxComputer(Computer):
     async def exec(self, cmd: str, timeout: int = 120, stdin: str | None = None) -> ExecResult:
         mid = self.machine_id
         if not mid:
-            raise ComputerError(_s('audit_b8200afed3'))
+            raise ComputerError(i18n.t("电脑还没创建"))
         body = {"cmd": cmd, "timeoutSeconds": max(1, min(600, timeout)), "cwd": "/data/workspace"}
         if stdin is not None:
             body["stdin"] = stdin
@@ -160,11 +160,11 @@ class InstaboxComputer(Computer):
         mid = self.machine_id
         r = await self.http.get(f"/v1/machines/{mid}/files/content", params={"path": path}, headers=_headers())
         if r.status_code == 404:
-            raise ComputerError(_s('audit_70e71b48bc', v0=path))
+            raise ComputerError(i18n.t("文件不存在：{path}", path=path))
         if r.status_code >= 400:
             return await super().read_bytes(path, limit)
         if len(r.content) > limit:
-            raise ComputerError(_s('audit_96cfdf6c6c'))
+            raise ComputerError(i18n.t("文件太大"))
         return r.content
 
     def takeover(self):

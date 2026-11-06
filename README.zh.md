@@ -1,3 +1,7 @@
+> 这是基于 upstream v0.6.0 的 remake，默认界面语言为越南语；可在设置和新手引导里选择 Tiếng Việt / English / 中文。上游项目：[kadaliao/open-super-agent](https://github.com/kadaliao/open-super-agent)。
+>
+> v0.6.0 支持多个任务各开浏览器窗口、无新内容时静默的定时任务、fetch_url 的 SSRF 防护及不可信文本边界。remake 另外保留了缺少 Docker 时的可用性提示、定时任务输入校验及 webhook 并发防重。界面和通知有越南语翻译；模型内部提示词仍沿用上游中文，应用说明和模板在越南语界面使用英文。
+
 <div align="center">
 
 # open-super-agent
@@ -11,7 +15,7 @@
 ![Python](https://img.shields.io/badge/python-3.11%2B-3776ab)
 ![Status](https://img.shields.io/badge/status-alpha-orange)
 
-[Tiếng Việt](README.md) · [English](README.en.md) · 简体中文
+简体中文 · [Tiếng Việt](README.md) · [English](README.en.md)
 
 <a href="docs/images/demo.mp4"><img src="docs/images/demo.gif" alt="演示：群聊里 Scout 在电脑上查资料后交给 Quill 写介绍；演示一遍生成技能；资料库" width="860"></a>
 
@@ -29,7 +33,7 @@ Grok Bot 的体验很好，但价格高，模型也换不了。open-super-agent 
 - 👥 **群聊**：2–6 个 Bot 一个群。`@` 谁谁回答，`@所有人` 大家都说；不 @ 的消息由协调者接，它会分给合适的 Bot。Bot 之间能交接工作，比如一个查完资料，自动交给另一个写总结。要你确认的操作只出现在各自的私聊里。
 - ✉️ **Bot 之间私信**：不用拉群，Bot 也能私信另一个 Bot 请它帮忙（“让 postman 看看有没有 Anthropic 的邮件”）。对方在自己的私聊里处理，做完结果自动回到原来的对话，再由它告诉你。
 - ⚡ **后台任务**：耗时的活交给 Worker 在后台做，你可以接着聊。**Heavy 模式**下多个 Worker 各自做一遍，再互审汇总。
-- 🖥️ **电脑**：所有 Bot 共用一台 Linux 桌面（Chromium 和终端）。网页通过 CDP 直接控制，按元素操作、读页面文字，又快又准；你能实时看屏幕，随时接手和交还；遇到验证码、登录这类步骤，Bot 会请你来做。
+- 🖥️ **电脑**：所有 Bot 共用一台 Linux 桌面（Chromium 和终端）。几个任务可以同时用，每个任务一个浏览器窗口，登录状态和文件共用，不用排队。网页通过 CDP 直接控制，按元素操作、读页面文字，又快又准；你能实时看屏幕，随时接手和交还；遇到验证码、登录这类步骤，Bot 会请你来做。
 - 🔌 **应用市场**：侧栏“应用”里挑应用连接。Notion、flomo、腾讯文档、钉钉、滴答清单、Todoist 等点一下、用账号登录就行；Gmail、QQ 邮箱、飞书、企业微信、GitHub 填一个密码、token 或链接；Slack 建个应用后登录；也能接任意 MCP server。聊天里用 `@` 指定。每个应用是一份清单文件，[写一份提个 PR](docs/apps.md) 就能上架。
 - ✅ **确认与保险库**：写操作先弹卡片问你（允许一次 / 拒绝 / 总是允许），规则可在设置里管理；密钥加密保存，不进聊天记录。
 - 🧩 **技能**：输入 `/名字` 调用可复用的做事方法；可以让 Bot 把刚才的做法存成技能，也能在右栏编辑。点**演示一遍**，在电脑上亲手做一次，Bot 把录下的操作整理成技能草稿给你审核。技能可以导出成文件、生成分享链接，别人粘贴链接就能装；Claude 等用的 `SKILL.md` 也能直接导入。
@@ -42,13 +46,24 @@ Grok Bot 的体验很好，但价格高，模型也换不了。open-super-agent 
 - 💰 **费用透明**：按角色、任务和天统计 token 和金额，有每日预算；Watchdog 会自动取消卡住、死循环或超预算的任务。
 - 📦 **备份与迁移**：全部数据（连同密钥）导出成一个加密文件，换机器、从本机搬到服务器时上传就能接着用；服务器上也能用命令行定时备份。
 - 🔄 **模型自选**：在设置里添加模型服务（DeepSeek、OpenAI、OpenRouter、硅基流动、阿里云百炼、智谱、Kimi、Ollama，或任何兼容 OpenAI 的接口），填 API Key、点一下测试就能用；对话、后台任务等各自选模型，单价自动获取。
+- 🌐 **中文 / English**：界面、通知和聊天软件里的消息都有中英文两种，设置里一键切换；英文界面下 Bot 默认用英文回复。
+
+## 适合谁
+
+- **放在服务器上一直开着**：一条 `docker compose up` 就能跑在 VPS 或家里的机器上，在网页、手机和聊天软件里随时用。聊天软件走长连接，服务器不需要公网地址。
+- **用 API 按 token 付费，模型随便换**：DeepSeek、Kimi、智谱、阿里云百炼，或者本机的 Ollama 都行，对话和后台任务可以用不同的模型。每天花了多少钱看得到，可以设每日预算。
+- **在国内用**：飞书、钉钉、企业微信、腾讯文档、flomo、滴答清单这些国内的应用和聊天软件都接好了，默认的配置不需要任何国外的付费服务。
+- **几个 Bot 共用一台电脑**：在电脑上登录一次，所有 Bot 都能用这个登录状态。
+- **默认先问再做**：写操作先弹卡片等你确认；密钥加密存在保险库里，不进聊天记录。
+
+[OpenMausBot](https://github.com/milind-soni/OpenMausBot) 也是开源的 Grok Bot 替代品，做法不太一样：它主打桌面 App（macOS、Windows、Ubuntu），Bot 跑在你本机的 `claude`、`codex`、`grok` 命令行上，用你已有的 Claude、ChatGPT 订阅；每个 Bot 各有一台电脑（云电脑、本地虚拟机，或者借用你自己的电脑），应用通过 Composio 接入。想用桌面 App、想用现成的订阅、想让 Bot 直接操作你自己的电脑，选它更合适。
 
 ## 快速开始
 
 用 Docker Compose，只需要装 Docker：
 
 ```bash
-git clone https://github.com/kadaliao/open-super-agent.git && cd open-super-agent
+git clone https://github.com/VagabondKingsman/open-super-agent-remake.git && cd open-super-agent-remake
 cp .env.example .env     # 可以先填上 DEEPSEEK_API_KEY，也可以打开后在 设置 → 模型 里填
 docker compose up -d     # 第一次要构建镜像，大约 5–10 分钟；打开 http://127.0.0.1:8765
 ```
@@ -99,9 +114,8 @@ docker build --build-arg APT_MIRROR=mirrors.ustc.edu.cn -t osa-computer:1 osa/co
 
 - **应用生态**：应用和 Bot 模板主要靠社区提 PR 收录，项目补齐清单格式和连接方式上缺的能力。
 - **更多客户端**：macOS / Windows 桌面端（菜单栏、快捷键、系统通知，还能把你自己的电脑借给 Bot 用）；iOS / Android 原生 App；在聊天软件的群里使用机器人。
-- **电脑**：多台电脑并行；“演示一遍”从浏览器扩展到整个桌面；快照与回滚。
+- **电脑**：“演示一遍”从浏览器扩展到整个桌面；快照与回滚。
 - **Bot 能力**：语音对话。
-- **好部署、好上手**：界面英文版。
 
 每个方向的考虑和先后顺序见 [docs/roadmap.md](docs/roadmap.md)。想要的功能欢迎提 issue。
 

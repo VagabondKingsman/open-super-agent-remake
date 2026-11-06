@@ -7,13 +7,11 @@
 - kind=work：任务完成时自动记一笔“做过的事”，每个 Bot 只留最近 KEEP_WORK 条。
 记忆写进 Router 的系统提示词；Worker 也能看到用户事实和偏好（不含做过的事）。
 """
-
-from .i18n import s as _s
 import json
 import time
 from .config import call_kwargs, client_for
 from .memory import conn
-from . import memory
+from . import i18n, memory
 
 conn.execute("""create table if not exists memories(
   id integer primary key, bot_id integer, kind text default 'note', text text, source text default 'chat',
@@ -58,7 +56,7 @@ def list_for(bot_id: int) -> dict:
 def _clean(text: str) -> str:
     text = " ".join((text or "").split())
     if not text:
-        raise ValueError(_s('audit_c29521f189'))
+        raise ValueError(i18n.t("记忆内容不能为空"))
     return text[:MAX_LEN]
 
 
@@ -75,7 +73,8 @@ def add(bot_id: int | None, text: str, source: str = "chat") -> dict:
     n = conn.execute("select count(*) from memories where bot_id is ? and kind='note'", (bot_id,)).fetchone()[0]
     cap = MAX_SHARED if bot_id is None else MAX_NOTES
     if n >= cap:
-        raise ValueError(_s('audit_51dada3f55', v0=_s('audit_e8a8101763') if bot_id is None else _s('audit_01415c0431'), v1=cap))
+        raise ValueError(i18n.t("共享的用户事实最多 {n} 条，先删掉一些旧的", n=cap) if bot_id is None
+                         else i18n.t("这个 Bot 的记忆最多 {n} 条，先删掉一些旧的", n=cap))
     mid = conn.execute("insert into memories(bot_id, kind, text, source, created, updated) values(?,?,?,?,?,?)",
                        (bot_id, "note", text, source, now, now)).lastrowid
     conn.commit()
@@ -89,7 +88,7 @@ def update(mid: int, text: str | None = None, bot_id=_KEEP) -> dict:
     """改内容，或者在“共享 / 只给这个 Bot”之间移动（bot_id=None 表示共享）。"""
     m = get(mid)
     if not m:
-        raise ValueError(_s('audit_6f70561d43', v0=mid))
+        raise ValueError(i18n.t("没有 #{id} 这条记忆", id=mid))
     fields: list[str] = ["updated=?"]
     args: list[object] = [time.time()]
     if text is not None:
@@ -126,7 +125,8 @@ def log_work(bot_id: int, task_id: int, goal: str):
         return
     now = time.time()
     conn.execute("insert into memories(bot_id, kind, text, source, created, updated) values(?,?,?,?,?,?)",
-                 (bot_id, "work", _s('audit_43d50b53cb', v0=time.strftime('%m-%d', time.localtime(now)), v1=task_id, v2=line),
+                 (bot_id, "work", i18n.t("{date} 任务 #{id}：{goal}", date=time.strftime("%m-%d", time.localtime(now)),
+                                         id=task_id, goal=line),
                   "task", now, now))
     conn.execute("""delete from memories where bot_id=? and kind='work' and id not in
         (select id from memories where bot_id=? and kind='work' order by id desc limit ?)""", (bot_id, bot_id, KEEP_WORK))
@@ -150,23 +150,36 @@ async def related(bot_id: int, text: str) -> list[int]:
     return [h["ref"] for h in hits]
 
 
-def prompt_block(bot_id: int, related_ids: list[int] = ()) -> str:
-    """写进 Router 系统提示词的记忆。related_ids：和这次对话相关的更早记忆。"""
+def _shown(bot_id: int) -> tuple[bool, list[dict], list[dict]]:
+    """系统提示词里放哪些记忆：(是不是全放下了, 共享的, 自己的)。"""
     full = max(_count(None), _count(bot_id)) <= PROMPT_NOTES
     n = PROMPT_NOTES if full else PROMPT_RECENT
-    shared, own = _list(None, "note", n), _list(bot_id, "note", n)
-    work = _list(bot_id, "work", PROMPT_WORK)
-    parts = [_s('audit_7e09bc3d8b', v0=_lines(shared) or _s('audit_638cb25da6')),
-             _s('audit_7b58cb8734', v0=_lines(own) or _s('audit_638cb25da6'))]
+    return full, _list(None, "note", n), _list(bot_id, "note", n)
+
+
+def prompt_block(bot_id: int) -> str:
+    """写进 Router 系统提示词的记忆。只放记下、改掉、删掉时才变的，系统提示词才能一直命中缓存；
+    每轮都可能变的（相关的更早记忆、做过的事）见 turn_block。"""
+    full, shared, own = _shown(bot_id)
+    parts = [f"关于用户（所有 Bot 共享）：\n{_lines(shared) or '（暂无）'}",
+             f"你自己记得的：\n{_lines(own) or '（暂无）'}"]
+    if not full:
+        parts.append("（记忆比较多，这里只放了最近的；和这次对话可能相关的更早记忆附在最新一条消息后面，其余的用 search_memory 查。）")
+    return "\n".join(parts)
+
+
+def turn_block(bot_id: int, related_ids: list[int] = ()) -> str:
+    """每轮都可能变的记忆，附在最新一条消息后面（见 router.STATE_PROMPT）。related_ids：和这次对话相关的更早记忆。"""
+    _, shared, own = _shown(bot_id)
     shown = {m["id"] for m in shared + own}
     extra = [m for i in related_ids if i not in shown and (m := get(i)) and m["kind"] == "note"][:PROMPT_RELATED]
+    work = _list(bot_id, "work", PROMPT_WORK)
+    parts = []
     if extra:
-        parts.append(_s('audit_3609d36b2c', v0=_lines(extra)))
-    if not full:
-        parts.append(_s('audit_9b826f765d'))
+        parts.append(f"和这次对话可能相关的更早记忆（#后面是编号）：\n{_lines(extra)}")
     if work:
-        parts.append(_s('audit_91579f225d', v0=_lines(work)))
-    return "\n".join(parts)
+        parts.append(f"最近做过的事（自动记录）：\n{_lines(work)}")
+    return "\n\n".join(parts)
 
 
 def worker_block(bot_id: int) -> str:
@@ -176,20 +189,31 @@ def worker_block(bot_id: int) -> str:
 
 
 # ---------- 从其他助手导入 ----------
-IMPORT_PROMPT = _s('audit_8a385c5eef')
+IMPORT_PROMPT = """用户从别的 AI 助手（ChatGPT、Claude、Gemini 等）导出了它记得的关于用户的内容，请整理成一条条独立的长期记忆。
+- 每条是一句完整、独立能看懂的话，用中文，以“用户”开头或直接陈述。
+- 合并重复的，去掉一次性的、过时的、和用户无关的内容；“已有的记忆”里已经说过的也去掉。
+- 关于用户本人的基本事实（名字、时区、所在地、常用语言、职业）shared=true，其余（偏好、习惯、正在做的事）shared=false。
+只输出 JSON：{"items": [{"text": "...", "shared": false}]}"""
+
+
+def _import_prompt() -> str:
+    """英文界面时记忆用英文写；中文界面和以前一样。"""
+    if i18n.lang() == "vi":
+        return IMPORT_PROMPT.replace("用中文，以“用户”开头", "用越南语，以“Người dùng”开头")
+    return IMPORT_PROMPT if i18n.lang() == "zh" else IMPORT_PROMPT.replace("用中文，以“用户”开头", "用英文，以“The user”开头")
 
 
 async def parse_import(text: str, existing: list[str] | None = None) -> list[dict]:
     """把导出的文字拆成记忆条目。模型出错时退回按行拆。"""
     text = (text or "").strip()[:20000]
     if not text:
-        raise ValueError(_s('audit_4266398034'))
-    have = "\n".join(f"- {t}" for t in existing or []) or _s('audit_6238bf9ad5')
+        raise ValueError(i18n.t("没有可导入的内容"))
+    have = "\n".join(f"- {t}" for t in existing or []) or "（无）"
     try:
         client, model = client_for("filter")
         resp = await client.chat.completions.create(model=model, messages=[
-            {"role": "system", "content": _s("audit_8a385c5eef")},
-            {"role": "user", "content": _s('audit_37e0150be2', v0=have, v1=text)}],
+            {"role": "system", "content": _import_prompt()},
+            {"role": "user", "content": f"已有的记忆：\n{have}\n\n导出的内容：\n{text}"}],
             response_format={"type": "json_object"}, **call_kwargs("filter"))
         memory.record_usage("filter", model, resp.usage)
         items = json.loads(resp.choices[0].message.content).get("items") or []

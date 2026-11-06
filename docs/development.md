@@ -11,6 +11,46 @@ uv run uvicorn osa.server:app --reload --port 8765
 
 前端改完运行 `npm run build`，产物在 `osa/static/dist`，不进 git。
 
+## 界面文字和翻译
+
+界面有中文和英文两种。**中文原文就是翻译的键**，英文写在一份字典里，没翻译的地方显示中文：
+
+| | 写法 | 英文在 |
+|---|---|---|
+| 前端 | `t('保存')`、`t('最多 {n} MB', { n })`；句子里要嵌元素用 `tn('点 {b} 保存', { b: <b>…</b> })` | `web/src/locales/en.json` |
+| 后端 | `i18n.t("没有这个 Bot")`、`i18n.t("最多 {n} MB", n=n)`；模块里的常量表用 `i18n.N_("…")` 标记，显示时再 `i18n.t(值)` | `osa/locales/en.json` |
+
+- 改了或新加界面文字，在对应的 `en.json` 里补上英文，然后跑 `uv run python -m osa.i18n`：列出缺的、多余的、占位符对不上的翻译，
+  以及前端还没包进 `t()` 的中文（CI 也会跑）。确实不用翻的那一行（要比对的标记、语言自己的名字）在行尾注释 `i18n-ignore`。
+- 英文里要区分单复数时写成数组：`"{n} 个任务": ["{n} task", "{n} tasks"]`，按变量 `n` 是不是 1 选。
+  同一句中文在不同地方要翻得不一样时，前端用 `tc('场景', '中文')`，字典里的键写成 `"场景::中文"`。
+- 只翻用户看得到的：界面、接口报错、对话里的系统消息和卡片、推送、聊天软件里的消息和按钮。**写给模型的提示词、工具说明、
+  工具结果保持中文**；英文界面下只在提示词末尾加一句 `i18n.model_hint()`，让 Bot 默认用英文回复。
+- 存进数据库、之后还要按原文比对的标记（`[新话题]`、`[任务已派发]`、`[任务 #N 结果]`、`[定时任务 名字]`、`[附件] 路径`）不要翻，
+  在显示的地方翻。用户在聊天软件里打字回复的命令（钉钉的“允许一次 #编号”），用 `i18n.both()` 两种语言都认。
+- 语言存在 `settings` 表的 `language`，前后端共用；切换语言会重新加载页面。后端的语言能在运行中变，所以别在 import 时就翻好。
+- 应用清单和 Bot 模板的英文写在各自的 `en:` 里，见 [apps.md](apps.md)、[templates.md](templates.md)。
+- 英文界面在本机看：设置左下角点 English。也可以在浏览器的控制台里 `localStorage.setItem('osa.lang', 'en')` 再刷新，
+  但页面加载后会跟服务端的设置对齐。
+
+## 自动化测试
+
+```bash
+uv run pytest -q
+```
+
+测试只测框架，不调真的模型，也不碰真的电脑（`tests/conftest.py`）：
+
+- 每次运行用一个新的临时数据目录和配置（电脑关掉、没有应用、没有旧版触发器），碰不到 `data/` 里的真实数据。
+- `llm` 换掉模型客户端：请求经 `httpx.MockTransport` 交给 `tests/fakellm.py` 里的假模型，按剧本流式返回文字或工具调用，
+  并记下每次收到的请求。剧本按角色排：`llm.script("router:Scout", Call("dispatch", {"goal": "…"}), "派出去了")`、
+  `llm.script("worker", "结果")`；`llm.bodies("router", "Scout")` 取它收到的请求，用来检查提示词和上下文。
+- `events` 冒充一个打开着的网页，收下 `broadcast` 发出的所有事件；`make_bot()` 建一个名字不重复的 Bot。
+- `until(lambda: …)` 等到条件成立；`settle()` 等后台的轮次和任务都跑完；`find(chat_id, kind=…, text=…)` 查对话里的消息。
+- 所有测试共用一个事件循环（Router、群聊的锁是常驻的）。
+
+改了 Router、群聊、私信、确认、电脑分配这些有约定的地方，加一个测试把约定写下来（见 `tests/test_smoke.py`）。
+
 ## 不要用真实数据测试
 
 复制一份数据库，在另一个端口启动：
@@ -22,6 +62,11 @@ OSA_CONFIG=/tmp/osa-test/config.yaml uv run uvicorn osa.server:app --port 8766
 ```
 
 本地电脑是共用的（容器 `osa-computer`），测试和正式实例会操作同一台电脑，不要同时跑。用 Docker Compose 跑的实例也用这个容器。
+
+`computer.backend` 默认是 `auto`：环境里有 `INSTABOX_API_KEY` 就用 Instabox。本机设了这个变量时，测试实例和直接调 `osa.computer.get()` 的脚本
+都会操作 Instabox 上那台（可能正是服务器上正式在用的）电脑。测试时在复制的配置里写 `backend: local`，或者 `env -u INSTABOX_API_KEY` 启动。
+复制的数据库里有聊天软件连接和定时任务的话，先停掉（`update channels set enabled=0`、`update routines set enabled=0`），
+免得测试实例去抢正式机器人的消息、跑定时任务。
 
 ## Docker 镜像
 
@@ -36,7 +81,14 @@ OSA_CONFIG=/tmp/osa-test/config.yaml uv run uvicorn osa.server:app --port 8766
 
 - **对话**：通过 WebSocket 发送 `{"type":"send","chat_id":1,"text":"..."}`，观察 `message`、`task`、`stream_*` 事件。
 - **界面**：用 Playwright 驱动系统 Chrome（`channel="chrome"`）截图检查，这样不用另外下载浏览器。
-- **电脑**：在 Python 里调用 `osa.computer.get()`，可以直接测试 `start / open_url / screenshot / shell`；浏览器工具用 `await c.browser("open", url=...)`、`c.browser("snapshot")` 等。
+- **电脑**：在 Python 里调用 `osa.computer.get()`，可以直接测试 `start / screenshot / shell`；浏览器工具不给 `key` 时用最前面的标签页：
+  `await c.browser("open", url=...)`、`c.browser("snapshot")`。
+- **几个任务同时用电脑**：用 `computer.tools.call` 模拟任务——先 `CLAIM.set("201:")`，再 `await call(SimpleNamespace(id=201, bot_id=1, chat_id=1), "browser_open", {...}, progress)`；
+  两个任务用 `asyncio.gather` 同时开不同的网页，应该各自在自己的窗口里（`c.users[key]["window"]` 不同），用时和一个差不多。
+  测试页可以在电脑里起：`docker exec -d osa-computer python3 -m http.server 8999 --bind 127.0.0.1`，页面里放输入框、文件框、
+  `target=_blank` 链接和 `window.open` 弹窗，分别测 `computer_click`（坐标对不对）、`computer_key ctrl+a`、`browser_upload`、新标签页和弹出窗口。
+  把 `CFG["computer"]["parallel"]` 改成 2 再开第三个，应该排队并收到“排队等电脑”。
+  端到端：让 Bot“调用 dispatch 两次”派两个开网页的任务，右栏电脑上方应该同时列出两个任务；再派一个会 `ask_human` 的，接手期间另一个任务停住，交还后都做完。
 - **应用**：`POST /api/market/filesystem` 从市场添加文件夹应用，再在对话里让 Bot 写文件，验证确认卡片和“总是允许”。
   登录授权的流程可以用 SDK 自带的授权服务器在本机测：写一个 `MCPServer(auth_server_provider=…)`，`authorize` 里直接带着授权码跳回 `redirect_uri`，
   再用自定义应用连它的地址，依次请求 `/oauth/start/名字` 和返回的跳转地址就能走完整个流程，不需要真实账号。

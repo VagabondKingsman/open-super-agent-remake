@@ -4,13 +4,12 @@
 html 页面只通过带 CSP 的 /raw 地址在沙箱 iframe 里显示：脚本可以跑，但拿不到这个站点的任何数据，也连不上接口。
 文件直接读写电脑里的目录，两个电脑后端都走 exec，所以要先开机。
 """
-
-from .i18n import s as _s
 import posixpath
 import re
 import secrets
 import shlex
 import time
+from . import i18n
 from .memory import conn
 
 conn.execute("""create table if not exists pages(
@@ -61,20 +60,20 @@ def by_token(token: str) -> dict | None:
 def save_page(bot_id: int | None, title: str, content: str, fmt: str = "markdown",
               pid: int | None = None, task_id: int | None = None) -> dict:
     """新建，或者给 pid 时更新内容。"""
-    title = " ".join((title or "").split())[:120] or _s('audit_5a131f787f')
+    title = " ".join((title or "").split())[:120] or i18n.t("未命名页面")
     fmt = fmt if fmt in FORMATS else "markdown"
     if not (content or "").strip():
-        raise ValueError(_s('audit_c35f1f006d'))
+        raise ValueError(i18n.t("页面内容不能为空"))
     if len(content) > MAX_PAGE:
-        raise ValueError(_s('audit_2a633e30c5', v0=MAX_PAGE // 1000))
+        raise ValueError(i18n.t("页面太大（最多 {n}K 字）", n=MAX_PAGE // 1000))
     now = time.time()
     if pid is not None:
         if not get_page(pid, False):
-            raise ValueError(_s('audit_896070b281', v0=pid))
+            raise ValueError(i18n.t("没有页面 #{id}", id=pid))
         conn.execute("update pages set title=?, format=?, content=?, updated=? where id=?", (title, fmt, content, now, pid))
     else:
         if conn.execute("select count(*) from pages").fetchone()[0] >= MAX_PAGES:
-            raise ValueError(_s('audit_a772e5de80', v0=MAX_PAGES))
+            raise ValueError(i18n.t("资料库最多 {n} 个页面，先删掉一些", n=MAX_PAGES))
         pid = conn.execute("insert into pages(bot_id, title, format, content, task_id, created, updated) "
                            "values(?,?,?,?,?,?,?)", (bot_id, title, fmt, content, task_id, now, now)).lastrowid
     conn.commit()
@@ -83,10 +82,10 @@ def save_page(bot_id: int | None, title: str, content: str, fmt: str = "markdown
 
 def update_page(pid: int, title: str | None = None, pinned: bool | None = None) -> dict:
     if not get_page(pid, False):
-        raise ValueError(_s('audit_896070b281', v0=pid))
+        raise ValueError(i18n.t("没有页面 #{id}", id=pid))
     if title is not None:
         conn.execute("update pages set title=?, updated=? where id=?",
-                     (" ".join(title.split())[:120] or _s('audit_5a131f787f'), time.time(), pid))
+                     (" ".join(title.split())[:120] or i18n.t("未命名页面"), time.time(), pid))
     if pinned is not None:
         conn.execute("update pages set pinned=? where id=?", (int(pinned), pid))
     conn.commit()
@@ -112,18 +111,19 @@ def link(pid: int) -> str:
 
 SAVE_PAGE = {"type": "function", "function": {
     "name": "save_page",
-    "description": _s('audit_c5b54a1584'),
+    "description": "把成品（报告、清单、对比表、网页等）保存成资料库里的页面，返回页面链接。"
+                   "用户要“做成页面/报告/可以分享的页面”，或结果很长、以后还要看时用。给 page_id 就是更新那个页面。",
     "parameters": {"type": "object", "properties": {
         "title": {"type": "string"},
-        "content": {"type": "string", "description": _s('audit_c31bbaec66')},
+        "content": {"type": "string", "description": "页面全文。markdown 用 Markdown；html 是完整的 HTML（可以带内联 CSS 和脚本）"},
         "format": {"type": "string", "enum": list(FORMATS)},
-        "page_id": {"type": "integer", "description": _s('audit_b5e7a93523')}},
+        "page_id": {"type": "integer", "description": "可选：要更新的页面编号"}},
         "required": ["title", "content"]}}}
 
 
 READ_PAGE = {"type": "function", "function": {
     "name": "read_page",
-    "description": _s('audit_c145d983ac'),
+    "description": "读资料库里一个页面的全文（html 页面只给文字）。页面编号可以用 search_memory 查到",
     "parameters": {"type": "object", "properties": {"page_id": {"type": "integer"}}, "required": ["page_id"]}}}
 
 
@@ -131,24 +131,24 @@ def tool_read_page(args: dict, limit: int = 12000) -> str:
     from . import search
     p = get_page(args.get("page_id")) if isinstance(args.get("page_id"), int) else None
     if not p:
-        return _s('audit_896070b281', v0=args.get('page_id'))
+        return f"没有页面 #{args.get('page_id')}"
     text = search._plain(p["content"] or "", p["format"])
     if p["format"] == "html":
         text = re.sub(r"[ \t]+", " ", re.sub(r"\n\s*\n+", "\n\n", text)).strip()
-    more = _s('audit_26fae562bf', v0=len(text) - limit) if len(text) > limit else ""
-    return _s('audit_3f7076f9e6', v0=p['title'], v1=link(p['id']), v2=time.strftime('%Y-%m-%d', time.localtime(p['updated'])), v3=text[:limit], v4=more)
+    more = f"\n…（还有 {len(text) - limit} 字没显示）" if len(text) > limit else ""
+    return f"《{p['title']}》{link(p['id'])}，{time.strftime('%Y-%m-%d', time.localtime(p['updated']))} 更新\n\n{text[:limit]}{more}"
 
 
 def tool_save_page(bot_id: int, args: dict, task_id: int | None = None) -> str:
     pid = args.get("page_id")
     if pid is not None and (not (old := get_page(pid, False)) or old["bot_id"] != bot_id):
-        return _s('audit_404033d37b', v0=pid)
+        return f"没保存：页面 #{pid} 不存在或不是你建的，只能更新自己的页面"
     try:
         p = save_page(bot_id, args.get("title", ""), args.get("content", ""), args.get("format") or "markdown",
                       args.get("page_id"), task_id)
     except (ValueError, TypeError) as e:
-        return _s('audit_b480594004', v0=e)
-    return _s('audit_9e6e9417f0', v0=p['id'], v1=p['title'], v2=link(p['id']))
+        return f"没保存：{e}"
+    return f"已保存页面 #{p['id']}「{p['title']}」，链接 {link(p['id'])}（用户在资料库里也能看到）。回复里用 Markdown 链接附上它。"
 
 
 # ---------- 文件 ----------
@@ -159,14 +159,14 @@ def norm(path: str | None) -> str:
         p = posixpath.join(WORKSPACE, p)
     p = posixpath.normpath(p)
     if p != WORKSPACE and not p.startswith(WORKSPACE + "/"):
-        raise ValueError(_s('audit_93107ea8ff', v0=WORKSPACE))
+        raise ValueError(i18n.t("只能访问 {dir} 里的文件", dir=WORKSPACE))
     return p
 
 
 def check_name(name: str) -> str:
     name = (name or "").strip()
     if not name or name in (".", "..") or "/" in name or "\0" in name or len(name) > 200:
-        raise ValueError(_s('audit_8a643a21a4'))
+        raise ValueError(i18n.t("文件名不合法"))
     return name
 
 
@@ -175,9 +175,9 @@ async def list_dir(c, path: str) -> list[dict]:
     q = shlex.quote(p)
     r = await c.exec(f"[ -d {q} ] || exit 3; find {q} -mindepth 1 -maxdepth 1 -printf '%y\\t%s\\t%T@\\t%f\\n' | head -n 1000", 30)
     if r.exit_code == 3:
-        raise ValueError(_s('audit_90adcd5028'))
+        raise ValueError(i18n.t("目录不存在"))
     if r.exit_code:
-        raise ValueError((r.stderr or _s('audit_9ce69dc304')).strip()[:200])
+        raise ValueError((r.stderr or i18n.t("读取目录失败")).strip()[:200])
     out = []
     for line in r.stdout.splitlines():
         parts = line.split("\t", 3)
@@ -194,7 +194,7 @@ async def put_file(c, directory: str, name: str, data: bytes) -> dict:
     """把文件写进电脑里的目录。同名时自动加序号，不覆盖。"""
     d, name = norm(directory), check_name(name)
     if len(data) > MAX_UPLOAD:
-        raise ValueError(_s('audit_1b52ebc0cc', v0=MAX_UPLOAD >> 20))
+        raise ValueError(i18n.t("文件太大（最多 {n} MB）", n=MAX_UPLOAD >> 20))
     try:
         existing = {e["name"] for e in await list_dir(c, d)}
     except ValueError:
@@ -228,10 +228,10 @@ async def stat_many(c, paths: list[str]) -> dict[str, dict]:
 async def remove(c, path: str):
     p = norm(path)
     if p == WORKSPACE:
-        raise ValueError(_s('audit_5a3c70545c'))
+        raise ValueError(i18n.t("不能删除整个工作目录"))
     r = await c.exec(f"rm -rf -- {shlex.quote(p)}", 60)
     if r.exit_code:
-        raise ValueError((r.stderr or _s('audit_72250c5922')).strip()[:200])
+        raise ValueError((r.stderr or i18n.t("删除失败")).strip()[:200])
     unpin(p)
 
 

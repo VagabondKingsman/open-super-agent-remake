@@ -1,10 +1,8 @@
 """Bot 和对话的增删改查。每个 Bot 有一个私聊对话；群聊的 bot_ids 有 2–6 个，lead 是协调者。"""
-
-from .i18n import s as _s, localize_task_goal, task_result_body
 import json
 import time
-from .memory import conn
 from . import i18n
+from .memory import conn
 
 if "lead" not in {r[1] for r in conn.execute("pragma table_info(chats)")}:
     conn.execute("alter table chats add column lead integer")   # 群聊的协调者：没人被 @ 时由它接
@@ -48,11 +46,11 @@ def primary() -> dict:
 def create(name: str, avatar: dict | None = None, instructions: str = "", is_primary: bool = False) -> dict:
     n = conn.execute("select count(*) from bots").fetchone()[0]
     if n >= MAX_BOTS:
-        raise ValueError(_s('audit_4975d0ded0', v0=MAX_BOTS))
+        raise ValueError(i18n.t("最多 {n} 个 Bot", n=MAX_BOTS))
     avatar = avatar or {"shape": SHAPES[n % len(SHAPES)], "color": COLORS[n % len(COLORS)]}
     now = time.time()
     cur = conn.execute("insert into bots(name, avatar, instructions, is_primary, created) values(?,?,?,?,?)",
-                       (name.strip()[:40] or _s('audit_35563060dc'), json.dumps(avatar), instructions, int(is_primary), now))
+                       (name.strip()[:40] or i18n.t("未命名"), json.dumps(avatar), instructions, int(is_primary), now))
     bid = cur.lastrowid
     conn.execute("insert into chats(kind, title, bot_ids, updated) values('direct', ?, ?, ?)",
                  (name, json.dumps([bid]), now))
@@ -80,7 +78,7 @@ def delete(bot_id: int):
     if not b:
         return
     if b["is_primary"]:
-        raise ValueError(_s('audit_f2b0430900'))
+        raise ValueError(i18n.t("主 Bot 不能删除，先把别的 Bot 设为主 Bot"))
     conn.execute("delete from task_steps where task_id in (select id from messages where chat_id=?)", (b["chat_id"],))
     conn.execute("delete from messages where chat_id=?", (b["chat_id"],))
     conn.execute("delete from chats where id=?", (b["chat_id"],))
@@ -99,7 +97,7 @@ def list_chats() -> list[dict]:
             "select id, kind, title, bot_ids, pinned, updated, lead from chats order by pinned desc, updated desc"):
         last = conn.execute("select content, role from messages where chat_id=? order by id desc limit 1", (i,)).fetchone()
         out.append({"id": i, "kind": kind, "title": title, "bot_ids": json.loads(ids), "pinned": bool(pinned),
-                    "updated": updated, "preview": ((localize_task_goal(task_result_body(last[0])) if last[1] == "task" else last[0])[:80] if last else ""), "lead": lead})
+                    "updated": updated, "preview": (last[0][:80] if last else ""), "lead": lead})
     return out
 
 
@@ -114,20 +112,16 @@ def _members(bot_ids) -> list[int]:
         i = int(i)
         if i not in ids:
             if not get(i):
-                raise ValueError(_s('audit_0f1ca8400a', v0=i))
+                raise ValueError(i18n.t("没有 Bot #{id}", id=i))
             ids.append(i)
     if not GROUP_MIN <= len(ids) <= GROUP_MAX:
-        raise ValueError(_s('audit_16905a8899', v0=GROUP_MIN, v1=GROUP_MAX))
+        raise ValueError(i18n.t("群聊要有 {min}–{max} 个 Bot", min=GROUP_MIN, max=GROUP_MAX))
     return ids
 
 
 def auto_title(ids: list[int]) -> str:
     names = [get(i)["name"] for i in ids]
-    join = i18n.s("list_join")
-    title = join.join(names[:3])
-    if len(names) > 3:
-        title += i18n.s("group_title_more", n=len(names))
-    return title
+    return i18n.t("、").join(names[:3]) + (i18n.t(" 等 {n} 个", n=len(names)) if len(names) > 3 else "")
 
 
 def _lead(ids: list[int], lead) -> int:
@@ -140,7 +134,7 @@ def _lead(ids: list[int], lead) -> int:
 def create_group(bot_ids, title: str = "", lead=None) -> dict:
     ids = _members(bot_ids)
     if conn.execute("select count(*) from chats where kind='group'").fetchone()[0] >= MAX_GROUPS:
-        raise ValueError(_s('audit_d0a2663bd9', v0=MAX_GROUPS))
+        raise ValueError(i18n.t("最多 {n} 个群聊", n=MAX_GROUPS))
     cur = conn.execute("insert into chats(kind, title, bot_ids, updated, lead) values('group', ?, ?, ?, ?)",
                        ((title or "").strip()[:60] or auto_title(ids), json.dumps(ids), time.time(), _lead(ids, lead)))
     conn.commit()
@@ -150,7 +144,7 @@ def create_group(bot_ids, title: str = "", lead=None) -> dict:
 def update_group(chat_id: int, title: str | None = None, bot_ids=None, lead=None) -> dict:
     g = chat(chat_id)
     if not g or g["kind"] != "group":
-        raise ValueError(_s('audit_711f780fd2'))
+        raise ValueError(i18n.t("没有这个群聊"))
     ids = _members(bot_ids) if bot_ids is not None else g["bot_ids"]
     if title is not None:
         conn.execute("update chats set title=? where id=?", (title.strip()[:60] or auto_title(ids), chat_id))

@@ -5,19 +5,16 @@
 - 消息按 Telegram 的 HTML 格式发；解析失败（400）就退回纯文本再发一次。
 - 服务器连不上 Telegram 时，设置 HTTPS_PROXY 环境变量（httpx 会自动用）。
 """
-
-from ..i18n import s as _s
 import asyncio
 import html
 import os
 import re
 import httpx
+from .. import i18n
 from . import Channel, fmt
 
 API = os.environ.get("OSA_TELEGRAM_API", "https://api.telegram.org").rstrip("/")   # 测试时换成假的服务器
-COMMANDS = [{"command": "new", "description": _s('audit_77263e5303')},
-            {"command": "stop", "description": _s('audit_c7386a5111')},
-            {"command": "help", "description": _s('audit_89bb3d68ab')}]
+COMMANDS = [("new", i18n.N_("开始新话题")), ("stop", i18n.N_("停下正在做的任务")), ("help", i18n.N_("怎么用"))]
 MAX_FILE = 20 << 20   # Bot API 只能下载 20 MB 以内的文件
 
 
@@ -58,14 +55,16 @@ class Telegram(Channel):
     async def check(cls, fields: dict) -> dict:
         token = (fields.get("token") or "").strip()
         if not re.fullmatch(r"\d+:[\w-]{20,}", token):
-            raise ValueError(_s('audit_236393d078'))
+            raise ValueError(i18n.t("token 格式不对：应该像 123456789:AAH…，在 Telegram 的 @BotFather 里拿"))
         async with httpx.AsyncClient(timeout=20) as c:
             try:
                 me = await _call(c, token, "getMe")
             except TgError as e:
-                raise ValueError(_s('audit_902af5bfaf') if e.code in (401, 404) else _s('audit_9e9865ba40', v0=e.desc))
+                raise ValueError(i18n.t("token 不对，或者这个机器人已经被删除") if e.code in (401, 404)
+                                 else i18n.t("Telegram 返回错误：{error}", error=e.desc))
             except httpx.HTTPError as e:
-                raise ValueError(_s('audit_2e7007d78a', v0=type(e).__name__))
+                raise ValueError(i18n.t("连不上 Telegram（{error}）。服务器在国内的话，要给 open-super-agent 设置 HTTPS_PROXY",
+                                        error=type(e).__name__))
         return {"name": "@" + me["username"], "config": {"username": me["username"], "bot_id": me["id"]}, "secret": token}
 
     @classmethod
@@ -82,7 +81,7 @@ class Telegram(Channel):
             try:
                 if not ready:
                     await self.call("deleteWebhook")      # 设过 webhook 的机器人收不到 getUpdates
-                    await self.call("setMyCommands", commands=COMMANDS)
+                    await self.call("setMyCommands", commands=[{"command": c, "description": i18n.t(d)} for c, d in COMMANDS])
                     ready = True
                     self.set_state("connected")   # 长轮询要等到有消息或 50 秒才返回，不等它
                 ups = await self.call("getUpdates", http_timeout=70, offset=offset, timeout=50,
@@ -94,17 +93,17 @@ class Telegram(Channel):
                     asyncio.create_task(self._safe(self.on_update(u)))
             except TgError as e:
                 if e.code in (401, 404):
-                    self.set_state("error", _s('audit_8a6ce99ac2'))
+                    self.set_state("error", i18n.later("token 失效了（机器人被删除或 token 被重置），删掉这个连接重新添加"))
                     return
                 if e.code == 409:
-                    self.set_state("error", _s('audit_d3fb34fdb2'))
+                    self.set_state("error", i18n.later("这个机器人在别处也在收消息（比如另一台服务器上的 open-super-agent），同一个 token 只能一处用"))
                     await asyncio.sleep(30)
                     continue
-                self.set_state("error", _s('audit_9e9865ba40', v0=e.desc))
+                self.set_state("error", i18n.later("Telegram 返回错误：{error}", error=e.desc))
                 await asyncio.sleep(e.retry or backoff)
                 backoff = min(backoff * 2, 60)
             except httpx.HTTPError as e:
-                self.set_state("error", _s('audit_1b5cfb49ad', v0=type(e).__name__))
+                self.set_state("error", i18n.later("连不上 Telegram（{error}），稍后自动重试", error=type(e).__name__))
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, 60)
 
@@ -132,14 +131,14 @@ class Telegram(Channel):
                 files.append((v.get("file_name") or f"{k}_{n}{ext}", v["file_id"]))
         if (m.get("voice") or m.get("video_note")) and not text and not files:
             if self.row["peer"] == peer:
-                self.say(_s('audit_160dfa2c9b'))
+                self.say(i18n.t("暂时听不了语音消息，请打字（可以用输入法的语音转文字）。"))
             return
         await self.inbound(peer, who, text, files)
 
     async def download(self, file_id: str) -> bytes:
         f = await self.call("getFile", file_id=file_id)
         if (f.get("file_size") or 0) > MAX_FILE:
-            raise ValueError(_s('audit_296620cb4d'))
+            raise ValueError(i18n.t("Telegram 机器人只能接收 20 MB 以内的文件"))
         r = await self.http.get(f"{API}/file/bot{self.secret}/{f['file_path']}", timeout=120)
         r.raise_for_status()
         return r.content

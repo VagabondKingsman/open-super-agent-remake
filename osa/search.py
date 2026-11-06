@@ -9,8 +9,6 @@
 索引不靠到处埋钩子：每次检索前 sync() 比一遍记忆和页面的 (id, updated)，变了的重新切块、分词，删了的去掉。
 所以从备份恢复、删除 Bot 这类绕开 memories / library 的改动也不会漏。页面按段切成约 600 字一块，最多索引前 200 块。
 """
-
-from .i18n import s as _s
 import asyncio
 import math
 import operator
@@ -263,10 +261,11 @@ def snippet(text: str, q: str, width: int = 120) -> str:
 # ---------- 给 Bot 用的工具 ----------
 SEARCH_TOOL = {"type": "function", "function": {
     "name": "search_memory",
-    "description": _s('audit_e25363f828'),
+    "description": "按意思查长期记忆和资料库里的页面。提示词里只放了最近的记忆；用户提到以前说过的事、以前做过的报告或页面，"
+                   "或者要参考之前的结果时用它。查到页面要看全文用 read_page。",
     "parameters": {"type": "object", "properties": {
-        "query": {"type": "string", "description": _s('audit_7a0e14ade2')},
-        "scope": {"type": "string", "enum": ["all", "memories", "pages"], "description": _s('audit_ea8babbeed')}},
+        "query": {"type": "string", "description": "要找什么，用自然的说法；可以多写几个同义的词"},
+        "scope": {"type": "string", "enum": ["all", "memories", "pages"], "description": "默认 all"}},
         "required": ["query"]}}}
 
 
@@ -275,12 +274,12 @@ async def tool(bot_id: int, args: dict) -> str:
     kinds = {"memories": ("memory",), "pages": ("page",)}.get(args.get("scope") or "all", ("memory", "page"))
     hits = await search(str(args.get("query") or ""), bot_id, kinds, 8)
     if not hits:
-        return _s('audit_afec431ae5')
+        return "没找到相关的记忆或页面"
     lines = []
     for h in hits:
         if h["kind"] == "memory":
-            who = _s('audit_fa7dc2dc1a') if h["bot_id"] is None else _s('audit_f9839e161a') if h["sub"] == "work" else _s('audit_9cbce6e70d')
-            lines.append(_s('audit_afbd6b9493', v0=h['ref'], v1=who, v2=h['snippet']))
+            who = "所有 Bot 共享" if h["bot_id"] is None else "做过的事" if h["sub"] == "work" else "你的记忆"
+            lines.append(f"- 记忆 #{h['ref']}（{who}）：{h['snippet']}")
         else:
-            lines.append(_s('audit_745c52f510', v0=h['ref'], v1=h['title'], v2=library.link(h['ref']), v3=h['snippet']))
+            lines.append(f"- 页面 #{h['ref']}《{h['title']}》{library.link(h['ref'])}：{h['snippet']}")
     return "\n".join(lines)

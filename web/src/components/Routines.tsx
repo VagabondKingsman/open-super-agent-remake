@@ -1,25 +1,37 @@
 import { useEffect, useRef, useState } from 'react'
 import { api, loadSkills, setTeachDraft, showTask, useStore } from '../store'
 import type { Avatar, Bot, Routine, RoutineRun, Skill, SkillDraft, Trigger } from '../types'
+import { lang, locale, t, tc, tn } from '../i18n'
 import BotAvatar from './BotAvatar'
 import Markdown from './Markdown'
-import i18n, { dateLocale } from '../i18n'
 
-const when = (ts: number | null) => ts ? new Date(ts * 1000).toLocaleString(dateLocale(), { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'
-const DAYS = () => ([i18n.t('一'), i18n.t('二'), i18n.t('三'), i18n.t('四'), i18n.t('五'), i18n.t('六'), i18n.t('日')])
-const STATUS: () => Record<string, string> = () => ({
-  running: i18n.t('运行中'), done: i18n.t('完成'), failed: i18n.t('失败'), cancelled: i18n.t('已取消'), skipped: i18n.t('跳过'), filtered: i18n.t('被过滤'),
-})
-const SOURCE: () => Record<string, string> = () => ({ schedule: i18n.t('定时'), webhook: 'webhook', test: i18n.t('测试') })
+// 英文：Nov 6, 9:05 AM；中文保持 11/06 09:05
+const when = (ts: number | null) => ts ? new Date(ts * 1000).toLocaleString(locale, lang === 'en'
+  ? { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }
+  : { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'
+// 周一到周日。英文是 Mon…Sun，选星期的小按钮里只放前两个字母（Mo、Tu…），中文不受影响
+const DAYS = [tc('weekday', '一'), tc('weekday', '二'), tc('weekday', '三'), tc('weekday', '四'), tc('weekday', '五'), tc('weekday', '六'), tc('weekday', '日')]
+const LIST = lang !== 'zh' ? ', ' : '、'   // 列举用的分隔符
+const STATUS: Record<string, string> = {
+  running: t('运行中'), done: t('完成'), failed: t('失败'), cancelled: t('已取消'), skipped: t('跳过'), filtered: t('被过滤'),
+  quiet: t('没有新内容'),
+}
+const SOURCE: Record<string, string> = { schedule: tc('source', '定时'), webhook: 'webhook', test: t('测试') }
 
-export function describe(t: Trigger) {
-  const sep = i18n.language === 'zh' ? '、' : ', '
-  if (t.kind === 'every') return t.minutes % 60 === 0 ? i18n.t('每 {{v0}} 小时', { v0: t.minutes / 60 }) : i18n.t('每 {{v0}} 分钟', { v0: t.minutes })
-  if (t.kind === 'daily') {
-    const d = !t.days.length || t.days.length === 7 ? i18n.t('每天') : i18n.t('每周') + ' ' + t.days.map(x => DAYS()[x - 1]).join(sep)
-    return `${d} ${t.times.join(sep)}`
+export function describe(tr: Trigger) {
+  if (tr.kind === 'every') {
+    const h = tr.minutes / 60
+    return tr.minutes % 60 ? t('每 {n} 分钟', { n: tr.minutes }) : h === 1 ? t('每 1 小时') : t('每 {n} 小时', { n: h })
   }
-  return i18n.t('收到 webhook 时')
+  if (tr.kind === 'daily') {
+    const times = tr.times.join(LIST), wd = tr.days.join()
+    if (!tr.days.length || tr.days.length === 7) return t('每天 {times}', { times })
+    // 工作日、周末：中文照旧逐个列出，英文说 Weekdays / Weekends
+    if (wd === '1,2,3,4,5') return t('每周一、二、三、四、五 {times}', { times })
+    if (wd === '6,7') return t('每周六、日 {times}', { times })
+    return t('每周{days} {times}', { days: tr.days.map(x => DAYS[x - 1]).join(LIST), times })
+  }
+  return t('收到 webhook 时')
 }
 
 // ---------- 技能 ----------
@@ -44,35 +56,35 @@ export function SkillsPanel({ bot }: { bot: Bot }) {
     onDone={() => { setEdit(null); setTeachDraft(null); loadSkills(bot.id) }} />
   return (
     <div>
-      <div className="section-head"><h4>{i18n.t('技能')}</h4>
+      <div className="section-head"><h4>{t('技能')}</h4>
         <div className="app-actions">
-          <button className="btn" disabled={!!teach} title={i18n.t('在电脑上做一遍，Bot 整理成技能')} onClick={() => setTeaching(!teaching)}>{i18n.t('演示一遍')}</button>
-          <button className="btn" title={i18n.t('从文件或分享链接装一个技能')} onClick={() => setImporting(!importing)}>{i18n.t('导入')}</button>
-          <button className="btn" onClick={() => setEdit({})}>{i18n.t('＋ 新建')}</button>
+          <button className="btn" disabled={!!teach} title={t('在电脑上做一遍，Bot 整理成技能')} onClick={() => setTeaching(!teaching)}>{t('演示一遍')}</button>
+          <button className="btn" title={t('从文件或分享链接装一个技能')} onClick={() => setImporting(!importing)}>{t('导入')}</button>
+          <button className="btn" onClick={() => setEdit({})}>＋ {t('新建')}</button>
         </div>
       </div>
       {teaching && (
         <div className="teach-start">
-          <label className="field">{i18n.t('要演示什么？（可选，帮 {{v0}} 理解）', { v0: bot.name })}
-            <input value={note} maxLength={200} autoFocus placeholder={i18n.t('例如：在 GitHub 上给仓库提一个 issue')} onChange={e => setNote(e.target.value)}
+          <label className="field">{t('要演示什么？（可选，帮 {name} 理解）', { name: bot.name })}
+            <input value={note} maxLength={200} autoFocus placeholder={t('例如：在 GitHub 上给仓库提一个 issue')} onChange={e => setNote(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && startTeach()} /></label>
-          <p className="muted small">{i18n.t('开始后电脑交给你操作：在浏览器里完整做一遍，做完点“完成，生成技能”。最长 10 分钟。只记浏览器里的点击、输入和打开的网址，密码不会记录。录制期间后台任务会排队等电脑。')}</p>
+          <p className="muted small">{t('开始后电脑交给你操作：在浏览器里完整做一遍，做完点“完成，生成技能”。最长 10 分钟。')} {t('只记浏览器里的点击、输入和打开的网址，密码不会记录。录制期间后台任务会排队等电脑。')}</p>
           {err && <div className="error-line">{err}</div>}
-          <div className="row-actions"><button className="btn primary" onClick={startTeach}>{i18n.t('开始录制')}</button><button className="btn" onClick={() => setTeaching(false)}>{i18n.t('取消')}</button></div>
+          <div className="row-actions"><button className="btn primary" onClick={startTeach}>{t('开始录制')}</button><button className="btn" onClick={() => setTeaching(false)}>{t('取消')}</button></div>
         </div>
       )}
       {importing && <ImportSkill bot={bot} onDraft={d => { setImporting(false); setEdit({ ...d, source: 'import', draft: d }) }}
         onCancel={() => setImporting(false)} />}
-      {teach && <div className="muted small">{i18n.t('● 正在录制演示，在右栏“电脑”里操作，做完点“完成”。')}</div>}
-      <p className="muted small">{i18n.t('在对话里输入 /名字 调用。也可以让 {{v0}} “把刚才的做法存成技能”，或者点“演示一遍”做给它看。', { v0: bot.name })}</p>
-      {!skills ? <div className="muted">{i18n.t('加载中…')}</div> : skills.length ? skills.map(k => (
+      {teach && <div className="muted small">● {t('正在录制演示，在右栏“电脑”里操作，做完点“完成”。')}</div>}
+      <p className="muted small">{t('在对话里输入 /名字 调用。也可以让 {name} “把刚才的做法存成技能”，或者点“演示一遍”做给它看。', { name: bot.name })}</p>
+      {!skills ? <div className="muted">{t('加载中…')}</div> : skills.length ? skills.map(k => (
         <button key={k.id} className="list-item" onClick={() => setEdit({ ...k, shared: k.bot_id === null })}>
-          <b>/{k.name}</b>{k.bot_id === null && <span className="tag">{i18n.t('共用')}</span>}{k.source === 'chat' && <span className="tag">{i18n.t('对话里保存')}</span>}
-          {k.source === 'teach' && <span className="tag">{i18n.t('演示生成')}</span>}{k.source === 'import' && <span className="tag">{i18n.t('导入的')}</span>}
-          {k.share_token && <span className="tag">{i18n.t('已分享')}</span>}
+          <b>/{k.name}</b>{k.bot_id === null && <span className="tag">{t('共用')}</span>}{k.source === 'chat' && <span className="tag">{t('对话里保存')}</span>}
+          {k.source === 'teach' && <span className="tag">{t('演示生成')}</span>}{k.source === 'import' && <span className="tag">{t('导入的')}</span>}
+          {k.share_token && <span className="tag">{t('已分享')}</span>}
           <div className="muted small">{k.description || k.body.slice(0, 60)}</div>
         </button>
-      )) : <div className="muted small">{i18n.t('还没有技能')}</div>}
+      )) : <div className="muted small">{t('还没有技能')}</div>}
     </div>
   )
 }
@@ -92,20 +104,20 @@ function ImportSkill({ bot, onDraft, onCancel }: { bot: Bot; onDraft: (d: SkillD
   }
   const pick = async (f: File | undefined) => {
     if (!f) return
-    if (f.size > 200_000) return setErr(i18n.t('文件太大了，不像是一个技能'))
+    if (f.size > 200_000) return setErr(t('文件太大了，不像是一个技能'))
     parse({ text: await f.text(), filename: f.name })
   }
   return (
     <div className="teach-start">
-      <label className="field">{i18n.t('技能链接')}
-        <input value={url} autoFocus placeholder={i18n.t('别人分享的 …/skill/… 链接，或 GitHub 上的 SKILL.md')} onChange={e => setUrl(e.target.value)}
+      <label className="field">{t('技能链接')}
+        <input value={url} autoFocus placeholder={t('别人分享的 …/skill/… 链接，或 GitHub 上的 SKILL.md')} onChange={e => setUrl(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && url.trim() && parse({ url })} /></label>
-      <p className="muted small">{i18n.t('技能是一个 Markdown 文件（开头写 name 和 description），和 Claude 等用的 SKILL.md 一样。导入后先给你看一遍，保存了才生效。')}</p>
+      <p className="muted small">{t('技能是一个 Markdown 文件（开头写 name 和 description），和 Claude 等用的 SKILL.md 一样。导入后先给你看一遍，保存了才生效。')}</p>
       {err && <div className="error-line">{err}</div>}
       <div className="row-actions">
-        <button className="btn primary" disabled={!url.trim() || busy} onClick={() => parse({ url })}>{busy ? i18n.t('读取中…') : i18n.t('读取链接')}</button>
-        <button className="btn" disabled={busy} onClick={() => file.current?.click()}>{i18n.t('选择文件…')}</button>
-        <button className="btn" onClick={onCancel}>{i18n.t('取消')}</button>
+        <button className="btn primary" disabled={!url.trim() || busy} onClick={() => parse({ url })}>{busy ? t('读取中…') : t('读取链接')}</button>
+        <button className="btn" disabled={busy} onClick={() => file.current?.click()}>{t('选择文件…')}</button>
+        <button className="btn" onClick={onCancel}>{t('取消')}</button>
         <input ref={file} type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" hidden
           onChange={e => { pick(e.target.files?.[0]); e.target.value = '' }} />
       </div>
@@ -121,15 +133,15 @@ function ShareSkill({ skill, onChange }: { skill: Partial<Skill>; onChange: (s: 
   return (
     <div className="skill-share">
       <div className="row-actions">
-        <a className="btn" href={`/api/skills/${skill.id}/export`} download>{i18n.t('导出文件')}</a>
-        {url ? <button className="btn" onClick={() => toggle(false)}>{i18n.t('取消分享')}</button>
-          : <button className="btn" onClick={() => toggle(true)}>{i18n.t('生成分享链接')}</button>}
+        <a className="btn" href={`/api/skills/${skill.id}/export`} download>{t('导出文件')}</a>
+        {url ? <button className="btn" onClick={() => toggle(false)}>{t('取消分享')}</button>
+          : <button className="btn" onClick={() => toggle(true)}>{t('生成分享链接')}</button>}
       </div>
       {url && <div className="env-row">
         <input readOnly value={url} onFocus={e => e.target.select()} />
-        <button className="btn" onClick={copy}>{copied ? i18n.t('已复制') : i18n.t('复制')}</button>
+        <button className="btn" onClick={copy}>{copied ? t('已复制') : t('复制')}</button>
       </div>}
-      {url && <p className="muted small">{i18n.t('拿到链接的人能看到这个技能的做法，可以导入到自己的 open-super-agent。做法里别写密码、token 这类东西。')}</p>}
+      {url && <p className="muted small">{t('拿到链接的人能看到这个技能的做法，可以导入到自己的 open-super-agent。做法里别写密码、token 这类东西。')}</p>}
     </div>
   )
 }
@@ -153,33 +165,33 @@ function SkillEditor({ bot, skill: initial, steps, onDone }: { bot: Bot; skill: 
     } catch (e: any) { setErr(e.message) }
   }
   const del = async () => {
-    if (!confirm(i18n.t('删除技能 /{{v0}}？', { v0: skill.name }))) return
+    if (!confirm(t('删除技能 /{name}？', { name: skill.name || '' }))) return
     await api(`/api/skills/${skill.id}`, { method: 'DELETE' }); onDone()
   }
   return (
     <div>
-      <h4>{skill.id ? i18n.t('编辑技能') : fromTeach ? i18n.t('审核演示生成的技能') : draft ? i18n.t('审核导入的技能') : i18n.t('新建技能')}</h4>
-      {fromTeach && <p className="muted small">{i18n.t('{{v0}} 根据你的演示写了下面的做法，还没保存。改好后保存，再在对话里输入 /名字 试一次。', { v0: bot.name })}</p>}
+      <h4>{skill.id ? t('编辑技能') : fromTeach ? t('审核演示生成的技能') : draft ? t('审核导入的技能') : t('新建技能')}</h4>
+      {fromTeach && <p className="muted small">{t('{name} 根据你的演示写了下面的做法，还没保存。改好后保存，再在对话里输入 /名字 试一次。', { name: bot.name })}</p>}
       {draft && <div className="skill-import-note">
-        <p className="small">{i18n.t('技能是交给 {{v0}} 照着做的说明，还没保存。先看一遍做法：别装来路不明的，也留意有没有让它把资料发到别处。', { v0: bot.name })}</p>
-        {draft.exists && name.trim() === draft.name && <p className="small warn">{i18n.t('已经有 /{{v0}} 了，保存会替换掉原来的。想留着原来的就改个名字。', { v0: name })}</p>}
-        {draft.apps.length > 0 && <p className="small">{i18n.t('用到的应用：')}{draft.apps.map(a => <span key={a.name} className={'tag' + (a.connected ? '' : ' warn')}>
-          {a.title}{a.connected ? '' : i18n.t('（还没连接）')}</span>)}
-          {draft.apps.some(a => !a.connected) && <> {i18n.t('没连接的应用可以在侧栏“应用”里连上。')}</>}</p>}
+        <p className="small">{t('技能是交给 {name} 照着做的说明，还没保存。先看一遍做法：别装来路不明的，也留意有没有让它把资料发到别处。', { name: bot.name })}</p>
+        {draft.exists && name.trim() === draft.name && <p className="small warn">{t('已经有 /{name} 了，保存会替换掉原来的。想留着原来的就改个名字。', { name })}</p>}
+        {draft.apps.length > 0 && <p className="small">{t('用到的应用：')}{draft.apps.map(a => <span key={a.name} className={'tag' + (a.connected ? '' : ' warn')}>
+          {a.title}{a.connected ? '' : t('（还没连接）')}</span>)}
+          {draft.apps.some(a => !a.connected) && <> {t('没连接的应用可以在侧栏“应用”里连上。')}</>}</p>}
       </div>}
       {steps && steps.length > 0 && <>
-        <button className="ghost-btn" onClick={() => setShowSteps(!showSteps)}>{i18n.t('录到的操作（{{v0}} 步）', { v0: steps.length })}{showSteps ? '▾' : '▸'}</button>
+        <button className="ghost-btn" onClick={() => setShowSteps(!showSteps)}>{t('录到的操作（{n} 步）', { n: steps.length })}{showSteps ? '▾' : '▸'}</button>
         {showSteps && <pre className="teach-steps">{steps.join('\n')}</pre>}
       </>}
-      <label className="field">{i18n.t('名字（/ 后面的部分）')}<input value={name} maxLength={40} placeholder={i18n.t('例如：日报')} onChange={e => setName(e.target.value)} /></label>
-      <label className="field">{i18n.t('一句话说明')}<input value={desc} maxLength={200} placeholder={i18n.t('什么时候用')} onChange={e => setDesc(e.target.value)} /></label>
-      <label className="field">{i18n.t('做法')}<textarea rows={10} value={body} placeholder={i18n.t('步骤、要用的网站或应用、输出格式……')} onChange={e => setBody(e.target.value)} /></label>
-      <label className="check"><input type="checkbox" checked={shared} onChange={e => setShared(e.target.checked)} /> {i18n.t('所有 Bot 都能用')}</label>
+      <label className="field">{t('名字（/ 后面的部分）')}<input value={name} maxLength={40} placeholder={t('例如：日报')} onChange={e => setName(e.target.value)} /></label>
+      <label className="field">{t('一句话说明')}<input value={desc} maxLength={200} placeholder={t('什么时候用')} onChange={e => setDesc(e.target.value)} /></label>
+      <label className="field">{t('做法')}<textarea rows={10} value={body} placeholder={t('步骤、要用的网站或应用、输出格式……')} onChange={e => setBody(e.target.value)} /></label>
+      <label className="check"><input type="checkbox" checked={shared} onChange={e => setShared(e.target.checked)} /> {t('所有 Bot 都能用')}</label>
       {err && <div className="error-line">{err}</div>}
       <div className="row-actions">
-        <button className="btn primary" onClick={save}>{i18n.t('保存')}</button>
-        <button className="btn" onClick={() => (!(fromTeach || draft) || confirm(i18n.t('不保存这个草稿？'))) && onDone()}>{fromTeach || draft ? i18n.t('不要了') : i18n.t('返回')}</button>
-        {skill.id && <button className="btn danger" onClick={del}>{i18n.t('删除')}</button>}
+        <button className="btn primary" onClick={save}>{t('保存')}</button>
+        <button className="btn" onClick={() => (!(fromTeach || draft) || confirm(t('不保存这个草稿？'))) && onDone()}>{fromTeach || draft ? t('不要了') : t('返回')}</button>
+        {skill.id && <button className="btn danger" onClick={del}>{t('删除')}</button>}
       </div>
       {skill.id && <ShareSkill skill={skill} onChange={s => setSkill({ ...skill, share_token: s.share_token })} />}
     </div>
@@ -191,7 +203,7 @@ export function SharedSkill({ token }: { token: string }) {
   const [s, setS] = useState<{ name: string; description: string; body: string; apps: string[]; updated: number; bot?: { name: string; avatar: Avatar } } | null>(null)
   const [err, setErr] = useState('')
   const [copied, setCopied] = useState(false)
-  useEffect(() => { api(`/api/shared/skills/${token}`).then(x => { setS(x); document.title = i18n.t('技能 /') + x.name }).catch((e: any) => setErr(e.message)) }, [token])
+  useEffect(() => { api(`/api/shared/skills/${token}`).then(x => { setS(x); document.title = t('技能 /{name}', { name: x.name }) }).catch((e: any) => setErr(e.message)) }, [token])
   if (err) return <div className="shared"><div className="shared-empty">{err}</div></div>
   if (!s) return <div className="loading">◆</div>
   const copy = async () => { await navigator.clipboard.writeText(location.href); setCopied(true); setTimeout(() => setCopied(false), 1500) }
@@ -199,21 +211,21 @@ export function SharedSkill({ token }: { token: string }) {
     <div className="shared">
       <header className="shared-head">
         {s.bot && <BotAvatar avatar={s.bot.avatar} size={22} />}
-        <b>{i18n.t('技能 /{{v0}}', { v0: s.name })}</b>
-        <span className="muted small">{s.bot ? i18n.t('{{v0}} 的技能 · ', { v0: s.bot.name }) : ''}{i18n.t('{{v0}} 更新', { v0: when(s.updated) })}</span>
+        <b>{t('技能 /{name}', { name: s.name })}</b>
+        <span className="muted small">{s.bot ? t('{name} 的技能', { name: s.bot.name }) + ' · ' : ''}{t('{when} 更新', { when: when(s.updated) })}</span>
       </header>
       <div className="page-md">
         {s.description && <p className="skill-desc">{s.description}</p>}
         <div className="skill-howto">
-          <b>{i18n.t('装到你自己的 open-super-agent')}</b>
-          <p className="small">{i18n.t('复制这个页面的链接，在右栏“技能”里点')}<b>{i18n.t('导入')}</b>{i18n.t('粘贴进去；或者下载文件后选择它。导入时会先给你看一遍。')}</p>
-          {s.apps.length > 0 && <p className="small">{i18n.t('要用到的应用：')}{s.apps.map((a, i) => <span key={a}>{i > 0 && i18n.t('、')}<code>@{a}</code></span>)}</p>}
+          <b>{t('装到你自己的 open-super-agent')}</b>
+          <p className="small">{tn('复制这个页面的链接，在右栏“技能”里点{b}粘贴进去；或者下载文件后选择它。导入时会先给你看一遍。', { b: <b>{t('导入')}</b> })}</p>
+          {s.apps.length > 0 && <p className="small">{t('要用到的应用：')}{s.apps.map((a, i) => <span key={a}>{i > 0 && LIST}<code>@{a}</code></span>)}</p>}
           <div className="row-actions">
-            <button className="btn primary" onClick={copy}>{copied ? i18n.t('已复制') : i18n.t('复制链接')}</button>
-            <a className="btn" href={`/api/shared/skills/${token}/raw`} download>{i18n.t('下载文件')}</a>
+            <button className="btn primary" onClick={copy}>{copied ? t('已复制') : t('复制链接')}</button>
+            <a className="btn" href={`/api/shared/skills/${token}/raw`} download>{t('下载文件')}</a>
           </div>
         </div>
-        <h4>{i18n.t('做法')}</h4>
+        <h4>{t('做法')}</h4>
         <Markdown text={s.body} />
       </div>
     </div>
@@ -240,29 +252,29 @@ export function RoutinesPanel({ bot }: { bot: Bot }) {
   if (edit) return <RoutineEditor bot={bot} routine={edit} onDone={() => { setEdit(null); load() }} />
   return (
     <div>
-      <div className="section-head"><h4>{i18n.t('定时任务')}</h4><button className="btn" onClick={() => setEdit({})}>{i18n.t('＋ 新建')}</button></div>
-      <p className="muted small">{i18n.t('到点或收到 webhook 时，{{v0}} 会在后台做一次，结果发到对话里。也可以直接在对话里说“每天 9 点帮我……”。', { v0: bot.name })}</p>
+      <div className="section-head"><h4>{t('定时任务')}</h4><button className="btn" onClick={() => setEdit({})}>＋ {t('新建')}</button></div>
+      <p className="muted small">{t('到点或收到 webhook 时，{name} 会在后台做一次，结果发到对话里。也可以直接在对话里说“每天 9 点帮我……”。', { name: bot.name })}</p>
       {err && <div className="error-line">{err}</div>}
-      {!list ? <div className="muted">{i18n.t('加载中…')}</div> : list.length ? list.map(r => (
+      {!list ? <div className="muted">{t('加载中…')}</div> : list.length ? list.map(r => (
         <div key={r.id} className={'routine' + (r.enabled ? '' : ' off')}>
           <div className="routine-head" onClick={() => setOpen(open === r.id ? null : r.id)}>
             <b>{r.name}</b>
-            <span className="muted small">{describe(r.trigger)}{!r.enabled && i18n.t(' · 已暂停')}{r.running && i18n.t(' · 运行中')}</span>
+            <span className="muted small">{describe(r.trigger)}{!r.enabled && ' · ' + t('已暂停')}{r.running && ' · ' + t('运行中')}</span>
           </div>
           <div className="muted small">
-            {r.skill && <>{i18n.t('技能 /{{v0}} · ', { v0: r.skill })}</>}
-            {r.enabled && r.next_run ? i18n.t('下次 {{v0}}', { v0: when(r.next_run) }) : r.trigger.kind === 'webhook' ? `POST /hooks/${r.name}` : ''}
-            {r.last_run && <> {i18n.t('· 上次 {{v0}} {{v1}}', { v0: when(r.last_run.ts), v1: STATUS()[r.last_run.status] || r.last_run.status })}</>}
+            {r.skill && <>{t('技能 /{name}', { name: r.skill })} · </>}
+            {r.enabled && r.next_run ? t('下次 {when}', { when: when(r.next_run) }) : r.trigger.kind === 'webhook' ? `POST /hooks/${r.name}` : ''}
+            {r.last_run && <> · {t('上次 {when} {status}', { when: when(r.last_run.ts), status: STATUS[r.last_run.status] || r.last_run.status })}</>}
           </div>
           <div className="app-actions">
-            <button className="btn" onClick={() => act(r, 'test')} disabled={r.running}>{i18n.t('测试')}</button>
-            <button className="btn" onClick={() => act(r, r.enabled ? 'pause' : 'resume')}>{r.enabled ? i18n.t('暂停') : i18n.t('恢复')}</button>
-            <button className="btn" onClick={() => setEdit(r)}>{i18n.t('编辑')}</button>
-            <button className="btn" onClick={() => setOpen(open === r.id ? null : r.id)}>{i18n.t('记录')}</button>
+            <button className="btn" onClick={() => act(r, 'test')} disabled={r.running}>{t('测试')}</button>
+            <button className="btn" onClick={() => act(r, r.enabled ? 'pause' : 'resume')}>{r.enabled ? t('暂停') : t('恢复')}</button>
+            <button className="btn" onClick={() => setEdit(r)}>{t('编辑')}</button>
+            <button className="btn" onClick={() => setOpen(open === r.id ? null : r.id)}>{t('记录')}</button>
           </div>
           {open === r.id && <Runs id={r.id} />}
         </div>
-      )) : <div className="muted small">{i18n.t('还没有定时任务')}</div>}
+      )) : <div className="muted small">{t('还没有定时任务')}</div>}
     </div>
   )
 }
@@ -275,17 +287,17 @@ function Runs({ id }: { id: number }) {
     window.addEventListener('osa-routines', load)
     return () => window.removeEventListener('osa-routines', load)
   }, [id])
-  if (!runs) return <div className="muted small">{i18n.t('加载中…')}</div>
-  if (!runs.length) return <div className="muted small">{i18n.t('还没运行过')}</div>
+  if (!runs) return <div className="muted small">{t('加载中…')}</div>
+  if (!runs.length) return <div className="muted small">{t('还没运行过')}</div>
   return (
     <div className="runs">
       {runs.map(x => (
         <div key={x.id} className="kv" title={x.detail}>
-          <span>{when(x.ts)} · {SOURCE()[x.source] || x.source}{x.task_id ? <> · <button className="link-btn" title={i18n.t('看这次运行每一步做了什么')} onClick={() => showTask(x.task_id!)}>#{x.task_id}</button></> : ''}{x.detail && ` · ${x.detail.slice(0, 40)}`}</span>
-          <span className={'muted run-' + x.status}>{STATUS()[x.status] || x.status}</span>
+          <span>{when(x.ts)} · {SOURCE[x.source] || x.source}{x.task_id ? <> · <button className="link-btn" title={t('看这次运行每一步做了什么')} onClick={() => showTask(x.task_id!)}>#{x.task_id}</button></> : ''}{x.detail && ` · ${x.detail.slice(0, 40)}`}</span>
+          <span className={'muted run-' + x.status}>{STATUS[x.status] || x.status}</span>
         </div>
       ))}
-      <div className="muted small">{i18n.t('保留最近 20 次')}</div>
+      <div className="muted small">{t('保留最近 20 次')}</div>
     </div>
   )
 }
@@ -318,49 +330,49 @@ function RoutineEditor({ bot, routine, onDone }: { bot: Bot; routine: Partial<Ro
     } catch (e: any) { setErr(e.message) }
   }
   const del = async () => {
-    if (!confirm(i18n.t('删除定时任务「{{v0}}」？运行记录也会删除。', { v0: routine.name }))) return
+    if (!confirm(t('删除定时任务「{name}」？运行记录也会删除。', { name: routine.name || '' }))) return
     await api(`/api/routines/${routine.id}`, { method: 'DELETE' }); onDone()
   }
   return (
     <div>
-      <h4>{routine.id ? i18n.t('编辑定时任务') : i18n.t('新建定时任务')}</h4>
-      <label className="field">{i18n.t('名字')}<input value={name} maxLength={40} placeholder={kind === 'webhook' ? i18n.t('会出现在网址里，例如 github') : i18n.t('例如：早报')} onChange={e => setName(e.target.value)} /></label>
-      <label className="field">{i18n.t('每次做什么')}<textarea rows={4} value={prompt} placeholder={i18n.t('例如：整理今天 AI 领域的 5 条新闻，附链接')} onChange={e => setPrompt(e.target.value)} /></label>
-      <label className="field">{i18n.t('按技能做（可选）')}
+      <h4>{routine.id ? t('编辑定时任务') : t('新建定时任务')}</h4>
+      <label className="field">{t('名字')}<input value={name} maxLength={40} placeholder={kind === 'webhook' ? t('会出现在网址里，例如 github') : t('例如：早报')} onChange={e => setName(e.target.value)} /></label>
+      <label className="field">{t('每次做什么')}<textarea rows={4} value={prompt} placeholder={t('例如：整理今天 AI 领域的 5 条新闻，附链接')} onChange={e => setPrompt(e.target.value)} /></label>
+      <label className="field">{t('按技能做（可选）')}
         <select value={skill} onChange={e => setSkill(e.target.value)}>
-          <option value="">{i18n.t('不用技能')}</option>
+          <option value="">{t('不用技能')}</option>
           {(skills || []).map(k => <option key={k.id} value={k.name}>/{k.name}</option>)}
         </select>
       </label>
-      <label className="field">{i18n.t('什么时候')}
+      <label className="field">{t('什么时候')}
         <select value={kind} onChange={e => setKind(e.target.value as Trigger['kind'])}>
-          <option value="daily">{i18n.t('每天 / 每周固定时间')}</option>
-          <option value="every">{i18n.t('每隔一段时间')}</option>
-          <option value="webhook">{i18n.t('收到 webhook 时')}</option>
+          <option value="daily">{t('每天 / 每周固定时间')}</option>
+          <option value="every">{t('每隔一段时间')}</option>
+          <option value="webhook">{t('收到 webhook 时')}</option>
         </select>
       </label>
       {kind === 'daily' && <>
-        <label className="field">{i18n.t('时间（多个用逗号分开）')}<input value={times} placeholder="09:00, 18:00" onChange={e => setTimes(e.target.value)} /></label>
+        <label className="field">{t('时间（多个用逗号分开）')}<input value={times} placeholder="09:00, 18:00" onChange={e => setTimes(e.target.value)} /></label>
         <div className="day-row">
-          {DAYS().map((d, i) => (
+          {DAYS.map((d, i) => (
             <button key={d} className={days.includes(i + 1) ? 'on' : ''}
-              onClick={() => setDays(days.includes(i + 1) ? days.filter(x => x !== i + 1) : [...days, i + 1].sort())}>{d}</button>
+              onClick={() => setDays(days.includes(i + 1) ? days.filter(x => x !== i + 1) : [...days, i + 1].sort())}>{d.slice(0, 2)}</button>
           ))}
-          <span className="muted small">{days.length ? '' : i18n.t('不选 = 每天')}</span>
+          <span className="muted small">{days.length ? '' : t('不选 = 每天')}</span>
         </div>
       </>}
-      {kind === 'every' && <label className="field">{i18n.t('间隔（分钟，至少 5）')}<input type="number" min={5} value={minutes} onChange={e => setMinutes(e.target.value)} /></label>}
+      {kind === 'every' && <label className="field">{t('间隔（分钟，至少 5）')}<input type="number" min={5} value={minutes} onChange={e => setMinutes(e.target.value)} /></label>}
       {kind === 'webhook' && <>
-        <p className="muted small">{i18n.t('地址：POST /hooks/{{v0}}。设置了 OSA_WEBHOOK_TOKEN 时请求头 X-OSA-Token 要一致，否则只接受本机请求。', { v0: name || i18n.t('名字') })}</p>
-        <label className="field">{i18n.t('至少包含其中一个词（可选）')}<input value={include} placeholder="issue, bug" onChange={e => setInclude(e.target.value)} /></label>
-        <label className="field">{i18n.t('包含就忽略（可选）')}<input value={exclude} placeholder="dependabot" onChange={e => setExclude(e.target.value)} /></label>
-        <label className="field">{i18n.t('让模型判断要不要处理（可选）')}<textarea rows={2} value={filter} placeholder={i18n.t('只有报告 bug 的才处理')} onChange={e => setFilter(e.target.value)} /></label>
+        <p className="muted small">{t('地址：POST /hooks/{name}。设置了 OSA_WEBHOOK_TOKEN 时请求头 X-OSA-Token 要一致，否则只接受本机请求。', { name: name || tc('url', '名字') })}</p>
+        <label className="field">{t('至少包含其中一个词（可选）')}<input value={include} placeholder="issue, bug" onChange={e => setInclude(e.target.value)} /></label>
+        <label className="field">{t('包含就忽略（可选）')}<input value={exclude} placeholder="dependabot" onChange={e => setExclude(e.target.value)} /></label>
+        <label className="field">{t('让模型判断要不要处理（可选）')}<textarea rows={2} value={filter} placeholder={t('只有报告 bug 的才处理')} onChange={e => setFilter(e.target.value)} /></label>
       </>}
       {err && <div className="error-line">{err}</div>}
       <div className="row-actions">
-        <button className="btn primary" onClick={save}>{i18n.t('保存')}</button>
-        <button className="btn" onClick={onDone}>{i18n.t('返回')}</button>
-        {routine.id && <button className="btn danger" onClick={del}>{i18n.t('删除')}</button>}
+        <button className="btn primary" onClick={save}>{t('保存')}</button>
+        <button className="btn" onClick={onDone}>{t('返回')}</button>
+        {routine.id && <button className="btn danger" onClick={del}>{t('删除')}</button>}
       </div>
     </div>
   )

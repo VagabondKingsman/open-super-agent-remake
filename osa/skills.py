@@ -7,14 +7,13 @@ bot_id 为空的技能所有 Bot 共用；同名时 Bot 自己的优先。
 分享就是生成一个不可猜的链接 /skill/<token>，别人在自己的 open-super-agent 里粘贴这个链接导入；取消分享后链接失效。
 导入的技能先打开编辑器给用户看一遍再保存：技能是交给 Bot 照着做的说明，来路不明的可能让 Bot 做不该做的事。
 """
-
-from .i18n import s as _s
 import re
 import secrets
 import time
 from urllib.parse import urlparse
 import httpx
 import yaml
+from . import i18n
 from .memory import conn
 
 conn.execute("""create table if not exists skills(
@@ -64,11 +63,11 @@ def find(bot_id: int, name: str) -> dict | None:
 def _check(name: str, body: str):
     name = name.strip().lstrip("/")
     if not NAME_RE.match(name):
-        raise ValueError(_s('audit_6e803cbef1'))
+        raise ValueError(i18n.t("技能名只能用中文、字母、数字、- 和 _，最长 40 个字"))
     if not body.strip():
-        raise ValueError(_s('audit_f608ae02e6'))
+        raise ValueError(i18n.t("技能内容不能为空"))
     if len(body) > MAX_BODY:
-        raise ValueError(_s('audit_9e6cbc481e', v0=len(body), v1=MAX_BODY))
+        raise ValueError(i18n.t("技能做法太长了（{count} 个字），最多 {max} 个字", count=len(body), max=MAX_BODY))
     return name
 
 
@@ -83,13 +82,13 @@ def save(bot_id: int | None, name: str, body: str, description: str = "", source
     if sid is None:
         n = conn.execute("select count(*) from skills where bot_id is ?", (bot_id,)).fetchone()[0]
         if n >= MAX_PER_BOT:
-            raise ValueError(_s('audit_56ced88d90', v0=MAX_PER_BOT))
+            raise ValueError(i18n.t("每个 Bot 最多 {n} 个技能", n=MAX_PER_BOT))
         sid = conn.execute("insert into skills(bot_id, name, description, body, source, created, updated) "
                            "values(?,?,?,?,?,?,?)", (bot_id, name, description[:200], body, source, now, now)).lastrowid
     else:
         dup = conn.execute("select id from skills where name=? and bot_id is ? and id != ?", (name, bot_id, sid)).fetchone()
         if dup:
-            raise ValueError(_s('audit_8b5431f306', v0=name))
+            raise ValueError(i18n.t("已经有叫 /{name} 的技能了", name=name))
         conn.execute("update skills set bot_id=?, name=?, description=?, body=?, updated=? where id=?",
                      (bot_id, name, description[:200], body, now, sid))
     conn.commit()
@@ -112,12 +111,13 @@ def parse(bot_id: int, text: str) -> tuple[dict, str] | None:
 
 def expand(skill: dict, extra: str) -> str:
     """把技能写成交给模型的说明。"""
-    return (_s('audit_07909e28b8', v0=skill['name'], v1=skill['body'])
-            + (_s('audit_b34380c652', v0=extra) if extra else ""))
+    return (f"（用户调用了技能 /{skill['name']}，请按下面的做法执行；用户补充的要求优先。）\n"
+            f"--- 技能做法 ---\n{skill['body']}\n--- 结束 ---"
+            + (f"\n用户补充：{extra}" if extra else ""))
 
 
 def summary(bot_id: int) -> str:
-    return "\n".join(f"- /{s['name']}：{s['description'] or s['body'][:40]}" for s in list_for(bot_id)) or _s('audit_6386d83f7c')
+    return "\n".join(f"- /{s['name']}：{s['description'] or s['body'][:40]}" for s in list_for(bot_id)) or "暂无技能"
 
 
 # ---------- 导出、导入、分享 ----------
@@ -149,15 +149,15 @@ def from_file(text: str, filename: str = "") -> dict:
     """解析一个技能文件，返回 {name, description, body}；格式不对就抛 ValueError。"""
     text = (text or "").lstrip("\ufeff").replace("\r\n", "\n")
     if len(text) > MAX_FILE:
-        raise ValueError(_s('audit_08ed4471ad'))
+        raise ValueError(i18n.t("文件太大了，不像是一个技能"))
     head, body = {}, text
     if m := re.match(r"^---[ \t]*\n(.*?)\n---[ \t]*(?:\n|$)", text, re.S):
         try:
             head = yaml.safe_load(m[1]) or {}
         except yaml.YAMLError as e:
-            raise ValueError(_s('audit_46ce8df11b', v0=str(e).splitlines()[0]))
+            raise ValueError(i18n.t("开头的 YAML 写错了：{e}", e=str(e).splitlines()[0]))
         if not isinstance(head, dict):
-            raise ValueError(_s('audit_50cfbb6e05'))
+            raise ValueError(i18n.t("开头的 YAML 应该是一组「键: 值」"))
         body = text[m.end():]
     body = body.strip()
     name = head.get("name")
@@ -168,7 +168,7 @@ def from_file(text: str, filename: str = "") -> dict:
         name = h[1]
     name = _clean_name(name or "")
     if not name:
-        raise ValueError(_s('audit_df58728770'))
+        raise ValueError(i18n.t("没找到技能的名字：在文件开头写上 name"))
     desc = head.get("description") or ""
     if not isinstance(desc, str):
         desc = str(desc)
@@ -179,7 +179,7 @@ def from_file(text: str, filename: str = "") -> dict:
 def share(sid: int, on: bool) -> dict:
     s = get(sid)
     if not s:
-        raise ValueError(_s('audit_f1135d96ad'))
+        raise ValueError(i18n.t("没有这个技能"))
     token = (s["share_token"] or secrets.token_urlsafe(16)) if on else None
     conn.execute("update skills set share_token=? where id=?", (token, sid))
     conn.commit()
@@ -198,7 +198,7 @@ def raw_url(url: str) -> tuple[str, str]:
     url = url.strip()
     u = urlparse(url)
     if u.scheme not in ("http", "https") or not u.netloc:
-        raise ValueError(_s('audit_aa8bac50d1'))
+        raise ValueError(i18n.t("链接要以 http:// 或 https:// 开头"))
     parts = [x for x in u.path.split("/") if x]
     if len(parts) == 2 and parts[0] == "skill":                       # 别人的 open-super-agent 分享出来的
         return f"{u.scheme}://{u.netloc}/api/shared/skills/{parts[1]}/raw", ""
@@ -221,20 +221,20 @@ async def fetch(url: str) -> dict:
         async with httpx.AsyncClient(timeout=15, follow_redirects=True) as c:
             async with c.stream("GET", src, headers={"accept": "text/markdown, text/plain;q=0.9, */*;q=0.5"}) as r:
                 if r.status_code == 404:
-                    raise ValueError(_s('audit_4ca96e8713'))
+                    raise ValueError(i18n.t("链接打不开（404）：分享可能已经取消了，或者地址不对"))
                 if r.status_code >= 400:
-                    raise ValueError(_s('audit_68cb1374a2', v0=r.status_code))
+                    raise ValueError(i18n.t("链接打不开（{code}）", code=r.status_code))
                 if "text/html" in r.headers.get("content-type", ""):
-                    raise ValueError(_s('audit_61c9a86366'))
+                    raise ValueError(i18n.t("这个链接打开是一个网页，不是技能文件。GitHub 上的请用文件或文件夹的链接"))
                 data = b""
                 async for chunk in r.aiter_bytes():
                     data += chunk
                     if len(data) > MAX_FILE:
-                        raise ValueError(_s('audit_08ed4471ad'))
+                        raise ValueError(i18n.t("文件太大了，不像是一个技能"))
     except httpx.HTTPError as e:
-        raise ValueError(_s('audit_f3935e0ea2', v0=type(e).__name__))
+        raise ValueError(i18n.t("取不到这个链接（{e}）", e=type(e).__name__))
     try:
         text = data.decode("utf-8")
     except UnicodeDecodeError:
-        raise ValueError(_s('audit_9bcde82e37'))
+        raise ValueError(i18n.t("不是文字文件"))
     return from_file(text, name)

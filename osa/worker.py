@@ -1,18 +1,22 @@
 """Worker：隔离的 ReAct 循环，带工具，单独执行一个任务。模型流式输出，每一步都记进任务过程（tasklog）。"""
-
-from .i18n import s as _s
 import asyncio
 import json
 import time
 from dataclasses import dataclass, field
 from .config import CFG, call_kwargs, client_for
-from . import approvals, library, memories, memory, mcp_hub, search, tasklog, tools
+from . import approvals, i18n, library, memories, memory, mcp_hub, search, tasklog, tools
 from .computer import tools as ctools
 
 PROGRESS = None   # 由 router 设置：async (task, text) -> None，把动作推送到任务卡片
 PAGES_CHANGED = None   # 由 server 设置：async () -> None，资料库有新页面时通知前端
 
-from . import i18n
+WORKER_PROMPT = """你是执行任务的 Worker。用工具查证事实，给出结论时附上来源链接。
+需要读写用户的外部服务（应用）时，使用名字带“应用名__”前缀的工具；任务里写了“@应用名”就必须用那个应用。
+写操作会先请用户确认；被拒绝时不要换个工具绕过去，按用户的意见调整或说明无法完成。
+完成后直接输出最终答案（{lang}，简洁、结构清晰）。今天是 {date}。"""
+# 最终答案用什么语言：中文界面和以前一样；英文界面默认英文
+ANSWER_LANG = {"vi": "默认用越南语，任务是用别的语言写的就用那种语言", "zh": "中文", "en": "默认用英文，任务是用别的语言写的就用那种语言"}
+PAGE_HINT = "任务要求做成页面或报告时，用 save_page 保存，最终答案里附上返回的链接。"
 
 
 
@@ -39,12 +43,16 @@ class Task:
     handoff: dict | None = None            # 群聊：做完后把结果交给谁 {"to": bot_id, "note": str}
     reply: dict | None = None              # 因私信派的任务：做完把结果作为回信送给谁（见 dm.py）
     depth: int = 0                         # 派任务那一轮的私信深度，交接、回信沿用
+    quiet_ok: bool = False                 # 定时任务：结果只有“无新内容”时不发结果消息（见 routines.QUIET）
+    quiet: bool = False                    # 这次确实没有新内容
+    notes: str = ""                        # 只给 Worker 看的补充说明，不显示、不存进对话（定时任务：上次的结果、“无新内容”的约定）
 
 
 def _public(self) -> dict:
     return {"id": self.id, "goal": self.goal, "mode": self.mode, "status": self.status, "steps": self.steps,
             "bot_id": self.bot_id, "chat_id": self.chat_id, "started": self.started,
-            "waiting_approval": self.waiting_approval, "last_action": self.last_action, "elapsed": round(time.time() - self.started)}
+            "waiting_approval": self.waiting_approval, "last_action": self.last_action, "elapsed": round(time.time() - self.started),
+            "quiet": self.quiet}
 
 
 Task.public = _public
@@ -118,43 +126,43 @@ async def _tool(task: Task, log: tasklog.Log, step: dict, name: str, raw: str, p
                 shots.append(shot)
             return out, "done"
         if name == "search_memory":
-            await progress(i18n.s("prog_search_memory", q=str(args.get("query", ""))[:40]))
+            await progress(i18n.t("查记忆和资料库：{query}", query=str(args.get("query", ""))[:40]))
             return await search.tool(task.bot_id, args), "done"
         if name == "read_page":
-            await progress(i18n.s("prog_read_page", id=args.get("page_id")))
+            await progress(i18n.t("读页面 #{id}", id=args.get("page_id")))
             return library.tool_read_page(args), "done"
         if name == "save_page" and pages:
-            await progress(i18n.s("prog_save_page", title=str(args.get("title", ""))[:40]))
+            await progress(i18n.t("保存页面：{title}", title=str(args.get("title", ""))[:40]))
             out = library.tool_save_page(task.bot_id, args, task.id)
             if PAGES_CHANGED:
                 await PAGES_CHANGED()
             return out, "done"
-        await progress({"web_search": i18n.s("prog_web_search"), "fetch_url": i18n.s("prog_fetch_url")}.get(name, name + " ")
-                       + str(args.get("query") or args.get("url") or "")[:60])
+        what = str(args.get("query") or args.get("url") or "")[:60]
+        await progress(i18n.t("搜索：{what}", what=what) if name == "web_search" else
+                       i18n.t("读取网页：{what}", what=what) if name == "fetch_url" else f"{name} {what}")
         fn = tools.lookup(name)
         if fn and name in mcp_hub.TOOLS and approvals.decide(name)[0]:
             await log.update(step, status="waiting")
             ok, note = await approvals.request(task, name, args)
             if not ok:
-                return i18n.s("tool_rejected", note=note or "").strip(), "rejected"
+                return f"用户拒绝了这个操作，没有执行。{note}".strip(), "rejected"
             await log.update(step, status="running")
-        return (await fn(**args) if fn else i18n.s("tool_unknown")), "done"
+        return (await fn(**args) if fn else "未知工具"), "done"
     except Exception as e:
-        return i18n.s("tool_error", e=e), "error"
+        return f"工具出错：{e}", "error"
 
 
 async def _run_worker(task: Task, goal: str, label: str = "") -> str:
     client, model = client_for("worker")
     use_pc = (CFG.get("computer") or {}).get("enabled", True)
     pages = not label   # Heavy 模式的几个 Worker 只出草稿，不各自存页面
-    system = i18n.prompt("WORKER_PROMPT", date=time.strftime("%Y-%m-%d")) + ("\n" + i18n.prompt("PAGE_HINT") if pages else "") \
-        + ("\n\n" + i18n.prompt("SYSTEM_HINT") if use_pc else "")
+    system = WORKER_PROMPT.format(date=time.strftime("%Y-%m-%d"), lang=ANSWER_LANG[i18n.lang()]) + ("\n" + PAGE_HINT if pages else "") \
+        + ("\n\n" + ctools.SYSTEM_HINT if use_pc else "")
     if known := memories.worker_block(task.bot_id):
-        system += f"\n\n{i18n.s('worker_memory_prefix')}\n{known}"
+        system += f"\n\n关于用户（长期记忆，做事时遵守其中的偏好）：\n{known}"
     msgs = [{"role": "system", "content": system}, {"role": "user", "content": goal}]
-    schemas = i18n.localize_tools(
-        tools.schemas() + ([library.SAVE_PAGE] if pages else []) + [library.READ_PAGE, search.SEARCH_TOOL]
-        + (ctools.SCHEMAS if use_pc else []))
+    schemas = tools.schemas() + ([library.SAVE_PAGE] if pages else []) + [library.READ_PAGE, search.SEARCH_TOOL] \
+        + (ctools.SCHEMAS if use_pc else [])
     log = tasklog.Log(task, label)
 
     async def progress(text: str):
@@ -183,8 +191,8 @@ async def _run_worker(task: Task, goal: str, label: str = "") -> str:
             task.last_progress = time.time()
         if shots:
             msgs.append(ctools.image_message(shots[-1]))
-    await log.note(_s('audit_c64c6a8e6c'))
-    msgs.append({"role": "user", "content": _s('audit_d35bb90aba')})
+    await log.note(i18n.t("步数用完了，根据已有信息写结果"))
+    msgs.append({"role": "user", "content": "步数用完了，请根据已有信息给出最终答案。"})
     m = await _reply(task, log, "worker", client, model, msgs)
     return m.get("content") or ""
 
@@ -192,19 +200,21 @@ async def _run_worker(task: Task, goal: str, label: str = "") -> str:
 async def run_heavy(task: Task) -> str:
     """Heavy 模式：N 个 Worker 独立并行解题，Reviewer 互审后汇总。"""
     n = CFG["heavy"]["workers"]
-    angles = [_s('audit_c7e2158d8a'), _s('audit_e9549aadca'), _s('audit_129253b067'), _s('audit_83caaf0b6b')]
-    await tasklog.Log(task).note(_s('audit_672ff8258b', v0=n))
+    angles = ["从最直接的角度", "从反面/质疑的角度核查", "从数据和一手来源角度", "从实践/落地角度"]
+    await tasklog.Log(task).note(i18n.t("{n} 个研究员分头做，做完汇总", n=n))
+    goal = task.goal + task.notes
     drafts = await asyncio.gather(*[
-        run_worker(task, _s('audit_9bd16b31e2', v0=task.goal, v1=i + 1, v2=angles[i % len(angles)]), f"h{i}")
+        run_worker(task, f"{goal}\n\n（你是第 {i+1} 个独立研究员，请{angles[i % len(angles)]}回答）", f"h{i}")
         for i in range(n)], return_exceptions=True)
     for i, d in enumerate(drafts):
         if isinstance(d, Exception):
-            await tasklog.Log(task, f"h{i}").note(_s('audit_1f38aff486', v0=d), "error")
+            await tasklog.Log(task, f"h{i}").note(i18n.t("出错：{error}", error=d), "error")
     drafts = [d for d in drafts if isinstance(d, str)]
     client, model = client_for("reviewer")
-    joined = "\n\n".join(_s('audit_33f8e036e9', v0=i + 1, v1=d) for i, d in enumerate(drafts))
-    await tasklog.Log(task).note(_s('audit_b74cb95e35', v0=len(drafts)))
+    joined = "\n\n".join(f"=== 方案 {i+1} ===\n{d}" for i, d in enumerate(drafts))
+    await tasklog.Log(task).note(i18n.t("{n} 份草稿交给审稿人汇总", n=len(drafts)))
     m = await _reply(task, tasklog.Log(task, "review"), "reviewer", client, model, [
-        {"role": "system", "content": _s('audit_ed2efa014b')},
-        {"role": "user", "content": _s('audit_56671e8a4e', v0=task.goal, v1=joined)}])
+        {"role": "system", "content": "你是审稿人。比较几份独立答案，找出矛盾和错误，合成一份最可靠的最终答案，保留来源链接。"
+                                      + i18n.model_hint()},
+        {"role": "user", "content": f"问题：{goal}\n\n{joined}"}])
     return m.get("content") or ""

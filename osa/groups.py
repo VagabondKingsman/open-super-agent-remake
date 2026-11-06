@@ -8,15 +8,13 @@
 - 确认卡片和“请你帮忙”都发到 Bot 的私聊（见 approvals），群里不出现。
 - 群里的 Bot 私信了群外的 Bot（见 dm.py），回信回到群里时，它按 "dm" 排进来接着说。
 """
-
-from .i18n import s as _s
 import asyncio
 import re
 import time
-from . import bots, memory
+from . import bots, i18n, memory
 
 MAX_TURNS = 8
-EVERYONE = ("everyone", "mọi người", "tất cả", "所有人", "全体成员")
+EVERYONE = ("everyone", "所有人", "全体成员")
 notify = None   # 由 server 设置：async (event) -> None
 
 
@@ -40,7 +38,7 @@ class Group:
             if why == "mention" and self.expected.get(bot_id):
                 continue   # 它要等别人的任务结果，交接时再说
             if turns >= MAX_TURNS:
-                await note(self.chat_id, _s('audit_ded75656e5', v0=MAX_TURNS))
+                await note(self.chat_id, i18n.t("Bot 们这一轮已经说了 {n} 次，先停一下，等你发话。", n=MAX_TURNS))
                 break
             turns += 1
             self.handoffs = []
@@ -49,7 +47,7 @@ class Group:
                 await router.runtime(bot_id).respond(self.chat_id, turn if why == "dm" else {"depth": turn.get("depth", 0)})
             except Exception as e:
                 if notify:
-                    await notify({"type": "error", "chat_id": self.chat_id, "message": _s('audit_797249421b', v0=_name(bot_id), v1=e)})
+                    await notify({"type": "error", "chat_id": self.chat_id, "message": i18n.t("{name} 出错了：{e}", name=_name(bot_id), e=e)})
             # 交出去的工作排在最前面，按交接的先后
             queue = [(b, "handoff") for b in self.handoffs] + [q for q in queue if q[0] not in self.handoffs]
         self.handoffs = []
@@ -66,7 +64,7 @@ def get(chat_id: int) -> Group:
 
 def _name(bot_id: int) -> str:
     b = bots.get(bot_id)
-    return b["name"] if b else _s('audit_ca59d8427a')
+    return b["name"] if b else i18n.t("已删除的 Bot")
 
 
 def mentions(text: str, member_ids: list[int]) -> list[int]:
@@ -108,7 +106,7 @@ async def on_user(chat: dict, text: str, via: str = ""):
     async with g.lock:
         chat = bots.chat(chat["id"]) or chat
         if not chat["bot_ids"]:
-            await note(chat["id"], _s('audit_51c46472d5'))
+            await note(chat["id"], i18n.t("群里没有 Bot 了，先在右栏添加成员"))
             return
         hit = mentions(text, chat["bot_ids"])
         lead = chat["lead"] if chat["lead"] in chat["bot_ids"] else chat["bot_ids"][0]
@@ -117,7 +115,8 @@ async def on_user(chat: dict, text: str, via: str = ""):
 
 async def handoff(chat_id: int, from_id: int, to_id: int, request: str):
     """from 在发言中把工作交给 to：群里出一条交接记录，from 说完后轮到 to。"""
-    await _message(chat_id, "task", f"→ {_name(to_id)}：{request}", from_id, kind="handoff", to=to_id, note=request)
+    await _message(chat_id, "task", i18n.t("→ {name}：{text}", name=_name(to_id), text=request), from_id,
+                   kind="handoff", to=to_id, note=request)
     g = get(chat_id)
     if to_id not in g.handoffs:
         g.handoffs.append(to_id)
@@ -139,13 +138,13 @@ async def after_task(task):
     h = task.handoff
     unexpect(task.chat_id, h["to"])
     if task.status != "done":
-        await note(task.chat_id, _s('audit_caaa0e4fb3', v0=task.id, v1=_name(h['to'])))
+        await note(task.chat_id, i18n.t("任务 #{id} 没做完，没有交给 {name}", id=task.id, name=_name(h["to"])))
         return
     g = get(task.chat_id)
     async with g.lock:
-        request = h["note"] or _s('audit_e812d6b00e')
-        await _message(task.chat_id, "task", _s('audit_2113847427', v0=_name(h['to']), v1=request, v2=task.id),
-                       task.bot_id, kind="handoff", to=h["to"], note=_s('audit_aa13bd7348', v0=task.id, v1=request),
+        request = h["note"] or i18n.t("资料在上面，请接着做")
+        await _message(task.chat_id, "task", i18n.t("→ {name}：{text}（任务 #{id} 的结果）", name=_name(h["to"]), text=request, id=task.id),
+                       task.bot_id, kind="handoff", to=h["to"], note=i18n.t("任务 #{id} 的结果在上面。{text}", id=task.id, text=request),
                        task_id=task.id)
         await g.run([(h["to"], "handoff")], {"depth": task.depth})
 

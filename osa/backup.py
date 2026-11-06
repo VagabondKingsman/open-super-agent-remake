@@ -15,8 +15,6 @@
 命令行：python -m osa.backup export [-o 文件]；python -m osa.backup restore 文件（下次启动时生效）。
 口令可以放在环境变量 OSA_BACKUP_PASSPHRASE 里，方便定时备份。
 """
-
-from .i18n import s as _s
 import base64
 import json
 import os
@@ -33,6 +31,7 @@ from pathlib import Path
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
+from . import i18n   # 只读 locales/en.json，不碰数据库（这个模块在打开数据库之前就要导入）
 from .config import CFG, ROOT
 
 MAGIC = b"OSABAK1\n"
@@ -44,8 +43,8 @@ APPS = ROOT / "data" / "apps"
 MIN_PASS = 8
 MAX_UNZIPPED = 8 << 30
 NEED_TABLES = {"bots", "chats", "messages"}
-COUNTS = {"bots": _s('audit_9882331508'), "chats": _s('audit_b40ed6b2b5'), "messages": _s('audit_3bee8e7c33'), "memories": _s('audit_9b48808269'), "skills": _s('audit_54ccf74163'),
-          "routines": _s('audit_14c44060cc'), "pages": _s('audit_375d9ff71b'), "apps": _s('audit_d77eb8db31'), "channels": _s('audit_9a2d9cfd59')}
+COUNTS = {"bots": "个 Bot", "chats": "个对话", "messages": "条消息", "memories": "条记忆", "skills": "个技能",
+          "routines": "个定时任务", "pages": "个页面", "apps": "个应用", "channels": "个聊天软件连接"}
 RESTART = False   # 网页上确认恢复后置位：服务关闭时重新启动自己
 
 
@@ -68,7 +67,7 @@ def _nonce(prefix: bytes, i: int, last: bool) -> bytes:
 
 def check_passphrase(p: str):
     if len(p or "") < MIN_PASS:
-        raise BackupError(_s('audit_0b480773b7', v0=MIN_PASS))
+        raise BackupError(i18n.t("口令至少 {n} 个字符：备份里有你所有的密钥，口令就是保护它们的锁", n=MIN_PASS))
 
 
 # ---------- 加密、解密 ----------
@@ -91,7 +90,7 @@ def encrypt(src: Path, dst: Path, passphrase: str):
 def decrypt(src: Path, dst: Path, passphrase: str):
     with open(src, "rb") as f:
         if f.read(len(MAGIC)) != MAGIC:
-            raise BackupError(_s('audit_697f5e0332'))
+            raise BackupError(i18n.t("这不是 open-super-agent 的备份文件"))
         hline = f.readline(2048)
         try:
             head = json.loads(hline)
@@ -101,7 +100,7 @@ def decrypt(src: Path, dst: Path, passphrase: str):
         except (ValueError, KeyError, TypeError):
             ok = False
         if not ok or len(prefix) != 7:
-            raise BackupError(_s('audit_2c3e15fef1'))
+            raise BackupError(i18n.t("备份文件的开头坏了"))
         aes, ad, size = _key(passphrase, head), MAGIC + hline, head["chunk"] + 16
         with open(dst, "wb") as out:
             i, buf = 0, f.read(size)
@@ -110,7 +109,7 @@ def decrypt(src: Path, dst: Path, passphrase: str):
                 try:
                     out.write(aes.decrypt(_nonce(prefix, i, not nxt), buf, ad))
                 except InvalidTag:
-                    raise BackupError(_s('audit_4adba6a97c') if i == 0 else _s('audit_a94ddc36ab'))
+                    raise BackupError(i18n.t("口令不对（或者文件坏了）") if i == 0 else i18n.t("备份文件不完整，或者被改过"))
                 if not nxt:
                     return
                 buf, i = nxt, i + 1
@@ -218,11 +217,11 @@ def stage(upload: Path, passphrase: str) -> dict:
             names = set(z.namelist())
             meta = json.loads(z.read("backup.json"))
         except (zipfile.BadZipFile, KeyError, ValueError):
-            raise BackupError(_s('audit_5f70398352'))
+            raise BackupError(i18n.t("备份文件里的内容坏了"))
         if meta.get("format") != FORMAT:
-            raise BackupError(_s('audit_68dd030daf'))
+            raise BackupError(i18n.t("这个备份是更新版本的 open-super-agent 做的，先升级再恢复"))
         if "osa.db" not in names or sum(i.file_size for i in z.infolist()) > MAX_UNZIPPED:
-            raise BackupError(_s('audit_438c3d20cc'))
+            raise BackupError(i18n.t("备份文件里的内容不对"))
         shutil.rmtree(STAGE, ignore_errors=True)
         STAGE.mkdir(parents=True)
         with z.open("osa.db") as src, open(STAGE / "osa.db", "wb") as dst:
@@ -230,12 +229,12 @@ def stage(upload: Path, passphrase: str) -> dict:
         db = sqlite3.connect(STAGE / "osa.db")
         try:
             if db.execute("pragma integrity_check").fetchone()[0] != "ok":
-                raise BackupError(_s('audit_566a7b237e'))
+                raise BackupError(i18n.t("备份里的数据库坏了"))
         except sqlite3.DatabaseError:
-            raise BackupError(_s('audit_566a7b237e'))
+            raise BackupError(i18n.t("备份里的数据库坏了"))
         have = {r[0] for r in db.execute("select name from sqlite_master where type='table'")}
         if NEED_TABLES - have:
-            raise BackupError(_s('audit_c65bf9c3f7'))
+            raise BackupError(i18n.t("备份里不是 open-super-agent 的数据"))
         secrets = json.loads(z.read("secrets.json")) if "secrets.json" in names else {}
         key = vault._key()   # 这台机器的主密钥
         db.execute("create table if not exists vault(name text primary key, ciphertext blob, created real)")
@@ -272,7 +271,7 @@ def cancel():
 def confirm():
     """标记好，下次启动时换上。"""
     if not (STAGE / "meta.json").exists():
-        raise BackupError(_s('audit_5eb0ba3a46'))
+        raise BackupError(i18n.t("没有等待恢复的备份，请重新上传"))
     (STAGE / "ready").write_text(str(time.time()))
 
 
@@ -294,7 +293,7 @@ def apply_pending() -> bool:
             os.replace(APPS, APPS.with_name(f"apps.before-restore-{ts}"))
         os.replace(STAGE / "apps", APPS)
     shutil.rmtree(STAGE, ignore_errors=True)
-    print(_s('audit_b6861a5a22', v0=old), flush=True)
+    print(f"已从备份恢复数据，原来的数据库留在 {old}", flush=True)
     return True
 
 
@@ -315,7 +314,7 @@ def restart():
         pass
     argv = getattr(sys, "orig_argv", None) or [sys.executable, *sys.argv]
     if "--multiprocessing-fork" in argv:   # uvicorn --reload 的子进程：重新执行不了，退出后要手动重启
-        print(_s('audit_3cdc485e3a'), flush=True)
+        print("备份会在下次启动时恢复：开发模式下请手动重启服务", flush=True)
         os._exit(3)
     sys.stdout.flush()
     sys.stderr.flush()
@@ -328,9 +327,9 @@ def _passphrase(twice: bool) -> str:
     if p:
         return p
     import getpass
-    p = getpass.getpass(_s('audit_104160b3ea'))
-    if twice and getpass.getpass(_s("backup_repeat")) != p:
-        sys.exit(_s('audit_4a7cbb8453'))
+    p = getpass.getpass("备份口令：")
+    if twice and getpass.getpass("再输一遍：") != p:
+        sys.exit("两次输入的不一样")
     return p
 
 
@@ -338,40 +337,40 @@ def _summary(meta: dict) -> str:
     c = meta.get("counts") or {}
     parts = [f"{c[k]} {v}" for k, v in COUNTS.items() if c.get(k)]
     when = time.strftime("%Y-%m-%d %H:%M", time.localtime(meta.get("created") or 0))
-    return _s('audit_bf4bc63bc6', v0=when, v1=meta.get('version') or '?') + "、".join(parts) + _s('audit_abd2f8da53', v0=meta.get('secrets', 0))
+    return f"{when} 的备份（v{meta.get('version') or '?'}）：" + "、".join(parts) + f"、{meta.get('secrets', 0)} 个密钥"
 
 
 def main(argv: list[str]):
     import argparse
-    ap = argparse.ArgumentParser(prog="python -m osa.backup", description=_s('audit_5cc73dc67f'))
+    ap = argparse.ArgumentParser(prog="python -m osa.backup", description="备份和恢复 open-super-agent 的全部数据")
     sub = ap.add_subparsers(dest="cmd", required=True)
-    e = sub.add_parser("export", help=_s('audit_655ad87897'))
-    e.add_argument("-o", "--output", help=_s('audit_78f7ce7d81'))
-    r = sub.add_parser("restore", help=_s('audit_b4cb0f0575'))
+    e = sub.add_parser("export", help="导出一个加密的备份文件")
+    e.add_argument("-o", "--output", help="存到哪里（文件或目录），默认当前目录")
+    r = sub.add_parser("restore", help="从备份恢复：服务下次启动时生效")
     r.add_argument("file")
     a = ap.parse_args(argv)
     try:
         if a.cmd == "export":
             if not key_matches():
-                sys.exit(_s('audit_b7b15b9d8f'))
+                sys.exit("失败：这里的保险库主密钥和服务用的对不上。命令行要和服务用同样的环境变量（OSA_VAULT_KEY、OSA_CONFIG）")
             path, meta = export(_passphrase(True))
             dst = Path(a.output or ".")
             dst = dst / path.name if dst.is_dir() else dst
             shutil.move(path, dst)
             shutil.rmtree(path.parent, ignore_errors=True)
-            print(_s('audit_8e37185ef6', v0=dst, v1=_summary(meta)))
+            print(f"已导出到 {dst}\n{_summary(meta)}")
             if meta["unreadable"]:
-                print(_s('audit_953d34d921', v0=len(meta['unreadable']), v1=', '.join(meta['unreadable'])))
+                print(f"有 {len(meta['unreadable'])} 个密钥解不开（主密钥换过），没有带上：{', '.join(meta['unreadable'])}")
         else:
             if not key_matches():
-                sys.exit(_s('audit_b7b15b9d8f'))
+                sys.exit("失败：这里的保险库主密钥和服务用的对不上。命令行要和服务用同样的环境变量（OSA_VAULT_KEY、OSA_CONFIG）")
             meta = stage(Path(a.file), _passphrase(False))
             confirm()
-            print(_summary(meta) + _s('audit_ff4e90789b'))
+            print(_summary(meta) + "\n已准备好，重启服务后换上（原来的数据库会留一份）。")
             if meta.get("channels_off"):
-                print(_s('audit_7a6d928965', v0=meta['channels_off']))
+                print(f"{meta['channels_off']} 个聊天软件连接先停用了，确认原来那台已经停掉后，在 设置 → 聊天软件 里启用。")
     except BackupError as err:
-        sys.exit(_s('audit_050177644b', v0=err))
+        sys.exit(f"失败：{err}")
 
 
 if __name__ == "__main__":

@@ -21,7 +21,7 @@ type Props = {
 }
 
 export function BrandIcon({ brand, color, d, glyph, icon, letter, size = 32, title, className }: Props) {
-  const b = brand ? BRANDS()[brand] : undefined
+  const b = brand ? BRANDS[brand] : undefined
   const hex = b?.c || color || '#5b5b63'
   const dark = lum(hex) < .02
   const bg = dark ? '#fff' : hex

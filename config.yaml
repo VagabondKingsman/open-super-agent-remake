@@ -21,6 +21,9 @@ heavy:
 search:
   searxng_url: ""            # 例如 http://localhost:8080 ；留空则用 DuckDuckGo HTML
 
+tools:
+  fetch_private: false       # fetch_url 默认不抓本机和内网地址（防网页里的提示注入让 Bot 去读内网服务、云服务器的元数据）；要抓内网页面改成 true
+
 limits:
   worker_max_steps: 30        # 电脑操作一步一个动作，步数要多一些
   task_timeout_s: 600
@@ -30,7 +33,7 @@ limits:
 
 memory:
   db: data/osa.db
-  inline_messages: 20        # 最近 N 条留在上下文，更早的移出（Inline & Spill）
+  inline_messages: 20        # 最近 N 到 2N-1 条留在上下文，每满 N 条把更早的一批移出（Inline & Spill；整批挪才能命中缓存）
   task_log_days: 90          # 后台任务的过程（每一步做了什么）留多少天，0 表示一直留着；任务结果在对话里，不受影响
 
 # 可选：按意思检索记忆和资料库。provider 填模型服务的名字，任何兼容 OpenAI /embeddings 接口的都行
@@ -87,10 +90,11 @@ mcp_servers: {}
 # push:
 #   subject: "mailto:you@example.com"
 
-# 电脑：所有 Bot 共用一台（浏览器 + 终端），任务排队独占；用户能实时观看、接手
+# 电脑：所有 Bot 共用一台（浏览器 + 终端）；用户能实时观看、接手
 computer:
   enabled: true
   backend: auto              # auto：有 INSTABOX_API_KEY 用 Instabox，否则本地 Docker；也可以写 instabox / local
+  parallel: 3                # 几个任务可以同时用电脑，每个一个浏览器窗口（登录状态共用），多了排队；电脑内存小就调小
   width: 1280
   height: 800
   idle_pause_s: 900          # 闲置 15 分钟自动暂停（暂停时保留内存，恢复很快）

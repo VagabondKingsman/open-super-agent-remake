@@ -6,42 +6,8 @@ from .config import CFG
 from .memory import conn
 
 EDITABLE_LIMITS = ["daily_token_budget", "worker_max_steps", "task_timeout_s", "approval_timeout_s"]
-class _RoleNames:
-    """Dict-like role labels that follow OSA_LOCALE."""
-    _keys = ("router", "worker", "reviewer", "filter", "embedding")
-
-    def _map(self):
-        return {
-            "router": i18n.s("role_router"),
-            "worker": i18n.s("role_worker"),
-            "reviewer": i18n.s("role_reviewer"),
-            "filter": i18n.s("role_filter"),
-            "embedding": i18n.s("role_embedding"),
-        }
-
-    def __getitem__(self, key):
-        return self._map()[key]
-
-    def get(self, key, default=None):
-        return self._map().get(key, default)
-
-    def __contains__(self, key):
-        return key in self._keys
-
-    def items(self):
-        return self._map().items()
-
-    def keys(self):
-        return self._map().keys()
-
-    def values(self):
-        return self._map().values()
-
-    def __iter__(self):
-        return iter(self._map())
-
-
-ROLE_NAMES = _RoleNames()
+ROLE_NAMES = {"router": i18n.N_("对话"), "worker": i18n.N_("后台任务"), "reviewer": i18n.N_("Heavy 汇总"),
+              "filter": i18n.N_("整理和过滤"), "embedding": i18n.N_("按意思检索")}
 
 
 def _load() -> dict:
@@ -60,13 +26,10 @@ def apply():
             CFG["limits"][k] = v
     if "heavy_workers" in o:
         CFG["heavy"]["workers"] = o["heavy_workers"]
+    if "computer_parallel" in o:
+        CFG.setdefault("computer", {})["parallel"] = o["computer_parallel"]
     if "embedding" in o:
         CFG["embedding"] = o["embedding"]
-    if "locale" in o:
-        try:
-            i18n.set_locale(o["locale"])
-        except ValueError:
-            pass
 
 
 def problem() -> str:
@@ -74,9 +37,9 @@ def problem() -> str:
     for role in ("router", "worker"):
         name = CFG["roles"][role]["provider"]
         if name not in CFG["providers"]:
-            return i18n.s("provider_missing", role=ROLE_NAMES[role], name=name)
+            return i18n.t("{role}用的模型服务 {name} 不存在了", role=i18n.t(ROLE_NAMES[role]), name=name)
         if not providers.usable(name):
-            return i18n.s("provider_no_key", title=providers.describe(name)["title"])
+            return i18n.t("{name} 还没填 API Key", name=providers.describe(name)["title"])
     return ""
 
 
@@ -99,19 +62,22 @@ def public() -> dict:
         used.append((emb["provider"], emb["model"]))
     return {
         "providers": providers.public(),
-        "presets": providers.localize_presets(),
+        "presets": providers.presets(),
         "roles": CFG["roles"],
         "limits": {k: CFG["limits"].get(k) for k in EDITABLE_LIMITS},
         "heavy_workers": CFG["heavy"]["workers"],
+        "computer_parallel": (CFG.get("computer") or {}).get("parallel", 3),
         "embedding": {"provider": emb.get("provider") or "", "model": emb.get("model") or ""},
         "model_info": {f"{p}/{m}": prices.lookup(p, m) for p, m in used},
         "prices": prices.info(),
         "problem": problem(),
-        "locale": i18n.get_locale(),
+        "language": i18n.lang(),
     }
 
 
 def save(data: dict) -> dict:
+    if "language" in data:
+        i18n.set_lang(data["language"])
     o = _load()
     if "roles" in data:
         o.setdefault("roles", {})
@@ -120,29 +86,25 @@ def save(data: dict) -> dict:
                 continue
             v = {k: v[k] for k in ("provider", "model", "thinking", "reasoning_effort") if k in v}
             if "provider" in v and v["provider"] not in CFG["providers"]:
-                raise ValueError(i18n.s("settings_provider_missing", name=v["provider"]))
+                raise ValueError(i18n.t("没有这个模型服务：{name}", name=v["provider"]))
             if "model" in v:
                 v["model"] = (v["model"] or "").strip()[:200]
                 if not v["model"]:
-                    raise ValueError(i18n.s("settings_model_empty"))
+                    raise ValueError(i18n.t("模型名字不能为空"))
             o["roles"].setdefault(role, {}).update(v)
     if "limits" in data:
         o.setdefault("limits", {}).update({k: int(v) for k, v in data["limits"].items() if k in EDITABLE_LIMITS})
     if "heavy_workers" in data:
         o["heavy_workers"] = max(1, min(8, int(data["heavy_workers"])))
-    if "locale" in data:
-        loc = (data.get("locale") or "").strip().lower()
-        if loc not in i18n.SUPPORTED:
-            raise ValueError(f"unsupported locale: {loc}")
-        o["locale"] = loc
-        i18n.set_locale(loc)
+    if "computer_parallel" in data:
+        o["computer_parallel"] = max(1, min(8, int(data["computer_parallel"])))
     if "embedding" in data:
         e = data["embedding"] or {}
         provider, model = (e.get("provider") or "").strip(), (e.get("model") or "").strip()[:200]
         if provider and provider not in CFG["providers"]:
-            raise ValueError(i18n.s("settings_provider_missing", name=provider))
+            raise ValueError(i18n.t("没有这个模型服务：{name}", name=provider))
         if provider and not model:
-            raise ValueError(i18n.s("settings_embedding_model_required"))
+            raise ValueError(i18n.t("选了服务就要填 embedding 模型的名字"))
         o["embedding"] = {"provider": provider, "model": model}
     conn.execute("insert or replace into settings values('overrides', ?)", (json.dumps(o),))
     conn.commit()
