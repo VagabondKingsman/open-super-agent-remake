@@ -1,6 +1,6 @@
-# Hướng dẫn tiếng Việt · Open Super Agent remake v0.6.0
+# Hướng dẫn tiếng Việt · Open Super Agent remake v0.6.1
 
-Cập nhật 07/11/2026, Asia/Saigon (UTC+7). Nền upstream `9790ffa` (v0.6.0). Bản này thay kiến trúc i18next của remake v0.5 bằng hệ khóa tiếng Trung của upstream.
+Cập nhật 07/11/2026, Asia/Saigon (UTC+7). Nền upstream `9790ffa` (v0.6.0), cộng ba commit sau tag đó: `0897360` (chặn trang web khác khi chưa có mật khẩu), `ec71362` (v0.6.1) và `3432671` (`OSA_DATA_DIR`). Không gồm desktop/Tauri hay `v0.7.0-preview`. Bản này giữ hệ khóa tiếng Trung, VI mặc định, và các bản vá remake (thiếu Docker, lịch, webhook).
 
 - [Repo remake](https://github.com/VagabondKingsman/open-super-agent-remake)
 - [Repo tác giả](https://github.com/kadaliao/open-super-agent)
@@ -15,8 +15,8 @@ Cập nhật 07/11/2026, Asia/Saigon (UTC+7). Nền upstream `9790ffa` (v0.6.0).
 | Web/API | `http://127.0.0.1:8765` |
 | Backend | `osa/server.py`, ứng dụng `osa.server:app` |
 | Web source / production | `web/src/` / `osa/static/dist/` |
-| Database mặc định | `data/osa.db`; cấu hình khác qua `OSA_CONFIG` |
-| Log / PID | `logs/osa.log` / `logs/osa.pid` |
+| Database mặc định | `data/osa.db`; cấu hình khác qua `OSA_CONFIG`. `OSA_DATA_DIR` chuyển DB, khóa, apps, workspace và dữ liệu Computer ra khỏi checkout |
+| Log / PID | `logs/osa.log` / `logs/osa.pid`. Khi có `OSA_DATA_DIR`, script start/stop dùng `$OSA_DATA_DIR/logs/` |
 | Workspace trong Computer | `/data/workspace`, khác thư mục source trên host |
 
 Git chỉ lưu source. `.env`, `data/`, log, khóa, `.venv/`, node_modules, bundle và backup không được commit. Đổi nhánh không sao lưu hội thoại hay đăng nhập trình duyệt.
@@ -60,6 +60,8 @@ Chạy trực tiếp bằng uvicorn không tự nạp `.env`. Script start nạp
 | `TZ=Asia/Ho_Chi_Minh` | Giờ Việt Nam cho tiến trình/scheduler |
 | `DEEPSEEK_API_KEY` | Provider mặc định, hoặc nhập key qua UI |
 | `OSA_PASSWORD` | Bật đăng nhập; phải có trước khi mở public |
+| `OSA_ALLOWED_HOSTS` | Khi chưa có mật khẩu, thêm host được phép, cách nhau bởi dấu phẩy. `localhost`, IP, `*.local`, `*.ts.net` đã được nhận |
+| `OSA_DATA_DIR` | Thư mục dữ liệu, nên là đường dẫn tuyệt đối ngoài checkout. DB, `session.key`, `vault.key`, apps tự thêm, workspace, dữ liệu Computer nằm ở đây. `memory.db` tương đối chỉ lấy tên file. Đường dẫn tuyệt đối trong YAML giữ nguyên. Log/PID của script start cũng nằm trong `$OSA_DATA_DIR/logs` |
 | `OSA_WEBHOOK_TOKEN` | Token cho header `X-OSA-Token` của webhook |
 | `INSTABOX_API_KEY` | Computer cloud khi dùng backend phù hợp |
 | `OSA_VAULT_KEY` | Master key; không tự đổi trên dữ liệu hiện có |
@@ -67,6 +69,14 @@ Chạy trực tiếp bằng uvicorn không tự nạp `.env`. Script start nạp
 | `HTTPS_PROXY` | Proxy cho dịch vụ/kênh chat khi cần |
 
 `OSA_LOCALE` của v0.5 không còn điều khiển ngôn ngữ. Chọn trong UI. Locale không tự đổi timezone; giờ hiển thị còn phụ thuộc thiết bị xem.
+
+## Đăng nhập và trang web khác
+
+Chưa đặt `OSA_PASSWORD` thì không cần đăng nhập. Chỉ dùng trên máy mình hoặc mạng nội bộ, và đặt mật khẩu trước khi mở ra ngoài.
+
+WebSocket và request ghi, kể cả webhook, bị từ chối khi Origin khác trang này. Trình duyệt gửi Origin của trang đang mở, nên một trang khác không nối được `ws://127.0.0.1:8765/ws` để nhắn Bot hoặc bấm thẻ xác nhận. curl và webhook thật không gửi Origin.
+
+Chưa có mật khẩu thì Host chỉ được là `localhost`, địa chỉ IP, tên kết thúc bằng `.local` hoặc `.ts.net`, hoặc tên trong `server.allowed_hosts` / `OSA_ALLOWED_HOSTS`. Danh sách này chặn DNS rebinding. Tên miền của người khác trỏ về `127.0.0.1`, rồi mượn trình duyệt của bạn để đọc dịch vụ trên máy. Đặt `OSA_PASSWORD` thì mục Host này không còn bị kiểm. Webhook đã có `OSA_WEBHOOK_TOKEN` vẫn bị chặn nếu Origin lạ. Token nằm ở header mà trang khác không gửi được, nên host bên ngoài vẫn gọi được khi biết token.
 
 ## Ngôn ngữ
 

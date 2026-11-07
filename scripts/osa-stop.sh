@@ -1,7 +1,24 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PIDFILE="$ROOT/logs/osa.pid"
+cd "$ROOT"
+if [[ "${OSA_DOTENV:-1}" != "0" && -f .env ]]; then
+  set -a
+  # Only source a trusted, shell-compatible local environment file.
+  # shellcheck disable=SC1091
+  source .env
+  set +a
+fi
+if [[ -n "${OSA_DATA_DIR:-}" ]]; then
+  DATA_DIR="${OSA_DATA_DIR/#\~/$HOME}"
+  if [[ "$DATA_DIR" != /* ]]; then
+    DATA_DIR="$ROOT/$DATA_DIR"
+  fi
+  LOG_DIR="$DATA_DIR/logs"
+else
+  LOG_DIR="$ROOT/logs"
+fi
+PIDFILE="$LOG_DIR/osa.pid"
 if [[ ! -f "$PIDFILE" ]]; then
   echo "No PID file; inspect the listener on :8765. No processes were killed."
   exit 0

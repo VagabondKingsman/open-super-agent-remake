@@ -1,6 +1,6 @@
 # Bản đồ kỹ thuật OSA
 
-Nền hiện hành v0.6.0; đây là map để tìm đúng chỗ, không thay SCAN code ở ref mới. Chi tiết tại `docs/architecture.md`, `docs/i18n.md`, `docs/vi/` ở root.
+Nền hiện hành v0.6.1 (port `0897360`, `ec71362`, `3432671` trên lịch sử remake); đây là map để tìm đúng chỗ, không thay SCAN code ở ref mới. Chi tiết tại `docs/architecture.md`, `docs/i18n.md`, `docs/vi/` ở root. `OSA_DATA_DIR` đổi chỗ DB/khóa/apps/workspace; log của `scripts/osa-start.sh` đi theo thư mục đó.
 
 ## Thành phần
 
@@ -12,7 +12,7 @@ Nền hiện hành v0.6.0; đây là map để tìm đúng chỗ, không thay SC
 | i18n | `osa/i18n.py`, `osa/locales/en.json`, `vi.json`; `web/src/i18n.ts`, `src/locales/en.json`, `vi.json`. Chinese-as-key, ZH dùng source, EN/VI dịch theo key. Fresh install VI; lựa chọn server đã lưu được giữ. LocalStorage/preference migration có test. |
 | Skills | `osa/skills.py` quản bảng `skills`; shared `bot_id=NULL`, private override được ưu tiên. `osa/skillpacks.py` quản pack, hashes/default state; nguồn tracked trong `skills-pack/ai-native/`. |
 | Routines | `osa/routines.py`, UI Routines: lịch/webhook, validate, reservation trước await filter, cleanup lỗi; quiet không gửi khi không mới. Không dùng routine thật để test. |
-| Auth/channels | `osa/auth.py`: shared password `OSA_PASSWORD`, không phải multi-user/RBAC. Channels private/pairing nằm `osa/channels/`; API/WebSocket không đồng nghĩa external sends đã được duyệt. |
+| Auth/channels | `osa/auth.py`: shared password `OSA_PASSWORD`, không phải multi-user/RBAC. Origin được kiểm trên WebSocket và request ghi dù có mật khẩu hay không. Chưa có mật khẩu thì Host chỉ nhận localhost, IP, `*.local`, `*.ts.net` và `server.allowed_hosts` / `OSA_ALLOWED_HOSTS`. Channels private/pairing nằm `osa/channels/`; API/WebSocket không đồng nghĩa external sends đã được duyệt. |
 | Computer | `osa/computer/`: Docker local hoặc Instabox, CDP/VNC/takeover; task dùng cửa sổ riêng nhưng chia sẻ máy/files/logins. Không có Docker thì API báo unavailable/docker_missing. |
 | Apps/pages | MCP catalog và runtime ở `osa/catalog/`, `osa/mcp_hub.py`; pages/files/library, vault và backups là dữ liệu vận hành, không đưa vào handoff repo. |
 
