@@ -75,3 +75,21 @@ Retest trên box, ghi cùng lúc merge: `pytest` 193 passed, 0 skipped. `osa.i18
 Append. Base phiên này là `origin/i18n-vi` = `d7f2ee91e4f527a2372a7ae9a0f3cbddb2a477b4` (merge PR #9). Branch `grok-bot/osa-009-audit-fixes`. Commit sửa code `93bcc00887c401452319573bd2b9d7fe2f36d6a4`. PR: [#10](https://github.com/VagabondKingsman/open-super-agent-remake/pull/10) vào `i18n-vi`. Tin Tin duyệt tạo task và sửa B01–B07 từ audit runtime. Chưa merge. Số test của phiên nằm ở [log OSA-009](log/2026-11-07-grok-bot-osa-009.md). 193 passed của box OSA-004 là số của máy có bubblewrap trên base cũ, không phải số của PR này. Live provider rerun là NOT_CHECKED, owner chạy sau trên máy của họ.
 
 Verify độc lập trên head `c9480ef` kết luận HOLD. R1: heavy worker dùng chung lịch sử lặp. R2: batch bị cắt thiếu tool result. R3: hủy khi chỉ có tool-call delta thì không ghi usage. Đã sửa trên cùng branch, chưa merge. Câu model lẫn tiếng Bồ Đào Nha và `方案` được ghi là hành vi model, không viết lại output. Số gate của vòng sửa nằm ở log OSA-009.
+
+## Bổ sung · OSA-009 Done · 15:54 Asia/Saigon
+
+Thêm cuối file. Không sửa các mục phía trên. `origin/i18n-vi` xác minh lại bằng `git rev-parse` và `git fetch` là `7b73abbd0255b2df02a5d543c42007607870aedd`. Hai chỗ “Chưa merge” trong mục OSA-009 ở trên là trạng thái lúc viết mục đó.
+
+[PR #10](https://github.com/VagabondKingsman/open-super-agent-remake/pull/10) đã merge vào `i18n-vi` tại `7b73abbd0255b2df02a5d543c42007607870aedd`. Head của PR là `255246f87ef3cc5a4ad4ad4f6c28b8ce9567a454`. Cha của merge commit là `d7f2ee91e4f527a2372a7ae9a0f3cbddb2a477b4` và head đó. `merged_at` API `2026-11-07T08:51:53Z`, tức 15:51:53 Asia/Saigon. Giờ commit ghi `2026-11-07T15:51:52+07:00`; không dùng giờ commit làm giờ merge. Author git của merge commit là VagabondKingsman. `merged_by` trên API là VagabondKingsman. Grok Bot merge với approval rõ của Tin Tin. CI trên head `255246f`: backend, frontend, docker đều `completed` / `success`.
+
+Box live trên Zro, VERIFY 15:48 Asia/Saigon, cùng head `255246f`:
+
+- B01, B03, B05, B06 PASS.
+- R1–R3 PASS trên contract đã sửa. R1 có controlled live và deterministic. R2 deterministic. R3 deterministic. Natural heavy không đủ ba tool call, nên guard cũ không chạy lại trong lượt đó. h0 không gọi tool. Goal của lượt đó FAIL.
+- B04 PARTIAL. Chuỗi tool vẫn tiếng Việt. Model trộn tiếng Bồ Đào Nha và nhãn `方案`. VERIFY còn ghi long12 trả tiếng Anh và MCP đầu trả tiếng Ukraina. Không có validator ngôn ngữ đầu ra mới.
+- B07 PARTIAL. Hủy giữa stream chữ và reasoning PASS: một dòng usage, `estimated=1`, output 53. Request đang chạy lúc SIGKILL có thể thiếu usage trong DB, không khôi phục được. Trường hợp hủy khi stream chỉ còn tool-call và chạy qua Zro thật là NOT_CHECKED. Bản R3 đã kiểm dùng stream tất định.
+- Chưa phải GO cho chạy dài. long12 FAIL: 13 lần `verify_facts` cộng 1 tool lạ, tổng cuối 11, task #5 vẫn `done` sau 15 vòng model. Single task thiếu marker `PR10_SINGLE_DONE`. Các FAIL này thành OSA-010, owner chưa nhận.
+
+Số liệu box lấy từ VERIFY đính kèm phiên docs, không chép artifact private lên git. Log phiên docs: [log](log/2026-11-07-grok-bot-osa-009-done.md). Phiên docs không gọi LLM trả phí và không sửa code runtime.
+
+PR tài liệu của phiên này: [#11](https://github.com/VagabondKingsman/open-super-agent-remake/pull/11), branch `grok-bot/state-osa-009-done`, vào `i18n-vi`. Chưa merge.
