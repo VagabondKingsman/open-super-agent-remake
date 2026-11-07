@@ -1,0 +1,55 @@
+{
+  "profileName": "clean-interactive-3d-default",
+  "status": "baseline_reference_profile",
+  "stage": {
+    "width": 1600,
+    "height": 900,
+    "safeX": 88
+  },
+  "colors": {
+    "surface": "#f8fafc",
+    "ink": "#0f172a",
+    "muted": "#475569",
+    "primary": "#2563eb",
+    "secondary": "#0d9488",
+    "accent": "#f59e0b",
+    "border": "#e2e8f0"
+  },
+  "fonts": {
+    "display": "Plus Jakarta Sans",
+    "body": "Be Vietnam Pro",
+    "mono": "JetBrains Mono",
+    "embedded": true,
+    "licenses": "OFL"
+  },
+  "typePx": {
+    "cover": 88,
+    "title": 56,
+    "body": 26,
+    "label": 22,
+    "caption": 18,
+    "footer": 16
+  },
+  "spacingPx": {
+    "columnGapMin": 56,
+    "footerClearanceMin": 28
+  },
+  "graphics": {
+    "pixelRatioCap": 2.5,
+    "lowQualityRatio": 1,
+    "bakedStillScale": 2,
+    "labelTextureWidth": 2048,
+    "shadowMapSize": 2048,
+    "postprocessing": false
+  },
+  "motion": {
+    "manualSemanticAdvance": true,
+    "ambientLoop": true,
+    "pauseCssAndCanvas": true
+  },
+  "voice": {
+    "pronouns": "tùy chỉnh theo brief (tôi/bạn, chúng ta, hoặc trung lập)",
+    "fictionalExamplesLabel": true
+  },
+  "adaptation": "Điều chỉnh bảng màu, phông chữ, số trang, tỷ lệ khung hình và giọng văn theo brief của từng chủ đề."
+}

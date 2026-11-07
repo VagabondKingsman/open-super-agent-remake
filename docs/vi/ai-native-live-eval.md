@@ -1,5 +1,7 @@
 # LIVE EVAL: AI Native skills trên OSA
 
+**Cập nhật quyền phân phối 07/11/2026 (Asia/Saigon): Tin Tin đã xác nhận nguồn do team tạo và cho phép bundle/cài mặc định. Các ghi chú giữ payload ngoài git trong v1–v3 là quyết định lịch sử, đã được thay thế; xem ai-native-default-install.md.**
+
 **Kết quả mới nhất: v3 GO cho handoff patch/PR, xem cuối tài liệu. Các NO-GO v1/v2 bên dưới giữ lại để truy nguyên.**
 
 Thời điểm bàn giao: 07/11/2026 02:28 (Asia/Saigon). Base: `1d0ce52`, branch `i18n-vi`. Không push.

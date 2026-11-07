@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: sua-blog-ca-phe
+expected_outcome: |
+  Bản sửa tiếng Việt tự nhiên, bỏ sáo ngữ và cấu trúc dịch máy, không bịa nguồn chuyên gia, kèm nhật ký sửa ngắn theo mã quy tắc.

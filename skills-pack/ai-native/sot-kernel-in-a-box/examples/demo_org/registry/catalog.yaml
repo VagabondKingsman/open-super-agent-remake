@@ -1,0 +1,55 @@
+generated_by: adapter_csv.py
+source: catalog.csv
+facts:
+- id: FACT.ITEM.A.PRICE
+  key: Đơn giá gói tiêu chuẩn A
+  value: 1200000
+  unit: VND
+  status: VERIFIED
+  evidence: Hợp đồng nguyên tắc số 01/HĐ-2026
+  source:
+    file: source_canonical/catalog.csv
+    row: 2
+  provenance_level: verified_primary
+- id: FACT.ITEM.A.SLA
+  key: Thời gian phản hồi cam kết
+  value: 4
+  unit: giờ
+  status: VERIFIED
+  evidence: Phụ lục SLA trang 2
+  source:
+    file: source_canonical/catalog.csv
+    row: 3
+  provenance_level: verified_primary
+- id: FACT.ITEM.B.CAPACITY
+  key: Công suất xử lý tối đa
+  value: 5000
+  unit: yêu cầu/ngày
+  status: VERIFIED
+  evidence: Biên bản nghiệm thu kỹ thuật
+  source:
+    file: source_canonical/catalog.csv
+    row: 4
+  provenance_level: verified_primary
+- id: FACT.METRIC.CHURN
+  key: Tỷ lệ rời bỏ dự kiến quý tới
+  claim: 8
+  verified_value: null
+  unit: '%'
+  status: DRAFT
+  evidence: Báo cáo ước tính sơ bộ chưa kiểm định
+  source:
+    file: source_canonical/catalog.csv
+    row: 5
+  provenance_level: claim
+- id: FACT.BUDGET.PHASE2
+  key: Ngân sách mở rộng giai đoạn 2
+  claim: 350000000
+  verified_value: null
+  unit: VND
+  status: INT
+  evidence: Ước tính nội bộ chờ phê duyệt
+  source:
+    file: source_canonical/catalog.csv
+    row: 6
+  provenance_level: claim

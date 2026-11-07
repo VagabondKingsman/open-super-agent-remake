@@ -100,3 +100,7 @@ computer:
   idle_pause_s: 900          # 闲置 15 分钟自动暂停（暂停时保留内存，恢复很快）
   instabox_template: agent-browser
   instabox_machine: ""            # 用已有的 Instabox 机器 id（免费版只能有一台，比如 m_xxx）；留空则自动创建
+
+# Bundled methods are shared by all bots; false opts out of startup reconciliation.
+skills:
+  ai_native_defaults: true

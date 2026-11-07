@@ -1,19 +1,22 @@
-"""Local AI Native pack adapter. Skills remain in OSA's existing SQLite store.
+"""Bundled AI Native pack adapter. Skills remain in OSA's existing SQLite store.
 
-Third-party payloads stay out of git until redistribution rights are confirmed.
+Team-authored sources are bundled byte-for-byte; OSA adapters are generated at runtime.
 No source code is executed by the installer or the read-only resource tools.
 """
 import argparse
 import hashlib
 import json
+import os
 import shutil
+import tempfile
+import time
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
 import yaml
 
 from . import memory, skills
-from .config import ROOT
+from .config import CFG, ROOT
 
 PACK = ROOT / "skills-pack" / "ai-native"
 PAGE_SIZE = 5500  # JSON + text must fit Worker's 8000-character tool-result cap.
@@ -25,7 +28,11 @@ def resource_root() -> Path:
 
 def _files(root: Path) -> list[Path]:
     files = []
+    if root.is_symlink():
+        raise ValueError("Symlink not allowed in skill pack root")
     for p in sorted(root.rglob("*")):
+        if any(part in {"__pycache__", ".pytest_cache", ".git", ".venv", "node_modules", ".DS_Store"} for part in p.relative_to(root).parts):
+            continue
         if p.is_symlink():
             raise ValueError(f"Symlink not allowed in skill pack: {p.name}")
         if p.is_file() and "__pycache__" not in p.parts and p.suffix != ".pyc":
@@ -71,67 +78,208 @@ def _wrapper(spec: dict) -> str:
 
 
 def prepare(source: Path, pack: Path = PACK) -> dict:
-    """Build ignored local payloads, preserving every source/helper file byte-for-byte."""
+    """Copy the seven complete source trees without renaming or changing bytes."""
     manifest = json.loads((pack / "manifest.json").read_text())
-    # Validate all sources before writing any payload.
     sources = []
     for spec in manifest["skills"]:
-        src = source / spec["name"]
+        name = spec["name"]
+        if not skills.NAME_RE.fullmatch(name):
+            raise ValueError("Invalid package skill name")
+        src = source / name
         files = _files(src)
-        if not (src / "SKILL.md").is_file():
-            raise ValueError(f"Missing source SKILL.md: {src}")
-        skills.from_file((src / "SKILL.md").read_text(), spec["name"])
-        sources.append((spec, src, files))
+        data = skills.from_file((src / "SKILL.md").read_text(), name)
+        if data["name"] != name:
+            raise ValueError("Source skill name mismatch")
+        for f in files:
+            raw = f.read_bytes()
+            if f.stat().st_size > 2_000_000 or b"\0" in raw:
+                raise ValueError("Binary/large source payload is not allowed")
+            raw.decode("utf-8")
+            if f.name.startswith(".env") or f.suffix in {".key", ".pem", ".p12"}:
+                raise ValueError("Credential files are not allowed in a skill pack")
+        sources.append((name, src, files))
     hashes = {}
-    for spec, src, files in sources:
-        dest = pack / spec["name"]
+    for name, src, files in sources:
+        dest = pack / name
         dest.mkdir(parents=True, exist_ok=True)
+        # Remove only the old generated alias, never a source file or user resource.
+        alias = dest / "SKILL.source.md"
+        if alias.exists() and not (src / "SKILL.source.md").exists():
+            if alias.read_bytes() != (src / "SKILL.md").read_bytes():
+                raise ValueError("Old source alias differs; inspect before updating pack")
+            alias.unlink()
         for file in files:
             relative = file.relative_to(src)
-            if str(relative) == "SKILL.md":
-                relative = Path("SKILL.source.md")
             target = dest / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(file, target)
-            hashes[f"{spec['name']}/{relative.as_posix()}"] = hashlib.sha256(file.read_bytes()).hexdigest()
-        (dest / "SKILL.md").write_text(_wrapper(spec))
-    # This hash inventory is local-only too: describes the private payload.
+            hashes[f"{name}/{relative.as_posix()}"] = hashlib.sha256(file.read_bytes()).hexdigest()
     (pack / "source-hashes.json").write_text(json.dumps(hashes, indent=2) + "\n")
     return {"prepared": len(sources), "source_files": len(hashes)}
 
 
-def install(pack: Path = PACK, bot_id: int | None = None) -> list[dict]:
-    """Explicit opt-in, using native parsing/saving; None means shared with all bots."""
+def verify_sources(pack: Path = PACK) -> dict:
+    """Check exact payload file set and SHA-256 before installing any source."""
+    manifest = json.loads((pack / "manifest.json").read_text())
+    names = [s["name"] for s in manifest["skills"]]
+    if len(set(names)) != len(names) or any(not skills.NAME_RE.fullmatch(n) for n in names):
+        raise ValueError("Invalid or duplicate package skill name")
+    expected = json.loads((pack / "source-hashes.json").read_text())
+    actual = {f"{name}/{p.relative_to(pack / name).as_posix()}": hashlib.sha256(p.read_bytes()).hexdigest()
+              for name in names for p in _files(pack / name)}
+    if actual != expected:
+        raise ValueError("Source hash/file-set mismatch; re-audit and regenerate source-hashes.json")
+    return {"source_files": len(actual), "sha256": "PASS"}
+
+
+def _payloads(pack):
     manifest = json.loads((pack / "manifest.json").read_text())
     names = [s["name"] for s in manifest["skills"]] + ["ai-native-mentor"]
     if len(set(names)) != len(names) or any(not skills.NAME_RE.fullmatch(n) for n in names):
         raise ValueError("Invalid or duplicate package skill name")
+    verify_sources(pack)
+    specs = {s["name"]: s for s in manifest["skills"]}
+    out = []
+    for name in names:
+        directory = pack / name
+        resources = {p.relative_to(directory).as_posix(): p.read_bytes() for p in _files(directory)}
+        original = skills.from_file(resources["SKILL.md"].decode("utf-8"), name)
+        if original["name"] != name:
+            raise ValueError(f"Skill name mismatch: {name}")
+        if name in specs:
+            resources["SKILL.source.md"] = resources["SKILL.md"]
+            resources["SKILL.md"] = _wrapper(specs[name]).encode("utf-8")
+        data = skills.from_file(resources["SKILL.md"].decode("utf-8"), name)
+        out.append((data, resources))
+    return manifest.get("version", 1), out
+
+
+def _resource_hash(resources):
+    return hashlib.sha256(json.dumps({p: hashlib.sha256(b).hexdigest() for p, b in sorted(resources.items())},
+                                     sort_keys=True).encode()).hexdigest()
+
+
+def _installed_resources(directory):
+    return {p.relative_to(directory).as_posix(): p.read_bytes() for p in _files(directory)}
+
+
+def _record_hash(data):
+    return hashlib.sha256(json.dumps({k: data[k] for k in ("name", "description", "body")},
+                                     sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+
+
+def _write_resources(name, resources):
+    """Replace one preflighted tree; never execute a helper during installation."""
+    root = resource_root()
+    root.mkdir(parents=True, exist_ok=True)
+    target = root / name
+    if target.is_symlink():
+        raise ValueError("Runtime skill directory is a symlink")
+    with tempfile.TemporaryDirectory(prefix=".stage-", dir=root) as tmp:
+        staged = Path(tmp) / "new"
+        staged.mkdir()
+        for relative, data in resources.items():
+            dest = staged / relative
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(data)
+        old = Path(tmp) / "old"
+        if target.exists():
+            target.rename(old)
+        try:
+            staged.rename(target)
+        except OSError:
+            if old.exists():
+                old.rename(target)
+            raise
+
+
+def install(pack: Path = PACK, bot_id: int | None = None) -> list[dict]:
+    """Explicit reinstall via native parsing/saving. This command replaces edits."""
+    _, payloads = _payloads(pack)
     if bot_id is not None:
         from . import bots
         if not bots.get(bot_id):
             raise ValueError("Bot not found")
     existing = {r[0] for r in memory.conn.execute("select name from skills where bot_id is ?", (bot_id,))}
-    if len(existing | set(names)) > skills.MAX_PER_BOT:
+    if len(existing | {d["name"] for d, _ in payloads}) > skills.MAX_PER_BOT:
         raise ValueError("Skill capacity exceeded")
-    parsed = []
-    # Fail before mutating SQLite if a package, link or body is invalid.
-    for name in names:
-        directory = pack / name
-        files = _files(directory)
-        data = skills.from_file((directory / "SKILL.md").read_text(), name)
-        if data["name"] != name:
-            raise ValueError(f"Skill name mismatch: {name}")
-        parsed.append((data, directory, files))
-    root = resource_root()
-    for data, directory, files in parsed:
-        for file in files:
-            target = root / data["name"] / file.relative_to(directory)
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(file, target)
-    out = []
-    for data, _, _ in parsed:
-        out.append(skills.save(bot_id, **data, source="import"))
-    return [{"id": s["id"], "name": s["name"], "bot_id": s["bot_id"], "body_chars": len(s["body"])} for s in out]
+    for data, resources in payloads:
+        _write_resources(data["name"], resources)
+    saved = [skills.save(bot_id, **data, source="import") for data, _ in payloads]
+    return [{"id": s["id"], "name": s["name"], "bot_id": s["bot_id"], "body_chars": len(s["body"])} for s in saved]
+
+
+def defaults_enabled():
+    override = os.environ.get("OSA_AI_NATIVE_DEFAULTS")
+    if override is not None:
+        if override.lower() not in {"true", "false", "1", "0"}:
+            raise ValueError("OSA_AI_NATIVE_DEFAULTS must be true/false/1/0")
+        return override.lower() in {"true", "1"}
+    enabled = (CFG.get("skills") or {}).get("ai_native_defaults", True)
+    if not isinstance(enabled, bool):
+        raise ValueError("skills.ai_native_defaults must be boolean")
+    return enabled
+
+
+def ensure_defaults(pack: Path = PACK) -> list[dict]:
+    """Startup reconciliation. Preserve manual collisions, edits, overrides and deletions."""
+    if not defaults_enabled():
+        return []
+    version, payloads = _payloads(pack)  # Complete validation before SQLite/filesystem changes.
+    conn = memory.conn
+    results = []
+    with conn:
+        conn.execute("BEGIN IMMEDIATE")  # Serialize first startup across server processes.
+        conn.execute("""create table if not exists bundled_skill_state(
+            name text primary key, skill_id integer, version text, bundle_hash text,
+            record_hash text, resources_hash text)""")
+        existing = {name: sid for sid, name in conn.execute("select id, name from skills where bot_id is null")}
+        states = {r[0]: r[1:] for r in conn.execute("select name,skill_id,version,bundle_hash,record_hash,resources_hash from bundled_skill_state")}
+        missing = {d["name"] for d, _ in payloads} - existing.keys() - states.keys()
+        if len(existing) + len(missing) > skills.MAX_PER_BOT:
+            raise ValueError("Shared skill capacity exceeded")
+        for data, resources in payloads:
+            name = data["name"]
+            sid, prior = existing.get(name), states.get(name)
+            record_hash, resource_hash = _record_hash(data), _resource_hash(resources)
+            bundle_hash = hashlib.sha256(json.dumps([version, record_hash, resource_hash]).encode()).hexdigest()
+            current = skills.get(sid) if sid is not None else None
+            status = "installed"
+            if prior and current is None:
+                results.append({"name": name, "status": "preserved-deletion"})
+                continue
+            if current:
+                directory = resource_root() / name
+                try:
+                    actual_resources = _resource_hash(_installed_resources(directory)) if directory.exists() else None
+                except (OSError, ValueError):
+                    actual_resources = "unreadable-or-symlink"
+                if prior:
+                    if sid != prior[0] or _record_hash(current) != prior[3] or actual_resources != prior[4]:
+                        results.append({"name": name, "status": "preserved-user-edit", "id": sid})
+                        continue
+                    if bundle_hash == prior[2]:
+                        results.append({"name": name, "status": "unchanged", "id": sid, "hash": bundle_hash})
+                        continue
+                    status = "updated"
+                else:
+                    # Adopt only exact legacy imports, not a manual same-name method.
+                    if _record_hash(current) != record_hash or actual_resources not in (None, resource_hash):
+                        results.append({"name": name, "status": "preserved-unmanaged", "id": sid})
+                        continue
+                    status = "adopted"
+            _write_resources(name, resources)
+            now = time.time()
+            if sid is None:
+                sid = conn.execute("insert into skills(bot_id,name,description,body,source,created,updated) values(null,?,?,?,?,?,?)",
+                                   (name, data["description"], data["body"], "import", now, now)).lastrowid
+            else:
+                conn.execute("update skills set description=?,body=?,updated=? where id=?",
+                             (data["description"], data["body"], now, sid))
+            conn.execute("insert or replace into bundled_skill_state values(?,?,?,?,?,?)",
+                         (name, sid, str(version), bundle_hash, record_hash, resource_hash))
+            results.append({"name": name, "status": status, "id": sid, "hash": bundle_hash})
+    return results
 
 
 def _page(text: str, offset: int) -> dict:
@@ -221,7 +369,7 @@ def tool(bot_id: int, name: str, args: dict) -> str:
 def runtime_hint(bot_id: int) -> str:
     if not skills.find(bot_id, "ai-native-mentor"):
         return ""
-    return ("\n\nAI Native skills (installed by the user):\n" + skills.summary(bot_id) +
+    return ("\n\nAI Native skills (bundled defaults or user-installed):\n" + skills.summary(bot_id) +
             "\nBefore multi-step work, load_skill ai-native-mentor, then ai-work-method and the relevant skills. "
             "For small single-step tasks, use only the relevant skill or answer directly. "
             "Read full bodies/references through load_skill/read_skill_resource; CONTINUE_REQUIRED means keep reading next_offset until null. "
@@ -248,18 +396,24 @@ def archive(pack: Path, output: Path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
-    p = sub.add_parser("prepare", help="Build local-only payloads from the owner's full package mirror")
+    p = sub.add_parser("prepare", help="Sync bundled source files byte-for-byte from an approved mirror")
     p.add_argument("--source", type=Path, required=True)
-    p = sub.add_parser("install", help="Install into the configured OSA DB (shared by default)")
+    p = sub.add_parser("install", help="Explicit reinstall; replaces matching methods/resources (shared by default)")
     p.add_argument("--bot-id", type=int)
-    p = sub.add_parser("zip", help="Create private full pack; do not publish without license grants")
+    p = sub.add_parser("zip", help="Create the full bundled pack archive")
     p.add_argument("--output", type=Path, required=True)
+    sub.add_parser("defaults", help="Safely reconcile shared defaults, preserving user edits")
+    sub.add_parser("verify-sources", help="Verify committed source SHA-256 inventory")
     sub.add_parser("verify", help="Report discovery and resource counts without an LLM call")
     args = parser.parse_args()
     if args.command == "prepare":
         out = prepare(args.source)
     elif args.command == "install":
         out = install(bot_id=args.bot_id)
+    elif args.command == "defaults":
+        out = ensure_defaults()
+    elif args.command == "verify-sources":
+        out = verify_sources()
     elif args.command == "zip":
         archive(PACK, args.output)
         out = {"zip": str(args.output), "bytes": args.output.stat().st_size}

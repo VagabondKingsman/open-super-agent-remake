@@ -1,6 +1,5 @@
-# AI Native pack cho OSA
+# AI Native mặc định cho OSA
 
-Repo giữ installer, manifest và skill ai-native-mentor do đợt chuyển giao này viết.
-Bảy package nguồn chưa có giấy phép phân phối lại trong bản người dùng cung cấp, nên payload đầy đủ chỉ nằm ở thư mục local đã gitignore. Không tự coi license của OSA là license của các package.
+Bảy package nguồn đầy đủ và ai-native-mentor đi cùng repo. Server startup tự cài shared defaults cho mọi bot, kể cả bot tạo sau. Không cần tải mirror hoặc gọi LLM để cài.
 
-Xem [hướng dẫn VI](../../docs/vi/ai-native-skills.md) để prepare/install/verify và các giới hạn runtime. Zip đầy đủ là bản sao riêng trên box, không phải artifact được phép đăng lên repo.
+Xem docs/vi/ai-native-skills.md, LICENSE, NOTICE.md và source-hashes.json. Đổi skills.ai_native_defaults: false trong config.yaml (hoặc OSA_AI_NATIVE_DEFAULTS=false) để ngừng reconcile; skill đã cài không bị xóa.

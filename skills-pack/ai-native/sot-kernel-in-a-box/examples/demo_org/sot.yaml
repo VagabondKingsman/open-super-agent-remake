@@ -1,0 +1,13 @@
+# sot.yaml · Cấu hình trung tâm của dự án SOT
+org: sample_project_demo
+
+paths:
+  source_dir: source_canonical
+  registry_dir: registry
+  hashes_file: registry/source_hashes.yaml
+  backup_dir: registry/_backup
+  token_file: index/.publish_token
+  verify_log: index/verify_log.jsonl
+
+hygiene_config: sot.hygiene.yaml
+digest_exclude: [source_hashes]

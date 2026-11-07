@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: audit-linkedin-post
+expected_outcome: |
+  An audit that rates the level, lists problems by rule id in a table, and does not rewrite the post.

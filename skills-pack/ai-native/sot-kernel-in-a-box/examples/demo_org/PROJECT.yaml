@@ -1,0 +1,9 @@
+# PROJECT.yaml · Metadata dự án mẫu (chỉ dùng để kiểm thử công cụ)
+project: sample-project-demo
+owner: Data Owner (Demo)
+started: '2026-01-01'
+goal: >
+  Ví dụ minh họa quy trình vận hành kho dữ liệu chuẩn (SOT) và kiểm thử tự động.
+source_owners:
+  catalog.csv: Data Owner
+notes: 'Dữ liệu giả lập phục vụ kiểm thử.'

@@ -17,7 +17,7 @@ from starlette.background import BackgroundTask
 from . import backup
 backup.apply_pending()   # 确认过的恢复：在打开数据库之前换上
 from . import approvals, auth, bots, catalog, channels, computer, dm, groups, i18n, library, mcp_hub, memories, memory, push, router as rt, routines
-from . import prices, providers, search, settings, skills, tasklog, teach, templates, vault
+from . import prices, providers, search, settings, skills, skillpacks, tasklog, teach, templates, vault
 from . import worker as worker_mod
 from .watchdog import watchdog
 
@@ -63,6 +63,7 @@ async def lifespan(app):
     bots.ensure_default()
     tasklog.startup()   # 上次没做完的任务标成“已中断”，清掉太旧的任务过程
     settings.apply()
+    skillpacks.ensure_defaults()
     routines.import_legacy(bots.primary()["id"])
     await mcp_hub.start()
     await channels.start()

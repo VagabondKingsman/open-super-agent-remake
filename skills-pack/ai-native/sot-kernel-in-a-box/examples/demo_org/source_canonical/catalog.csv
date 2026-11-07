@@ -1,0 +1,6 @@
+id,key,value,unit,status,evidence,source
+FACT.ITEM.A.PRICE,Đơn giá gói tiêu chuẩn A,1200000,VND,VERIFIED,Hợp đồng nguyên tắc số 01/HĐ-2026,catalog.csv
+FACT.ITEM.A.SLA,Thời gian phản hồi cam kết,4,giờ,VERIFIED,Phụ lục SLA trang 2,catalog.csv
+FACT.ITEM.B.CAPACITY,Công suất xử lý tối đa,5000,yêu cầu/ngày,VERIFIED,Biên bản nghiệm thu kỹ thuật,catalog.csv
+FACT.METRIC.CHURN,Tỷ lệ rời bỏ dự kiến quý tới,8,%,DRAFT,Báo cáo ước tính sơ bộ chưa kiểm định,catalog.csv
+FACT.BUDGET.PHASE2,Ngân sách mở rộng giai đoạn 2,350000000,VND,INT,Ước tính nội bộ chờ phê duyệt,catalog.csv
