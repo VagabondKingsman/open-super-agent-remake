@@ -7,13 +7,13 @@ import json
 import re
 import sqlite3
 import time
-from .config import CFG, ROOT
+from .config import CFG, DB_PATH
 
 # Persisted task headers follow the UI language; read older records in any language.
 TASK_DISPATCH = re.compile(r"^\[(?:任务已派发|Task dispatched|Đã giao tác vụ)\]\s*")
 TASK_RESULT = re.compile(r"^\[(?:任务 #\d+ 结果|Task #\d+ result|Kết quả tác vụ #\d+)\]\n?")
 
-db_path = ROOT / CFG["memory"]["db"]
+db_path = DB_PATH
 db_path.parent.mkdir(parents=True, exist_ok=True)
 conn = sqlite3.connect(db_path, check_same_thread=False)
 conn.execute("""create table if not exists messages(

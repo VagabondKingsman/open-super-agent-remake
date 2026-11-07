@@ -67,6 +67,10 @@ Nếu shallow thì cần đủ lịch sử trước khi kết luận unrelated. 
 
 Khi đã cùng lịch sử, tạo nhánh thử từ dòng remake đã xác minh rồi merge upstream để review. Với thay đổi kiến trúc lớn, ưu tiên nền mới + port có chọn lọc như lần v0.6 thay vì chữa conflict bằng cách chọn toàn bộ ours/theirs.
 
+## Port v0.6.1 (07/11/2026)
+
+Lịch sử remake và upstream không có merge-base. Ba commit `0897360`, `ec71362`, `3432671` được áp bằng patch thủ công lên `i18n-vi`, không merge và không lấy commit desktop/Tauri sau đó. Remote `upstream` chỉ fetch; push URL để `DISABLED`.
+
 ## Điểm phải review
 
 - Router/Worker, approvals, auth và ranh giới dữ liệu không tin cậy.

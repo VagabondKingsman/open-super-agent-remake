@@ -1,4 +1,4 @@
-# Open Super Agent remake · v0.6.0
+# Open Super Agent remake · v0.6.1
 
 [Tiếng Việt](README.md) · [English](README.en.md) · [中文](README.zh.md)
 
@@ -9,6 +9,11 @@ Repo remake: <https://github.com/VagabondKingsman/open-super-agent-remake>. Gi�
 ## Cộng sự và bàn giao giữa các bot
 
 Bot mới bắt đầu tại [.agents/README.md](.agents/README.md); [AGENTS.md](AGENTS.md) là entry point ở root. Thư mục có phong cách làm việc, Skill Flow, quy tắc, kiến trúc, STATE/BOARD, log phiên và templates. [Prompt khởi động](.agents/PROMPT.md) dành cho tài khoản/máy mới; không chia sẻ credential hay tự cấp quyền phát hành.
+
+## v0.6.1
+
+- Trang web khác không còn dùng trình duyệt của bạn để nối dịch vụ local khi chưa đặt `OSA_PASSWORD`. WebSocket và request ghi kiểm Origin dù có bật đăng nhập hay không. Chưa có mật khẩu thì chỉ nhận `localhost`, địa chỉ IP, `*.local`, `*.ts.net` và `server.allowed_hosts`.
+- `OSA_DATA_DIR` đưa database, khóa, apps, workspace và log/PID ra một thư mục bạn chọn. Checkout có thể chỉ đọc.
 
 ## Thay đổi trong v0.6.0
 

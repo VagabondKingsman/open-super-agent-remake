@@ -81,7 +81,7 @@ def test_dictionary_parity_and_placeholders():
 
 
 async def test_bootstrap_default_and_preference(language_settings):
-    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=server.app), base_url="http://test") as client:
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=server.app), base_url="http://127.0.0.1") as client:
         first = await client.get("/api/bootstrap", headers={"accept-language": "en-US"})
         assert first.status_code == 200 and first.json()["settings"]["language"] == "vi"
         i18n.set_lang("en")
@@ -93,7 +93,7 @@ async def test_bootstrap_default_and_preference(language_settings):
 
 
 async def test_first_bootstrap_honors_migrated_browser_preference(language_settings):
-    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=server.app), base_url="http://test") as client:
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=server.app), base_url="http://127.0.0.1") as client:
         response = await client.get("/api/bootstrap?lang=zh")
         assert response.json()["settings"]["language"] == "zh"
 
@@ -111,7 +111,7 @@ async def test_docker_missing_is_unavailable(monkeypatch):
     with pytest.raises(computer.ComputerError, match="Docker"):
         await pc.start()
     monkeypatch.setattr(computer, "get", lambda *args: pc)
-    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=server.app), base_url="http://test") as client:
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=server.app), base_url="http://127.0.0.1") as client:
         response = await client.get("/api/files")
         assert response.status_code == 200
         assert response.json()["state"] == "unavailable" and "Docker" in response.json()["detail"]

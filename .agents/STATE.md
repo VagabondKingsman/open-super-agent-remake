@@ -54,3 +54,7 @@ Nguồn chi tiết: `docs/vi/ai-native-live-eval.md`, `ai-native-default-install
 ## Bước tiếp theo
 
 Chọn task trong BOARD; ưu tiên Worker live (cần approval budget) hoặc Docker/browser QA trên môi trường phù hợp. Không chạy paid API/tunnel/real channel chỉ vì mục đó nằm trong backlog. Mọi bot cập nhật STATE/BOARD/log trong PR của mình.
+
+## Bổ sung · port v0.6.1 · grok-bot · 07/11/2026
+
+Append, không sửa snapshot phía trên. 12:23 Asia/Saigon (UTC+7). Branch `grok-bot/port-upstream-v0.6.1` từ `3c08269`. Port thủ công `0897360`, `ec71362`, `3432671`. Version làm việc 0.6.1. Không gồm desktop/Tauri/`v0.7.0-preview`. Upstream chỉ fetch, push URL `DISABLED`. Chi tiết và bằng chứng trong [log phiên](log/2026-11-07-grok-bot-port.md). Chưa merge.

@@ -1,4 +1,4 @@
-> 这是基于 upstream v0.6.0 的 remake，默认界面语言为越南语；可在设置和新手引导里选择 Tiếng Việt / English / 中文。上游项目：[kadaliao/open-super-agent](https://github.com/kadaliao/open-super-agent)。
+> 这是基于 upstream v0.6.1 的 remake（另含 `OSA_DATA_DIR`），默认界面语言为越南语；可在设置和新手引导里选择 Tiếng Việt / English / 中文。上游项目：[kadaliao/open-super-agent](https://github.com/kadaliao/open-super-agent)。
 >
 > v0.6.0 支持多个任务各开浏览器窗口、无新内容时静默的定时任务、fetch_url 的 SSRF 防护及不可信文本边界。remake 另外保留了缺少 Docker 时的可用性提示、定时任务输入校验及 webhook 并发防重。界面和通知有越南语翻译；模型内部提示词仍沿用上游中文，应用说明和模板在越南语界面使用英文。
 
