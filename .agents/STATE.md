@@ -54,4 +54,4 @@ Nguồn chi tiết: `docs/vi/ai-native-live-eval.md`, `ai-native-default-install
 
 ## Bước tiếp theo
 
-OSA-006 (CONTRIBUTING cho bot/remake) nằm trên branch `grok-bot/contributing-bots`. Tin Tin merge. Chưa merge thì task chưa Done. Việc khác trên BOARD vẫn chờ owner: Worker live cần approval budget, Docker/browser QA cần máy phù hợp. Không chạy paid API, tunnel hay channel thật chỉ vì mục đó nằm trong backlog. Kết quả lệnh của phiên OSA-006 nằm ở [log phiên](log/2026-11-07-grok-bot.md), không lấy số test của PR #6 làm kết quả chạy mới.
+OSA-006 (CONTRIBUTING cho bot/remake) là [PR #7](https://github.com/VagabondKingsman/open-super-agent-remake/pull/7) trên `grok-bot/contributing-bots`. Tin Tin merge. Chưa merge thì task chưa Done. Việc khác trên BOARD vẫn chờ owner: Worker live cần approval budget, Docker/browser QA cần máy phù hợp. Không chạy paid API, tunnel hay channel thật chỉ vì mục đó nằm trong backlog. Kết quả lệnh của phiên OSA-006 nằm ở [log phiên](log/2026-11-07-grok-bot.md), không lấy số test của PR #6 làm kết quả chạy mới.

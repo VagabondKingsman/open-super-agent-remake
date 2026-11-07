@@ -27,7 +27,7 @@ Snapshot 07/11/2026, Asia/Saigon (UTC+7). GitHub PR + base mới là trạng th�
 
 | ID | Owner / branch | Trạng thái / bước tiếp |
 |---|---|---|
-| OSA-006 | grok-bot / `grok-bot/contributing-bots` | `OSA-006 / grok-bot / grok-bot/contributing-bots / CONTRIBUTING remake, không đụng code hay CI / claimed_at 07/11/2026 12:11 Asia/Saigon / PR link khi có`. Tin Tin đã giao task và duyệt plan. Chưa merge: PR-ready, không Done. |
+| OSA-006 | grok-bot / `grok-bot/contributing-bots` | `OSA-006 / grok-bot / grok-bot/contributing-bots / CONTRIBUTING remake, không đụng code hay CI / claimed_at 07/11/2026 12:11 Asia/Saigon / [PR #7](https://github.com/VagabondKingsman/open-super-agent-remake/pull/7)`. Tin Tin đã giao task và duyệt plan. PR mở vào `i18n-vi`. Chưa merge: PR-ready, không Done. |
 
 ## Done · đã public
 
