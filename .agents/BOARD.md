@@ -29,7 +29,7 @@ Snapshot 07/11/2026, Asia/Saigon (UTC+7). GitHub PR + base mới là trạng th�
 | ID | Owner / branch | Trạng thái / bước tiếp |
 |---|---|---|
 | OSA-H01 | Build Bot / build-bot/shared-handoff | [PR #6](https://github.com/VagabondKingsman/open-super-agent-remake/pull/6) mở vào `i18n-vi` lúc 08:25 07/11/2026 Asia/Saigon. CloudAgent đã `git am` trên base 2a36b59, tree khớp manifest, checks local PASS. Chưa merge; PR mở không phải distributed lock. |
-| OSA-004 | grok-bot / grok-bot/port-upstream-v0.6.1 | 12:23 07/11/2026 Asia/Saigon. Port đúng `0897360`, `ec71362`, `3432671` lên `i18n-vi`. Không desktop/Tauri/v0.7. Log `.agents/log/2026-11-07-grok-bot-port.md`. Chưa merge. |
+| OSA-004 | grok-bot / grok-bot/port-upstream-v0.6.1 | 12:23 07/11/2026 Asia/Saigon. [PR #8](https://github.com/VagabondKingsman/open-super-agent-remake/pull/8) vào `i18n-vi`. Port đúng `0897360`, `ec71362`, `3432671`. Không desktop/Tauri/v0.7. Log `.agents/log/2026-11-07-grok-bot-port.md`. Chưa merge. |
 
 ## Done · đã public
 
