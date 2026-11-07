@@ -40,7 +40,9 @@ Mỗi PR cập nhật STATE, BOARD và thêm `.agents/log/YYYY-MM-DD-<bot>.md`. 
 
 ## Test cô lập
 
-Không có biến môi trường nào trỏ cả thư mục dữ liệu OSA. Đường dẫn SQLite là `memory.db` trong file config, ghép với root repo (`osa/memory.py`). Cách cô lập duy nhất là `OSA_CONFIG` trỏ tới một YAML có `memory.db` nằm trong thư mục tạm, và phải gán biến này trước khi import OSA. Import `osa.server`, `osa.memory` hoặc `osa.skillpacks` mở DB ngay lúc nạp module.
+`OSA_DATA_DIR` là thư mục dữ liệu. Khi biến này có giá trị, database tương đối chỉ lấy tên file và nằm trong thư mục đó, cùng khóa, apps tự thêm, workspace và dữ liệu Computer. `memory.db` viết bằng đường dẫn tuyệt đối trong YAML giữ nguyên chỗ cũ. Không đặt `OSA_DATA_DIR` thì database tương đối vẫn là `ROOT / memory.db` trong config, mặc định `data/osa.db`.
+
+Pytest cô lập database bằng `OSA_CONFIG`. Biến này trỏ tới một YAML tạm có `memory.db` tuyệt đối trong thư mục tạm, và phải gán trước khi import OSA. Import `osa.server`, `osa.memory` hoặc `osa.skillpacks` mở DB ngay lúc nạp module. `OSA_DATA_DIR` không đi theo file DB tuyệt đối. Apps, workspace và log của script start vẫn vào thư mục đó nếu biến còn trong môi trường. Trước khi import, bỏ `OSA_DATA_DIR` hoặc trỏ nó vào thư mục tạm.
 
 `tests/conftest.py` làm đúng việc đó. File này tạo thư mục tạm, ghi đè config, đặt `OSA_CONFIG`, gỡ một số biến môi trường, rồi mới import. Bản ghi đè là:
 
@@ -55,9 +57,9 @@ Không có khóa `channels` trong `config.yaml`, và conftest không ghi `channe
 
 `config.yaml` mặc định có trigger webhook GitHub `enabled: true`. Lần đầu tiên process khởi động, `routines.import_legacy` chép các trigger đó vào DB. Config tạm phải đặt `triggers: []`, nếu không DB tạm vẫn nhận routine webhook đó. Đừng kích hoạt nó.
 
-`OSA_COMPUTER_DATA` chỉ đổi thư mục Computer dùng chung (`osa/computer/local.py`). Nó không đổi DB.
+`OSA_COMPUTER_DATA` chỉ đổi thư mục Computer dùng chung (`osa/computer/local.py`). Nó không đổi DB. Không đặt biến này thì Computer dùng `$OSA_DATA_DIR/computers/shared`, hoặc `data/computers/shared` trong repo khi không có `OSA_DATA_DIR`.
 
-`scripts/osa-start.sh` không phải môi trường test. Script luôn `cd` về root repo, tạo `logs/` và `data/`, source `.env` nếu file đó có, rồi chạy uvicorn không gắn config tạm. DB mặc định là `data/osa.db`. Đừng dùng script này để xem thử server có lên không.
+`scripts/osa-start.sh` không phải môi trường test. Script `cd` về root repo, source `.env` nếu file đó có (trừ khi `OSA_DOTENV=0`), rồi chạy uvicorn không gắn config tạm. Không có `OSA_DATA_DIR` thì script tạo `data/` và `logs/` trong repo, DB mặc định `data/osa.db`. Có `OSA_DATA_DIR` thì database, khóa và log/PID nằm trong thư mục đó, log ở `$OSA_DATA_DIR/logs`. Đừng dùng script này để xem thử server có lên không.
 
 Server không có chế độ FakeLLM. `providers.client` luôn tạo client OpenAI thật. `FakeLLM` chỉ có trong `tests/fakellm.py` và fixture `llm` của pytest. Đừng gọi model trả phí để kiểm tra một PR.
 
@@ -84,9 +86,9 @@ git diff --check
 
 `uv run python -m osa.i18n` không mở DB. Nó báo khóa EN/VI thiếu hoặc thừa, placeholder lệch, và câu tiếng Trung trên frontend chưa bọc `t()`.
 
-`pytest` dùng temp DB và FakeLLM qua conftest. Ghi số passed, failed và skipped. Ba test trong `tests/test_local_checks.py` SKIP khi không phải Linux, hoặc khi thiếu một trong `bwrap`, `prlimit`, `git`, `ps` trên PATH. SKIP không phải PASS. Không bỏ assertion cũ để suite xanh.
+`pytest` dùng temp DB và FakeLLM qua conftest. Ghi số passed, failed và skipped. Ba test trong `tests/test_local_checks.py` SKIP khi không phải Linux, hoặc khi thiếu một trong `bwrap`, `prlimit`, `git`, `ps` trên PATH. SKIP không phải PASS. Base `3c08269` có 172 test: 172 passed khi đủ sandbox, 169 passed và 3 skipped khi thiếu. Port v0.6.1 thêm 21 test trong `tests/test_auth.py` và `tests/test_data_dir.py`. Cây này có 193 test: 193 passed và 0 skipped khi đủ sandbox, 190 passed và 3 skipped khi thiếu. Không lấy 172 làm số hiện tại. Không bỏ assertion cũ để suite xanh.
 
-`verify-sources` đối chiếu SHA-256 của `skills-pack/ai-native/`. Lệnh này import `osa.memory`, nên khi chạy tay hãy đặt `OSA_CONFIG` tạm trước. Không gọi `defaults` hoặc `install` vào DB thật chỉ để kiểm tra tài liệu.
+`verify-sources` đối chiếu SHA-256 của `skills-pack/ai-native/`. Lệnh này import `osa.memory`, nên khi chạy tay hãy đặt `OSA_CONFIG` tạm trước, và bỏ `OSA_DATA_DIR` hoặc trỏ nó vào thư mục tạm. Không gọi `defaults` hoặc `install` vào DB thật chỉ để kiểm tra tài liệu.
 
 Đổi runtime, UI, i18n, hoặc một file ở root ngoài `.agents/` thì chạy i18n, pytest và frontend tests. Build khi đụng UI hoặc trước handoff phát hành. Ghi command, exit code và số test. Vite có thể cảnh báo chunk JS lớn hơn 500 kB. Cảnh báo đó không phải build fail. Trên base `3c08269` chunk này khoảng 1,15 MB. Số đo của từng phiên nằm trong log, không phải ngưỡng cứng.
 
@@ -116,7 +118,7 @@ Các việc sau nằm trong CONTRIBUTING upstream. Trên remake, làm cột bên
 | Tạo nhánh từ `main`, PR vào `main` | Tạo `<bot>/<topic>` từ `i18n-vi`, PR vào `i18n-vi`. Không đẩy `main`. |
 | Thêm template bằng cách cài trên máy rồi cho lịch chạy một lần | `uv run python -m osa.templates` trên DB tạm. Không bật routine hay channel thật khi chưa có approval riêng. |
 | UI chỉ tiếng Trung và tiếng Anh, chỉ kiểm `en.json` | Giữ tiếng Việt mặc định và `vi.json`, cùng `en.json`. Khóa vẫn là tiếng Trung. |
-| Sao chép `data/osa.db` để thử tay, như [docs/development.md](docs/development.md) | Dùng `OSA_CONFIG` và DB tạm. Không copy DB thật. |
+| Sao chép `data/osa.db` để thử tay, như [docs/development.md](docs/development.md) | Dùng `OSA_CONFIG` với `memory.db` tuyệt đối trong thư mục tạm. Bỏ `OSA_DATA_DIR` hoặc trỏ nó vào thư mục tạm. Không copy DB thật. |
 
 Port commit upstream theo [docs/cap-nhat-tu-upstream.md](docs/cap-nhat-tu-upstream.md). Không mở PR lên `kadaliao/open-super-agent`.
 

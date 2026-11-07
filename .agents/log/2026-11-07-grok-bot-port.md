@@ -98,4 +98,8 @@ READY cho phần port này. Deferred: Docker desktop E2E, Worker live, rendered 
 
 ## Next step
 
-Tin Tin review [PR #8](https://github.com/VagabondKingsman/open-super-agent-remake/pull/8) vào `i18n-vi`. Code port nằm ở `8fd4327b4581a5adc3b5e026dd7e22bfdf718fa7`. Không tự merge. OSA-006 (`grok-bot/contributing-bots`) cùng sửa STATE/BOARD; phần thêm ở đây là append và một ô owner OSA-004.
+Tin Tin review [PR #8](https://github.com/VagabondKingsman/open-super-agent-remake/pull/8) vào `i18n-vi`. Code port nằm ở `8fd4327b4581a5adc3b5e026dd7e22bfdf718fa7`. Không tự merge.
+
+## Merge i18n-vi sau PR #7 · khoảng 12:26 Asia/Saigon
+
+`origin/i18n-vi` đã tới `5dc007b` (PR #7). Merge commit thường vào nhánh này, không rebase, không force-push. Conflict chỉ ở `.agents/STATE.md` và `.agents/BOARD.md`. Giữ mục port v0.6.1 và mục handoff PR #6/#7. Hai log `2026-11-07-grok-bot.md` và `2026-11-07-grok-bot-port.md` đều còn. OSA-006 Done. `CONTRIBUTING.md` nói `OSA_DATA_DIR` cùng `OSA_CONFIG`, và tách số 172 (base) với 193/190 (cây này, có hoặc thiếu sandbox).
