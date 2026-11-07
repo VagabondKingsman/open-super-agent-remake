@@ -20,12 +20,42 @@ class Call:
     args: dict = field(default_factory=dict)
 
 
+@dataclass
+class StreamReply:
+    """一条可控制 finish_reason / usage 的流。content 空且 finish=length 用来复现 reasoning-only。"""
+    content: str = ""
+    reasoning: str = ""
+    finish: str = "stop"
+    calls: list = field(default_factory=list)
+    usage: dict | None = None
+    omit_usage: bool = False
+
+
 def _chunk(delta: dict, finish=None) -> dict:
     return {"id": "chatcmpl-fake", "object": "chat.completion.chunk", "created": 0, "model": "fake",
             "choices": [{"index": 0, "delta": delta, "finish_reason": finish}]}
 
 
 def _sse(reply) -> bytes:
+    if isinstance(reply, StreamReply):
+        delta = {"role": "assistant"}
+        if reply.reasoning:
+            delta["reasoning_content"] = reply.reasoning
+        if reply.content or not reply.calls:
+            delta["content"] = reply.content
+        finish = reply.finish
+        if reply.calls:
+            delta["tool_calls"] = [{"index": i, "id": f"call_{i}", "type": "function",
+                                    "function": {"name": c.name, "arguments": json.dumps(c.args, ensure_ascii=False)}}
+                                   for i, c in enumerate(reply.calls)]
+            finish = reply.finish or "tool_calls"
+        events = [_chunk(delta), _chunk({}, finish)]
+        if not reply.omit_usage:
+            usage = reply.usage or {"prompt_tokens": 100, "completion_tokens": 10, "total_tokens": 110,
+                                    "prompt_cache_hit_tokens": 0}
+            events.append({"id": "chatcmpl-fake", "object": "chat.completion.chunk", "created": 0, "model": "fake",
+                           "choices": [], "usage": usage})
+        return ("".join(f"data: {json.dumps(e, ensure_ascii=False)}\n\n" for e in events) + "data: [DONE]\n\n").encode()
     if isinstance(reply, Call):
         reply = [reply]
     if isinstance(reply, str):
@@ -85,7 +115,9 @@ class FakeLLM:
             role, name = role_of(body)
             self.requests.append((role, name, body))
             reply = self._next(role, name, body)
-            if not body.get("tools") and not isinstance(reply, str):
+            if not body.get("tools") and not isinstance(reply, (str, StreamReply)):
+                reply = "（没给工具，只能回答）"
+            if isinstance(reply, StreamReply) and reply.calls and not body.get("tools"):
                 reply = "（没给工具，只能回答）"
             return httpx.Response(200, headers={"content-type": "text/event-stream"}, content=_sse(reply))
         if path.endswith("/models"):

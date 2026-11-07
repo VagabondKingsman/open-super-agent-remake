@@ -131,24 +131,28 @@ def tool_read_page(args: dict, limit: int = 12000) -> str:
     from . import search
     p = get_page(args.get("page_id")) if isinstance(args.get("page_id"), int) else None
     if not p:
-        return f"没有页面 #{args.get('page_id')}"
+        return i18n.t("没有页面 #{id}", id=args.get("page_id"))
     text = search._plain(p["content"] or "", p["format"])
     if p["format"] == "html":
         text = re.sub(r"[ \t]+", " ", re.sub(r"\n\s*\n+", "\n\n", text)).strip()
-    more = f"\n…（还有 {len(text) - limit} 字没显示）" if len(text) > limit else ""
-    return f"《{p['title']}》{link(p['id'])}，{time.strftime('%Y-%m-%d', time.localtime(p['updated']))} 更新\n\n{text[:limit]}{more}"
+    body = text[:limit]
+    if len(text) > limit:
+        body += i18n.t("\n…（还有 {n} 字没显示）", n=len(text) - limit)
+    return i18n.t("《{title}》{link}，{date} 更新\n\n{body}", title=p["title"], link=link(p["id"]),
+                  date=time.strftime("%Y-%m-%d", time.localtime(p["updated"])), body=body)
 
 
 def tool_save_page(bot_id: int, args: dict, task_id: int | None = None) -> str:
     pid = args.get("page_id")
     if pid is not None and (not (old := get_page(pid, False)) or old["bot_id"] != bot_id):
-        return f"没保存：页面 #{pid} 不存在或不是你建的，只能更新自己的页面"
+        return i18n.t("没保存：页面 #{id} 不存在或不是你建的，只能更新自己的页面", id=pid)
     try:
         p = save_page(bot_id, args.get("title", ""), args.get("content", ""), args.get("format") or "markdown",
                       args.get("page_id"), task_id)
     except (ValueError, TypeError) as e:
-        return f"没保存：{e}"
-    return f"已保存页面 #{p['id']}「{p['title']}」，链接 {link(p['id'])}（用户在资料库里也能看到）。回复里用 Markdown 链接附上它。"
+        return i18n.t("没保存：{error}", error=e)
+    return i18n.t("已保存页面 #{id}「{title}」，链接 {link}（用户在资料库里也能看到）。回复里用 Markdown 链接附上它。",
+                  id=p["id"], title=p["title"], link=link(p["id"]))
 
 
 # ---------- 文件 ----------

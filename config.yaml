@@ -31,6 +31,9 @@ server:
 
 limits:
   worker_max_steps: 30        # 电脑操作一步一个动作，步数要多一些
+  repeat_tool_limit: 3        # 同一个工具调用连续这么多次就停下，改要最终答案。0 表示不查
+  answer_continuations: 1     # 最终答案是空的，或 finish_reason=length 时，再要一次完整答案
+  save_page_approval: false   # true：Worker 的 save_page 先等确认。命中“自动允许”规则时仍直接写
   task_timeout_s: 600
   watchdog_interval_s: 15
   approval_timeout_s: 1800   # 写操作等待确认的时限，超时按拒绝

@@ -34,6 +34,25 @@ FakeLLM/temp DB trước; live run chỉ khi có approval theo đợt, cap/reser
 
 Dùng `.agents/` với root AGENTS/README pointers, STATE snapshot + BOARD owner + log phiên + templates. Source skills ở một chỗ, bridge osa-dev portable, không chép persona/credential riêng. Claim PR cần merge/xác nhận mới là owner đã nhận, không coi file local là lock. Merge bởi Tin Tin hoặc bot được duyệt rõ; publish/merge còn là bước riêng. Nguồn: yêu cầu handoff 07/11/2026 và log phiên này.
 
+## ADR-009 · Accepted · Chặn long-run bằng guard nhỏ, không chấm AC bằng model
+
+Audit B02 (07/11/2026): Worker gọi `save_page` / `search_memory` ngoài goal, ghi trang không hỏi, rồi task vẫn `done`. Không có A/B model nên không kết luận lỗi nằm ở provider.
+
+Quyết định trong OSA-009:
+
+- Không thêm bộ chấm goal so với tool. Một lần gọi lệch vẫn có thể xảy ra.
+- `save_page` đi qua `approvals.decide`. `limits.save_page_approval` mặc định `false`. Rule “自动允许” vẫn ghi thẳng. Ghi thành công thì gắn `side_effects` vào kết quả. Lần chạy quiet mà có ghi trang thì không giấu kết quả.
+- `limits.repeat_tool_limit` mặc định 3: cùng một lời gọi liên tiếp thì dừng và đòi câu trả lời cuối. `worker_max_steps` vẫn là trần số vòng. Watchdog vẫn hủy muộn hơn nếu vòng lặp sống sót.
+- Kết quả rỗng không được `done`. Phần này trùng B01.
+
+Phương án bị loại gồm bắt xác nhận mọi `save_page`, vì task làm trang hợp lệ sẽ đổi hành vi, và gọi model để xét tool có đúng goal hay không.
+
+Model vẫn có thể tìm một hai lần và ghi trang khi công tắc tắt. Lần ghi hiện trên kết quả. Bật công tắc thì lần ghi phải chờ xác nhận.
+
+Verify live trên head `c9480ef` chỉ ra guard dùng chung `Task.recent_calls`, nên lần gọi đầu của worker Heavy thứ ba bị chặn. Sửa trên cùng nhánh: mỗi worker một lịch sử; trong một batch, mọi `tool_call` id đều có tool result, call bị chặn không chạy; ước lượng lúc hủy gồm cả tên và args đã stream. Không đổi quyết định “không chấm goal bằng model”.
+
+Nguồn là task OSA-009. Tin Tin duyệt tạo task và sửa. ADR này không đổi quyền merge.
+
 ## Thêm ADR
 
 `ADR-ID · Proposed/Accepted/Superseded · ngày Asia/Saigon` → context → decision → alternatives/why → consequences → source/approval → ADR thay thế nếu có. Giữ quyết định cũ và ghi superseded; không sửa lịch sử cho khớp hindsight.

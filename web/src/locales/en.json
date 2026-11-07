@@ -983,5 +983,8 @@
   "（后台在算）": " (computing in the background)",
   "（没有返回内容）": "(No output)",
   "（还没连接）": " (not connected)",
-  "，算好向量 {n} 段": ", {n} with vectors"
+  "，算好向量 {n} 段": ", {n} with vectors",
+  "这里是已记录的用量，不是服务商账单。取消时如果已经收到用量就照实记；没有用量回包时，按已收到的文字估算，并标成估算。": "These figures are recorded usage, not the provider's bill. A canceled request that already returned usage is stored as-is. If it didn't, the text received so far is estimated and labeled as an estimate.",
+  "含 {n} 次估算": "includes {n} estimates",
+  "含估算 {n} token": "includes {n} estimated tokens"
 }

@@ -31,6 +31,10 @@ if "chat_id" not in _cols:
 conn.execute("create index if not exists messages_chat on messages(chat_id, id)")
 conn.execute("""create table if not exists llm_usage(ts real, role text, model text, task_id integer,
   cache_hit integer, cache_miss integer, output integer, cost real)""")
+_usage_cols = {r[1] for r in conn.execute("pragma table_info(llm_usage)")}
+if "estimated" not in _usage_cols:
+    # 1 = output tokens ước từ chữ đã nhận khi hủy, không phải usage của provider
+    conn.execute("alter table llm_usage add column estimated integer not null default 0")
 conn.execute("create index if not exists llm_usage_task on llm_usage(task_id)")
 # 后台任务的过程（每一步想了什么、调了什么工具、拿到什么），读写在 tasklog.py
 conn.execute("""create table if not exists task_steps(
@@ -174,8 +178,37 @@ def _is_peak(ts: float) -> bool:
     return any(a <= hm < b for a, b in (r.split("-") for r in CFG["pricing"]["peak_hours"]))
 
 
-def record_usage(role: str, model: str, usage, task_id: int | None = None, provider: str | None = None):
-    """记录一次模型调用的 token 和费用。usage 是 OpenAI 格式的 usage 对象；provider 不给就按角色的配置。"""
+class _Tokens:
+    """usage 对象的最小替身：只有 prompt / completion，没有缓存命中。"""
+
+    def __init__(self, prompt: int, completion: int):
+        self.prompt_tokens = prompt
+        self.completion_tokens = completion
+        self.prompt_cache_hit_tokens = 0
+
+
+def estimate_output_tokens(text: str) -> int:
+    """没有 usage 回包时，按已收到的字符粗算输出 token（约 4 字一个）。这是估算，不是账单。"""
+    n = len(text or "")
+    return max(1, (n + 3) // 4) if n else 0
+
+
+def streamed_output_text(content: str = "", reasoning: str = "", calls=None) -> str:
+    """取消时拿来估算的原文：正文、思考，以及已经流到的工具名和参数。"""
+    parts = [content or "", reasoning or ""]
+    items = calls.values() if isinstance(calls, dict) else (calls or [])
+    for c in items:
+        if isinstance(c, dict):
+            parts.append(c.get("name") or "")
+            parts.append(c.get("args") or "")
+    return "".join(parts)
+
+
+def record_usage(role: str, model: str, usage, task_id: int | None = None, provider: str | None = None,
+                 estimated: bool = False):
+    """记录一次模型调用的 token 和费用。usage 是 OpenAI 格式的 usage 对象；provider 不给就按角色的配置。
+
+    这是已记录的用量，不是服务商账单。estimated=True 时 output 来自 estimate_output_tokens，prompt 记 0。"""
     if usage is None:
         return
     prompt = usage.prompt_tokens or 0
@@ -188,8 +221,21 @@ def record_usage(role: str, model: str, usage, task_id: int | None = None, provi
     from . import prices
     provider = provider or (CFG["roles"].get(role) or {}).get("provider")
     cost = prices.cost(provider, model, hit, miss, out, _is_peak(now))
-    conn.execute("insert into llm_usage values(?,?,?,?,?,?,?,?)", (now, role, model, task_id, hit, miss, out, cost))
+    conn.execute("""insert into llm_usage(ts, role, model, task_id, cache_hit, cache_miss, output, cost, estimated)
+                    values(?,?,?,?,?,?,?,?,?)""",
+                 (now, role, model, task_id, hit, miss, out, cost, 1 if estimated else 0))
     conn.commit()
+
+
+def record_partial(role: str, model: str, usage, text: str, task_id: int | None = None, provider: str | None = None):
+    """流被取消时调用。有 usage 就照实记；没有就按已收到的文字估算，并标成 estimated。什么都没收到则不记。"""
+    if usage is not None:
+        record_usage(role, model, usage, task_id, provider, estimated=False)
+        return
+    out = estimate_output_tokens(text)
+    if not out:
+        return
+    record_usage(role, model, _Tokens(0, out), task_id, provider, estimated=True)
 
 
 def tokens_today() -> int:
@@ -204,9 +250,13 @@ def usage_stats() -> dict:
 
     def total(since):
         r = conn.execute("""select coalesce(sum(cost),0), coalesce(sum(cache_hit),0), coalesce(sum(cache_miss),0),
-            coalesce(sum(output),0), count(*) from llm_usage where ts >= ?""", (since,)).fetchone()
+            coalesce(sum(output),0), count(*),
+            coalesce(sum(case when estimated=1 then 1 else 0 end),0),
+            coalesce(sum(case when estimated=1 then cache_hit+cache_miss+output else 0 end),0)
+            from llm_usage where ts >= ?""", (since,)).fetchone()
         return {"cost": round(r[0], 4), "cache_hit": r[1], "cache_miss": r[2], "output": r[3], "calls": r[4],
-                "cache_rate": round(r[1] / (r[1] + r[2]), 3) if r[1] + r[2] else 0}
+                "cache_rate": round(r[1] / (r[1] + r[2]), 3) if r[1] + r[2] else 0,
+                "estimated_calls": r[5], "estimated_tokens": r[6], "scope": "recorded"}
 
     by_role = conn.execute("""select role, model, sum(cost), sum(cache_hit+cache_miss+output) from llm_usage
         where ts >= ? group by role, model order by 3 desc""", (now - 30 * 86400,)).fetchall()

@@ -69,3 +69,9 @@ Append, không sửa snapshot phía trên. 12:23 Asia/Saigon (UTC+7). Branch `gr
 [PR #8](https://github.com/VagabondKingsman/open-super-agent-remake/pull/8) đã merge vào `i18n-vi` tại `6e5d3ffe3e42362059d83117264c3414ed5e1603`. Head của PR là `5914b9d8e2ac1108539c01c6388ae5f19f446d79`. `merged_at` `2026-11-07T05:31:44Z` (12:31:44 Asia/Saigon). Author git của merge commit là VagabondKingsman. Grok Bot merge với approval rõ của Tin Tin. CI backend, docker, frontend SUCCESS trên head đó. Đoạn “Chưa merge” ở mục port phía trên là trạng thái lúc viết, không xóa.
 
 Retest trên box, ghi cùng lúc merge: `pytest` 193 passed, 0 skipped. `osa.i18n` thiếu/thừa 0. Web 15/15. Build OK. `verify-sources` PASS. Smoke runtime: Host/Origin lạ trả 403, localhost trả 200. Commit SHA upstream đã port cuối cùng là `3432671`. `docs/cap-nhat-tu-upstream.md` đã ghi SHA này, không sửa thêm trong phiên đánh Done.
+
+## Bổ sung · OSA-009 đang làm · grok-bot · 07/11/2026
+
+Append. Base phiên này là `origin/i18n-vi` = `d7f2ee91e4f527a2372a7ae9a0f3cbddb2a477b4` (merge PR #9). Branch `grok-bot/osa-009-audit-fixes`. Commit sửa code `93bcc00887c401452319573bd2b9d7fe2f36d6a4`. PR: [#10](https://github.com/VagabondKingsman/open-super-agent-remake/pull/10) vào `i18n-vi`. Tin Tin duyệt tạo task và sửa B01–B07 từ audit runtime. Chưa merge. Số test của phiên nằm ở [log OSA-009](log/2026-11-07-grok-bot-osa-009.md). 193 passed của box OSA-004 là số của máy có bubblewrap trên base cũ, không phải số của PR này. Live provider rerun là NOT_CHECKED, owner chạy sau trên máy của họ.
+
+Verify độc lập trên head `c9480ef` kết luận HOLD. R1: heavy worker dùng chung lịch sử lặp. R2: batch bị cắt thiếu tool result. R3: hủy khi chỉ có tool-call delta thì không ghi usage. Đã sửa trên cùng branch, chưa merge. Câu model lẫn tiếng Bồ Đào Nha và `方案` được ghi là hành vi model, không viết lại output. Số gate của vòng sửa nằm ở log OSA-009.

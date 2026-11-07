@@ -386,6 +386,16 @@ async def scheduler():
                 _record(r["id"], "schedule", "failed", str(e))
 
 
+def reconcile_interrupted():
+    """进程重启后，内存里的 RUNNING 已经空了。库里还停在 running、没有结束时间的记录改成 interrupted。"""
+    now = time.time()
+    detail = i18n.t("服务重启，这次运行已中断")
+    conn.execute("""update routine_runs set status='interrupted', finished=?,
+                    detail=case when detail is null or detail='' then ? else detail end
+                    where status='running' and finished is null""", (now, detail))
+    conn.commit()
+
+
 def import_legacy(bot_id: int):
     """把 config.yaml 里旧的 triggers 导入成主 Bot 的定时任务，只做一次。"""
     if conn.execute("select 1 from settings where key='triggers_imported'").fetchone():

@@ -162,7 +162,8 @@ function TaskDetail({ id, group }: { id: number; group: boolean }) {
       </div>
       <div className="td-meta">
         {[group && owner?.name, t('{day} {time}', { day: day(tk.ts), time: hm(tk.ts) }), duration(tk, now), tk.steps ? t('{n} 步', { n: tk.steps }) : '',
-          tk.cost ? t('花费 {cost}', { cost: (tk.currency || '') + tk.cost.toFixed(tk.cost < 1 ? 3 : 2) }) : ''].filter(Boolean).join(' · ')}
+          tk.cost ? t('花费 {cost}', { cost: (tk.currency || '') + tk.cost.toFixed(tk.cost < 1 ? 3 : 2) }) : '',
+          tk.estimated_tokens ? t('含估算 {n} token', { n: tk.estimated_tokens }) : ''].filter(Boolean).join(' · ')}
       </div>
       <Goal text={tk.goal} />
       {!steps.length && !running ? <>

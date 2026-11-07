@@ -77,6 +77,14 @@ pricing:
 **限额**在 设置 → 限制与预算 里改：每天最多用多少 token、每个任务最多几步、任务最长跑多久、后台任务等确认多久、Heavy 模式同时跑几个。
 对应 `config.yaml` 的 `limits`（`daily_token_budget`、`worker_max_steps`、`task_timeout_s`、`approval_timeout_s`，另外还有 `watchdog_interval_s`）和 `heavy.workers`。
 
+另外三个只在 `config.yaml` 里改，设置页没有输入框：
+
+- `repeat_tool_limit`：同一个工具调用在**一个 Worker 自己的历史**里连续出现这么多次，就停下并要最终答案。Heavy 里每个研究员各算各的，不会把别人的第一次调用当成重复。同一条回复里剩下的调用仍会带回 tool result，但不再执行。默认 3。0 表示不查。Watchdog 仍会在更晚的时候取消死循环。
+- `answer_continuations`：最终答案是空的，或 `finish_reason=length`，再向模型要几次完整答案。默认 1。用完仍空或仍被截断，任务记失败，不记完成。
+- `save_page_approval`：`true` 时 Worker 写本地页面要先等确认。已经有一条“自动允许”规则时仍直接写。默认 `false`，但每次写页面都会记在任务结果里。
+
+费用页的数字是**已记录的用量**，不是服务商账单。请求被取消时，流里已经有 usage 就照实记；没有 usage 回包但已经收到文字，就按大约 4 个字符一个 token 估算输出，并标成估算。进程被直接杀掉时，来不及记的用量不会出现在这里。
+
 点“测试”产生的调用记在“测试模型”下面，几分钱以内。
 
 ## 电脑
