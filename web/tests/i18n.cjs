@@ -22,15 +22,30 @@ try {
 }
 function load(saved = {}, browser = 'en-US') {
   const data = new Map(Object.entries(saved))
+  const cache = new Map()
   let reloads = 0
   const sandbox = {
     exports: {}, navigator: { language: browser }, document: { documentElement: {} },
     location: { reload() { reloads++ } },
     localStorage: { getItem: k => data.get(k) ?? null, setItem: (k, v) => data.set(k, v), removeItem: k => data.delete(k) },
+    Response,
+    caches: {
+      open: async () => ({
+        put: async (key, response) => { cache.set(key, await response.text()) },
+        match: async key => cache.has(key) ? new Response(cache.get(key)) : undefined,
+      }),
+    },
     require: name => name === 'react' ? require('react') : require(path.join(__dirname, '../src', name)),
   }
   vm.runInNewContext(code, sandbox)
-  return { api: sandbox.exports, data, document: sandbox.document, reloads: () => reloads }
+  return { api: sandbox.exports, data, cache, document: sandbox.document, reloads: () => reloads }
+}
+async function waitLang(state, expected) {
+  for (let i = 0; i < 20; i++) {
+    if (state.cache.get('/osa-lang') === expected) return
+    await new Promise(resolve => setTimeout(resolve, 0))
+  }
+  assert.equal(state.cache.get('/osa-lang'), expected)
 }
 
 test('raw HTML shell language is vi-VN before JavaScript init', () => {
@@ -38,11 +53,13 @@ test('raw HTML shell language is vi-VN before JavaScript init', () => {
   const match = html.match(/<html\b[^>]*\blang="([^"]*)"/)
   assert.equal(match?.[1], 'vi-VN')
 })
-test('fresh install defaults to Vietnamese, independent of browser', () => {
-  const { api, document } = load()
+test('fresh install defaults to Vietnamese, independent of browser', async () => {
+  const state = load()
+  const { api, document } = state
   assert.equal(api.lang, 'vi')
   assert.equal(api.locale, 'vi-VN')
   assert.equal(document.documentElement.lang, 'vi-VN')
+  await waitLang(state, 'vi')
   assert.equal(api.t('保存'), 'Lưu')
   assert.equal(api.t('任务 #{id}', { id: 7 }), 'Tác vụ #7')
   assert.equal(api.tc('weekday', '一'), 'T2')
@@ -66,12 +83,14 @@ test('detection recognizes vi and zh prefixes, others as en', () => {
   const { api } = load()
   for (const [value, expected] of [['vi-VN', 'vi'], ['VI', 'vi'], ['zh-TW', 'zh'], ['en-GB', 'en'], ['fr', 'en'], ['', 'en']]) assert.equal(api.detect(value), expected)
 })
-test('sync accepts all three languages and rejects unknown values', () => {
+test('sync accepts all three languages and rejects unknown values', async () => {
   const state = load({ 'osa.lang': 'en' })
+  await waitLang(state, 'en')
   assert.equal(state.api.syncLang('en'), false)
   assert.equal(state.api.syncLang('xx'), false)
   assert.equal(state.api.syncLang('vi'), true)
   assert.equal(state.data.get('osa.lang'), 'vi')
+  await waitLang(state, 'vi')
   assert.equal(state.reloads(), 1)
   assert.deepEqual(Array.from(state.api.languages, item => item.label), ['Tiếng Việt', 'English', '中文'])
 })

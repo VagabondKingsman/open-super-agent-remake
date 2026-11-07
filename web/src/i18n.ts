@@ -28,6 +28,23 @@ if (isLang(legacy)) {
 }
 export const locale = { vi: 'vi-VN', en: 'en-US', zh: 'zh-CN' }[lang]
 document.documentElement.lang = locale
+// The service worker cannot read localStorage, and Chrome hides the Cookie header
+// from its fetch handler. Mirror the UI language into Cache Storage instead.
+// The value is vi, en, or zh. It is not a secret.
+const LANG_CACHE = 'osa-lang'
+const LANG_KEY = '/osa-lang'
+let langWrite: Promise<void> = Promise.resolve()
+function persistLang(value: Lang): Promise<void> {
+  if (typeof caches === 'undefined') return Promise.resolve()
+  langWrite = langWrite
+    .catch(() => undefined)
+    .then(() => caches.open(LANG_CACHE))
+    .then(cache => cache.put(LANG_KEY, new Response(value)))
+    .then(() => undefined)
+    .catch(() => undefined)
+  return langWrite
+}
+void persistLang(lang)
 
 const dict: Record<string, string | string[]> = lang === 'vi' ? vi : lang === 'en' ? en : {}
 type Vars = Record<string, string | number>
@@ -63,6 +80,7 @@ export function tn(zh: string, vars: Record<string, ReactNode>): ReactNode {
 export function syncLang(server: string | undefined) {
   if (isLang(server) && server !== lang) {
     localStorage.setItem('osa.lang', server)
+    void persistLang(server)
     location.reload()
     return true
   }

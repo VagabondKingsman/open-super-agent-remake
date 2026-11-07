@@ -7,6 +7,7 @@
 - 环境变量 `OSA_DATA_DIR`：数据库、密钥、自己加的应用清单和工作目录都放到这个目录，代码目录可以是只读的（桌面版要用）
 
 ### 修复
+- 连不上服务器时，Service Worker 的离线页改为越南语在前、英语在后。语言来自 Cache Storage `osa-lang`（`vi` / `en` / `zh`）；没有或不认识就用越南语。只有界面语言是中文时才显示中文。`manifest.json` 的 `lang` 和简介改为越南语。
 - 写给模型的提示词和工具说明改为英文，并按界面语言（默认越南语）要求回复。Router、Worker、审稿、记忆导入、定时任务过滤、演示整理技能都带同一句语言要求。Heavy 草稿分隔改成 `Draft`，不再把 `方案` 写进提示词。定时任务列表不再写死中文。
 - Heavy：同一轮对话只派一个任务。草稿少于 `heavy.min_drafts`（默认 2）就不叫审稿人，任务记失败。有研究员失败但草稿够数时，汇总结果的状态是 `partial`，不再记成完成。额度用尽（HTTP 402，或 429 的 `org_token_rate_limit_day` / `insufficient_quota` / `free_limit_reached` / `budget_exceeded`）不重试，并停掉这个任务。普通限流按 `Retry-After` 再试。同时调用模型的研究员数是 `heavy.concurrency`，默认 1
 - 模型只返回思考、正文为空，或 `finish_reason=length` 把回答截断时，不再把任务记成完成。会再要一次完整答案；仍然没有，就记失败并说明原因
