@@ -1,6 +1,6 @@
 # Snapshot bàn giao · 07/11/2026
 
-Mốc public đã xác minh: `origin/i18n-vi = 5dc007b5362fee5e103d035cf28f4b685ec0331d` (merge PR #7, 07/11/2026 12:23:22 Asia/Saigon). Mốc trước đó là `3c08269` (merge PR #6, 08:26:01). Đây là **snapshot**, không phải latest vĩnh viễn. Phiên mới phải fetch/đọc ref và PR đang mở. Giờ trong file là **Asia/Saigon (UTC+7)**; ngày 07/11/2026 áp dụng cho bảng PR.
+Mốc public đã xác minh: `origin/i18n-vi = 6e5d3ffe3e42362059d83117264c3414ed5e1603` (merge PR #8, 07/11/2026 12:31:44 Asia/Saigon). Mốc trước đó là `5dc007b` (merge PR #7, 12:23:22) và `3c08269` (merge PR #6, 08:26:01). Đây là **snapshot**, không phải latest vĩnh viễn. Phiên mới phải fetch/đọc ref và PR đang mở. Giờ trong file là **Asia/Saigon (UTC+7)**; ngày 07/11/2026 áp dụng cho bảng PR.
 
 ## Phiên bản và những gì đã merge
 
@@ -15,6 +15,7 @@ OSA v0.6.0 + VI/EN/ZH; AI Native manifest version 2. Bảy package team-authored
 | [#5](https://github.com/VagabondKingsman/open-super-agent-remake/pull/5) | 07:51:47 | 2a36b59 | Bundle bảy nguồn + helpers, SHA-256, LICENSE/NOTICE và default shared install/reconcile/opt-out. |
 | [#6](https://github.com/VagabondKingsman/open-super-agent-remake/pull/6) | 08:26:01 | 3c08269 | Handoff `.agents/`, Skill Flow, STATE/BOARD/log. `merged_at` API `2026-11-07T01:26:01Z`, đổi sang UTC+7. |
 | [#7](https://github.com/VagabondKingsman/open-super-agent-remake/pull/7) | 12:23:22 | 5dc007b | CONTRIBUTING cho bot/remake (OSA-006). Head PR `b90e4d5`. `merged_at` API `2026-11-07T05:23:22Z`. Author git của merge commit là VagabondKingsman. Phiên ghi nhận Grok Bot merge với approval rõ của Tin Tin. CI backend, frontend, docker SUCCESS. |
+| [#8](https://github.com/VagabondKingsman/open-super-agent-remake/pull/8) | 12:31:44 | 6e5d3ff | Port upstream `0897360`, `ec71362`, `3432671` (OSA-004). Head PR `5914b9d`. `merged_at` API `2026-11-07T05:31:44Z`. Author git của merge commit là VagabondKingsman. Grok Bot merge với approval rõ của Tin Tin. CI backend, docker, frontend SUCCESS. |
 
 Nguồn bảng: GitHub PR API `merged_at` chuyển UTC+7, đối chiếu git log. Không dùng commit author time làm merge time. Một số report lịch sử có timezone/giờ tiêu đề không nhất quán; ngày ADR dùng 07/11, trình tự merge lấy API, không sửa nguồn để giấu khác biệt.
 
@@ -62,3 +63,9 @@ Việc khác trên BOARD vẫn chờ owner: Worker live cần approval budget, D
 ## Bổ sung · port v0.6.1 · grok-bot · 07/11/2026
 
 Append, không sửa snapshot phía trên. 12:23 Asia/Saigon (UTC+7). Branch `grok-bot/port-upstream-v0.6.1` từ `3c08269`. Port thủ công `0897360`, `ec71362`, `3432671` trong commit `8fd4327b4581a5adc3b5e026dd7e22bfdf718fa7`. Version làm việc 0.6.1. Không gồm desktop/Tauri/`v0.7.0-preview`. Upstream chỉ fetch, push URL `DISABLED`. Chi tiết và bằng chứng trong [log phiên](log/2026-11-07-grok-bot-port.md). PR: [#8](https://github.com/VagabondKingsman/open-super-agent-remake/pull/8). Chưa merge. Sau PR #7, nhánh này merge `origin/i18n-vi` (`5dc007b`) bằng merge commit, không rebase.
+
+## Bổ sung · OSA-004 Done · 12:31 Asia/Saigon
+
+[PR #8](https://github.com/VagabondKingsman/open-super-agent-remake/pull/8) đã merge vào `i18n-vi` tại `6e5d3ffe3e42362059d83117264c3414ed5e1603`. Head của PR là `5914b9d8e2ac1108539c01c6388ae5f19f446d79`. `merged_at` `2026-11-07T05:31:44Z` (12:31:44 Asia/Saigon). Author git của merge commit là VagabondKingsman. Grok Bot merge với approval rõ của Tin Tin. CI backend, docker, frontend SUCCESS trên head đó. Đoạn “Chưa merge” ở mục port phía trên là trạng thái lúc viết, không xóa.
+
+Retest trên box, ghi cùng lúc merge: `pytest` 193 passed, 0 skipped. `osa.i18n` thiếu/thừa 0. Web 15/15. Build OK. `verify-sources` PASS. Smoke runtime: Host/Origin lạ trả 403, localhost trả 200. Commit SHA upstream đã port cuối cùng là `3432671`. `docs/cap-nhat-tu-upstream.md` đã ghi SHA này, không sửa thêm trong phiên đánh Done.
