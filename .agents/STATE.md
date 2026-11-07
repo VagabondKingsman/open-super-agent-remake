@@ -113,7 +113,7 @@ PR: [#12](https://github.com/VagabondKingsman/open-super-agent-remake/pull/12), 
 
 ## Bổ sung · OSA-011 đang làm · grok-bot · 07/11/2026
 
-Append. Không sửa các mục phía trên. Branch làm việc `grok-bot/osa-011-en-prompts`, tách từ `grok-bot/osa-010-heavy-fixes` tại `5c75acb3147da40f44e00d8a86c2d72a175bed45`. PR vào `i18n-vi`, xếp trên PR #12, merge sau #12. Chưa merge. Không gọi LLM trả phí. Không đụng upstream kadaliao.
+Append. Không sửa các mục phía trên. Branch làm việc `grok-bot/osa-011-en-prompts`, tách từ `grok-bot/osa-010-heavy-fixes` tại `5c75acb3147da40f44e00d8a86c2d72a175bed45`. PR: [#13](https://github.com/VagabondKingsman/open-super-agent-remake/pull/13), vào `i18n-vi`, xếp trên PR #12, merge sau #12. Commit code `b02c32d17eb88788b586c8c230a29f354f3faefb`. Chưa merge. Không gọi LLM trả phí. Không đụng upstream kadaliao.
 
 Prompt gửi model (router, worker, reviewer, import trí nhớ, lọc routine, draft skill, mô tả tool) chuyển sang tiếng Anh. `i18n.model_hint()` luôn gắn chỉ thị trả lời theo `i18n.lang()` (mặc định vi) cho cả ba ngôn ngữ. `in_lang="zh"` không còn trong code prompt. Nhãn Heavy `方案` đổi thành `Draft`.
 
