@@ -1,4 +1,4 @@
-"""Native skill store + opt-in resource loading. Synthetic payloads only; no LLM network."""
+"""Native skill store + read-only resource loading. Synthetic payloads; no LLM network."""
 import hashlib
 import json
 import shutil
@@ -34,7 +34,7 @@ def test_prepare_preserves_sources_and_helpers(pack):
     hashes = json.loads((root / "source-hashes.json").read_text())
     for relative, digest in hashes.items():
         actual = root / relative
-        original = source / relative.replace("SKILL.source.md", "SKILL.md")
+        original = source / relative
         assert actual.read_bytes() == original.read_bytes()
         assert hashlib.sha256(actual.read_bytes()).hexdigest() == digest
     for p in root.glob("*/SKILL.md"):
@@ -145,7 +145,8 @@ def test_archive_contains_full_packages(pack, tmp_path):
     with ZipFile(output) as z:
         names = z.namelist()
         assert sum(n.endswith("/SKILL.md") for n in names) == 8
-        assert "ai-native/refinery/SKILL.source.md" in names
+        assert "ai-native/refinery/SKILL.source.md" not in names
+        assert z.read("ai-native/refinery/SKILL.md").decode().endswith("Full method")
         assert "ai-native/vibecode-kit/scripts/helper.py" in names
         assert z.testzip() is None
 
@@ -219,3 +220,15 @@ def test_adapter_advertises_required_full_method(pack, make_bot):
     assert source["tool"] == "read_skill_resource"
     assert source["name"] == "vibecode-kit" and source["path"] == "SKILL.source.md"
     assert source["offset"] == 0 and "every source page" in source["required"]
+
+
+def test_prepare_excludes_caches_and_rejects_credential_files(pack):
+    root, source = pack
+    cache = source / "refinery" / "__pycache__"
+    cache.mkdir();(cache / "module.pyc").write_bytes(b"\0binary cache")
+    assert skillpacks.prepare(source, root)["source_files"] == 14
+    assert not (root / "refinery" / "__pycache__").exists()
+    (source / "refinery" / ".env").write_text("not a real credential")
+    with pytest.raises(ValueError, match="Credential"):
+        skillpacks.prepare(source, root)
+    assert skillpacks.verify_sources(root)["sha256"] == "PASS"

@@ -1,3 +1,5 @@
+> Cập nhật 07/11/2026 (Asia/Saigon): xác nhận quyền của chủ việc cho phép bundle đầy đủ và cài mặc định. Nội dung bên dưới là bằng chứng đợt cài ban đầu; hướng dẫn hiện hành ở ai-native-skills.md.
+
 # VERIFY: AI Native pack cho OSA
 
 Thời điểm: 07/11/2026 01:33 (Asia/Saigon). Phạm vi: cài local, không push, không gọi LLM trả phí, không gửi channel thật.

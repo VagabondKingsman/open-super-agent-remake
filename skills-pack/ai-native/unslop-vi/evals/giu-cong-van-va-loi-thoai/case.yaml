@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: giu-cong-van-va-loi-thoai
+expected_outcome: |
+  Sửa ít: giữ khuôn công văn và lời thoại nhân vật, chỉ bỏ câu sáo và hình ảnh sáo mòn.

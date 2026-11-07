@@ -1,0 +1,7 @@
+note: init
+sources:
+  catalog.csv:
+    mtime: '2026-10-14T06:16:29'
+    sha256: eb3725046d238708
+    size: 675
+updated: '2026-10-14T06:16:30'

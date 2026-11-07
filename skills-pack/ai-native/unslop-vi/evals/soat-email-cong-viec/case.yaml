@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: soat-email-cong-viec
+expected_outcome: |
+  Báo cáo soát theo mã quy tắc, đánh giá mức độ, không viết lại toàn bộ email, và giữ câu số liệu "3 trên 4 hạng mục" vì đó là phần tốt.

@@ -1,47 +1,50 @@
 {
-  "version": 1,
+  "version": 2,
   "skills": [
     {
       "name": "ai-work-method",
       "description": "Điều phối việc nhiều bước: phân rã mục tiêu, TIP, AC, chọn Skill Flow và nghiệm thu bằng chứng. Việc nhỏ một bước thì làm trực tiếp.",
       "focus": "Lập TIP có mục tiêu, input, output, AC, giới hạn; chọn Skill Flow và đối chiếu từng AC với bằng chứng.",
-      "redistribution": "unconfirmed-local-only"
+      "redistribution": "owner-authorized-bundled"
     },
     {
       "name": "vibecode-kit",
       "description": "Mọi việc code, sửa bug, test, refactor, audit: 8 bước SCAN đến REFINE, TIP/AC, VERIFY QA 3 tầng và Retro Rubric R1–R5.",
       "focus": "SCAN -> RRI -> VISION -> BLUEPRINT -> TASK GRAPH -> BUILD -> VERIFY -> REFINE; giữ TIP/AC, QA 3 tầng và Retro Rubric R1–R5.",
-      "redistribution": "unconfirmed-local-only"
+      "redistribution": "owner-authorized-bundled"
     },
     {
       "name": "refinery",
       "description": "Nghiên cứu/bảng so sánh nhiều nguồn ngoài: claims, snapshots, evidence_span, origin_id; kiểm bằng engine và bites; giữ disputed và honest-null.",
       "focus": "Thu claims kèm snapshot/evidence_span/origin_id; chạy refinery.py và bites.py; không gộp bản sao thành nguồn độc lập, không lấp honest-null.",
-      "redistribution": "unconfirmed-local-only"
+      "redistribution": "owner-authorized-bundled"
     },
     {
       "name": "sot-kernel-in-a-box",
       "description": "Kho dữ liệu chuẩn nội bộ có owner: source_canonical, adapter, SHA-256, A3 Guard, 6 bite tests và publish gate gắn digest.",
       "focus": "Nguồn có owner -> adapter -> registry -> baseline/check/bites -> publish gate; không tự biến claim thành verified_primary.",
-      "redistribution": "unconfirmed-local-only"
+      "redistribution": "owner-authorized-bundled"
     },
     {
       "name": "html3d-slides",
       "description": "Slide HTML tương tác/3D: brief, storyboard, DOM + 3D + Ambient chung state, điều khiển theo người nói, measure-ui.js và QA. Không phải PowerPoint.",
       "focus": "Chốt brief/storyboard; giữ chữ ở DOM, 3 lớp chung state; người nói điều khiển nhịp, kiểm measure-ui.js và fallback GPU.",
-      "redistribution": "unconfirmed-local-only"
+      "redistribution": "owner-authorized-bundled"
     },
     {
       "name": "unslop",
       "description": "Viết, sửa, soát tiếng Anh tự nhiên; blog từ brief VI, SEO pack và tóm tắt VI; giữ ý và nguồn. Không dùng cho code hay dịch nguyên văn.",
       "focus": "Chọn edit/audit/write; giữ số liệu, trích dẫn và giọng tác giả; đọc quy tắc và chạy scripts/scan_en.py rồi phán đoán ngữ cảnh.",
-      "redistribution": "unconfirmed-local-only"
+      "redistribution": "owner-authorized-bundled"
     },
     {
       "name": "unslop-vi",
       "description": "Viết, sửa, soát tiếng Việt sạch: bỏ sáo ngữ/văn dịch máy, giữ ý, số liệu, giọng tác giả; dùng cho README, PR, tài liệu và bài viết VI.",
       "focus": "Chọn sửa/soát/viết sạch; giữ vùng bảo vệ; quét scripts/scan_vi.py, sửa có ngữ cảnh, không bịa số hoặc nguồn.",
-      "redistribution": "unconfirmed-local-only"
+      "redistribution": "owner-authorized-bundled"
     }
-  ]
+  ],
+  "author": "Tin Tin team",
+  "license": "MIT",
+  "ownership_confirmation": "Owner authorized bundling of all seven team-authored skills on 2026-11-07 (Asia/Saigon)."
 }
