@@ -129,4 +129,6 @@ Branch `grok-bot/osa-012-sw-offline-vi`. [PR #14](https://github.com/VagabondKin
 
 Cookie không dùng được: Chrome không đưa header Cookie vào fetch của service worker. Đã đo trên Chrome headless trong phiên này. `navigator.language` không dùng, vì cài mới vẫn mặc định tiếng Việt.
 
-Số test của phiên nằm ở [log OSA-012](log/2026-11-07-grok-bot-osa-012.md). Trên máy này `pytest` 233 passed, 3 skipped vì không có bubblewrap. 3 SKIP không phải PASS. Browser đã mở trang offline từ `sw.js` thật sau khi tắt server. Live provider là NOT_CHECKED. Docker Computer E2E là NOT_CHECKED.
+Số test của phiên nằm ở [log OSA-012](log/2026-11-07-grok-bot-osa-012.md). Trên máy này `pytest` 233 passed, 3 skipped vì không có bubblewrap. 3 SKIP không phải PASS. Browser đã mở trang offline từ `sw.js` thật sau khi tắt server. Live provider là NOT_CHECKED. Docker Computer E2E trên máy này là NOT_CHECKED.
+
+CI trên head `04d8832`, run `42370109157`: backend, frontend, docker đều success. 0 failed. Đối chiếu 18:55 Asia/Saigon. PR #14 vẫn chưa merge.
