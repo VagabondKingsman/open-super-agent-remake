@@ -178,6 +178,8 @@
   "任务 #{id} 的结果": "Kết quả tác vụ #{id}",
   "任务失败": "TaskThất bại",
   "任务完成": "TaskHoàn thành",
+  "任务部分完成": "Tác vụ hoàn thành một phần",
+  "部分完成": "Một phần",
   "任务已取消": "Task đã hủy",
   "任务最长跑多久（秒）": "Task chạy tối đa bao lâu (giây)",
   "企业内机器人发送消息权限": "Quyền Bot nội bộ gửi tin",

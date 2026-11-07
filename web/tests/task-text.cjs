@@ -26,6 +26,19 @@ for (const language of ['vi', 'en', 'zh']) {
     assert.equal(Number(id[1] || id[2] || id[3]), 42)
   })
 }
+test('partial heavy status is labeled in the task UI', () => {
+  const tasks = fs.readFileSync(path.join(__dirname, '../src/components/Tasks.tsx'), 'utf8')
+  assert.match(tasks, /partial: t\('部分完成'\)/)
+  assert.match(chat, /t\('任务部分完成'\)/)
+  assert.match(chat, /status === 'partial'/)
+  for (const language of ['en', 'vi']) {
+    const catalog = JSON.parse(fs.readFileSync(path.join(__dirname, '../src/locales', `${language}.json`), 'utf8'))
+    assert.equal(typeof catalog['部分完成'], 'string')
+    assert.equal(typeof catalog['任务部分完成'], 'string')
+    assert.ok(catalog['部分完成'])
+    assert.ok(catalog['任务部分完成'])
+  }
+})
 test('task header stripping preserves ordinary bracketed text', () => {
   for (const pattern of [TASK_DISPATCH, TASK_RESULT, ROUTINE_LABEL]) {
     assert.equal('[RFC 42] Audit notes'.replace(pattern, ''), '[RFC 42] Audit notes')

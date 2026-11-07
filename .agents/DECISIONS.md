@@ -53,6 +53,25 @@ Verify live trên head `c9480ef` chỉ ra guard dùng chung `Task.recent_calls`,
 
 Nguồn là task OSA-009. Tin Tin duyệt tạo task và sửa. ADR này không đổi quyền merge.
 
+## ADR-010 · Accepted · Heavy dừng đúng chỗ khi thiếu draft hoặc hết hạn mức
+
+Live test 07/11/2026 (Experiential, task #48–50 và #61–63) cho thấy một lượt người dùng tạo nhiều Heavy, reviewer vẫn chạy khi chỉ có 0–1 draft, task lỗi vẫn `done`, và burst worker gặp 429 trong khi gọi tuần tự thì 200.
+
+Quyết định trong OSA-010, Tin Tin duyệt scope:
+
+- Một lượt Router chỉ giữ một Heavy. Lần `dispatch` heavy sau trong cùng lượt trả lại task đã có.
+- `heavy.min_drafts` mặc định 2. Ít hơn thì task `failed`, không gọi reviewer.
+- Draft đủ nhưng có worker lỗi: vẫn tổng hợp, status `partial`.
+- 402 và 429 mang `org_token_rate_limit_day`, `insufficient_quota`, `free_limit_reached`, `budget_exceeded` không retry, dừng task, không gọi reviewer.
+- 429 `rate_limit_exceeded` (và 429 không thuộc mã hạn mức) chờ `Retry-After`, có trần `provider_retry_cap_s` (mặc định 120 giây) và số lần `provider_rate_retries` (mặc định 1).
+- `heavy.concurrency` mặc định 1. `heavy.workers` vẫn là số nhà nghiên cứu, không còn nghĩa “phát cùng lúc”.
+
+Phương án bị loại: vẫn gọi reviewer khi thiếu draft (bản tổng hợp trong live phủ nhận tool đã chạy), và giữ concurrency bằng số worker (burst ~8 request cùng lúc nhận 429).
+
+Hệ quả: Heavy mặc định chậm hơn vì các nhà nghiên cứu chạy lần lượt. Cấu hình cũ không có `concurrency` cũng nhận mặc định 1. 408/409/5xx vẫn retry tối đa 2 lần.
+
+Nguồn là task OSA-010 và báo cáo live đính kèm phiên. ADR này không đổi quyền merge.
+
 ## Thêm ADR
 
 `ADR-ID · Proposed/Accepted/Superseded · ngày Asia/Saigon` → context → decision → alternatives/why → consequences → source/approval → ADR thay thế nếu có. Giữ quyết định cũ và ghi superseded; không sửa lịch sử cho khớp hindsight.
