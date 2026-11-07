@@ -161,3 +161,13 @@ Append. Không sửa các mục phía trên. `origin/i18n-vi` lúc mở OSA-014 
 Deploy box của SHA này, Tin Tin báo, phiên docs không mở DB. Process giữ `/workspace/osa-run/osa.db`. Thư mục `/workspace/osa-run/data` không tồn tại. 103 dòng usage, tổng ¥0.18457 thành $0.02600. Cờ `cost_unit` có `currency` USD, `legacy_cny_per_usd` 7.1, `repriced_models` 0, `divided_rows` 64. File `config.experiential.yaml` trên box vẫn khai ¥. Chi tiết và cách backup fd nằm ở [OPS](OPS.md).
 
 Branch `grok-bot/osa-014-handoff`. [PR #16](https://github.com/VagabondKingsman/open-super-agent-remake/pull/16) vào `i18n-vi`. Việc của branch là viết bàn giao trong `.agents/` để bot mới chỉ đọc thư mục đó là tiếp tục được. Chưa merge. Không gọi LLM trả phí. Không đụng upstream kadaliao. Log: [OSA-014](log/2026-11-07-grok-bot-osa-014.md).
+
+## Bổ sung · live OSA-011 vào PR #16 · 07/11/2026
+
+Append. Câu "Live provider sau bản sửa là NOT_CHECKED" trong mục OSA-011 phía trên là trạng thái lúc viết PR #13. Tin Tin đưa bằng chứng box vào PR #16.
+
+Head lúc chạy: `f83e3cb486b82a036d54303c6cba437840f49f18`. Provider Experiential, model đuôi `:free`, cost ghi 0. Bốn lượt: vi 2,01 giây, en 2,01 giây, single task #75 done 29,19 giây, heavy task #79 done 124 giây. CJK 0 ở cả bốn. Đúng một heavy task, 3 góc nhìn và reviewer. Không có `方案`.
+
+14 dòng usage, 116.236 token. Vượt mục tiêu khoảng 100.000 nên routine không chạy. Guard harness đếm sai cột token, phải sửa trước đợt sau. Websocket dừng vì regex 402 khớp offset 14025. Log server không có lỗi 402. `results.json` giữ heavy đang `running` tại 60,38 giây. Latency 124 giây lấy từ `summary.json` và báo cáo.
+
+Bằng chứng: [LIVE-TEST](evidence/osa-011-live-test/LIVE-TEST.md), [summary](evidence/osa-011-live-test/summary.json), [results](evidence/osa-011-live-test/results.json), [live.py](evidence/osa-011-live-test/live.py), [finish.py](evidence/osa-011-live-test/finish.py). Không có thư mục `raw/`. Phiên này không gọi lại provider.

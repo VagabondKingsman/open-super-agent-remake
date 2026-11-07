@@ -1,0 +1,48 @@
+[
+  {
+    "name": "vi",
+    "seconds": 2.01,
+    "cjk": 0,
+    "reply": "Đọc sách là cách rẻ nhất để mượn trí tuệ của người khác trong vài giờ.",
+    "tasks": [],
+    "stop": false
+  },
+  {
+    "name": "en",
+    "seconds": 2.01,
+    "cjk": 0,
+    "reply": "Giấc ngủ quan trọng vì nó giúp não củng cố ký ức, cơ thể phục hồi và hệ miễn dịch, cảm xúc cũng như sự tập trung hoạt động ổn định hơn.",
+    "tasks": [],
+    "stop": false
+  },
+  {
+    "name": "single",
+    "seconds": 29.19,
+    "cjk": 0,
+    "reply": "Đã giao task #75 (mode single) cho worker: so sánh SQLite và PostgreSQL cho ứng dụng cá nhân hoàn toàn bằng kiến thức sẵn có, không dùng web hay công cụ ngoài, kèm bảng so sánh ngắn và phần \"Kết luận\" tối đa 80 từ.\n\nTôi không tự trả lời thay worker. Kết quả sẽ được trả về trong chat này khi worker xong.",
+    "tasks": [
+      {
+        "id": 75,
+        "mode": "single",
+        "status": "done",
+        "result": "## So sánh nhanh SQLite và PostgreSQL (ứng dụng cá nhân, single-user, quy mô nhỏ)\n\n| Tiêu chí | SQLite | PostgreSQL |\n|---|---|---|\n| Cài đặt / vận hành | Thư viện nhúng, DB là 1 file; không cần server, không cấu hình, không cấp user/quyền; sao lưu = copy file | Phải cài và chạy dịch vụ nền; quản lý role/quyền, cổng, `pg_hba.conf`; sao lưu bằng `pg_dump`/WAL; cần giám sát, nâng cấp, bảo trì |\n| Hiệu năng | Đọc/ghi trong tiến trình, không qua mạng nên độ trễ rất thấp; dư sức cho dữ liệu cỡ vài GB, truy vấn đơn giản | Truy vấn phức tạp, join nặng, dữ liệu lớn tốt hơn nhờ planner/index mạnh; nhưng có overhead kết nối mạng và tinh chỉnh tham số |\n| Tính năng | SQL cơ bản đầy đủ, transaction ACID, JSON1, FTS5, window function/CTE (bản mới); thiếu kiểu dữ liệu phong phú, extension, trigger mạnh | Kiểu dữ liệu giàu (JSONB, array, range, enum), MVCC, full-text search, nhiều loại index, trigger/stored procedure, hệ extension lớn (PostGIS, pg_trgm) |\n| Đồng thời / đa người dùng | Chỉ một writer tại một thời điểm (khóa ghi toàn cục); WAL cho phép đọc song song khi đang ghi, nhưng không hợp nhiều người ghi | MVCC + khóa theo dòng, nhiều kết nối ghi đồng thời, phù hợp đa người dùng |\n| Chi phí | Miễn phí (public domain), không tốn hạ tầng, không có hóa đơn vận hành | Phần mềm miễn phí (giấy phép PostgreSQL), nhưng tốn hạ tầng/vận hành: server, backup, giám sát; bản managed tốn phí hàng tháng |\n\n## Kết luận\n\nVới ứng dụng cá nhân, single-user, quy mô nhỏ, SQLite là mặc định: một file, không server, không cấu hình, sao lưu dễ, độ trễ thấp, miễn phí. PostgreSQL chỉ đáng khi cần nhiều người ghi đồng thời, truy vấn phức tạp, kiểu dữ liệu phong phú hoặc muốn mở rộng đa người dùng. Chưa có nhu cầu đó, PostgreSQL chỉ thêm chi phí vận hành. Bắt đầu với SQLite, chuyển khi nhu cầu xuất hiện.\n\n---\n\n*Kiểm chứng: verify_facts trên đúng đoạn Kết luận ở trên → PASS, 76 từ (giới hạn ≤ 80 từ); đo theo whitespace tokens, không phải từ ngữ học tiếng Việt. Nội dung so sánh dựa trên kiến thức sẵn có, không dùng web/công cụ ngoài.*"
+      }
+    ],
+    "stop": false
+  },
+  {
+    "name": "heavy",
+    "seconds": 60.38,
+    "cjk": 0,
+    "reply": "Tôi dispatch đúng một task heavy ngay bây giờ.\n\nĐã dispatch task heavy #79: nhiều góc nhìn (mỗi góc tối đa 50 từ) + reviewer hợp nhất thành kết luận cuối tối đa 80 từ, so sánh SQLite và PostgreSQL cho ứng dụng cá nhân.\n\nRàng buộc đã ghi rõ trong goal: không web, không ghi file, không công cụ ngoài, chỉ chạy một task duy nhất. Bạn có thể tiếp tục chat trong lúc chờ kết quả.",
+    "tasks": [
+      {
+        "id": 79,
+        "mode": "heavy",
+        "status": "running",
+        "result": null
+      }
+    ],
+    "stop": true
+  }
+]

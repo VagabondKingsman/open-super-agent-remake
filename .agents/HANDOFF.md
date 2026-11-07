@@ -63,7 +63,7 @@ Việc đã vào code, rút từ log và từ code ở `c16e6bb`:
 - Chi phí là USD. `settings.cost_unit` chặn lần chia thứ hai. Tab giới hạn vẫn là token, bước, giây.
 - `OSA_DATA_DIR` chuyển DB, apps, workspace, log của `scripts/osa-start.sh` khi `memory.db` là đường tương đối. Đường tuyệt đối thì không. Xem OSA-015.
 
-Live Experiential "4/4, 0 chữ CJK" sau OSA-011 nằm trong ghi chú phiên Kingfisher, không nằm trong log đã commit. Log PR #13 ghi live provider `NOT_CHECKED`. Phiên OSA-014 không gọi provider. Giữ cả hai nguồn. Đừng lấy 4/4 làm PASS của repo.
+Live OSA-011 đã có trong repo: [bằng chứng](evidence/osa-011-live-test/LIVE-TEST.md), head lúc chạy `f83e3cb`, Experiential, mọi model đuôi `:free`, cost ghi 0. Bốn lượt chat (vi, en, single, heavy) đều CJK 0. Báo cáo để trạng thái PARTIAL. 14 dòng usage, 116.236 token (`cache_hit` + `cache_miss` + `output`), vượt mục tiêu khoảng 100.000 nên không chạy routine. Guard harness cộng cột `input` thay vì `cache_hit` + `cache_miss`, phải sửa trước đợt sau. Harness dừng websocket vì regex 402 khớp offset 14025. Log server không có 402. `results.json` còn heavy `running` ở 60,38 giây. `summary.json` ghi heavy PASS 124 giây. Thư mục `raw/` không đưa vào git. Câu `NOT_CHECKED` trong log OSA-011 là lời lúc mở PR #13.
 
 ## Còn lại
 
