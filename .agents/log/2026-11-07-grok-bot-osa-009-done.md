@@ -70,6 +70,6 @@ READY cho PR tài liệu. Không phải GO cho bot tự chạy dài. OSA-010 cò
 
 ## Còn mở / next step
 
-- PR của branch `grok-bot/state-osa-009-done` vào `i18n-vi`. Tin Tin merge nếu duyệt. Phiên này không merge.
+- [PR #11](https://github.com/VagabondKingsman/open-super-agent-remake/pull/11), branch `grok-bot/state-osa-009-done`, vào `i18n-vi`. Tin Tin merge nếu duyệt. Phiên này không merge.
 - OSA-010 chưa có owner. Việc đầu của owner sau này là harness tất định kiểm goal/marker, trước mọi paid run.
 - STATE và BOARD cập nhật trong cùng commit với log này.

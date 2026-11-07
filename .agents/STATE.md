@@ -91,3 +91,5 @@ Box live trên Zro, VERIFY 15:48 Asia/Saigon, cùng head `255246f`:
 - Chưa phải GO cho chạy dài. long12 FAIL: 13 lần `verify_facts` cộng 1 tool lạ, tổng cuối 11, task #5 vẫn `done` sau 15 vòng model. Single task thiếu marker `PR10_SINGLE_DONE`. Các FAIL này thành OSA-010, owner chưa nhận.
 
 Số liệu box lấy từ VERIFY đính kèm phiên docs, không chép artifact private lên git. Log phiên docs: [log](log/2026-11-07-grok-bot-osa-009-done.md). Phiên docs không gọi LLM trả phí và không sửa code runtime.
+
+PR tài liệu của phiên này: [#11](https://github.com/VagabondKingsman/open-super-agent-remake/pull/11), branch `grok-bot/state-osa-009-done`, vào `i18n-vi`. Chưa merge.
