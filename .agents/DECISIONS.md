@@ -72,6 +72,23 @@ Hệ quả: Heavy mặc định chậm hơn vì các nhà nghiên cứu chạy l
 
 Nguồn là task OSA-010 và báo cáo live đính kèm phiên. ADR này không đổi quyền merge.
 
+## ADR-011 · Accepted · Prompt gửi model dùng tiếng Anh, câu trả lời theo ngôn ngữ giao diện
+
+Live sau OSA-009: UI là tiếng Việt, user nhắn tiếng Anh, router trả tiếng Trung ("已重新派发…"). Heavy còn để nhãn `方案` trong prompt reviewer, và câu trả lời tiếng Việt lẫn chữ đó. Prompt hệ thống và mô tả tool gốc viết bằng tiếng Trung, nên model bám tiếng Trung. `model_hint()` để trống khi lang là zh, và bản en của hint vẫn là câu tiếng Trung. `routines.describe(..., in_lang="zh")` cố định lịch trong prompt router.
+
+Quyết định trong OSA-011, Tin Tin giao scope:
+
+- Prompt, mô tả tool, và câu lệnh chèn vào context gửi model viết bằng tiếng Anh. Giữ placeholder, hợp đồng JSON, và marker mà code đọc.
+- `i18n.ANSWER_LANG` là một đoạn tiếng Anh cho vi, en, zh. `model_hint()` luôn nối đoạn của `i18n.lang()` (mặc định vi) vào cuối prompt router, worker, reviewer, import trí nhớ, lọc sự kiện, và draft skill.
+- Nhãn draft Heavy là `=== Draft N ===`. Prompt reviewer cấm chép marker đó vào câu trả lời.
+- `in_lang="zh"` không còn trong code gọi prompt. Lịch trong prompt dùng ngôn ngữ giao diện hiện tại.
+- Marker hệ thống gửi model đổi sang tiếng Anh (`system notice`, `system-attached current state`, `system image`, `[bot: name]`). `defang` vẫn gỡ marker Trung cũ và marker Anh mới. Quiet marker chỉ thị model là `[nothing new]`; regex vẫn nhận `无新内容` / `没有新内容`.
+- Dòng user thấy (thẻ, log tool, lỗi) vẫn là khóa i18n tiếng Trung. Kết quả tool trước đây viết cứng tiếng Trung và hiện trong task log chuyển sang `i18n.t`.
+
+Không làm trong ADR này: dịch persona của template có sẵn (vi và en đã phủ `en:` lúc cài; zh giữ nguồn Trung), mô tả tool do MCP server trả về, nội dung user viết (instruction, memory, skill), và validator chặn output sai ngôn ngữ. Chỉ thị không sửa chữ model đã viết.
+
+Nguồn là task OSA-011. ADR này không đổi quyền merge.
+
 ## Thêm ADR
 
 `ADR-ID · Proposed/Accepted/Superseded · ngày Asia/Saigon` → context → decision → alternatives/why → consequences → source/approval → ADR thay thế nếu có. Giữ quyết định cũ và ghi superseded; không sửa lịch sử cho khớp hindsight.

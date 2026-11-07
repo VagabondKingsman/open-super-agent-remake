@@ -262,11 +262,12 @@ def snippet(text: str, q: str, width: int = 120) -> str:
 # ---------- 给 Bot 用的工具 ----------
 SEARCH_TOOL = {"type": "function", "function": {
     "name": "search_memory",
-    "description": "按意思查长期记忆和资料库里的页面。提示词里只放了最近的记忆；用户提到以前说过的事、以前做过的报告或页面，"
-                   "或者要参考之前的结果时用它。查到页面要看全文用 read_page。",
+    "description": "Search long-term memories and library pages by meaning. The prompt only includes recent memories. "
+                   "Use this when the user mentions something said earlier, an older report or page, or you need a previous result. "
+                   "Use read_page for the full page.",
     "parameters": {"type": "object", "properties": {
-        "query": {"type": "string", "description": "要找什么，用自然的说法；可以多写几个同义的词"},
-        "scope": {"type": "string", "enum": ["all", "memories", "pages"], "description": "默认 all"}},
+        "query": {"type": "string", "description": "What to find, in natural language. A few synonyms help."},
+        "scope": {"type": "string", "enum": ["all", "memories", "pages"], "description": "Default all"}},
         "required": ["query"]}}}
 
 

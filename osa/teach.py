@@ -141,14 +141,14 @@ def describe(events: list[dict], started: float) -> list[str]:
     return out[-300:]
 
 
-DRAFT_PROMPT = """用户刚在浏览器里演示了一遍怎么做一件事，下面是录下来的操作（时间、动作、页面、元素）。
-请把它整理成一个可复用的技能，让 Bot 以后能用自己的浏览器工具照着做（打开网址、按文字找到按钮或输入框点击、输入、回车、读页面）。
-- name：简短的名字，用中文、字母、数字、- 或 _，不超过 12 个字，不要空格。
-- description：一句话说明什么时候用。
-- body：完整的做法，分步骤写：从哪个网址开始，点哪个按钮（写按钮上的文字），在哪个输入框输入什么，最后怎么判断做完、要给用户什么结果。
-  看起来每次会变的内容（搜索词、日期、收件人等）写成「{要搜索的内容}」这样的占位，并在开头说明调用时由用户补充。
-  密码、验证码不要写进技能；遇到登录或验证码，写“请用户接手电脑处理”。演示里多余的、点错又退回的步骤去掉。
-只输出 JSON：{"name": "...", "description": "...", "body": "..."}"""
+DRAFT_PROMPT = """The user just demonstrated a task in the browser. Below is the recorded trace (time, action, page, element).
+Turn it into a reusable skill so a bot can repeat it with its browser tools (open a URL, find a button or field by its visible text, click, type, press Enter, read the page).
+- name: a short name in the reply language, using letters, digits, "-" or "_", no spaces, at most 40 characters.
+- description: one sentence, in the reply language, saying when to use the skill.
+- body: the full method as steps, in the reply language. Say which URL to open, which button text to click, which field to fill, how to tell it is done, and what to show the user.
+  Values that change each time (search query, date, recipient) become placeholders, and the opening says the user supplies them when they call the skill.
+  Do not put passwords or captchas in the skill. For login or captcha, say the user should take over the computer. Drop mistaken detours from the demo.
+Output JSON only: {"name": "...", "description": "...", "body": "..."}"""
 
 
 def _parse(text: str) -> dict:
@@ -165,7 +165,7 @@ def _parse(text: str) -> dict:
 
 async def draft_skill(steps: list[str], note: str = "") -> dict:
     client, model = client_for("router")
-    user = (f"用户说要演示的是：{note}\n\n" if note else "") + "录到的操作：\n" + "\n".join(steps)
+    user = (f"The user said this demo is: {note}\n\n" if note else "") + "Recorded actions:\n" + "\n".join(steps)
     d = {}
     for _ in range(2):   # 解析不出来就再问一次
         resp = await client.chat.completions.create(model=model, messages=[

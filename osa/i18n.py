@@ -1,7 +1,7 @@
 """界面语言。中文原文就是翻译的键：t("没有这个 Bot") 在英文界面返回 locales/en.json 里对应的英文。
 越南语缺这句时改用英文；英文也没有就返回中文原文。语言包缺失、读不出、JSON 坏了或不是对象时记一条警告并当作空目录，导入不会因此失败。
 
-只翻用户会看到的文字（接口报错、对话里的系统消息、卡片、推送、聊天软件里的按钮）；写给模型的提示词和工具说明保持中文。
+只翻用户会看到的文字（接口报错、对话里的系统消息、卡片、推送、聊天软件里的按钮）。写给模型的提示词和工具说明用英文，再附上 ANSWER_LANG。
 存进数据库、之后还要按原文比对的标记（比如 “[新话题]”）不要翻，在显示的地方翻。
 
 语言存在 settings 表的 language 里，前后端共用。没设过时：默认越南语；旧 remake 的 overrides.locale 迁移一次，已设的 language 优先。
@@ -140,17 +140,26 @@ def N_(zh: str) -> str:
     return zh
 
 
-def model_hint() -> str:
-    """写给模型的一句语言要求。中文界面不加，行为和以前一样。
+_REPLY_RULE = (
+    "Write every user-visible answer in that language, including summaries, pages, and memories you save. "
+    "Use another language only when the user's own request is written in that language. "
+    "Do not switch to a third language. "
+    "Keep tool names, URLs, code, JSON keys, and exact markers unchanged."
+)
+# 写给模型的回复语言。三种界面都用英文指令，避免提示词本身把回答带向中文。
+ANSWER_LANG = {
+    "vi": "Reply in Vietnamese. The UI language is Vietnamese. " + _REPLY_RULE,
+    "en": "Reply in English. The UI language is English. " + _REPLY_RULE,
+    "zh": "Reply in Chinese. The UI language is Chinese. " + _REPLY_RULE,
+}
 
-    这只是指令。模型仍可能用别的语言回答，调用方不要把输出改写成界面语言来假装遵守了。"""
-    if lang() == "vi":
-        return ("\nNgôn ngữ giao diện là tiếng Việt. Câu trả lời cuối cho người dùng phải bằng tiếng Việt. "
-                "Chỉ dùng ngôn ngữ khác khi chính yêu cầu được viết bằng ngôn ngữ đó. Không chuyển sang ngôn ngữ thứ ba.")
-    if lang() == "en":
-        return ("\n用户的界面语言是英文：默认用英文回复，结果、页面和记下的记忆也用英文；"
-                "只有任务原文是别的语言时才跟着用那种语言，不要换成第三种语言。")
-    return ""
+
+def model_hint() -> str:
+    """English reply-language directive for the current UI language.
+
+    This is only an instruction. Callers must not rewrite model output to fake compliance."""
+    language = lang() if lang() in ANSWER_LANG else "vi"
+    return "\n" + ANSWER_LANG[language]
 
 
 def both(zh: str) -> set[str]:

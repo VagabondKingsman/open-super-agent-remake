@@ -111,19 +111,20 @@ def link(pid: int) -> str:
 
 SAVE_PAGE = {"type": "function", "function": {
     "name": "save_page",
-    "description": "把成品（报告、清单、对比表、网页等）保存成资料库里的页面，返回页面链接。"
-                   "用户要“做成页面/报告/可以分享的页面”，或结果很长、以后还要看时用。给 page_id 就是更新那个页面。",
+    "description": "Save a finished artifact (report, list, comparison, web page) as a library page and return its link. "
+                   "Use it when the user asks for a page, a report, or a shareable page, or when the result is long and will be read again. "
+                   "Pass page_id to update that page.",
     "parameters": {"type": "object", "properties": {
         "title": {"type": "string"},
-        "content": {"type": "string", "description": "页面全文。markdown 用 Markdown；html 是完整的 HTML（可以带内联 CSS 和脚本）"},
+        "content": {"type": "string", "description": "Full page text. markdown is Markdown. html is a complete HTML document; inline CSS and scripts are allowed."},
         "format": {"type": "string", "enum": list(FORMATS)},
-        "page_id": {"type": "integer", "description": "可选：要更新的页面编号"}},
+        "page_id": {"type": "integer", "description": "Optional: id of the page to update"}},
         "required": ["title", "content"]}}}
 
 
 READ_PAGE = {"type": "function", "function": {
     "name": "read_page",
-    "description": "读资料库里一个页面的全文（html 页面只给文字）。页面编号可以用 search_memory 查到",
+    "description": "Read the full text of one library page (HTML pages return text only). Find the page id with search_memory.",
     "parameters": {"type": "object", "properties": {"page_id": {"type": "integer"}}, "required": ["page_id"]}}}
 
 
