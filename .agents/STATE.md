@@ -1,6 +1,6 @@
 # Snapshot bàn giao · 07/11/2026
 
-Mốc public đã xác minh: `origin/i18n-vi = 2a36b59ca9d6236cd60935d71a2da8fcb690d8d1` (PR #5). Đây là **snapshot**, không phải latest vĩnh viễn. Phiên mới phải fetch/đọc ref và PR đang mở. Giờ trong file là **Asia/Saigon (UTC+7)**; ngày 07/11/2026 áp dụng cho bảng PR.
+Mốc public đã xác minh: `origin/i18n-vi = 3c08269da64dc26941e064267221c7af28af1dca` (merge PR #6, 07/11/2026 08:26:01 Asia/Saigon). Đây là **snapshot**, không phải latest vĩnh viễn. Phiên mới phải fetch/đọc ref và PR đang mở. Giờ trong file là **Asia/Saigon (UTC+7)**; ngày 07/11/2026 áp dụng cho bảng PR.
 
 ## Phiên bản và những gì đã merge
 
@@ -13,6 +13,7 @@ OSA v0.6.0 + VI/EN/ZH; AI Native manifest version 2. Bảy package team-authored
 | [#3](https://github.com/VagabondKingsman/open-super-agent-remake/pull/3) | 01:03:49 | afdea0e | Localize nhãn/goal task của routine theo ngôn ngữ UI; không rewrite lịch sử chat cũ. |
 | [#4](https://github.com/VagabondKingsman/open-super-agent-remake/pull/4) | 03:34:28 | 7c20454 | Skill pack/mentor, paging dài, verify_facts, inspect_repo/check_patch và live-eval v1–v3. |
 | [#5](https://github.com/VagabondKingsman/open-super-agent-remake/pull/5) | 07:51:47 | 2a36b59 | Bundle bảy nguồn + helpers, SHA-256, LICENSE/NOTICE và default shared install/reconcile/opt-out. |
+| [#6](https://github.com/VagabondKingsman/open-super-agent-remake/pull/6) | 08:26:01 | 3c08269 | Handoff `.agents/`, Skill Flow, STATE/BOARD/log. `merged_at` API `2026-11-07T01:26:01Z`, đổi sang UTC+7. |
 
 Nguồn bảng: GitHub PR API `merged_at` chuyển UTC+7, đối chiếu git log. Không dùng commit author time làm merge time. Một số report lịch sử có timezone/giờ tiêu đề không nhất quán; ngày ADR dùng 07/11, trình tự merge lấy API, không sửa nguồn để giấu khác biệt.
 
@@ -39,7 +40,7 @@ Nguồn chi tiết: `docs/vi/ai-native-live-eval.md`, `ai-native-default-install
 ## Local-only và giới hạn
 
 - Nhánh local cũ được giữ ở `safety/i18n-vi-before-shared-handoff-20261107`, tip `abe6207`. Trước sync tree bằng public 2a36b59 (diff rỗng), không copy lại commit cũ chỉ vì SHA khác. Local i18n-vi đã ở public tip, handoff làm trên `build-bot/shared-handoff`.
-- Công bố trên remake: [PR #6](https://github.com/VagabondKingsman/open-super-agent-remake/pull/6), branch `build-bot/shared-handoff`, base `2a36b59ca9d6236cd60935d71a2da8fcb690d8d1`. Commit patch `a682ad9a4426aa3aa1ffd1824d0b304789b19225`, tree `0904f3de3c8ac455478b03d746fd352fe583c7f8` khớp manifest. Chưa merge. Không force-push và không đụng upstream kadaliao.
+- Công bố trên remake: [PR #6](https://github.com/VagabondKingsman/open-super-agent-remake/pull/6) đã merge vào `i18n-vi` lúc 08:26:01 Asia/Saigon, merge commit `3c08269da64dc26941e064267221c7af28af1dca`. Branch `build-bot/shared-handoff`, base `2a36b59ca9d6236cd60935d71a2da8fcb690d8d1`. Commit patch `a682ad9a4426aa3aa1ffd1824d0b304789b19225`, tree `0904f3de3c8ac455478b03d746fd352fe583c7f8` khớp manifest. Không force-push và không đụng upstream kadaliao.
 - CloudAgent, 07/11/2026 08:25 Asia/Saigon (UTC+7): `osa.i18n` PASS (EN/VI backend 500, frontend 883, thiếu/thừa 0, Chinese UI chưa wrap 0); `pytest -q` 172 passed, 0 skipped với bubblewrap 0.9.0 (3 SKIP ở `tests/test_local_checks.py` nếu không có bwrap); frontend `npm test` 15 passed, 0 skipped; `npm run build` PASS, JS 1.153,85 kB / gzip 374,59 kB, warning >500 kB còn; `verify-sources` 129 PASS. Không commit package-lock. CI remote của PR #6 là bằng chứng chính.
 - DB/config/vault/browser sessions/operator fixture registry/backup/full eval traces chỉ nằm trên máy vận hành; không đưa lên GitHub. Tài khoản/máy mới phải tự thiết lập và được cấp quyền, không kế thừa credential của Build Bot.
 - **Worker live** / Router→Worker skill chain chưa nghiệm thu với paid model; FakeLLM wiring không thay bằng chứng đó.
@@ -53,4 +54,4 @@ Nguồn chi tiết: `docs/vi/ai-native-live-eval.md`, `ai-native-default-install
 
 ## Bước tiếp theo
 
-Chọn task trong BOARD; ưu tiên Worker live (cần approval budget) hoặc Docker/browser QA trên môi trường phù hợp. Không chạy paid API/tunnel/real channel chỉ vì mục đó nằm trong backlog. Mọi bot cập nhật STATE/BOARD/log trong PR của mình.
+OSA-006 (CONTRIBUTING cho bot/remake) là [PR #7](https://github.com/VagabondKingsman/open-super-agent-remake/pull/7) trên `grok-bot/contributing-bots`. Tin Tin merge. Chưa merge thì task chưa Done. Việc khác trên BOARD vẫn chờ owner: Worker live cần approval budget, Docker/browser QA cần máy phù hợp. Không chạy paid API, tunnel hay channel thật chỉ vì mục đó nằm trong backlog. Kết quả lệnh của phiên OSA-006 nằm ở [log phiên](log/2026-11-07-grok-bot.md), không lấy số test của PR #6 làm kết quả chạy mới.

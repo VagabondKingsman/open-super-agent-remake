@@ -20,7 +20,6 @@ Snapshot 07/11/2026, Asia/Saigon (UTC+7). GitHub PR + base mới là trạng th�
 | OSA-003 | Code-split bundle frontend | Baseline + đo trước/sau, lazy route/component phù hợp, build/tests + browser regression; giữ VI/EN/ZH. Chốt target với owner, không bịa ngưỡng đã duyệt. | Chưa nhận |
 | OSA-004 | Kiểm release mới kadaliao | Read-only release/tag/diff sau v0.6.0, bảng delta/VI/security risks; chỉ port forward commits trên remake khi được giao. Không PR upstream. | Chưa nhận |
 | OSA-005 | Rà/hardening GitHub Actions | CI đã có backend/frontend/Docker. Kiểm check-runs, trigger push i18n-vi, reporting sandbox skips và skill hashes; đề xuất gap rồi chốt thay đổi, không “tạo CI lần đầu”. | Chưa nhận |
-| OSA-006 | CONTRIBUTING dành cho bots/remake | File hiện có là hướng dẫn upstream; bổ sung VI, i18n-vi target, .agents links, claim/approval/test-isolation; không yêu cầu chạy routine/channel thật mặc định. | Chưa nhận |
 | OSA-007 | Rendered onboarding/responsive QA | Fresh isolated data, VI/EN/ZH persistence, empty states, navigation/keyboard, 375/768/1440, ảnh/evidence đã làm sạch. Không khai PASS bằng build. | Chưa nhận |
 | OSA-008 | Reconcile crash/drift review | Fault injection temp data cho FS/SQLite boundary, preserved edits/deletions; đề xuất recovery không mất dữ liệu, không auto-force reinstall. | Chưa nhận |
 
@@ -28,10 +27,11 @@ Snapshot 07/11/2026, Asia/Saigon (UTC+7). GitHub PR + base mới là trạng th�
 
 | ID | Owner / branch | Trạng thái / bước tiếp |
 |---|---|---|
-| OSA-H01 | Build Bot / build-bot/shared-handoff | [PR #6](https://github.com/VagabondKingsman/open-super-agent-remake/pull/6) mở vào `i18n-vi` lúc 08:25 07/11/2026 Asia/Saigon. CloudAgent đã `git am` trên base 2a36b59, tree khớp manifest, checks local PASS. Chưa merge; PR mở không phải distributed lock. |
+| OSA-006 | grok-bot / `grok-bot/contributing-bots` | `OSA-006 / grok-bot / grok-bot/contributing-bots / CONTRIBUTING remake, không đụng code hay CI / claimed_at 07/11/2026 12:11 Asia/Saigon / [PR #7](https://github.com/VagabondKingsman/open-super-agent-remake/pull/7)`. Tin Tin đã giao task và duyệt plan. PR mở vào `i18n-vi`. Chưa merge: PR-ready, không Done. |
 
 ## Done · đã public
 
 - PR #1: v0.6.0 + VI port; PR #2: locale fallback/VI HTML; PR #3: routine labels.
 - PR #4: AI Native mentor/paging/verifiers + eval v1–v3; PR #5: full source bundle + safe shared defaults.
+- OSA-H01: [PR #6](https://github.com/VagabondKingsman/open-super-agent-remake/pull/6) đã merge vào `i18n-vi` lúc 08:26:01 07/11/2026 Asia/Saigon, SHA `3c08269`.
 - Link/SHA/giờ merge ở STATE. “Eval GO” không phải nghiệm thu Worker/Docker E2E.
