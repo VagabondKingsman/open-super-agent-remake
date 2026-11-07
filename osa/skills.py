@@ -111,13 +111,13 @@ def parse(bot_id: int, text: str) -> tuple[dict, str] | None:
 
 def expand(skill: dict, extra: str) -> str:
     """把技能写成交给模型的说明。"""
-    return (f"（用户调用了技能 /{skill['name']}，请按下面的做法执行；用户补充的要求优先。）\n"
-            f"--- 技能做法 ---\n{skill['body']}\n--- 结束 ---"
-            + (f"\n用户补充：{extra}" if extra else ""))
+    return (f"(The user invoked skill /{skill['name']}. Follow the method below. Extra instructions from the user win.)\n"
+            f"--- skill method ---\n{skill['body']}\n--- end ---"
+            + (f"\nUser added: {extra}" if extra else ""))
 
 
 def summary(bot_id: int) -> str:
-    return "\n".join(f"- /{s['name']}：{s['description'] or s['body'][:40]}" for s in list_for(bot_id)) or "暂无技能"
+    return "\n".join(f"- /{s['name']}: {s['description'] or s['body'][:40]}" for s in list_for(bot_id)) or "(no skills)"
 
 
 # ---------- 导出、导入、分享 ----------

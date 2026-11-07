@@ -446,7 +446,7 @@ async def test(provider: str, model: str, kind: str = "chat", role: str = "") ->
     ms = lambda: int((time.time() - t0) * 1000)
     if kind == "embedding":
         try:
-            r = await c.embeddings.create(model=model, input=["测试一下"])
+            r = await c.embeddings.create(model=model, input=["connectivity check"])
             return {"ok": True, "dim": len(r.data[0].embedding), "ms": ms()}
         except Exception as e:
             return {"ok": False, "error": explain(e, base), "ms": ms()}
@@ -461,7 +461,7 @@ async def test(provider: str, model: str, kind: str = "chat", role: str = "") ->
         return ((msg.content if msg else "") or getattr(msg, "reasoning_content", "") or "").strip()
 
     try:
-        reply = await ask([{"type": "text", "text": "这张图片是什么颜色？只回答颜色。"}, {"type": "image_url", "image_url": {"url": RED}}])
+        reply = await ask([{"type": "text", "text": "What color is this image? Reply with the color only."}, {"type": "image_url", "image_url": {"url": RED}}])
         seen = "红" in reply or "red" in reply.lower()
         if not seen:   # 请求没报错，但没认出颜色：可能是服务把图片丢掉了，参考 models.dev 的记录
             from . import prices
@@ -473,7 +473,7 @@ async def test(provider: str, model: str, kind: str = "chat", role: str = "") ->
         img_err = explain(e, base)
     try:
         t0 = time.time()
-        reply = await ask("回复“好”这一个字。")
+        reply = await ask("Reply with exactly: ok")
         return {"ok": True, "vision": "no", "vision_error": img_err, "reply": reply[:80], "ms": ms()}
     except Exception as e:
         return {"ok": False, "error": explain(e, base), "ms": ms()}

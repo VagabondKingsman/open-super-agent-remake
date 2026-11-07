@@ -28,9 +28,10 @@ KEEP_RUNS = 20
 KINDS = ("daily", "every", "webhook")
 LAST_CHARS = 2000   # 带上上次结果的长度
 # 这次没有值得告诉用户的新内容：结果只写这个，就不发消息、不推送（见 is_quiet、router._run）
-QUIET = "[无新内容]"
-QUIET_HINT = (f"这次没有值得告诉用户的新内容时（比如没有新邮件、和上次一样、事件不需要处理），结果只写 {QUIET} 这几个字，"
-              "不写别的，用户就不会被打扰。")
+QUIET = "[nothing new]"
+PREVIOUS_LABEL = "Previous run result (for comparison; do not repeat what the user was already told):"
+QUIET_HINT = (f"If there is nothing new worth telling the user (no new mail, same as last time, the event needs no action), "
+              f"the result must be exactly {QUIET} and nothing else, so the user is not interrupted.")
 _QUIET_RE = re.compile(r"^\s*[\[【]?\s*(无新内容|没有新内容|nothing new|không có nội dung mới)\s*[\]】]?\s*[。.!！]?\s*$", re.I)
 RUNNING: dict[int, int] = {}      # routine_id -> 正在跑的 run id
 notify = None                     # 由 server 设置
@@ -142,7 +143,7 @@ def next_after(trig: dict, now: float) -> float | None:
 
 
 def describe(trig: dict, in_lang: str | None = None) -> str:
-    """触发方式的一句话说明。默认按界面语言；写进提示词时传 in_lang="zh"。"""
+    """One-line description of a trigger. Defaults to the current UI language."""
     lang = in_lang or i18n.lang()
     if trig["kind"] == "every":
         m = trig["minutes"]
@@ -247,12 +248,17 @@ def _keyword_filter(trig: dict, text: str) -> str | None:
     return None
 
 
+FILTER_PROMPT = (
+    "You are an event filter. Decide from the rule whether the event needs handling. "
+    'Output JSON only: {"handle": true/false, "reason": "one short sentence in the reply language"}'
+)
+
+
 async def _llm_filter(rule: str, text: str) -> tuple[bool, str]:
     client, model = client_for("filter")
     resp = await client.chat.completions.create(model=model, messages=[
-        {"role": "system", "content": "你是事件过滤器。根据规则判断事件是否需要处理。"
-                                      '只输出 JSON：{"handle": true/false, "reason": "一句话"}' + i18n.model_hint()},
-        {"role": "user", "content": f"规则：{rule}\n\n事件：\n{text[:6000]}"}],
+        {"role": "system", "content": FILTER_PROMPT + i18n.model_hint()},
+        {"role": "user", "content": f"Rule:\n{rule}\n\nEvent:\n{text[:6000]}"}],
         response_format={"type": "json_object"}, **call_kwargs("filter"))
     memory.record_usage("filter", model, resp.usage)
     try:
@@ -262,7 +268,7 @@ async def _llm_filter(rule: str, text: str) -> tuple[bool, str]:
         return True, i18n.t("过滤结果解析失败，默认放行")
 
 
-EVENT_START, EVENT_END = "<<<事件原文开始>>>", "<<<事件原文结束>>>"
+EVENT_START, EVENT_END = "<<<OSA_EVENT>>>", "<<<END_OSA_EVENT>>>"
 
 
 def goal_for(r: dict, event: str = "") -> str:
@@ -284,7 +290,7 @@ def worker_notes(r: dict, event: str = "") -> str:
     """只给 Worker 看的补充说明：不显示在任务卡片上，也不存进对话（存进去 Router 每轮都要多读一遍）。"""
     parts = []
     if not event and (prev := last_result(r["id"])):   # 按时间触发的：和上次比，只说新的（webhook 每次的事件都不一样，不带）
-        parts.append(f"上次运行的结果（用来对比，已经告诉过用户的不用再说一遍）：\n{prev}")
+        parts.append(f"{PREVIOUS_LABEL}\n{prev}")
     parts.append(QUIET_HINT)
     return "\n\n" + "\n\n".join(parts)
 

@@ -166,9 +166,9 @@ def test_b04_tool_text_and_worker_locale_hint(make_bot, monkeypatch):
     assert "没保存" not in saved
     task = Task(id=1, goal="g", bot_id=bot["id"], chat_id=bot["chat_id"])
     system = worker.worker_system(task, True)
-    assert "Câu trả lời cuối cho người dùng phải bằng tiếng Việt" in system
-    assert "必须用越南语" in system
-    assert "不要换成第三种语言" in system
+    assert "Reply in Vietnamese" in system
+    assert "必须用越南语" not in system
+    assert "不要换成第三种语言" not in system
 
 
 async def test_b04_search_and_unknown_tool_are_localized(make_bot, monkeypatch):

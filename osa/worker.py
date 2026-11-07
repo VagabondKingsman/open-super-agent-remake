@@ -11,20 +11,29 @@ from .computer import tools as ctools
 PROGRESS = None   # 由 router 设置：async (task, text) -> None，把动作推送到任务卡片
 PAGES_CHANGED = None   # 由 server 设置：async () -> None，资料库有新页面时通知前端
 
-WORKER_PROMPT = """你是执行任务的 Worker。用工具查证事实，给出结论时附上来源链接。
-需要读写用户的外部服务（应用）时，使用名字带“应用名__”前缀的工具；任务里写了“@应用名”就必须用那个应用。
-写操作会先请用户确认；被拒绝时不要换个工具绕过去，按用户的意见调整或说明无法完成。
-只做任务里写明的事。任务没要求保存页面、搜索记忆或改资料库时，不要调用 save_page、search_memory、read_page。
-完成后直接输出最终答案（{lang}，简洁、结构清晰）。不要只输出思考过程。今天是 {date}。"""
-# 最终答案用什么语言。模型仍可能跑偏，这里只是指令，不做输出校验。
-ANSWER_LANG = {
-    "vi": "必须用越南语；只有任务原文是别的语言时才用那种语言，不要换成第三种语言",
-    "zh": "中文",
-    "en": "必须用英文；只有任务原文是别的语言时才用那种语言，不要换成第三种语言",
-}
-PAGE_HINT = "任务要求做成页面或报告时，用 save_page 保存，最终答案里附上返回的链接。"
-# 写给模型的续写提示，保持中文。用户看见的失败说明走 i18n.t。
-CONTINUE_PROMPT = "上一次没有给出完整的最终答案（内容为空，或因为长度被截断，finish_reason=length）。请直接写出完整最终答案，不要只输出思考过程。"
+WORKER_PROMPT = """You are the Worker executing a task. Use tools to check facts. When you state a conclusion, include source links.
+To read or write the user's external services (apps), use tools whose names start with "app-name__". If the task says "@app-name", you must use that app.
+Write actions ask the user to confirm first. If they refuse, do not switch tools to bypass them. Adjust to their note or say you cannot finish.
+Do only what the task says. If it does not ask you to save a page, search memory, or edit the library, do not call save_page, search_memory, or read_page.
+When you are done, write the final answer directly, in the reply language at the end of this prompt. Be concise and clearly structured. Do not output only your reasoning. Today is {date}."""
+# Same directive the router appends. The model can still drift; this is an instruction, not an output rewrite.
+ANSWER_LANG = i18n.ANSWER_LANG
+PAGE_HINT = "When the task asks for a page or a report, save it with save_page and include the returned link in the final answer."
+# Continuation for the model. The failure the user sees goes through i18n.t.
+CONTINUE_PROMPT = "The previous reply was not a complete final answer (it was empty, or it was cut off because of length, finish_reason=length). Write the complete final answer now. Do not output only your reasoning."
+STEP_EXHAUSTED = "The step limit is reached. Give the final answer from the information you already have."
+REVIEWER_PROMPT = (
+    "You are the reviewer. Compare the independent drafts, find contradictions and mistakes, "
+    "and merge one reliable final answer. Keep source links. "
+    "Lines that start with '=== Draft ' are internal separators. Do not copy those markers or any other draft label into the final answer. "
+    "The final answer must be entirely in the reply language."
+)
+HEAVY_ANGLES = (
+    "Answer from the most direct angle.",
+    "Check it from the opposite, skeptical angle.",
+    "Answer from data and primary sources.",
+    "Answer from a practical, implementation angle.",
+)
 
 
 class IncompleteAnswer(Exception):
@@ -229,12 +238,12 @@ async def _tool(task: Task, log: tasklog.Log, step: dict, name: str, raw: str, p
 
 def worker_system(task: Task, pages: bool) -> str:
     use_pc = (CFG.get("computer") or {}).get("enabled", True)
-    system = WORKER_PROMPT.format(date=time.strftime("%Y-%m-%d"), lang=ANSWER_LANG[i18n.lang()]) + ("\n" + PAGE_HINT if pages else "") \
+    system = WORKER_PROMPT.format(date=time.strftime("%Y-%m-%d")) + ("\n" + PAGE_HINT if pages else "") \
         + ("\n\n" + ctools.SYSTEM_HINT if use_pc else "")
-    system += verification.HINT + local_checks.runtime_hint() + skillpacks.runtime_hint(task.bot_id) + i18n.model_hint()
+    system += verification.HINT + local_checks.runtime_hint() + skillpacks.runtime_hint(task.bot_id)
     if known := memories.worker_block(task.bot_id):
-        system += f"\n\n关于用户（长期记忆，做事时遵守其中的偏好）：\n{known}"
-    return system
+        system += f"\n\nAbout the user (long-term memory; follow these preferences):\n{known}"
+    return system + i18n.model_hint()
 
 
 def _history(task: Task, label: str) -> list:
@@ -312,7 +321,7 @@ async def _run_worker(task: Task, goal: str, label: str = "") -> str:
             break
     if not stopped:
         await log.note(i18n.t("步数用完了，根据已有信息写结果"))
-        msgs.append({"role": "user", "content": "步数用完了，请根据已有信息给出最终答案。"})
+        msgs.append({"role": "user", "content": STEP_EXHAUSTED})
     m = await _reply(task, log, "worker", client, model, msgs)
     task.steps += 1
     return _accept_answer(m)
@@ -338,7 +347,6 @@ async def run_heavy(task: Task) -> str:
     有人失败但草稿够数时仍汇总，调用方把结果记成 partial。
     """
     n, concurrency, need = heavy_plan()
-    angles = ["从最直接的角度", "从反面/质疑的角度核查", "从数据和一手来源角度", "从实践/落地角度"]
     await tasklog.Log(task).note(i18n.t("{n} 个研究员分头做，做完汇总", n=n))
     goal = task.goal + task.notes
     sem = asyncio.Semaphore(concurrency)
@@ -351,7 +359,7 @@ async def run_heavy(task: Task) -> str:
                 if stop.is_set():
                     raise _NotStarted()
                 return await run_worker(
-                    task, f"{goal}\n\n（你是第 {i+1} 个独立研究员，请{angles[i % len(angles)]}回答）", f"h{i}")
+                    task, f"{goal}\n\n(You are independent researcher {i+1}. {HEAVY_ANGLES[i % len(HEAVY_ANGLES)]})", f"h{i}")
         except ProviderLimit as e:
             if e.kind == "quota":
                 stop.set()
@@ -384,15 +392,18 @@ async def run_heavy(task: Task) -> str:
     return text
 
 
+def reviewer_system() -> str:
+    return REVIEWER_PROMPT + i18n.model_hint()
+
+
 async def _review(task: Task, goal: str, drafts: list[str]) -> str:
     client, model = client_for("reviewer")
-    joined = "\n\n".join(f"=== 方案 {i+1} ===\n{d}" for i, d in enumerate(drafts))
+    joined = "\n\n".join(f"=== Draft {i+1} ===\n{d}" for i, d in enumerate(drafts))
     await tasklog.Log(task).note(i18n.t("{n} 份草稿交给审稿人汇总", n=len(drafts)))
     log = tasklog.Log(task, "review")
     msgs = [
-        {"role": "system", "content": "你是审稿人。比较几份独立答案，找出矛盾和错误，合成一份最可靠的最终答案，保留来源链接。"
-                                      + i18n.model_hint()},
-        {"role": "user", "content": f"问题：{goal}\n\n{joined}"}]
+        {"role": "system", "content": reviewer_system()},
+        {"role": "user", "content": f"Question:\n{goal}\n\n{joined}\n\nWrite the final answer only. Do not include the Draft markers."}]
     try:
         extra = int(CFG["limits"].get("answer_continuations", 1) or 0)
         m = await _reply(task, log, "reviewer", client, model, msgs)

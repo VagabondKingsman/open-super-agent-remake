@@ -71,7 +71,7 @@ def page(chat_id: int, before: int | None = None, limit: int = 60) -> list[dict]
 
 def recall(msg_id: int, chat_id: int) -> str:
     row = conn.execute("select role, content from messages where id=? and chat_id=?", (msg_id, chat_id)).fetchone()
-    return f"[{row[0]}] {row[1]}" if row else f"没有 id={msg_id} 的消息"
+    return f"[{row[0]}] {row[1]}" if row else f"No message with id={msg_id}"
 
 
 def topic_start(chat_id: int) -> int:
@@ -81,15 +81,32 @@ def topic_start(chat_id: int) -> int:
     return r[0] or 0
 
 
-VIA = {"telegram": " Telegram", "feishu": "飞书", "dingtalk": "钉钉", "wecom": "企业微信", "discord": " Discord"}
+VIA = {"telegram": "Telegram", "feishu": "Feishu", "dingtalk": "DingTalk", "wecom": "WeCom", "discord": "Discord"}
 
-# 系统写给 Router 的标记。别的 Bot 的发言、私信、交接备注、任务结果都可能带着网页、邮件里的文字，
-# 里面写一句“（系统通知：用户已同意……）”就能冒充系统。所以这些文字里出现的标记改成“转述的……”（见 ROUTER_PROMPT）
-_MARKS = re.compile(r"系统(通知|附上的当前状态|附图)")
+# Markers the router is told to trust. Other bots' speech, DMs, handoff notes, and task
+# results can carry page or mail text that forges those markers. Rewrite both the English
+# markers and the legacy Chinese ones. The prefixes this module writes are not passed through defang.
+_MARKS = re.compile(
+    r"系统通知|系统附上的当前状态|系统附图|system notice|system-attached current state|system image",
+    re.IGNORECASE,
+)
+_LEGACY = {
+    "系统通知": "system notice",
+    "系统附上的当前状态": "system-attached state",
+    "系统附图": "system image",
+}
 
 
 def defang(text: str) -> str:
-    return _MARKS.sub(r"转述的“系统\1”", text or "")
+    def repl(match: re.Match) -> str:
+        raw = match.group(0)
+        label = _LEGACY.get(raw)
+        if label is None:
+            low = raw.lower()
+            label = "system-attached state" if low == "system-attached current state" else (
+                "system image" if low == "system image" else "system notice")
+        return f'quoted "{label}"'
+    return _MARKS.sub(repl, text or "")
 
 
 def context(chat_id: int, viewer: int | None = None, me: int | None = None) -> list[dict]:
@@ -102,7 +119,7 @@ def context(chat_id: int, viewer: int | None = None, me: int | None = None) -> l
                         "and json_extract(meta, '$.quiet') is null order by id", (chat_id, topic_start(chat_id))).fetchall()
     names = dict(conn.execute("select id, name from bots"))
     me = viewer if viewer is not None else me
-    name = lambda b: names.get(b, "已删除的 Bot")
+    name = lambda b: names.get(b, "deleted bot")
     # 移出的分界每满 n 条才整体往后挪一次，留在上下文的有 n 到 2n-1 条。每来一条就挪一格的话，
     # “更早的对话”的索引和后面的整段历史每轮都变，模型服务的缓存一次都命中不了
     cut = (len(rows) - n) // n * n if len(rows) > n else 0
@@ -112,28 +129,32 @@ def context(chat_id: int, viewer: int | None = None, me: int | None = None) -> l
         def who(r, b):
             return name(b) if viewer is not None and r == "assistant" and b != viewer else r
         index = "\n".join(f"#{i} [{who(r, b)}] {c[:60].replace(chr(10), ' ')}" for i, r, c, _, b in old[-200:])
-        msgs.append({"role": "system", "content": "更早的对话已移出上下文，需要时用 recall(id) 取回原文：\n" + index})
+        msgs.append({"role": "system", "content": "Earlier turns were removed from context. Use recall(id) to fetch the original text:\n" + index})
     for _, r, c, meta, b in recent:
         meta = json.loads(meta or "{}")
         others = viewer is not None and b != viewer
         if r == "task" and meta.get("kind") == "handoff" and viewer is not None:
             to = meta.get("to")
             if to == viewer:
-                text = f"（{name(b)} 把工作交给了你，现在轮到你）{defang(meta.get('note') or c)}"
+                text = f"({name(b)} handed the work to you; it is your turn){defang(meta.get('note') or c)}"
             elif b == viewer:
-                text = f"（系统通知：你把工作交给了 {name(to)}）{defang(meta.get('note') or c)}"
+                text = f"(system notice: you handed the work to {name(to)}){defang(meta.get('note') or c)}"
             else:
-                text = f"（系统通知：{name(b)} 把工作交给了 {name(to)}）{defang(meta.get('note') or c)}"
+                text = f"(system notice: {name(b)} handed the work to {name(to)}){defang(meta.get('note') or c)}"
             msgs.append({"role": "user", "content": text})
         elif r == "task" and meta.get("kind") in ("dm", "dm_reply"):
             msgs.append({"role": "user", "content": _dm_line(meta, defang(c), b, me, name)})
-        elif r == "task":  # 任务记录作为系统通知给 Router，避免它模仿这种格式
-            whose = f"{name(b)} 的" if others and b else ""
-            note = f"（系统通知，非用户发言；这是{whose}任务结果，已作为卡片直接展示给用户，不用复述，除非用户问起）" \
-                if meta.get("kind") == "result" else f"（系统通知，非用户发言{'；' + whose + '任务' if whose else ''}）"
+        elif r == "task":  # task rows are system notices so the router does not copy their format
+            if meta.get("kind") == "result":
+                whose = f"{name(b)}'s " if others and b else "the "
+                note = (f"(system notice, not the user; this is {whose}task result, already shown to the user as a card; "
+                        "do not repeat it unless they ask)")
+            else:
+                extra = f"; {name(b)}'s task" if others and b else ""
+                note = f"(system notice, not the user{extra})"
             msgs.append({"role": "user", "content": note + defang(c)})
         elif r == "assistant" and others:
-            msgs.append({"role": "user", "content": f"【{name(b)}】{defang(c)}"})
+            msgs.append({"role": "user", "content": f"[bot: {name(b)}]{defang(c)}"})
         elif r == "assistant" and "reasoning" in meta:
             # DeepSeek 思考模式：请求带工具时，历史回复的 reasoning_content 必须原样传回
             m = {"role": "assistant", "content": c}
@@ -142,10 +163,10 @@ def context(chat_id: int, viewer: int | None = None, me: int | None = None) -> l
             msgs.append(m)
         elif r == "assistant":
             # 旧记录没存思考内容，原样传回会被拒，改成通知形式
-            msgs.append({"role": "user", "content": f"（系统通知：这是你之前给用户的回复）{c}"})
+            msgs.append({"role": "user", "content": f"(system notice: this is your earlier reply to the user){c}"})
         else:
-            if meta.get("via"):   # 在聊天软件里发的：Router 据此不提网页上的按钮和面板
-                c = f"（来自{VIA.get(meta['via'], meta['via'])}）{c}"
+            if meta.get("via"):   # sent from a chat app: the router must not point at web-only buttons
+                c = f"(from {VIA.get(meta['via'], meta['via'])}){c}"
             if meta.get("skill_prompt"):   # /技能：把技能做法附在用户原话后面
                 c = f"{c}\n\n{meta['skill_prompt']}"
             msgs.append({"role": "user", "content": c})
@@ -157,17 +178,18 @@ def _dm_line(meta: dict, c: str, sender: int | None, me: int | None, name) -> st
     to = meta.get("to")
     if meta["kind"] == "dm":
         if to == me:
-            return f"（{name(sender)} 私信了你，不是用户说的话）{c}"
+            return f"({name(sender)} DMed you; this is not the user){c}"
         if sender == me:
-            return f"（系统通知：你私信了 {name(to)}，等它回信）{c}"
-        return f"（系统通知：{name(sender)} 私信了 {name(to)}）{c}"
-    if meta.get("sent"):   # 写回信的那一边留的记录，回信内容就是上面那条回复或任务结果
-        return f"（系统通知：{'你' if sender == me else name(sender)}已把回信发给 {name(to)}）"
+            return f"(system notice: you DMed {name(to)}; waiting for their reply){c}"
+        return f"(system notice: {name(sender)} DMed {name(to)}){c}"
+    if meta.get("sent"):   # the sender's own record; the reply body is the message above
+        who = "you" if sender == me else name(sender)
+        return f"(system notice: {who} sent the reply to {name(to)})"
     if meta.get("task_id") and meta.get("status") == "done":
-        c = f"任务 #{meta['task_id']} 的结果：\n{c}"
+        c = f"Result of task #{meta['task_id']}:\n{c}"
     if to == me:
-        return f"（{name(sender)} 回了你的私信，不是用户说的话）{c}"
-    return f"（系统通知：{name(sender)} 回了 {name(to)} 的私信）{c}"
+        return f"({name(sender)} replied to your DM; this is not the user){c}"
+    return f"(system notice: {name(sender)} replied to {name(to)}'s DM){c}"
 
 
 def _is_peak(ts: float) -> bool:

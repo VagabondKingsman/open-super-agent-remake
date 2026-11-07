@@ -60,9 +60,10 @@ def test_translation_and_worker_language(monkeypatch, language, expected):
     monkeypatch.setattr(i18n, "_lang", language)
     assert i18n.t("任务 #{id}", id=7) == expected
     assert language in worker.ANSWER_LANG
+    assert i18n.ANSWER_LANG[language] in i18n.model_hint()
+    assert i18n.ANSWER_LANG[language] in memories._import_prompt()
     if language == "vi":
-        assert "tiếng Việt" in i18n.model_hint()
-        assert "越南语" in memories._import_prompt()
+        assert "Reply in Vietnamese" in i18n.model_hint()
     assert "Cho phép một lần" in i18n.both("允许一次")
 
 

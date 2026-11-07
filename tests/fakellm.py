@@ -88,11 +88,11 @@ def system_of(body: dict) -> str:
 def role_of(body: dict) -> tuple[str, str]:
     """(角色, Bot 名字)。按系统提示词的开头认。"""
     sys = system_of(body)
-    if m := re.match(r"你是「(.+?)」", sys):
+    if m := re.match(r'You are "(.+?)"', sys):
         return "router", m.group(1)
-    if sys.startswith("你是执行任务的 Worker"):
+    if sys.startswith("You are the Worker"):
         return "worker", ""
-    if sys.startswith("你是审稿人"):
+    if sys.startswith("You are the reviewer"):
         return "reviewer", ""
     return "other", ""
 

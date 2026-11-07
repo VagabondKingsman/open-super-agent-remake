@@ -110,3 +110,11 @@ Nguyên nhân đã đối chiếu trên code ở base này:
 Số test của phiên nằm ở [log OSA-010](log/2026-11-07-grok-bot-osa-010.md). Trên máy này `pytest` 223 passed, 3 skipped vì không có bubblewrap. 3 SKIP không phải PASS. Live provider sau bản sửa là NOT_CHECKED.
 
 PR: [#12](https://github.com/VagabondKingsman/open-super-agent-remake/pull/12), branch `grok-bot/osa-010-heavy-fixes`, head `2671e11576654f8693d8abab249df62e1bddd202`, vào `i18n-vi`. Chưa merge.
+
+## Bổ sung · OSA-011 đang làm · grok-bot · 07/11/2026
+
+Append. Không sửa các mục phía trên. Branch làm việc `grok-bot/osa-011-en-prompts`, tách từ `grok-bot/osa-010-heavy-fixes` tại `5c75acb3147da40f44e00d8a86c2d72a175bed45`. PR vào `i18n-vi`, xếp trên PR #12, merge sau #12. Chưa merge. Không gọi LLM trả phí. Không đụng upstream kadaliao.
+
+Prompt gửi model (router, worker, reviewer, import trí nhớ, lọc routine, draft skill, mô tả tool) chuyển sang tiếng Anh. `i18n.model_hint()` luôn gắn chỉ thị trả lời theo `i18n.lang()` (mặc định vi) cho cả ba ngôn ngữ. `in_lang="zh"` không còn trong code prompt. Nhãn Heavy `方案` đổi thành `Draft`.
+
+Số test của phiên nằm ở [log OSA-011](log/2026-11-07-grok-bot-osa-011.md). Trên máy này `pytest` 233 passed, 3 skipped vì không có bubblewrap. 3 SKIP không phải PASS. Live provider sau bản sửa là NOT_CHECKED.

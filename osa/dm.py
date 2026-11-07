@@ -18,6 +18,7 @@ import time
 from . import bots, i18n, memory
 
 MAX_DEPTH = 5
+DM_SENT_PREFIX = "Sent a DM to"
 notify = None   # 由 server 设置：async (event) -> None
 _queued: dict[tuple, dict] = {}   # 排着队还没开始的一轮：(Bot, 对话, 来由, 欠谁回信) -> turn
 
@@ -39,15 +40,17 @@ async def send(sender: int, to: dict, text: str, origin: int, owed: dict | None,
     """sender 在 origin 对话里私信 to。owed 是 sender 这一轮欠谁回信，depth 是这一轮的深度。返回给模型看的结果。"""
     text = (text or "").strip()
     if not text:
-        return "没发：私信内容是空的"
+        return "Not sent: the DM text is empty"
     if depth + 1 > MAX_DEPTH:
-        return f"没发：Bot 之间已经转了 {MAX_DEPTH} 手，先停下来，把现在的情况告诉用户，等用户决定"
+        return (f"Not sent: bots have already forwarded this {MAX_DEPTH} times. "
+                "Stop, tell the user the current state, and wait for them.")
     reply = {"bot": sender, "chat": origin, "depth": depth + 1, "then": owed}
     await _message(origin, text, sender, kind="dm", to=to["id"])
     await _message(to["chat_id"], text, sender, kind="dm", to=to["id"], chat=origin)   # chat：从哪个对话发来的
     asyncio.create_task(_wake(to["id"], to["chat_id"], {"reply": reply, "depth": depth + 1,
                                                        "woke": {"kind": "dm", "from": sender, "text": text}}))
-    return f"已私信 {to['name']}。它的回信会自动回到这个对话，到时你会接着说一轮，现在不用等"
+    return (f"{DM_SENT_PREFIX} {to['name']}. Their reply returns to this chat automatically; "
+            "you will speak again then. Do not wait now.")
 
 
 async def answer(sender: int, reply: dict, text: str, from_chat: int, **meta):

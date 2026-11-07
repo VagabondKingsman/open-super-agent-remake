@@ -44,10 +44,10 @@ async def test_news_is_posted_and_next_run_compares(llm, events, make_bot):
     llm.script("worker", "没有新内容。")                                # 写法稍有不同也认
     assert (await _run(r))["status"] == "quiet"
     goal = llm.bodies("worker")[-1]["messages"][1]["content"]
-    assert "上次运行的结果" in goal and "有 2 封新邮件：A、B" in goal   # 和上次有内容的那次比
+    assert routines.PREVIOUS_LABEL in goal and "有 2 封新邮件：A、B" in goal   # 和上次有内容的那次比
     assert routines.QUIET in goal
     shown = find(a["chat_id"], kind="dispatch")[-1]["content"]           # 这些只给 Worker 看，不显示、不存进对话
-    assert "上次运行的结果" not in shown and routines.QUIET not in shown
+    assert routines.PREVIOUS_LABEL not in shown and routines.QUIET not in shown
 
 
 async def test_webhook_runs_do_not_carry_last_result(llm, events, make_bot):
@@ -58,7 +58,7 @@ async def test_webhook_runs_do_not_carry_last_result(llm, events, make_bot):
     llm.script("worker", "处理了 issue #2")
     await _run(r, "webhook", '{"issue": 2}')
     goal = llm.bodies("worker")[-1]["messages"][1]["content"]
-    assert "上次运行的结果" not in goal and '{"issue": 2}' in goal
+    assert routines.PREVIOUS_LABEL not in goal and '{"issue": 2}' in goal
 
 
 async def test_manual_test_run_always_posts(llm, events, make_bot):
@@ -70,7 +70,7 @@ async def test_manual_test_run_always_posts(llm, events, make_bot):
     run = await _run(r, "test")
     assert run["status"] == "done"                                     # 你点“测试”：照常发出来
     goal = llm.bodies("worker")[-1]["messages"][1]["content"]
-    assert "上次运行的结果" not in goal and routines.QUIET not in goal
+    assert routines.PREVIOUS_LABEL not in goal and routines.QUIET not in goal
 
 
 @pytest.mark.parametrize("text", ["[无新内容]", "【无新内容】", "无新内容", " [nothing new] ", "Nothing new.", "没有新内容。"])
