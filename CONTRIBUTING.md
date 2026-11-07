@@ -84,7 +84,7 @@ git diff --check
 
 `uv run python -m osa.i18n` không mở DB. Nó báo khóa EN/VI thiếu hoặc thừa, placeholder lệch, và câu tiếng Trung trên frontend chưa bọc `t()`.
 
-`pytest` dùng temp DB và FakeLLM qua conftest. Ghi số passed, failed và skipped. Thiếu bubblewrap thì ba test trong `tests/test_local_checks.py` SKIP. SKIP không phải PASS. Không bỏ assertion cũ để suite xanh.
+`pytest` dùng temp DB và FakeLLM qua conftest. Ghi số passed, failed và skipped. Ba test trong `tests/test_local_checks.py` SKIP khi không phải Linux, hoặc khi thiếu một trong `bwrap`, `prlimit`, `git`, `ps` trên PATH. SKIP không phải PASS. Không bỏ assertion cũ để suite xanh.
 
 `verify-sources` đối chiếu SHA-256 của `skills-pack/ai-native/`. Lệnh này import `osa.memory`, nên khi chạy tay hãy đặt `OSA_CONFIG` tạm trước. Không gọi `defaults` hoặc `install` vào DB thật chỉ để kiểm tra tài liệu.
 
