@@ -541,7 +541,7 @@
   "已派发任务 #{id}": "Dispatched task #{id}",
   "这个任务还改动了资料库：{items}": "This task also changed the library: {items}",
   "服务重启，这次运行已中断": "The server restarted, so this run was interrupted",
-  "连续重复同一个工具调用，已停下。请根据已有信息给出最终答案。": "The same tool call was repeated, so it stopped. Give the final answer from what you already have.",
+  "这次调用被跳过，没有执行。同一个工具连续重复，请根据已有信息给出最终答案。": "This call was skipped and was not run. The same tool was repeated. Give the final answer from what you already have.",
   "，请用户到应用市场重新登录": ". Ask the user to sign in again in the app catalog",
   "应用 @{name} 连接断开：{status}{hint}": "App @{name} disconnected: {status}{hint}"
 }

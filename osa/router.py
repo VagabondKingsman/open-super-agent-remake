@@ -303,7 +303,7 @@ class Router:
             recorded = True
         except asyncio.CancelledError:
             if not recorded:
-                memory.record_partial("router", model, usage, content + reasoning)
+                memory.record_partial("router", model, usage, memory.streamed_output_text(content, reasoning, calls))
             raise
         return content, reasoning, [calls[k] for k in sorted(calls)], finish
 

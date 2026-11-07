@@ -49,6 +49,8 @@ Phương án bị loại gồm bắt xác nhận mọi `save_page`, vì task là
 
 Model vẫn có thể tìm một hai lần và ghi trang khi công tắc tắt. Lần ghi hiện trên kết quả. Bật công tắc thì lần ghi phải chờ xác nhận.
 
+Verify live trên head `c9480ef` chỉ ra guard dùng chung `Task.recent_calls`, nên lần gọi đầu của worker Heavy thứ ba bị chặn. Sửa trên cùng nhánh: mỗi worker một lịch sử; trong một batch, mọi `tool_call` id đều có tool result, call bị chặn không chạy; ước lượng lúc hủy gồm cả tên và args đã stream. Không đổi quyết định “không chấm goal bằng model”.
+
 Nguồn là task OSA-009. Tin Tin duyệt tạo task và sửa. ADR này không đổi quyền merge.
 
 ## Thêm ADR

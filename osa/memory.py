@@ -193,6 +193,17 @@ def estimate_output_tokens(text: str) -> int:
     return max(1, (n + 3) // 4) if n else 0
 
 
+def streamed_output_text(content: str = "", reasoning: str = "", calls=None) -> str:
+    """取消时拿来估算的原文：正文、思考，以及已经流到的工具名和参数。"""
+    parts = [content or "", reasoning or ""]
+    items = calls.values() if isinstance(calls, dict) else (calls or [])
+    for c in items:
+        if isinstance(c, dict):
+            parts.append(c.get("name") or "")
+            parts.append(c.get("args") or "")
+    return "".join(parts)
+
+
 def record_usage(role: str, model: str, usage, task_id: int | None = None, provider: str | None = None,
                  estimated: bool = False):
     """记录一次模型调用的 token 和费用。usage 是 OpenAI 格式的 usage 对象；provider 不给就按角色的配置。

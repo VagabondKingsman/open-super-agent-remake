@@ -88,7 +88,7 @@ async def test_b02_repeated_tool_stops_and_page_write_is_visible(llm, events, ma
     tools = [s for s in steps if s["kind"] == "tool"]
     assert len(tools) == 3
     assert tools[-1]["status"] == "error"
-    assert "đã dừng" in tools[-1]["body"]
+    assert "bị bỏ qua" in tools[-1]["body"]
     assert sum(1 for s in tools if s["status"] == "done") == 2
 
 
@@ -243,11 +243,22 @@ async def test_b06_mcp_is_error_marks_the_step_error(monkeypatch):
 async def test_b07_cancel_records_estimate_or_real_usage():
     seen = asyncio.Event()
 
+    class Fn:
+        def __init__(self, name, arguments):
+            self.name = name
+            self.arguments = arguments
+
+    class ToolCall:
+        def __init__(self, name, arguments, index=0, id="call_0"):
+            self.index = index
+            self.id = id
+            self.function = Fn(name, arguments)
+
     class Delta:
-        def __init__(self, reasoning=None, content=None):
+        def __init__(self, reasoning=None, content=None, tool_calls=None):
             self.reasoning_content = reasoning
             self.content = content
-            self.tool_calls = None
+            self.tool_calls = tool_calls
 
     class Choice:
         def __init__(self, delta, finish=None):
@@ -309,3 +320,127 @@ async def test_b07_cancel_records_estimate_or_real_usage():
 
     empty = await cancelled(9003, [None])
     assert empty == []
+
+    args = "a" * 48
+    tool_only = await cancelled(9004, [Chunk(Delta(tool_calls=[ToolCall("verify_facts", args)])), None])
+    assert tool_only == [(0, 0, memory.estimate_output_tokens("verify_facts" + args), 1)]
+
+    with_usage = await cancelled(9005, [Chunk(Delta(tool_calls=[ToolCall("verify_facts", args)]), usage=Usage()), None])
+    assert with_usage == [(1, 7, 5, 0)]
+
+
+async def test_r1_heavy_workers_keep_separate_repeat_history(llm, events, make_bot, monkeypatch):
+    monkeypatch.setattr(i18n, "_lang", "vi")
+    monkeypatch.setitem(CFG["heavy"], "workers", 3)
+    monkeypatch.setitem(CFG["limits"], "repeat_tool_limit", 3)
+    bot = make_bot("Heavy")
+    args = {"sums": [{"id": "sum", "values": [17, 25], "claimed_total": 42}]}
+
+    def reply(body):
+        if any(m.get("role") == "tool" for m in body["messages"]):
+            return "HEAVY_DONE"
+        return Call("verify_facts", args)
+
+    llm.script("worker", *([reply] * 9))
+    llm.script(f"router:{bot['name']}", Call("dispatch", {"goal": "mỗi người gọi verify_facts một lần", "mode": "heavy"}), "ack")
+    await server.safe_handle(bots_chat(bot), "heavy")
+    result = await until(lambda: find(bot["chat_id"], kind="result"), what="kết quả heavy")
+    assert result[0]["meta"]["status"] == "done"
+    steps = [s for s in tasklog.steps(result[0]["meta"]["task_id"]) if s["kind"] == "tool"]
+    by = {}
+    for step in steps:
+        by.setdefault(step["worker"], []).append(step)
+    assert set(by) == {"h0", "h1", "h2"}
+    for label, rows in by.items():
+        assert len(rows) == 1, label
+        assert rows[0]["title"] == "verify_facts" and rows[0]["status"] == "done"
+        assert "bị bỏ qua" not in (rows[0]["body"] or "")
+
+
+async def test_r2_blocked_batch_still_answers_every_tool_call(llm, events, make_bot, monkeypatch):
+    monkeypatch.setattr(i18n, "_lang", "vi")
+    monkeypatch.setitem(CFG["limits"], "repeat_tool_limit", 3)
+    bot = make_bot("Batch")
+    seen = []
+    real = search.tool
+
+    async def wrapped(bot_id, args):
+        seen.append(args)
+        return await real(bot_id, args)
+
+    monkeypatch.setattr(search, "tool", wrapped)
+    same = Call("search_memory", {"query": "batch-osa009"})
+    llm.script("worker", [same, same, same, same, same], "AFTER_BATCH")
+    result = await _dispatch(llm, bot, "batch năm lần")
+    assert "AFTER_BATCH" in result[0]["content"]
+    assert len(seen) == 2
+    follow = llm.bodies("worker")[1]["messages"]
+    tools = [m for m in follow if m["role"] == "tool"]
+    assert [m["tool_call_id"] for m in tools] == [f"call_{i}" for i in range(5)]
+    assert all("bị bỏ qua" in m["content"] for m in tools[2:])
+    statuses = [s["status"] for s in tasklog.steps(result[0]["meta"]["task_id"]) if s["kind"] == "tool"]
+    assert statuses == ["done", "done", "error", "error", "error"]
+
+
+async def test_r3_router_cancel_counts_tool_arguments(make_bot):
+    from osa.router import Router
+
+    seen = asyncio.Event()
+    args = "b" * 48
+
+    class Fn:
+        def __init__(self, name, arguments):
+            self.name, self.arguments = name, arguments
+
+    class ToolCall:
+        def __init__(self):
+            self.index, self.id = 0, "call_0"
+            self.function = Fn("verify_facts", args)
+
+    class Delta:
+        def __init__(self):
+            self.reasoning_content = None
+            self.content = None
+            self.tool_calls = [ToolCall()]
+
+    class Choice:
+        def __init__(self):
+            self.delta = Delta()
+            self.finish_reason = None
+
+    class Chunk:
+        def __init__(self, hang=False, usage=None):
+            self.usage = usage
+            self.choices = [] if hang else [Choice()]
+            self.hang = hang
+
+    class Stream:
+        def __aiter__(self):
+            return self._go()
+
+        async def _go(self):
+            yield Chunk()
+            seen.set()
+            await asyncio.Event().wait()
+
+    class Client:
+        def __init__(self):
+            self.chat = type("Chat", (), {})()
+            self.chat.completions = type("Completions", (), {})()
+
+        async def create(self, **kwargs):
+            return Stream()
+
+    client = Client()
+    client.chat.completions.create = client.create
+    bot = make_bot("RouteCancel")
+    rt = Router(bot["id"])
+    rt.chat = bots_chat(bot)
+    run = asyncio.create_task(rt._stream(client, "router-tool-only", [{"role": "user", "content": "q"}], "sid", time.time()))
+    await seen.wait()
+    run.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await run
+    rows = memory.conn.execute(
+        "select output, estimated from llm_usage where model=? order by ts", ("router-tool-only",)).fetchall()
+    assert rows == [(memory.estimate_output_tokens("verify_facts" + args), 1)]

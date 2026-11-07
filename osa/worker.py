@@ -42,7 +42,8 @@ class Task:
     started: float = field(default_factory=time.time)
     last_progress: float = field(default_factory=time.time)
     steps: int = 0
-    recent_calls: list = field(default_factory=list)
+    recent_calls: list = field(default_factory=list)  # 单 Worker 的最近调用，给 Watchdog 看
+    repeat_history: dict = field(default_factory=dict)  # label -> 该 Worker 自己的重复检测历史
     waiting_approval: int | None = None    # 正在等用户确认的请求 id
     background: bool = False               # 定时 / webhook 触发的任务：确认卡片会过期
     paused_s: float = 0                    # 等用户确认花掉的时间，不算进超时
@@ -130,7 +131,7 @@ async def _reply(task: Task, log: tasklog.Log, role: str, client, model: str, ms
         recorded = True
     except asyncio.CancelledError:
         if not recorded:
-            memory.record_partial(role, model, usage, content + reasoning, task.id)
+            memory.record_partial(role, model, usage, memory.streamed_output_text(content, reasoning, calls), task.id)
         raise
     if think:
         await log.finish(think)
@@ -226,11 +227,17 @@ def worker_system(task: Task, pages: bool) -> str:
     return system
 
 
-def _looping(task: Task, sig: str) -> bool:
-    """同一个工具调用连续出现 repeat_tool_limit 次就停。0 表示不查。Watchdog 仍是更晚的后备。"""
+def _history(task: Task, label: str) -> list:
+    """每个 Worker 一份历史。Heavy 里 h0/h1/h2 并行，不能共用一份，否则别人的第一次调用会被当成重复。"""
+    return task.repeat_history.setdefault(label or "", [])
+
+
+def _looping(history: list, sig: str) -> bool:
+    """同一个工具调用在这份历史里连续出现 repeat_tool_limit 次就停。0 表示不查。"""
     limit = int(CFG["limits"].get("repeat_tool_limit", 3) or 0)
-    task.recent_calls = (task.recent_calls + [sig])[-8:]
-    return limit > 1 and len(task.recent_calls) >= limit and len(set(task.recent_calls[-limit:])) == 1
+    history.append(sig)
+    del history[:-8]
+    return limit > 1 and len(history) >= limit and len(set(history[-limit:])) == 1
 
 
 async def _run_worker(task: Task, goal: str, label: str = "") -> str:
@@ -272,22 +279,26 @@ async def _run_worker(task: Task, goal: str, label: str = "") -> str:
             return _accept_answer(m)   # 空答案或仍被截断：抛 IncompleteAnswer，不当完成
         msgs.append(_outbound(m))
         shots = []   # 截图要等这一轮的工具结果都追加完再附上
+        history = _history(task, label)
+        skipped = i18n.t("这次调用被跳过，没有执行。同一个工具连续重复，请根据已有信息给出最终答案。")
+        blocked = False
         for call in m["tool_calls"]:
             name, raw = call["function"]["name"], call["function"]["arguments"]
             step = log.current = await log.start("tool", name, detail=raw[:2000])
-            if _looping(task, f"{name}:{raw}"):
-                out = i18n.t("连续重复同一个工具调用，已停下。请根据已有信息给出最终答案。")
-                status, stopped = "error", True
+            # 同一条 assistant 消息里后面的调用也要有 tool result，只是不再执行。
+            if blocked or _looping(history, f"{name}:{raw}"):
+                out, status, blocked = skipped, "error", True
             else:
                 out, status = await _tool(task, log, step, name, raw, progress, pages, shots)
             msgs.append({"role": "tool", "tool_call_id": call["id"], "content": out[:8000]})
             await log.finish(step, status, out)
             task.last_progress = time.time()
-            if stopped:
-                break
+        if not label:
+            task.recent_calls = list(history)
         if shots:
             msgs.append(ctools.image_message(shots[-1]))
-        if stopped:
+        if blocked:
+            stopped = True
             break
     if not stopped:
         await log.note(i18n.t("步数用完了，根据已有信息写结果"))

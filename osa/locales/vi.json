@@ -526,7 +526,7 @@
   "已派发任务 #{id}": "Đã giao tác vụ #{id}",
   "这个任务还改动了资料库：{items}": "Tác vụ này còn sửa thư viện: {items}",
   "服务重启，这次运行已中断": "Server khởi động lại nên lần chạy này bị gián đoạn",
-  "连续重复同一个工具调用，已停下。请根据已有信息给出最终答案。": "Cùng một lệnh gọi công cụ bị lặp lại nên đã dừng. Hãy trả lời cuối từ thông tin đang có.",
+  "这次调用被跳过，没有执行。同一个工具连续重复，请根据已有信息给出最终答案。": "Lần gọi này bị bỏ qua và không chạy. Cùng một công cụ bị lặp lại. Hãy trả lời cuối từ thông tin đang có.",
   "，请用户到应用市场重新登录": ". Nhờ người dùng đăng nhập lại ở mục ứng dụng",
   "应用 @{name} 连接断开：{status}{hint}": "Ứng dụng @{name} mất kết nối: {status}{hint}"
 }
