@@ -272,7 +272,7 @@ web/src/
 - 推送按 RFC 8291（aes128gcm）加密、RFC 8292（VAPID）签名，只用 `cryptography` 和 `httpx`。推送服务只看得到密文。
 - 什么时候推：所有页面都没被看着时（前端在切前后台时发 `visibility`），把确认、帮忙、任务结果、Bot 回复推出去；流式输出之类的过程事件不推。
 - 开了推送的设备不再弹页面自己的系统通知（`localStorage osa.push`），免得重复。
-- Service Worker 不缓存接口和页面，只在连不上服务器时返回一个提示页。
+- Service Worker 不缓存接口和页面，只在连不上服务器时返回一个提示页。提示页读 Cache Storage `osa-lang`（键 `/osa-lang`，值 `vi` / `en` / `zh`）。没有或不认识就用越南语，下面附英文。界面语言是中文时才显示中文。不看 `navigator.language`，也不读 Cookie（Chrome 不把 Cookie 头交给 Service Worker）。
 
 ### 记忆与资料库
 - **两种“记忆”别混**：`memory.py` 是对话记录（Inline & Spill，只在本对话里有效）；`memories.py` 是长期记忆，

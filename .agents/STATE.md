@@ -118,3 +118,17 @@ Append. Không sửa các mục phía trên. Branch làm việc `grok-bot/osa-01
 Prompt gửi model (router, worker, reviewer, import trí nhớ, lọc routine, draft skill, mô tả tool) chuyển sang tiếng Anh. `i18n.model_hint()` luôn gắn chỉ thị trả lời theo `i18n.lang()` (mặc định vi) cho cả ba ngôn ngữ. `in_lang="zh"` không còn trong code prompt. Nhãn Heavy `方案` đổi thành `Draft`.
 
 Số test của phiên nằm ở [log OSA-011](log/2026-11-07-grok-bot-osa-011.md). Trên máy này `pytest` 233 passed, 3 skipped vì không có bubblewrap. 3 SKIP không phải PASS. Live provider sau bản sửa là NOT_CHECKED.
+
+## Bổ sung · OSA-012 đang làm · grok-bot · 07/11/2026
+
+Append. Không sửa các mục phía trên. `origin/i18n-vi` lúc mở phiên là `fcc2d893a3070818bbe251e3b6917f7c7abb54c8` (merge PR #13). Câu “Chưa merge” của PR #13 ở đoạn trên là trạng thái lúc viết đoạn đó.
+
+Đối chiếu API lúc mở OSA-012: [PR #12](https://github.com/VagabondKingsman/open-super-agent-remake/pull/12) đã merge tại `f471839260243a8ea8ddfdde4b34294b49b5db5a`, `merged_at` `2026-11-07T11:25:08Z` (18:25:08 Asia/Saigon), head `5c75acb3147da40f44e00d8a86c2d72a175bed45`. [PR #13](https://github.com/VagabondKingsman/open-super-agent-remake/pull/13) đã merge tại `fcc2d893a3070818bbe251e3b6917f7c7abb54c8`, `merged_at` `2026-11-07T11:25:37Z` (18:25:37 Asia/Saigon), head `f83e3cb486b82a036d54303c6cba437840f49f18`. `merged_by` cả hai là VagabondKingsman. Author git của hai merge commit là VagabondKingsman. Câu “Chưa merge” trong mục OSA-010 và OSA-011 phía trên là trạng thái lúc viết mục đó.
+
+Branch `grok-bot/osa-012-sw-offline-vi`. [PR #14](https://github.com/VagabondKingsman/open-super-agent-remake/pull/14) vào `i18n-vi`. Head `59c2001cad4f9475c4c2078929c7d80374711e6b`. Trang offline của service worker hiện tiếng Việt trước, tiếng Anh sau. Ngôn ngữ đã lưu nằm trong Cache Storage `osa-lang` (khóa `/osa-lang`). Không có hoặc giá trị lạ thì tiếng Việt. Tiếng Trung chỉ khi ngôn ngữ UI là `zh`. `manifest.json` đổi `lang` sang `vi-VN` và đổi mô tả sang tiếng Việt. Chưa merge. Không gọi LLM trả phí. Không đụng upstream kadaliao.
+
+Cookie không dùng được: Chrome không đưa header Cookie vào fetch của service worker. Đã đo trên Chrome headless trong phiên này. `navigator.language` không dùng, vì cài mới vẫn mặc định tiếng Việt.
+
+Số test của phiên nằm ở [log OSA-012](log/2026-11-07-grok-bot-osa-012.md). Trên máy này `pytest` 233 passed, 3 skipped vì không có bubblewrap. 3 SKIP không phải PASS. Browser đã mở trang offline từ `sw.js` thật sau khi tắt server. Live provider là NOT_CHECKED. Docker Computer E2E trên máy này là NOT_CHECKED.
+
+CI trên head `04d8832`, run `42370109157`: backend, frontend, docker đều success. 0 failed. Đối chiếu 18:55 Asia/Saigon. PR #14 vẫn chưa merge.
