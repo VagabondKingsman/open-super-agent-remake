@@ -2,7 +2,7 @@
 
 - Bắt đầu khoảng 12:16, kết thúc kiểm tra khoảng 12:23, **Asia/Saigon (UTC+7)** (đồng hồ UTC+7 tính từ `datetime` UTC 05:23).
 - Base: `3c08269da64dc26941e064267221c7af28af1dca` (`i18n-vi`, merge PR #6).
-- Branch: `grok-bot/port-upstream-v0.6.1`. Head SHA ghi ở PR sau commit; log này nằm trong commit đó nên không nhét SHA của chính nó.
+- Branch: `grok-bot/port-upstream-v0.6.1`. Commit port: `8fd4327b4581a5adc3b5e026dd7e22bfdf718fa7`. Ba SHA upstream cùng trỏ commit này vì lịch sử không chung và các file đè lên nhau.
 - Skill Flow: osa-dev → ai-work-method → vibecode-kit → unslop-vi.
 - Scope: port đúng ba commit upstream `0897360`, `ec71362`, `3432671`. Không desktop/Tauri, không local-Chrome, không `v0.7.0-preview`, không rewrite README.
 - Upstream `kadaliao/open-super-agent` chỉ fetch. `remote.upstream.pushurl=DISABLED`. Không push, không PR upstream.
