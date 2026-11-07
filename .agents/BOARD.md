@@ -25,7 +25,7 @@ Snapshot 07/11/2026, Asia/Saigon (UTC+7). GitHub PR + base mới là trạng th�
 
 ## In progress
 
-- OSA-010: `OSA-010 / grok-bot (Kingfisher) / grok-bot/osa-010-heavy-fixes / một lượt tối đa một Heavy, quorum draft, status failed hoặc partial, dừng khi hết hạn mức / claimed_at 07/11/2026 17:12 Asia/Saigon / PR vào i18n-vi, chưa merge`. Tin Tin duyệt scope này từ live test Experiential (task #48–50 và #61–63). Ngoài PR, chưa làm: hợp đồng marker/goal, trần số tool call theo task, prompt nội bộ còn nhãn `方案`, so A/B model, đo ngôn ngữ. Không paid run. Không viết lại output model.
+- OSA-010: `OSA-010 / grok-bot (Kingfisher) / grok-bot/osa-010-heavy-fixes / một lượt tối đa một Heavy, quorum draft, status failed hoặc partial, dừng khi hết hạn mức / claimed_at 07/11/2026 17:12 Asia/Saigon / [PR #12](https://github.com/VagabondKingsman/open-super-agent-remake/pull/12)`. Head `2671e11`. Chưa merge. Tin Tin duyệt scope này từ live test Experiential (task #48–50 và #61–63). Ngoài PR, chưa làm: hợp đồng marker/goal, trần số tool call theo task, prompt nội bộ còn nhãn `方案`, so A/B model, đo ngôn ngữ. Không paid run. Không viết lại output model.
 
 ## Done · đã public
 

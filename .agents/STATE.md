@@ -108,3 +108,5 @@ Nguyên nhân đã đối chiếu trên code ở base này:
 - Mọi worker heavy xuất phát cùng lúc. Lỗi 429 chỉ được viết thành câu, client còn retry sẵn. Không tách hết hạn mức khỏi rate limit.
 
 Số test của phiên nằm ở [log OSA-010](log/2026-11-07-grok-bot-osa-010.md). Trên máy này `pytest` 223 passed, 3 skipped vì không có bubblewrap. 3 SKIP không phải PASS. Live provider sau bản sửa là NOT_CHECKED.
+
+PR: [#12](https://github.com/VagabondKingsman/open-super-agent-remake/pull/12), branch `grok-bot/osa-010-heavy-fixes`, head `2671e11576654f8693d8abab249df62e1bddd202`, vào `i18n-vi`. Chưa merge.
