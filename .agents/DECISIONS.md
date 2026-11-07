@@ -1,0 +1,39 @@
+# Quyết định dự án (ADR)
+
+Ngày ADR: **07/11/2026, Asia/Saigon (UTC+7)**. Đây là ngày sự kiện/biên soạn từ các báo cáo, không suy ra giờ phê duyệt. ADR không thay approval của Tin Tin; bot chỉ thêm quyết định trong scope được giao, đề xuất scope lớn phải ghi Proposed.
+
+## ADR-001 · Accepted · Port v0.6 thay merge cơ học
+
+Merge trực tiếp khoảng 64 conflict giữa hai kiến trúc i18n. Abort, dựng trên v0.6.0/9790ffa, port VI và fixes riêng có chọn lọc; giữ safety. Public remake có lịch sử snapshot khác upstream nên chuyển delta bằng forward commits/PR, không rewrite/force-push. Local ancestry-ours là xử lý một lần, không mẫu mặc định. Nguồn: `docs/cap-nhat-tu-upstream.md`, PR #1.
+
+## ADR-002 · Accepted · VI mặc định, giữ Chinese-as-key
+
+Dùng chung kiến trúc i18n v0.6 cho VI/EN/ZH, không ghép i18next cũ. Giữ preference đã lưu và migration, placeholder parity; source Chinese không có nghĩa UI phải mặc định Chinese. Nội dung chat cũ/prompt/app fallback không rewrite hàng loạt. Nguồn: `docs/i18n.md`, PR #1–#3.
+
+## ADR-003 · Accepted · Bundle nguồn team-authored
+
+Tin Tin xác nhận team tạo bảy skill và cho phép phân phối/cài mặc định. Track toàn cây helper/reference, inventory SHA-256, MIT LICENSE/NOTICE; giữ credit pstack và tham chiếu font OFL, không kèm font binary. Thay quyết định local-only thời eval; không suy quyền với tài sản bên ngoài. Nguồn: PR #5, `skills-pack/ai-native/NOTICE.md`.
+
+## ADR-004 · Accepted · Shared defaults không ghi đè sửa tay
+
+Bảy nguồn + mentor là shared native skills, bot mới tự thấy; reconcile version/hash giữ edits/resources/tombstones/private overrides và nhận legacy khớp. Opt-out config/env không xóa dữ liệu. Không thêm tám bản sao cho từng bot. FS+DB crash không hoàn toàn atomic, phải báo drift, không reset tự động. Nguồn: `docs/vi/ai-native-skills.md`, PR #5.
+
+## ADR-005 · Accepted · Hard AC quan trọng hơn điểm trung bình
+
+v1/v2 NO-GO dù routing/mean tốt vì count/patch chưa đạt. GO v3 chỉ sau exact final patch applies + tests PASS, exact body count/self-report khớp và regression/routing/paging giữ đúng (output mean ≥4 trong rubric đợt đó). Chỉ E02/E07 rerun v3; không gọi full v3 hay “ngang Build Bot”. GO cho handoff/review, không cấp quyền merge hoặc bảo đảm mọi prose không lỗi. Nguồn: `docs/vi/ai-native-live-eval.md`.
+
+## ADR-006 · Accepted · Công cụ đo, không tin self-count
+
+Dùng verify_facts trên final draft; markdown_body khóa scope blog, sửa xong phải verify lại. Hunk-count đúng không chứng minh context/apply/test; inspect_repo trước, check_patch offline trên snapshot thật, exact hash và tests cũ giữ nguyên. Sandbox thiếu thì BLOCKED; instruction chưa là hard gate mọi câu model. Nguồn: `docs/vi/deterministic-verification.md`, `local-patch-checks.md`, PR #4.
+
+## ADR-007 · Accepted · Verify có giới hạn và cost cap
+
+FakeLLM/temp DB trước; live run chỉ khi có approval theo đợt, cap/reservation/stop, restore settings. Không channel send; không dùng Router thay Worker evidence hay unavailable thay Docker E2E. Thiếu hạ tầng thì NOT_CHECKED/SKIP có lý do; không tìm host-shell/token workaround. Nguồn: live-eval + default-install reports và RULES.
+
+## ADR-008 · Accepted cho handoff local · GitHub là bộ nhớ chung
+
+Dùng `.agents/` với root AGENTS/README pointers, STATE snapshot + BOARD owner + log phiên + templates. Source skills ở một chỗ, bridge osa-dev portable, không chép persona/credential riêng. Claim PR cần merge/xác nhận mới là owner đã nhận, không coi file local là lock. Merge bởi Tin Tin hoặc bot được duyệt rõ; publish/merge còn là bước riêng. Nguồn: yêu cầu handoff 07/11/2026 và log phiên này.
+
+## Thêm ADR
+
+`ADR-ID · Proposed/Accepted/Superseded · ngày Asia/Saigon` → context → decision → alternatives/why → consequences → source/approval → ADR thay thế nếu có. Giữ quyết định cũ và ghi superseded; không sửa lịch sử cho khớp hindsight.

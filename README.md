@@ -6,6 +6,10 @@ Bản Việt hóa của [kadaliao/open-super-agent](https://github.com/kadaliao/
 
 Repo remake: <https://github.com/VagabondKingsman/open-super-agent-remake>. Giấy phép [MIT](LICENSE), tác giả upstream Kada Liao.
 
+## Cộng sự và bàn giao giữa các bot
+
+Bot mới bắt đầu tại [.agents/README.md](.agents/README.md); [AGENTS.md](AGENTS.md) là entry point ở root. Thư mục có phong cách làm việc, Skill Flow, quy tắc, kiến trúc, STATE/BOARD, log phiên và templates. [Prompt khởi động](.agents/PROMPT.md) dành cho tài khoản/máy mới; không chia sẻ credential hay tự cấp quyền phát hành.
+
 ## Thay đổi trong v0.6.0
 
 - Nhiều tác vụ dùng Computer đồng thời, mỗi tác vụ có cửa sổ trình duyệt riêng. Các Bot vẫn dùng chung máy, tệp và phiên đăng nhập. Số tác vụ vượt giới hạn sẽ xếp hàng.

@@ -1,10 +1,25 @@
-## 改了什么
+## Task / mục tiêu
 
-## 为什么
+BOARD ID: <!-- ID --> · Owner bot: <!-- tên --> · Base: `i18n-vi`
 
-## 怎么验证的
-<!-- 截图、实际对话或测试步骤 -->
+<!-- Dùng mẫu đầy đủ ở .agents/templates/PR.md; không tự tick test chưa chạy. -->
 
-- [ ] 用户能感知到的改动已写进 CHANGELOG.md
-- [ ] 不违反 docs/architecture.md 里的设计约定
-- [ ] 新增或修改了应用：本机连上试过，`uv run python -m osa.catalog` 没有报错
+## Đã đổi / lý do
+
+## Verify và bằng chứng
+
+<!-- Coverage, AC/tier results, commands/counts/exits/skips, R1–R5 và overall status. -->
+<!-- Mẫu: .agents/templates/VERIFY-REPORT.md. Nêu Docker/Worker/browser deferred thật. -->
+
+## Rủi ro / deferred / rollback
+
+- [ ] Đúng remake-only; branch <bot>/<topic>, không force-push/upstream PR.
+- [ ] VI mặc định, EN/ZH/placeholder; i18n + pytest + frontend tests/build phù hợp scope.
+- [ ] Không secret/PII/DB/private traces/session links; đã review staged diff/scan.
+- [ ] Temp data/fake LLM, không real channel sends; live paid run có approval/cap riêng nếu áp dụng.
+- [ ] STATE + BOARD + log phiên cập nhật; no conflicting task owner.
+- [ ] Đã kiểm docs/architecture.md; CHANGELOG và app/template validation nếu liên quan.
+
+Hướng dẫn và templates: [.agents/README.md](../.agents/README.md), [PR](../.agents/templates/PR.md), [TIP](../.agents/templates/TIP.md), [VERIFY REPORT](../.agents/templates/VERIFY-REPORT.md), [handoff](../.agents/templates/HANDOFF.md).
+
+Merge bởi Tin Tin hoặc bot được duyệt rõ. GO kỹ thuật không tự cấp quyền merge.
