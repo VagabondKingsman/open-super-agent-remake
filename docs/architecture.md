@@ -97,7 +97,7 @@ web/src/
 |---|---|
 | `bots`、`chats` | Bot 和对话；每个 Bot 有一个私聊（`kind=direct`）；群聊（`kind=group`）的 `bot_ids` 有 2–6 个，`lead` 是协调者 |
 | `messages` | 所有消息。`role` 是 user / assistant / task；`meta`（JSON）里放 reasoning、任务编号、卡片类型等 |
-| `llm_usage` | 每次模型调用已记录的 token 和费用（不是服务商账单）。`estimated=1` 表示取消时没有 usage 回包，output 按已收到的文字估算 |
+| `llm_usage` | 每次模型调用已记录的 token 和费用（美元，不是服务商账单）。`estimated=1` 表示取消时没有 usage 回包，output 按已收到的文字估算。OSA-013 之前的 `cost` 是人民币；`settings.cost_unit` 记下第一次换成美元的结果，避免再除一次。见 [configuration.md](configuration.md#单价和限额) |
 | `task_steps` | 后台任务的过程：每一步的类型（思考 / 工具 / 结果……）、Heavy 里是哪个研究员、标题、内容、状态、用时。`task_id` 是“任务已派发”那条消息的 id；只留最近 `memory.task_log_days` 天 |
 | `memories` | 长期记忆。`bot_id` 为空的是共享的用户事实；`kind=work` 是自动记的“做过的事” |
 | `pages`、`file_pins` | 资料库的页面（`share_token` 不为空表示已分享）和置顶的文件路径 |

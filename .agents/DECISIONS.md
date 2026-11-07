@@ -89,6 +89,25 @@ Không làm trong ADR này: dịch persona của template có sẵn (vi và en �
 
 Nguồn là task OSA-011. ADR này không đổi quyền merge.
 
+## ADR-012 · Accepted · Chi phí lưu và hiện bằng USD
+
+Trang chi phí đang hiện `¥`. models.dev ghi USD / triệu token; code nhân `pricing.usd_rate` (mặc định 7.1) rồi lưu vào `llm_usage.cost`. Bảng `pricing.models` cho `deepseek-flash` và `deepseek-v4-pro` là giá CNY chép từ trang giá, không nhân rate. Tab Giới hạn & ngân sách là trần token, số bước và số giây, không phải một số tiền.
+
+Quyết định trong OSA-013, Tin Tin giao scope:
+
+- Đơn vị tính và đơn vị hiện là USD. Field API `currency` giữ tên, giá trị luôn `$`. `prices.rate` giữ trong payload, giá trị luôn `1`, không còn là tỷ giá.
+- Giá models.dev dùng nguyên số USD. Không nhân, không hiện CNY.
+- Bảng mặc định đổi sang giá niêm yết USD trên https://api-docs.deepseek.com/quick_start/pricing/ , đối chiếu 07/11/2026. Giờ cao điểm trong config giữ nguyên (giờ Bắc Kinh, khớp UTC trên trang giá).
+- Config cũ còn `currency` là ¥, CNY, RMB hoặc 元: số trong `pricing.models` chia cho `legacy_cny_per_usd`, không có thì `usd_rate`, không có thì 7.1, rồi tính như USD.
+- DB: `settings.cost_unit`. Chưa có cờ thì dòng thuộc model trong `pricing.models` tính lại từ cột token theo giá USD hiện tại (kể cả giờ cao điểm). Dòng khác chia cho cùng hệ số. Sau đó ghi cờ. Lần mở sau không chia nữa. `legacy_cny_per_usd: 1` nghĩa là số cũ đã là USD.
+- Trần trong tab giới hạn không đổi đơn vị. Không có trần tiền CNY để quy đổi.
+
+Phương án bị loại: giữ hai đơn vị trên UI, và nhân tiếp models.dev với 7.1. Cũng không lấy giá models.dev hôm nay để viết lại mọi dòng cũ, vì giá catalog đổi thì lịch sử không còn là số đã ghi.
+
+Hệ quả: dòng models.dev chia 7.1 ra đúng USD đã nhân lúc ghi. Dòng `deepseek-flash` / `deepseek-v4-pro` được tính lại theo bảng USD mới nếu lần khởi động đầu đã dùng config USD. Nếu lần đó config vẫn là CNY, hai model này thành giá CNY cũ / 7.1, thấp hơn giá niêm yết khoảng 6% vì bảng CNY cũ đã làm tròn (tỷ lệ khoảng 6,67). Muốn đúng giá niêm yết thì sửa config sang USD trước lần khởi động đầu.
+
+Nguồn là task OSA-013. ADR này không đổi quyền merge.
+
 ## Thêm ADR
 
 `ADR-ID · Proposed/Accepted/Superseded · ngày Asia/Saigon` → context → decision → alternatives/why → consequences → source/approval → ADR thay thế nếu có. Giữ quyết định cũ và ghi superseded; không sửa lịch sử cho khớp hindsight.

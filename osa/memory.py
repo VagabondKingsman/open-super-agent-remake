@@ -265,8 +265,18 @@ def tokens_today() -> int:
                         (time.time() - 86400,)).fetchone()[0]
 
 
+# Same symbol as prices.CURRENCY. Duplicated so this module can open the DB before prices finishes loading.
+USAGE_CURRENCY = "$"
+COST_UNIT_KEY = "cost_unit"
+_COST_DECIMALS = 6
+
+
+def _usd(amount) -> float:
+    return round(float(amount or 0), _COST_DECIMALS)
+
+
 def usage_stats() -> dict:
-    """费用面板用：今天、近 7 天、近 30 天的汇总，以及按角色、按任务、按天的拆分。"""
+    """Cost panel: today, 7 days, 30 days, plus splits by role, task, and day. Amounts are USD."""
     now = time.time()
     day0 = time.mktime(time.strptime(time.strftime("%Y-%m-%d"), "%Y-%m-%d"))
 
@@ -276,7 +286,7 @@ def usage_stats() -> dict:
             coalesce(sum(case when estimated=1 then 1 else 0 end),0),
             coalesce(sum(case when estimated=1 then cache_hit+cache_miss+output else 0 end),0)
             from llm_usage where ts >= ?""", (since,)).fetchone()
-        return {"cost": round(r[0], 4), "cache_hit": r[1], "cache_miss": r[2], "output": r[3], "calls": r[4],
+        return {"cost": _usd(r[0]), "cache_hit": r[1], "cache_miss": r[2], "output": r[3], "calls": r[4],
                 "cache_rate": round(r[1] / (r[1] + r[2]), 3) if r[1] + r[2] else 0,
                 "estimated_calls": r[5], "estimated_tokens": r[6], "scope": "recorded"}
 
@@ -288,10 +298,56 @@ def usage_stats() -> dict:
     by_day = conn.execute("""select date(ts, 'unixepoch', 'localtime') d, sum(cost) from llm_usage
         where ts >= ? group by d order by d""", (now - 30 * 86400,)).fetchall()
     return {
-        "currency": CFG["pricing"]["currency"],
+        "currency": USAGE_CURRENCY,
         "today": total(day0), "week": total(now - 7 * 86400), "month": total(now - 30 * 86400),
-        "by_role": [{"role": r, "model": m, "cost": round(c, 4), "tokens": t} for r, m, c, t in by_role],
-        "by_task": [{"id": i, "cost": round(c, 4), "tokens": t, "goal": TASK_DISPATCH.sub("", g or "")[:60]}
+        "by_role": [{"role": r, "model": m, "cost": _usd(c), "tokens": t} for r, m, c, t in by_role],
+        "by_task": [{"id": i, "cost": _usd(c), "tokens": t, "goal": TASK_DISPATCH.sub("", g or "")[:60]}
                     for i, c, t, g in by_task],
-        "by_day": [{"day": d, "cost": round(c, 4)} for d, c in by_day],
+        "by_day": [{"day": d, "cost": _usd(c)} for d, c in by_day],
     }
+
+
+def migrate_usage_currency(db=None, divisor: float | None = None) -> dict:
+    """Convert stored ``llm_usage.cost`` from CNY to USD once.
+
+    Rows written before ``settings.cost_unit`` were CNY. models.dev rows were
+    USD list price times ``pricing.usd_rate`` (default 7.1). Rows for a model
+    in ``pricing.models`` used that table directly, so they are recomputed from
+    the token columns with the current USD table (peak hours included). Every
+    other non-zero row is divided by the same documented rate. The flag blocks
+    a second pass. ``divisor`` 1 means the caller already stored USD.
+    """
+    db = db or conn
+    row = db.execute("select value from settings where key=?", (COST_UNIT_KEY,)).fetchone()
+    if row:
+        try:
+            saved = json.loads(row[0] or "{}")
+        except ValueError:
+            saved = {}
+        if isinstance(saved, dict) and saved.get("currency") == "USD":
+            return saved
+        return saved if isinstance(saved, dict) else {"currency": "USD", "skipped": "unreadable flag"}
+    if divisor is None:
+        from . import prices
+        divisor = prices.legacy_cny_per_usd()
+    divisor = float(divisor)
+    n = db.execute("select count(*) from llm_usage").fetchone()[0]
+    repriced = divided = 0
+    if n and divisor != 1:
+        from . import prices
+        rows = db.execute(
+            "select rowid, ts, model, cache_hit, cache_miss, output, cost from llm_usage where cost != 0"
+        ).fetchall()
+        for rowid, ts, model, hit, miss, out, cost in rows:
+            if prices._manual(model) is not None:
+                new = prices.cost(None, model, hit or 0, miss or 0, out or 0, _is_peak(ts or 0))
+                repriced += 1
+            else:
+                new = float(cost) / divisor
+                divided += 1
+            db.execute("update llm_usage set cost=? where rowid=?", (new, rowid))
+    payload = {"currency": "USD", "legacy_cny_per_usd": divisor, "rows": int(n),
+               "repriced_models": repriced, "divided_rows": divided}
+    db.execute("insert or replace into settings(key, value) values(?, ?)", (COST_UNIT_KEY, json.dumps(payload)))
+    db.commit()
+    return payload

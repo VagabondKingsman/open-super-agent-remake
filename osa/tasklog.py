@@ -154,8 +154,8 @@ def detail(task_id: int) -> dict | None:
                   coalesce(sum(case when estimated=1 then cache_hit+cache_miss+output else 0 end), 0)
            from llm_usage where task_id=?""", (task_id,)).fetchone()
     # usage=recorded：库里的数是已记录用量，不是服务商账单。estimated_tokens 来自取消时的估算。
-    t |= {"cost": round(cost, 4), "tokens": tokens, "estimated_tokens": estimated,
-          "usage": "recorded", "currency": CFG["pricing"]["currency"]}
+    t |= {"cost": round(cost, 6), "tokens": tokens, "estimated_tokens": estimated,
+          "usage": "recorded", "currency": memory.USAGE_CURRENCY}
     return t
 
 

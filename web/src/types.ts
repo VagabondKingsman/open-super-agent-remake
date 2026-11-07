@@ -50,7 +50,7 @@ export type Preset = {
   id: string; title: string; base_url: string; color: string; desc: string; key_url?: string; embedding?: string; no_key?: boolean; note?: string
   models?: string[]   // 推荐的对话模型，前面的优先
 }
-// 单价是元 / 百万 token。source：config（config.yaml 手写）、models.dev（自动获取）、local（本机，免费）
+// Unit price is USD per million tokens. source: config (handwritten), models.dev, or local (free).
 export type ModelInfo = {
   source: '' | 'config' | 'models.dev' | 'local'; input?: number; output?: number; cache?: number | null
   offpeak?: [number, number]; vision?: boolean; kind?: string; name?: string; via?: string
@@ -67,7 +67,7 @@ export type Settings = {
   computer_parallel: number
   embedding: { provider: string; model: string }
   model_info: Record<string, ModelInfo>   // 键是 服务/模型
-  prices: { source: string; updated: number; error: string; rate: number; currency: string; models: number }
+  prices: { source: string; updated: number; error: string; rate: number; currency: string; unit?: string; models: number }
   problem: string                         // 对话或后台任务的模型没法用的原因；能用是空
   language: 'vi' | 'zh' | 'en'                   // 界面语言
 }

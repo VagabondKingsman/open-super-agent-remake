@@ -312,7 +312,6 @@ export function ModelPicker({ kind, value, onChange, allowNone, only }: {
   only?: string   // 只列这个服务的模型
 }) {
   const s = useStore(x => x.settings) as S
-  const cur = s.prices.currency
   const { lists, load } = useContext(ListsCtx)
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
@@ -352,7 +351,7 @@ export function ModelPicker({ kind, value, onChange, allowNone, only }: {
     if (provider !== value.provider || model !== value.model) onChange(provider, model)
   }
   const first = groups.find(g => g.items.length)
-  const price = (m: ModelItem) => m.input === undefined ? '' : !m.input && !m.output ? t('免费') : `${money(m.input, cur)} / ${money(m.output, cur)}`
+  const price = (m: ModelItem) => m.input === undefined ? '' : !m.input && !m.output ? t('免费') : `${money(m.input)} / ${money(m.output)}`
   return (
     <div className="mp" ref={box}>
       <button className={'mp-btn' + (open ? ' on' : '')} onClick={() => setOpen(!open)}>
