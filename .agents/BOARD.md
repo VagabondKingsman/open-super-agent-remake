@@ -27,7 +27,7 @@ Snapshot 07/11/2026, Asia/Saigon (UTC+7). GitHub PR + base mới là trạng th�
 
 | ID | Owner / branch | Trạng thái / bước tiếp |
 |---|---|---|
-| | | Không có task đang mở trên bảng này. OSA-004 đã chuyển Done. |
+| OSA-009 | grok-bot / `grok-bot/osa-009-audit-fixes` | `OSA-009 / grok-bot / grok-bot/osa-009-audit-fixes / deep fix audit Zro B01–B07 / claimed_at 07/11/2026 15:00 Asia/Saigon / PR link pending`. Chưa merge. |
 
 ## Done · đã public
 

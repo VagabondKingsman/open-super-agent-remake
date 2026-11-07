@@ -141,10 +141,16 @@ def N_(zh: str) -> str:
 
 
 def model_hint() -> str:
-    """写给模型的一句话：英文界面时默认用英文回复。中文界面什么都不加，行为和以前一样。"""
+    """写给模型的一句语言要求。中文界面不加，行为和以前一样。
+
+    这只是指令。模型仍可能用别的语言回答，调用方不要把输出改写成界面语言来假装遵守了。"""
     if lang() == "vi":
-        return "\nNgôn ngữ giao diện là tiếng Việt: mặc định trả lời, tạo trang và ghi nhớ bằng tiếng Việt; nếu người dùng dùng ngôn ngữ khác thì theo họ."
-    return "" if lang() == "zh" else "\n用户的界面语言是英文：默认用英文回复，结果、页面和记下的记忆也用英文；用户用别的语言说话时跟着用那种语言。"
+        return ("\nNgôn ngữ giao diện là tiếng Việt. Câu trả lời cuối cho người dùng phải bằng tiếng Việt. "
+                "Chỉ dùng ngôn ngữ khác khi chính yêu cầu được viết bằng ngôn ngữ đó. Không chuyển sang ngôn ngữ thứ ba.")
+    if lang() == "en":
+        return ("\n用户的界面语言是英文：默认用英文回复，结果、页面和记下的记忆也用英文；"
+                "只有任务原文是别的语言时才跟着用那种语言，不要换成第三种语言。")
+    return ""
 
 
 def both(zh: str) -> set[str]:

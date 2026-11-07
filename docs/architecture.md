@@ -97,13 +97,13 @@ web/src/
 |---|---|
 | `bots`、`chats` | Bot 和对话；每个 Bot 有一个私聊（`kind=direct`）；群聊（`kind=group`）的 `bot_ids` 有 2–6 个，`lead` 是协调者 |
 | `messages` | 所有消息。`role` 是 user / assistant / task；`meta`（JSON）里放 reasoning、任务编号、卡片类型等 |
-| `llm_usage` | 每次模型调用的 token 数和费用 |
+| `llm_usage` | 每次模型调用已记录的 token 和费用（不是服务商账单）。`estimated=1` 表示取消时没有 usage 回包，output 按已收到的文字估算 |
 | `task_steps` | 后台任务的过程：每一步的类型（思考 / 工具 / 结果……）、Heavy 里是哪个研究员、标题、内容、状态、用时。`task_id` 是“任务已派发”那条消息的 id；只留最近 `memory.task_log_days` 天 |
 | `memories` | 长期记忆。`bot_id` 为空的是共享的用户事实；`kind=work` 是自动记的“做过的事” |
 | `pages`、`file_pins` | 资料库的页面（`share_token` 不为空表示已分享）和置顶的文件路径 |
 | `push_subs` | 开启了推送的设备（推送服务地址和密钥）；VAPID 私钥存在 `settings` 的 `vapid` 里 |
 | `channels` | 聊天软件连接：平台、绑定的对话（`chat_id`）、配对的私聊（`peer`）、配对码；token / App Secret 在保险库的 `channel_<id>` |
-| `settings` | 界面里改过的设置；`language` 是界面语言（zh / en） |
+| `settings` | 界面里改过的设置；`language` 是界面语言（vi / en / zh） |
 | `computers` | 电脑后端的引用，例如 Instabox 的机器 id |
 
 ## 设计约定
@@ -265,7 +265,7 @@ web/src/
 - 中文原文就是翻译的键，英文在 `en.json`，没翻译的地方显示中文。中文界面和加翻译之前完全一样。
 - 语言是全局的一个设置（单用户），前后端共用：服务端发的报错、卡片、推送、聊天软件里的消息都按它来。前端在 localStorage 留一份，
   打开页面不用等接口；和服务端的不一样时重新加载一次。没设过时，新装的按第一次打开时浏览器的语言，升级上来的老用户定为中文。
-- 写给模型的提示词保持中文，英文界面只在末尾加一句默认用英文回复；中文界面的提示词一个字不变。
+- 写给模型的提示词保持中文。英文和越南语界面在末尾加一句：默认用界面语言回复，只有任务原文是别的语言才跟着那种语言，不要换成第三种。这只是指令，不改写模型的输出。中文界面的提示词一个字不变。
 - 存进数据库、之后还要比对的标记（`[任务已派发]` 等）存中文原文，在显示的地方翻。
 
 ### 推送与 PWA

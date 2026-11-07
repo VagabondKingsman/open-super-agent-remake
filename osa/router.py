@@ -265,7 +265,7 @@ class Router:
                 self.turn = {}
 
     async def _stream(self, client, model, msgs, sid: str, started: float, use_tools: bool = True):
-        """流式调用一次模型，边收边推送正文和思考过程。返回 (正文, 思考, 工具调用列表)。"""
+        """流式调用一次模型，边收边推送正文和思考过程。返回 (正文, 思考, 工具调用列表, finish_reason)。"""
         tools = ROUTER_TOOLS + ([HANDOFF] if self.chat["kind"] == "group" else []) + \
             ([MESSAGE_BOT] if len(bots.list_bots()) > 1 else [])
         cid = self.chat["id"]
@@ -273,26 +273,39 @@ class Router:
             model=model, messages=msgs, stream=True, **({"tools": tools} if use_tools else {}),
             stream_options={"include_usage": True}, **call_kwargs("router"))
         content, reasoning, calls, usage = "", "", {}, None
-        async for chunk in stream:
-            if chunk.usage:
-                usage = chunk.usage
-            if not chunk.choices:
-                continue
-            d = chunk.choices[0].delta
-            if rc := getattr(d, "reasoning_content", None):
-                reasoning += rc
-                await self.emit({"type": "stream", "sid": sid, "thinking": rc}, cid)
-            if d.content:
-                content += d.content
-                await self.emit({"type": "stream", "sid": sid, "delta": d.content}, cid)
-            for tc in d.tool_calls or []:
-                c = calls.setdefault(tc.index, {"id": "", "name": "", "args": ""})
-                c["id"] = tc.id or c["id"]
-                if tc.function:
-                    c["name"] += tc.function.name or ""
-                    c["args"] += tc.function.arguments or ""
-        memory.record_usage("router", model, usage)
-        return content, reasoning, [calls[k] for k in sorted(calls)]
+        finish = None
+        recorded = False
+        try:
+            async for chunk in stream:
+                if getattr(chunk, "usage", None):
+                    usage = chunk.usage
+                if not chunk.choices:
+                    continue
+                choice = chunk.choices[0]
+                if getattr(choice, "finish_reason", None):
+                    finish = choice.finish_reason
+                d = choice.delta
+                if d is None:
+                    continue
+                if rc := getattr(d, "reasoning_content", None):
+                    reasoning += rc
+                    await self.emit({"type": "stream", "sid": sid, "thinking": rc}, cid)
+                if getattr(d, "content", None):
+                    content += d.content
+                    await self.emit({"type": "stream", "sid": sid, "delta": d.content}, cid)
+                for tc in getattr(d, "tool_calls", None) or []:
+                    c = calls.setdefault(tc.index, {"id": "", "name": "", "args": ""})
+                    c["id"] = tc.id or c["id"]
+                    if tc.function:
+                        c["name"] += tc.function.name or ""
+                        c["args"] += tc.function.arguments or ""
+            memory.record_usage("router", model, usage)
+            recorded = True
+        except asyncio.CancelledError:
+            if not recorded:
+                memory.record_partial("router", model, usage, content + reasoning)
+            raise
+        return content, reasoning, [calls[k] for k in sorted(calls)], finish
 
     def _group_block(self, chat: dict) -> str:
         if chat["kind"] != "group":
@@ -352,11 +365,11 @@ class Router:
         sid, started = f"s{time.time_ns()}", time.time()
         self._turn_tasks = []             # 本轮派发的任务，挂在这条回复下面显示
         self._turn_dms = 0                # 本轮发出的私信
-        shown, thinking, shots = "", "", []
+        shown, thinking, shots, finish = "", "", [], None
         await self.emit({"type": "stream_start", "sid": sid}, cid)
         try:
             for _ in range(10):
-                content, reasoning, calls = await self._stream(client, model, msgs, sid, started)
+                content, reasoning, calls, finish = await self._stream(client, model, msgs, sid, started)
                 shown += content
                 thinking += reasoning
                 if not calls:
@@ -382,9 +395,20 @@ class Router:
                 if shown and not shown.endswith("\n"):
                     shown += "\n\n"
                     await self.emit({"type": "stream", "sid": sid, "delta": "\n\n"}, cid)
-            if not shown.strip():   # 工具轮数用完还没开口：关掉工具，逼它给一句回复
-                content, reasoning, _ = await self._stream(client, model, msgs, sid, started, use_tools=False)
-                shown, thinking = content, thinking + reasoning
+            # 空回复，或 finish_reason=length：再要一次完整回复。仍空就不要当成成功的空白消息。
+            if not shown.strip() or finish == "length":
+                content, reasoning, _, finish = await self._stream(client, model, msgs, sid, started, use_tools=False)
+                if not shown.strip():
+                    shown, thinking = content, thinking + reasoning
+                elif content:
+                    # _stream 已经把这段推给前端了，这里只补进要保存的正文
+                    if not shown.endswith("\n"):
+                        shown += "\n\n"
+                        await self.emit({"type": "stream", "sid": sid, "delta": "\n\n"}, cid)
+                    shown += content
+                    thinking += reasoning
+            if not shown.strip():
+                shown = i18n.t("没有给出回复")
         finally:
             await self.emit({"type": "stream_end", "sid": sid}, cid)
         await self.add("assistant", shown.strip(), cid, reasoning=reasoning, thinking=thinking,
@@ -409,12 +433,12 @@ class Router:
             return skillpacks.tool(self.bot_id, name, args)
         if name == "dispatch":
             if self._over_budget():
-                return "今日 token 预算已用完，没有派发。请告诉用户。"
+                return i18n.t("今日 token 预算已用完，没有派发。请告诉用户。")
             handoff = None
             if args.get("handoff_to") and self.chat["kind"] == "group":
                 to = self._member(args["handoff_to"])
                 if not to or to["id"] == self.bot_id:
-                    return f"没派发：群里没有叫 {args['handoff_to']} 的其他成员"
+                    return i18n.t("没派发：群里没有叫 {name} 的其他成员", name=args["handoff_to"])
                 handoff = {"to": to["id"], "note": args.get("handoff_note") or ""}
                 from . import groups
                 groups.expect(self.chat["id"], to["id"])
@@ -422,10 +446,10 @@ class Router:
                                        reply=self.turn.get("reply"), depth=self.turn.get("depth", 0))
             self._turn_tasks.append(task.id)
             if handoff:
-                return f"已派发任务 #{task.id}，做完后结果会自动交给 {to['name']}"
+                return i18n.t("已派发任务 #{id}，做完后结果会自动交给 {name}", id=task.id, name=to["name"])
             if task.reply:
-                return f"已派发任务 #{task.id}，做完后结果会自动发给 {dm._name(task.reply['bot'])}"
-            return f"已派发任务 #{task.id}"
+                return i18n.t("已派发任务 #{id}，做完后结果会自动发给 {name}", id=task.id, name=dm._name(task.reply["bot"]))
+            return i18n.t("已派发任务 #{id}", id=task.id)
         if name == "message_bot":
             to = bots.by_name(args.get("to", ""))
             if not to or to["id"] == self.bot_id:
@@ -610,11 +634,15 @@ class Router:
                          for t in self.tasks.values()) or "暂无任务"
 
     async def _run(self, task: Task):
+        from .worker import IncompleteAnswer
         try:
             task.result = await (run_heavy(task) if task.mode == "heavy" else run_worker(task, task.goal + task.notes))
-            task.status = "done"
-            if not task.background:   # 定时任务有自己的运行记录，不记进“做过的事”
-                memories.log_work(self.bot_id, task.id, task.goal)
+            if not (task.result or "").strip():
+                task.status, task.result = "failed", i18n.t("任务没有给出答案")
+            else:
+                task.status = "done"
+                if not task.background:   # 定时任务有自己的运行记录，不记进“做过的事”
+                    memories.log_work(self.bot_id, task.id, task.goal)
         except asyncio.CancelledError:
             asked = task.status == "cancelled"   # cancel() 先标了状态；服务关闭时被取消的不算
             task.status = "cancelled"
@@ -625,18 +653,30 @@ class Router:
                 asyncio.create_task(dm.after_task(task))
             await self._done(task)
             return
+        except IncompleteAnswer as e:
+            task.status, task.result = "failed", str(e)
         except Exception as e:
             task.status, task.result = "failed", i18n.t("任务失败：{error}", error=e)
         await tasklog.close(task, task.status, task.result if task.status == "failed" else "")
-        if task.status == "done" and task.quiet_ok and routines.is_quiet(task.result):
+        # 等本轮对话把 ack 写进记录再发结果，避免“将会去做”出现在结果后面。
+        async with self.lock:
+            await self._publish(task)
+        await self._done(task)
+
+    async def _publish(self, task: Task):
+        if task.status == "done" and task.quiet_ok and routines.is_quiet(task.result) and not task.side_effects:
             # 定时任务这次没有新内容：不发结果（也就不推送、不发到聊天软件），派发的那条在对话里和上下文里都不再出现
             task.quiet = True
             memory.update_meta(task.id, status="done", quiet=True, elapsed=round(time.time() - task.started), steps=task.steps)
             await self.emit({"type": "task", "task": task.public()}, task.chat_id)
-            await self._done(task)
             return
-        memory.update_meta(task.id, status=task.status, elapsed=round(time.time() - task.started), steps=task.steps)
-        await self.add("task", i18n.t("[任务 #{id} 结果]", id=task.id) + f"\n{task.result}", task.chat_id, kind="result", task_id=task.id,
+        extra = {}
+        body = task.result or ""
+        if task.side_effects:
+            extra["side_effects"] = task.side_effects
+            body += "\n\n" + i18n.t("这个任务还改动了资料库：{items}", items="; ".join(s["summary"] for s in task.side_effects))
+        memory.update_meta(task.id, status=task.status, elapsed=round(time.time() - task.started), steps=task.steps, **extra)
+        await self.add("task", i18n.t("[任务 #{id} 结果]", id=task.id) + f"\n{body}", task.chat_id, kind="result", task_id=task.id,
                        status=task.status, elapsed=round(time.time() - task.started))
         await self.emit({"type": "task", "task": task.public()}, task.chat_id)
         if task.handoff:
@@ -644,7 +684,6 @@ class Router:
             asyncio.create_task(groups.after_task(task))
         if task.reply:
             asyncio.create_task(dm.after_task(task))
-        await self._done(task)
 
     async def _done(self, task: Task):
         if task.on_done:

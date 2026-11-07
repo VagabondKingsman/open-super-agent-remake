@@ -133,7 +133,7 @@ function Usage() {
   return (
     <div className="usage">
       <div className="stat-row">
-        <div className="stat"><div className="muted small">{t('今天')}</div><div className="big">{f(u.today.cost)}</div><div className="muted small">{t('{n} 次调用 · 缓存命中 {rate}%', { n: u.today.calls, rate: (u.today.cache_rate * 100).toFixed(0) })}</div></div>
+        <div className="stat"><div className="muted small">{t('今天')}</div><div className="big">{f(u.today.cost)}</div><div className="muted small">{t('{n} 次调用 · 缓存命中 {rate}%', { n: u.today.calls, rate: (u.today.cache_rate * 100).toFixed(0) })}{u.today.estimated_calls ? ` · ${t('含 {n} 次估算', { n: u.today.estimated_calls })}` : ''}</div></div>
         <div className="stat"><div className="muted small">{t('近 7 天')}</div><div className="big">{f(u.week.cost)}</div></div>
         <div className="stat"><div className="muted small">{t('近 30 天')}</div><div className="big">{f(u.month.cost)}</div></div>
       </div>
@@ -144,6 +144,7 @@ function Usage() {
         <div><h4>{t('按任务（最近 20 个）')}</h4>{u.by_task.map((tk: any) => <div className="kv" key={tk.id}><span>#{tk.id} {tk.goal}</span><span>{f(tk.cost)}</span></div>)}</div>
       </div>
       <Prices />
+      <p className="muted small">{t('这里是已记录的用量，不是服务商账单。取消时如果已经收到用量就照实记；没有用量回包时，按已收到的文字估算，并标成估算。')}</p>
       <p className="muted small">{t('{n} 个 Bot 共用一个每日预算，在“限制与预算”里改。', { n: bots.length })}</p>
     </div>
   )

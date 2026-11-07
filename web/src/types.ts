@@ -27,7 +27,8 @@ export type TaskInfo = {
   id: number; ts: number; goal: string; mode: string; status: string; chat_id: number; bot_id: number
   elapsed?: number | null; steps?: number | null; handoff_to?: number | null
   started?: number; waiting_approval?: number | null; last_action?: string
-  result?: string; finished?: number; cost?: number; tokens?: number; currency?: string
+  result?: string; finished?: number; cost?: number; tokens?: number; estimated_tokens?: number
+  usage?: 'recorded'; currency?: string
 }
 // 正在用电脑的任务：每个占一个浏览器窗口（window：已经开了窗口）
 export type ComputerUser = { key: string; label: string; task_id: number | null; bot_id: number | null; window: boolean }

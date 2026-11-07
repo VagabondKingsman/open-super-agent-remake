@@ -16,6 +16,7 @@ import re
 import struct
 import time
 from .config import CFG
+from . import i18n
 from .memory import conn
 
 conn.execute("""create table if not exists search_docs(
@@ -274,12 +275,13 @@ async def tool(bot_id: int, args: dict) -> str:
     kinds = {"memories": ("memory",), "pages": ("page",)}.get(args.get("scope") or "all", ("memory", "page"))
     hits = await search(str(args.get("query") or ""), bot_id, kinds, 8)
     if not hits:
-        return "没找到相关的记忆或页面"
+        return i18n.t("没找到相关的记忆或页面")
     lines = []
     for h in hits:
         if h["kind"] == "memory":
-            who = "所有 Bot 共享" if h["bot_id"] is None else "做过的事" if h["sub"] == "work" else "你的记忆"
-            lines.append(f"- 记忆 #{h['ref']}（{who}）：{h['snippet']}")
+            who = i18n.t("所有 Bot 共享") if h["bot_id"] is None else i18n.t("做过的事") if h["sub"] == "work" else i18n.t("你的记忆")
+            lines.append(i18n.t("- 记忆 #{id}（{who}）：{snippet}", id=h["ref"], who=who, snippet=h["snippet"]))
         else:
-            lines.append(f"- 页面 #{h['ref']}《{h['title']}》{library.link(h['ref'])}：{h['snippet']}")
+            lines.append(i18n.t("- 页面 #{id}《{title}》{link}：{snippet}", id=h["ref"], title=h["title"],
+                                link=library.link(h["ref"]), snippet=h["snippet"]))
     return "\n".join(lines)

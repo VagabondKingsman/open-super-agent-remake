@@ -149,19 +149,26 @@ def detail(task_id: int) -> dict | None:
         t["result"] = memory.TASK_RESULT.sub("", res[0])
         t["finished"] = res[2]
         t["elapsed"] = t["elapsed"] or json.loads(res[1] or "{}").get("elapsed")
-    cost, tokens = conn.execute("select coalesce(sum(cost), 0), coalesce(sum(cache_hit+cache_miss+output), 0) "
-                                "from llm_usage where task_id=?", (task_id,)).fetchone()
-    t |= {"cost": round(cost, 4), "tokens": tokens, "currency": CFG["pricing"]["currency"]}
+    cost, tokens, estimated = conn.execute(
+        """select coalesce(sum(cost), 0), coalesce(sum(cache_hit+cache_miss+output), 0),
+                  coalesce(sum(case when estimated=1 then cache_hit+cache_miss+output else 0 end), 0)
+           from llm_usage where task_id=?""", (task_id,)).fetchone()
+    # usage=recorded：库里的数是已记录用量，不是服务商账单。estimated_tokens 来自取消时的估算。
+    t |= {"cost": round(cost, 4), "tokens": tokens, "estimated_tokens": estimated,
+          "usage": "recorded", "currency": CFG["pricing"]["currency"]}
     return t
 
 
 # ---------- 启动和清理 ----------
 def startup():
-    """服务启动时：上次没做完的任务都已经停了（任务只在内存里跑），标成“已中断”。"""
+    """服务启动时：上次没做完的任务都已经停了（任务只在内存里跑），标成“已中断”。
+    定时任务的运行记录同样只在内存里收尾，重启后还停在 running 的改成 interrupted。"""
     conn.execute("update task_steps set status='interrupted' where status in ('running', 'waiting')")
     conn.execute(f"""update messages set meta=json_set(meta, '$.status', 'interrupted')
         where {DISPATCH} and json_extract(meta, '$.status')='running'""")
     conn.commit()
+    from . import routines
+    routines.reconcile_interrupted()
     prune()
 
 
