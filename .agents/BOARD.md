@@ -22,11 +22,10 @@ Snapshot 07/11/2026, Asia/Saigon (UTC+7). GitHub PR + base mới là trạng th�
 | OSA-005 | Rà/hardening GitHub Actions | CI đã có backend/frontend/Docker. Kiểm check-runs, trigger push i18n-vi, reporting sandbox skips và skill hashes; đề xuất gap rồi chốt thay đổi, không “tạo CI lần đầu”. | Chưa nhận |
 | OSA-007 | Rendered onboarding/responsive QA | Fresh isolated data, VI/EN/ZH persistence, empty states, navigation/keyboard, 375/768/1440, ảnh/evidence đã làm sạch. Không khai PASS bằng build. | Chưa nhận |
 | OSA-008 | Reconcile crash/drift review | Fault injection temp data cho FS/SQLite boundary, preserved edits/deletions; đề xuất recovery không mất dữ liệu, không auto-force reinstall. | Chưa nhận |
-| OSA-010 | Độ tin cậy khi chạy dài | Nguồn: VERIFY PR #10, head `255246f`, 15:48 07/11/2026 Asia/Saigon. long12 FAIL: 13 lần `verify_facts` + 1 tool lạ, tổng cuối 11, task #5 vẫn `done`. Natural heavy: h0 không gọi tool. Single task thiếu marker `PR10_SINGLE_DONE`. Model trộn tiếng Bồ Đào Nha, tiếng Anh, tiếng Ukraina và nhãn `方案` trong câu VI. AC khởi điểm: harness tất định cộng mẫu live kiểm goal và marker; số vòng có trần; kiểm hoàn thành nhẹ là tùy chọn (marker bắt buộc hoặc validator format); so A/B model; đo mức giữ đúng ngôn ngữ. Không paid run khi Tin Tin chưa duyệt. Không viết lại output model để biến FAIL thành PASS. | Chưa nhận |
 
 ## In progress
 
-Không có task đang nhận. OSA-009 đã sang Done.
+- OSA-010: `OSA-010 / grok-bot (Kingfisher) / grok-bot/osa-010-heavy-fixes / một lượt tối đa một Heavy, quorum draft, status failed hoặc partial, dừng khi hết hạn mức / claimed_at 07/11/2026 17:12 Asia/Saigon / PR vào i18n-vi, chưa merge`. Tin Tin duyệt scope này từ live test Experiential (task #48–50 và #61–63). Ngoài PR, chưa làm: hợp đồng marker/goal, trần số tool call theo task, prompt nội bộ còn nhãn `方案`, so A/B model, đo ngôn ngữ. Không paid run. Không viết lại output model.
 
 ## Done · đã public
 

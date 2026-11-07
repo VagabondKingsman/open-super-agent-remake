@@ -287,6 +287,7 @@ web/src/
 - 文件都在共用电脑的 `/data/workspace` 里，经 `exec` 读写，所以两个后端一样；路径一律先过 `library.norm`，跑出这个目录就拒绝。
   电脑没开时列目录不会自动开机，由用户点“开机查看”。
 - Heavy 模式下并行的几个 Worker 拿不到 `save_page`，免得每个都存一份页面。
+- 同一轮对话里，一个 Router 最多派一个 Heavy；模型再调一次 `dispatch` 会沿用已派出的那份。研究员按 `heavy.concurrency` 限流。额度用尽（402，或 429 的日额度/配额码）不重试，停掉这个任务，不叫审稿人。普通 `rate_limit_exceeded` 按 `Retry-After` 再试。可用草稿少于 `heavy.min_drafts` 则任务失败。有人失败但草稿够数时仍汇总，状态是 `partial`。
 
 ### 模型接口（DeepSeek）
 - 思考模式下，如果请求带了工具，历史回复的 `reasoning_content` 必须原样传回，所以它存在消息的 `meta.reasoning` 里。

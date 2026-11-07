@@ -7,6 +7,7 @@
 - 环境变量 `OSA_DATA_DIR`：数据库、密钥、自己加的应用清单和工作目录都放到这个目录，代码目录可以是只读的（桌面版要用）
 
 ### 修复
+- Heavy：同一轮对话只派一个任务。草稿少于 `heavy.min_drafts`（默认 2）就不叫审稿人，任务记失败。有研究员失败但草稿够数时，汇总结果的状态是 `partial`，不再记成完成。额度用尽（HTTP 402，或 429 的 `org_token_rate_limit_day` / `insufficient_quota` / `free_limit_reached` / `budget_exceeded`）不重试，并停掉这个任务。普通限流按 `Retry-After` 再试。同时调用模型的研究员数是 `heavy.concurrency`，默认 1
 - 模型只返回思考、正文为空，或 `finish_reason=length` 把回答截断时，不再把任务记成完成。会再要一次完整答案；仍然没有，就记失败并说明原因
 - 同一个工具调用连着重复时，Worker 会停下并要最终答案（`limits.repeat_tool_limit`）。本地 `save_page` 记在任务结果里；`limits.save_page_approval: true` 时先等确认
 - 服务重启后，还停在“运行中”的定时任务记录改成已中断，并写下结束时间

@@ -23,7 +23,7 @@ function day(ts: number) {
 }
 const firstLine = (s: string) => s.split('\n').find(l => l.trim())?.trim() || s
 
-const STATUS: Record<string, string> = { running: t('进行中'), done: t('已完成'), failed: t('失败'), cancelled: t('已取消'), interrupted: t('已中断') }
+const STATUS: Record<string, string> = { running: t('进行中'), done: t('已完成'), partial: t('部分完成'), failed: t('失败'), cancelled: t('已取消'), interrupted: t('已中断') }
 export const taskLabel = (tk: { status: string; waiting_approval?: number | null }) =>
   tk.status === 'running' && tk.waiting_approval ? t('等你确认') : STATUS[tk.status] || tk.status
 // Heavy 模式里是哪个研究员

@@ -74,7 +74,7 @@ function TaskCard({ m, task, owner, handoffTo, replyTo }: { m: Message; task?: T
     return () => clearInterval(timer)
   }, [status])
   const goal = m.content.replace(TASK_DISPATCH, '')   // i18n-ignore：存在消息里的标记
-  const label: Record<string, string> = { running: task?.waiting_approval ? t('等你确认') : t('进行中'), done: t('已完成'), failed: t('失败'), cancelled: t('已取消'), interrupted: t('已中断') }
+  const label: Record<string, string> = { running: task?.waiting_approval ? t('等你确认') : t('进行中'), done: t('已完成'), partial: t('部分完成'), failed: t('失败'), cancelled: t('已取消'), interrupted: t('已中断') }
   const heavy = m.meta.mode === 'heavy'
   const name = owner ? (heavy ? t('{name} 的Heavy 任务', { name: owner.name }) : t('{name} 的后台任务', { name: owner.name })) : heavy ? t('Heavy 任务') : t('后台任务')
   return (
@@ -121,12 +121,12 @@ function ResultMessage({ bot, m, goal, showName }: { bot?: Bot; m: Message; goal
       <div className="msg-body">
         <Speaker bot={bot} show={showName} />
         <div className={`result-head ${status}`}>
-          {status === 'failed' ? t('任务失败') : t('任务完成')} · #{taskKind(m).taskId}{m.meta.elapsed ? ` · ${t('用时 {time}', { time: secs(m.meta.elapsed) })}` : ''}
+          {status === 'failed' ? t('任务失败') : status === 'partial' ? t('任务部分完成') : t('任务完成')} · #{taskKind(m).taskId}{m.meta.elapsed ? ` · ${t('用时 {time}', { time: secs(m.meta.elapsed) })}` : ''}
         </div>
         <div className={open ? '' : 'clamp'}><Markdown text={text} /></div>
         {!open && <button className="expand" onClick={() => setOpen(true)}>{t('展开全文')}</button>}
         <div className="msg-actions"><span>{time(m.ts)}</span><CopyBtn text={text} />
-          {status === 'done' && <SavePageBtn bot={bot} text={text} goal={goal} taskId={taskKind(m).taskId} />}
+          {(status === 'done' || status === 'partial') && <SavePageBtn bot={bot} text={text} goal={goal} taskId={taskKind(m).taskId} />}
           {taskKind(m).taskId && <button className="ghost-btn" onClick={() => showTask(taskKind(m).taskId!)}>{t('查看过程')}</button>}</div>
       </div>
     </div>
@@ -214,13 +214,14 @@ function DmLine({ m, from, to, here }: { m: Message; from?: Bot; to?: Bot; here:
 // 私信的回信：显示成发信 Bot 的一条消息，长的折起来
 function DmReply({ m, bot, to }: { m: Message; bot?: Bot; to?: Bot }) {
   const [open, setOpen] = useState(m.content.length < 1800)
-  const bad = m.meta.status && m.meta.status !== 'done'
+  const bad = m.meta.status === 'failed' || m.meta.status === 'cancelled'
+  const tone = m.meta.status === 'partial' ? ' partial' : bad ? ' failed' : ''
   return (
     <div className="msg bot">
       {bot && <BotAvatar avatar={bot.avatar} size={28} />}
       <div className="msg-body">
         <div className="speaker">{bot?.name || t('已删除的 Bot')}</div>
-        <div className={'result-head' + (bad ? ' failed' : '')}>↩ {t('回了 {name} 的私信', { name: to?.name || t('已删除的 Bot') })}{m.meta.task_id ? ' · ' + t('任务 #{id}', { id: m.meta.task_id }) : ''}</div>
+        <div className={'result-head' + tone}>↩ {t('回了 {name} 的私信', { name: to?.name || t('已删除的 Bot') })}{m.meta.task_id ? ' · ' + t('任务 #{id}', { id: m.meta.task_id }) : ''}</div>
         <div className={open ? '' : 'clamp'}><Markdown text={m.content} /></div>
         {!open && <button className="expand" onClick={() => setOpen(true)}>{t('展开全文')}</button>}
         <div className="msg-actions"><span>{time(m.ts)}</span><CopyBtn text={m.content} />

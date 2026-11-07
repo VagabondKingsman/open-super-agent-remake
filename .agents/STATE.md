@@ -93,3 +93,18 @@ Box live trên Zro, VERIFY 15:48 Asia/Saigon, cùng head `255246f`:
 Số liệu box lấy từ VERIFY đính kèm phiên docs, không chép artifact private lên git. Log phiên docs: [log](log/2026-11-07-grok-bot-osa-009-done.md). Phiên docs không gọi LLM trả phí và không sửa code runtime.
 
 PR tài liệu của phiên này: [#11](https://github.com/VagabondKingsman/open-super-agent-remake/pull/11), branch `grok-bot/state-osa-009-done`, vào `i18n-vi`. Chưa merge.
+
+## Bổ sung · OSA-010 đang làm · grok-bot · 07/11/2026
+
+Append. Không sửa các mục phía trên. `origin/i18n-vi` lúc mở phiên là `d2938f4cb6a49555c933f4654f9c72c5ff2b5892` (merge PR #11). Câu “Chưa merge” của PR #11 ở đoạn trên là trạng thái lúc viết đoạn đó.
+
+Branch `grok-bot/osa-010-heavy-fixes`. Tin Tin duyệt sửa bốn lỗi heavy từ live test Experiential (task #48–50, #61–63) và báo cáo A/B. Chưa merge. Không gọi LLM trả phí. Không đụng upstream kadaliao.
+
+Nguyên nhân đã đối chiếu trên code ở base này:
+
+- Router không nhớ Heavy đã giao trong cùng lượt, nên vài lần gọi tool `dispatch` tạo vài task.
+- `run_heavy` bỏ exception của worker rồi vẫn gọi reviewer.
+- `_run` ghi `done` khi heavy trả về chữ. Lỗi worker không thoát ra thành trạng thái task.
+- Mọi worker heavy xuất phát cùng lúc. Lỗi 429 chỉ được viết thành câu, client còn retry sẵn. Không tách hết hạn mức khỏi rate limit.
+
+Số test của phiên nằm ở [log OSA-010](log/2026-11-07-grok-bot-osa-010.md). Trên máy này `pytest` 223 passed, 3 skipped vì không có bubblewrap. 3 SKIP không phải PASS. Live provider sau bản sửa là NOT_CHECKED.

@@ -4,6 +4,7 @@ import json
 import time
 from dataclasses import dataclass, field
 from .config import CFG, call_kwargs, client_for
+from .providers import ProviderLimit, create_chat
 from . import approvals, i18n, library, memories, memory, mcp_hub, search, skillpacks, tasklog, tools, verification, local_checks
 from .computer import tools as ctools
 
@@ -28,6 +29,14 @@ CONTINUE_PROMPT = "上一次没有给出完整的最终答案（内容为空，�
 
 class IncompleteAnswer(Exception):
     """最终答案是空的，或截断后仍不能当成完成。message 已经是界面语言。"""
+
+
+class TaskFailed(Exception):
+    """任务以失败结束。message 已经是界面语言，Router 不再包一层。"""
+
+
+class _NotStarted(Exception):
+    """额度已经用尽，这个研究员还没调用模型。"""
 
 
 
@@ -59,6 +68,7 @@ class Task:
     quiet: bool = False                    # 这次确实没有新内容
     notes: str = ""                        # 只给 Worker 看的补充说明，不显示、不存进对话（定时任务：上次的结果、“无新内容”的约定）
     side_effects: list = field(default_factory=list)  # 本地写页面等，记下来给用户看
+    degraded: bool = False                 # Heavy：审过了，但有研究员没交出草稿。结束时记 partial，不记 done
 
 
 def _public(self) -> dict:
@@ -89,9 +99,9 @@ async def _reply(task: Task, log: tasklog.Log, role: str, client, model: str, ms
 
     消息上的 finish_reason 是 stop / length / tool_calls 等。流被取消时，已有 usage 照实记；
     没有 usage 但已经收到文字就按估算记一条。"""
-    stream = await client.chat.completions.create(model=model, messages=msgs, stream=True,
-                                                  stream_options={"include_usage": True},
-                                                  **({"tools": tools_} if tools_ else {}), **call_kwargs(role))
+    stream = await create_chat(client, model=model, messages=msgs, stream=True,
+                               stream_options={"include_usage": True},
+                               **({"tools": tools_} if tools_ else {}), **call_kwargs(role))
     content, reasoning, calls, usage = "", "", {}, None
     finish = None
     think = text = None
@@ -308,19 +318,73 @@ async def _run_worker(task: Task, goal: str, label: str = "") -> str:
     return _accept_answer(m)
 
 
+def heavy_plan() -> tuple[int, int, int]:
+    """(研究员人数, 同时调用模型的上限, 交给审稿人所需的最少草稿)。"""
+    n = max(1, int(CFG["heavy"]["workers"]))
+    concurrency = max(1, int(CFG["heavy"].get("concurrency") or 1))
+    raw = CFG["heavy"].get("min_drafts")
+    if raw is None:
+        need = max(1, (n + 1) // 2)
+    else:
+        need = max(1, min(n, int(raw)))
+    return n, min(concurrency, n), need
+
+
 async def run_heavy(task: Task) -> str:
-    """Heavy 模式：N 个 Worker 独立并行解题，Reviewer 互审后汇总。"""
-    n = CFG["heavy"]["workers"]
+    """Heavy 模式：N 个 Worker 各自做一遍，草稿够数才交给 Reviewer。
+
+    同时在跑的人数是 heavy.concurrency（默认 1）。有人撞上额度用尽就停掉还没跑的，
+    并且不叫审稿人。草稿少于 heavy.min_drafts 同样不叫审稿人，任务失败。
+    有人失败但草稿够数时仍汇总，调用方把结果记成 partial。
+    """
+    n, concurrency, need = heavy_plan()
     angles = ["从最直接的角度", "从反面/质疑的角度核查", "从数据和一手来源角度", "从实践/落地角度"]
     await tasklog.Log(task).note(i18n.t("{n} 个研究员分头做，做完汇总", n=n))
     goal = task.goal + task.notes
-    drafts = await asyncio.gather(*[
-        run_worker(task, f"{goal}\n\n（你是第 {i+1} 个独立研究员，请{angles[i % len(angles)]}回答）", f"h{i}")
-        for i in range(n)], return_exceptions=True)
+    sem = asyncio.Semaphore(concurrency)
+    stop = asyncio.Event()
+    pending: list[asyncio.Task] = []
+
+    async def one(i: int):
+        try:
+            async with sem:
+                if stop.is_set():
+                    raise _NotStarted()
+                return await run_worker(
+                    task, f"{goal}\n\n（你是第 {i+1} 个独立研究员，请{angles[i % len(angles)]}回答）", f"h{i}")
+        except ProviderLimit as e:
+            if e.kind == "quota":
+                stop.set()
+                current = asyncio.current_task()
+                for other in pending:
+                    if other is not current and not other.done():
+                        other.cancel()
+            raise
+
+    pending = [asyncio.create_task(one(i)) for i in range(n)]
+    drafts = await asyncio.gather(*pending, return_exceptions=True)
+    quota = next((d for d in drafts if isinstance(d, ProviderLimit) and d.kind == "quota"), None)
     for i, d in enumerate(drafts):
+        if isinstance(d, (_NotStarted, asyncio.CancelledError)):
+            continue
         if isinstance(d, Exception):
             await tasklog.Log(task, f"h{i}").note(i18n.t("出错：{error}", error=d), "error")
-    drafts = [d for d in drafts if isinstance(d, str)]
+    if quota is not None:
+        raise TaskFailed(i18n.t(
+            "额度用尽（{status} {code}），已停止这个 Heavy 任务，没有交给审稿人。{detail}",
+            status=quota.status, code=quota.code or "-", detail=quota.detail))
+    ok = [d for d in drafts if isinstance(d, str) and d.strip()]
+    if len(ok) < need:
+        raise TaskFailed(i18n.t(
+            "草稿不够：{got}/{n} 份可用，至少要 {need} 份才交给审稿人。这次没有汇总。",
+            got=len(ok), n=n, need=need))
+    text = await _review(task, goal, ok)
+    if len(ok) < n:
+        task.degraded = True
+    return text
+
+
+async def _review(task: Task, goal: str, drafts: list[str]) -> str:
     client, model = client_for("reviewer")
     joined = "\n\n".join(f"=== 方案 {i+1} ===\n{d}" for i, d in enumerate(drafts))
     await tasklog.Log(task).note(i18n.t("{n} 份草稿交给审稿人汇总", n=len(drafts)))
@@ -329,16 +393,23 @@ async def run_heavy(task: Task) -> str:
         {"role": "system", "content": "你是审稿人。比较几份独立答案，找出矛盾和错误，合成一份最可靠的最终答案，保留来源链接。"
                                       + i18n.model_hint()},
         {"role": "user", "content": f"问题：{goal}\n\n{joined}"}]
-    extra = int(CFG["limits"].get("answer_continuations", 1) or 0)
-    m = await _reply(task, log, "reviewer", client, model, msgs)
-    task.steps += 1
-    for _ in range(extra):
-        if (m.get("content") or "").strip() and m.get("finish_reason") != "length":
-            return m.get("content") or ""
-        outbound = _outbound(m)
-        if outbound.get("content") or outbound.get("reasoning_content"):
-            msgs.append(outbound)
-        msgs.append({"role": "user", "content": CONTINUE_PROMPT})
+    try:
+        extra = int(CFG["limits"].get("answer_continuations", 1) or 0)
         m = await _reply(task, log, "reviewer", client, model, msgs)
         task.steps += 1
-    return _accept_answer(m)
+        for _ in range(extra):
+            if (m.get("content") or "").strip() and m.get("finish_reason") != "length":
+                return m.get("content") or ""
+            outbound = _outbound(m)
+            if outbound.get("content") or outbound.get("reasoning_content"):
+                msgs.append(outbound)
+            msgs.append({"role": "user", "content": CONTINUE_PROMPT})
+            m = await _reply(task, log, "reviewer", client, model, msgs)
+            task.steps += 1
+        return _accept_answer(m)
+    except ProviderLimit as e:
+        if e.kind == "quota":
+            raise TaskFailed(i18n.t(
+                "额度用尽（{status} {code}），审稿没有完成。{detail}",
+                status=e.status, code=e.code or "-", detail=e.detail)) from e
+        raise

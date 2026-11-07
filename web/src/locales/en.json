@@ -232,6 +232,8 @@
   "任务 #{id} 的结果": "Result of task #{id}",
   "任务失败": "Task failed",
   "任务完成": "Task done",
+  "任务部分完成": "Task partly finished",
+  "部分完成": "Partial",
   "任务已取消": "Task canceled",
   "任务最长跑多久（秒）": "Max task run time (seconds)",
   "企业内机器人发送消息权限": "permission for internal robots to send messages",

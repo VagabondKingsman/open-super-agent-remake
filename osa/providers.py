@@ -3,8 +3,10 @@
 config.yaml 的 providers 是默认值；在 设置 → 模型 里添加或改过的，存在 settings 表的 providers 一行，
 密钥存进保险库（LLM_KEY_<名字>）。用密钥时先看保险库，没有再看 config.yaml 里写的环境变量。
 """
+import asyncio
 import base64
 import copy
+import email.utils
 import ipaddress
 import json
 import os
@@ -168,6 +170,127 @@ def client(name: str, timeout: float | None = None) -> AsyncOpenAI:
     if k not in _clients:
         _clients[k] = AsyncOpenAI(base_url=k[0], api_key=k[1], **({"timeout": timeout} if timeout else {}))
     return _clients[k]
+
+
+# 额度用尽：不重试，调用方应停掉后续步骤。普通限流（rate_limit_exceeded 等）按 Retry-After 再试。
+QUOTA_CODES = (
+    "org_token_rate_limit_day",
+    "insufficient_quota",
+    "free_limit_reached",
+    "budget_exceeded",
+)
+
+
+class ProviderLimit(Exception):
+    """供应商拒绝继续调用。kind 是 quota（停）或 rate（已按 Retry-After 试过仍失败）。"""
+
+    def __init__(self, kind: str, status: int, code: str, detail: str, retry_after: float | None = None):
+        self.kind, self.status, self.code = kind, status, code
+        self.detail, self.retry_after = detail, retry_after
+        if kind == "quota":
+            text = i18n.t("额度用尽（{status} {code}）。{detail}", status=status, code=code or "-", detail=detail)
+        else:
+            text = i18n.t("请求太频繁（{status} {code}）。{detail}", status=status, code=code or "-", detail=detail)
+        super().__init__(text)
+
+
+def _error_parts(e: openai.APIStatusError) -> tuple[str, str]:
+    body = e.body
+    err = body.get("error") if isinstance(body, dict) else None
+    src = err if isinstance(err, dict) else body if isinstance(body, dict) else {}
+    code = str(src.get("code") or src.get("type") or "").strip()
+    message = str(src.get("message") or "").strip()
+    if not message:
+        message = str(getattr(e, "message", "") or e).strip()
+    if not code:
+        for known in QUOTA_CODES + ("rate_limit_exceeded",):
+            if known in message:
+                code = known
+                break
+    return code[:80], message[:300]
+
+
+def _retry_after(e: openai.APIStatusError) -> float | None:
+    """Retry-After / Retry-After-ms，秒。没有头再看 body 里的 retry_after。"""
+    headers = getattr(getattr(e, "response", None), "headers", None)
+    if headers is not None:
+        for header, divisor in (("retry-after-ms", 1000.0), ("retry-after", 1.0)):
+            raw = headers.get(header)
+            if raw is None:
+                continue
+            try:
+                return max(0.0, float(raw) / divisor)
+            except (TypeError, ValueError):
+                if header == "retry-after":
+                    try:
+                        parsed = email.utils.parsedate_tz(str(raw))
+                        if parsed is not None:
+                            return max(0.0, float(email.utils.mktime_tz(parsed) - time.time()))
+                    except (TypeError, ValueError, OverflowError, OSError):
+                        return None
+                return None
+    src = e.body if isinstance(e.body, dict) else {}
+    err = src.get("error") if isinstance(src.get("error"), dict) else src
+    if isinstance(err, dict) and err.get("retry_after") is not None:
+        try:
+            return max(0.0, float(err["retry_after"]))
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
+async def _pause(seconds: float):
+    """额度/限流的等待。测试替换这个函数，避免换掉 asyncio.sleep 把 HTTP 客户端卡住。"""
+    await asyncio.sleep(seconds)
+
+
+def classify_limit(e: Exception) -> ProviderLimit | None:
+    """402，以及 429 里的日额度/配额码，是 quota。其余 429 是 rate。别的错误返回 None。"""
+    if not isinstance(e, openai.APIStatusError):
+        return None
+    status = int(e.status_code or 0)
+    code, detail = _error_parts(e)
+    if status == 402 or (status == 429 and code != "rate_limit_exceeded" and any(c in f"{code} {detail}".lower() for c in QUOTA_CODES)):
+        return ProviderLimit("quota", status, code, detail, None)
+    if status == 429:
+        return ProviderLimit("rate", status, code, detail, _retry_after(e))
+    return None
+
+
+async def create_chat(client, **kwargs):
+    """流式或非流式补全。额度类错误立刻抛出，不重试。普通 429 按 Retry-After 等，次数有上限。
+
+    客户端自带的重试会把日额度 429 再打几遍，这里关掉，改由上面的分类决定。
+    408/409/5xx 仍按 limits.provider_transient_retries 再试，避免把短暂故障变成任务失败。
+    """
+    rate_retries = max(0, int(CFG["limits"].get("provider_rate_retries", 1) or 0))
+    transient_retries = max(0, int(CFG["limits"].get("provider_transient_retries", 2) or 0))
+    cap = max(0.0, float(CFG["limits"].get("provider_retry_cap_s", 120) or 0))
+    # 测试里的假客户端没有 with_options。真客户端关掉 SDK 自带重试，避免把额度类 429 再打一遍。
+    caller = client.with_options(max_retries=0) if hasattr(client, "with_options") else client
+    rate_attempt = transient_attempt = 0
+    while True:
+        try:
+            return await caller.chat.completions.create(**kwargs)
+        except openai.APIStatusError as e:
+            limit = classify_limit(e)
+            if limit is not None and limit.kind == "quota":
+                raise limit from e
+            if limit is not None and limit.kind == "rate":
+                if rate_attempt >= rate_retries:
+                    raise limit from e
+                delay = 1.0 if limit.retry_after is None else limit.retry_after
+                await _pause(min(max(0.0, delay), cap))
+                rate_attempt += 1
+                continue
+            status = int(e.status_code or 0)
+            if status in (408, 409) or status >= 500:
+                if transient_attempt >= transient_retries:
+                    raise
+                await _pause(min(0.5 * (2 ** transient_attempt), cap))
+                transient_attempt += 1
+                continue
+            raise
 
 
 def explain(e: Exception, base_url: str = "") -> str:

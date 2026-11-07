@@ -16,7 +16,9 @@ roles:
   # 每个角色还可以加：thinking: false（关闭思考模式，更快更便宜）、reasoning_effort: low/high/max
 
 heavy:
-  workers: 3                 # Heavy 模式并行 Worker 数（类似 Grok Heavy）
+  workers: 3                 # Heavy 模式研究员数量（类似 Grok Heavy）
+  concurrency: 1             # 同时真正调用模型的研究员上限。默认 1，避免一口气打满服务商限额
+  min_drafts: 2              # 可用草稿少于此数就不叫审稿人，任务记失败。超过 workers 时按 workers 计
 
 search:
   searxng_url: ""            # 例如 http://localhost:8080 ；留空则用 DuckDuckGo HTML
@@ -38,6 +40,9 @@ limits:
   watchdog_interval_s: 15
   approval_timeout_s: 1800   # 写操作等待确认的时限，超时按拒绝
   daily_token_budget: 2000000
+  provider_rate_retries: 1   # 普通 429（rate_limit_exceeded）按 Retry-After 再试几次。额度用尽不重试
+  provider_retry_cap_s: 120  # Retry-After 最多等这么多秒
+  provider_transient_retries: 2  # 408/409/5xx 再试几次。0 表示不试
 
 memory:
   db: data/osa.db

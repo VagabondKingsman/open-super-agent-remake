@@ -8,7 +8,7 @@ from .computer import tools as ctools
 from .config import CFG, call_kwargs, client_for
 from . import approvals, bots, dm, i18n, library, memories, memory, routines, search, skills, skillpacks, tasklog, verification, local_checks
 from . import worker as worker_mod
-from .worker import Task, run_worker, run_heavy
+from .worker import Task, TaskFailed, run_worker, run_heavy
 
 ROUTER_PROMPT = """你是「{name}」，用户的 AI 队友。{instructions}
 你在对话里直接和用户交流；你不亲自查资料，而是：
@@ -208,6 +208,7 @@ class Router:
         self.lock = asyncio.Lock()
         self.chat: dict = {}              # 本轮在哪个对话里说话（_think 开始时设置）
         self.turn: dict = {}              # 本轮的来由（respond 设置）：欠谁回信、私信深度
+        self._turn_heavy: Task | None = None   # 这一轮已经派过的 Heavy，避免同一条用户消息派出好几份
 
     @property
     def bot(self) -> dict:
@@ -269,8 +270,9 @@ class Router:
         tools = ROUTER_TOOLS + ([HANDOFF] if self.chat["kind"] == "group" else []) + \
             ([MESSAGE_BOT] if len(bots.list_bots()) > 1 else [])
         cid = self.chat["id"]
-        stream = await client.chat.completions.create(
-            model=model, messages=msgs, stream=True, **({"tools": tools} if use_tools else {}),
+        from .providers import create_chat
+        stream = await create_chat(
+            client, model=model, messages=msgs, stream=True, **({"tools": tools} if use_tools else {}),
             stream_options={"include_usage": True}, **call_kwargs("router"))
         content, reasoning, calls, usage = "", "", {}, None
         finish = None
@@ -364,6 +366,7 @@ class Router:
             memory.context(cid, self.bot_id if chat["kind"] == "group" else None, me=self.bot_id), state)
         sid, started = f"s{time.time_ns()}", time.time()
         self._turn_tasks = []             # 本轮派发的任务，挂在这条回复下面显示
+        self._turn_heavy = None           # 一轮用户消息最多一个 Heavy
         self._turn_dms = 0                # 本轮发出的私信
         shown, thinking, shots, finish = "", "", [], None
         await self.emit({"type": "stream_start", "sid": sid}, cid)
@@ -434,6 +437,11 @@ class Router:
         if name == "dispatch":
             if self._over_budget():
                 return i18n.t("今日 token 预算已用完，没有派发。请告诉用户。")
+            mode = (args.get("mode") or "single").strip().lower()
+            if mode not in ("single", "heavy"):
+                mode = "single"
+            if mode == "heavy" and self._turn_heavy is not None:
+                return i18n.t("这一轮已经派过 Heavy 任务 #{id}，不再另派。沿用这一份。", id=self._turn_heavy.id)
             handoff = None
             if args.get("handoff_to") and self.chat["kind"] == "group":
                 to = self._member(args["handoff_to"])
@@ -442,9 +450,11 @@ class Router:
                 handoff = {"to": to["id"], "note": args.get("handoff_note") or ""}
                 from . import groups
                 groups.expect(self.chat["id"], to["id"])
-            task = await self.dispatch(args["goal"], args.get("mode", "single"), chat_id=self.chat["id"], handoff=handoff,
+            task = await self.dispatch(args["goal"], mode, chat_id=self.chat["id"], handoff=handoff,
                                        reply=self.turn.get("reply"), depth=self.turn.get("depth", 0))
             self._turn_tasks.append(task.id)
+            if mode == "heavy":
+                self._turn_heavy = task
             if handoff:
                 return i18n.t("已派发任务 #{id}，做完后结果会自动交给 {name}", id=task.id, name=to["name"])
             if task.reply:
@@ -639,6 +649,8 @@ class Router:
             task.result = await (run_heavy(task) if task.mode == "heavy" else run_worker(task, task.goal + task.notes))
             if not (task.result or "").strip():
                 task.status, task.result = "failed", i18n.t("任务没有给出答案")
+            elif task.degraded:
+                task.status = "partial"
             else:
                 task.status = "done"
                 if not task.background:   # 定时任务有自己的运行记录，不记进“做过的事”
@@ -653,7 +665,7 @@ class Router:
                 asyncio.create_task(dm.after_task(task))
             await self._done(task)
             return
-        except IncompleteAnswer as e:
+        except (IncompleteAnswer, TaskFailed) as e:
             task.status, task.result = "failed", str(e)
         except Exception as e:
             task.status, task.result = "failed", i18n.t("任务失败：{error}", error=e)
