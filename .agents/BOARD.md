@@ -31,7 +31,7 @@ Snapshot 07/11/2026, Asia/Saigon (UTC+7). GitHub PR + base mới là trạng th�
 
 ## In progress
 
-- OSA-014: `OSA-014 / grok-bot / grok-bot/osa-014-handoff / bàn giao .agents để bot mới đọc một thư mục là tiếp tục được / claimed_at 07/11/2026 20:48 Asia/Saigon`. Tách từ `i18n-vi` tại `c16e6bb`. Chưa merge. Không paid LLM. Không đụng upstream kadaliao. Link PR ghi vào log khi có.
+- OSA-014: `OSA-014 / grok-bot / grok-bot/osa-014-handoff / bàn giao .agents để bot mới đọc một thư mục là tiếp tục được / claimed_at 07/11/2026 20:48 Asia/Saigon / [PR #16](https://github.com/VagabondKingsman/open-super-agent-remake/pull/16)`. Tách từ `i18n-vi` tại `c16e6bb`. Chưa merge. Không paid LLM. Không đụng upstream kadaliao.
 
 ## Done · đã public
 

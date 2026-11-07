@@ -25,6 +25,8 @@ Repo: `VagabondKingsman/open-super-agent-remake`. Base: `i18n-vi`. Upstream `kad
 
 Phiên sau chạy `git fetch` và `git rev-parse origin/i18n-vi`. SHA mới hơn thì đọc log mới. Đừng coi `c16e6bb` là latest mãi. `main` không được khẳng định cùng tip.
 
+File này vào repo bằng [PR #16](https://github.com/VagabondKingsman/open-super-agent-remake/pull/16), branch `grok-bot/osa-014-handoff`. Lúc viết thì PR chưa merge. Nếu `origin/i18n-vi` vẫn là `c16e6bb`, bàn giao này chưa nằm trên base.
+
 ## Đã merge
 
 Giờ là `merged_at` đổi sang Asia/Saigon. `merged_by` của cả 15 PR trên API là VagabondKingsman. Chi tiết và các câu "Chưa merge" cũ nằm trong STATE. Những câu đó là trạng thái lúc viết mục, bảng này mới hơn.
