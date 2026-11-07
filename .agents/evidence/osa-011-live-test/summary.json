@@ -1,0 +1,26 @@
+[
+  {
+    "test": "vi",
+    "status": "PASS",
+    "seconds": 2.01,
+    "cjk": 0
+  },
+  {
+    "test": "en",
+    "status": "PASS",
+    "seconds": 2.01,
+    "cjk": 0
+  },
+  {
+    "test": "single",
+    "status": "PASS",
+    "seconds": 29.19,
+    "cjk": 0
+  },
+  {
+    "test": "heavy",
+    "status": "PASS",
+    "seconds": 124,
+    "cjk": 0
+  }
+]

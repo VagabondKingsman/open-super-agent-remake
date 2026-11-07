@@ -108,6 +108,23 @@ Hệ quả: dòng models.dev chia 7.1 ra đúng USD đã nhân lúc ghi. Dòng `
 
 Nguồn là task OSA-013. ADR này không đổi quyền merge.
 
+## ADR-013 · Accepted · Bàn giao nằm trong .agents, số box không kèm secret
+
+Tin Tin muốn bot mới chỉ đọc `.agents/` là tiếp tục được như Kingfisher. Chat cũ không đi theo repo.
+
+Quyết định trong OSA-014:
+
+- [HANDOFF](HANDOFF.md) là file đọc đầu. [OPS](OPS.md) ghi cách chạy box. [PROTOCOL](PROTOCOL.md) ghi cách làm việc với Tin Tin, gồm câu `Duyệt merge`.
+- Đường dẫn `/workspace/osa-run/...` là đường dẫn đã thấy trên box chạy `c16e6bb`. Máy khác xem fd của process. Backup đúng file DB đang mở.
+- Không ghi key, mật khẩu, email, cookie, hay hostname tailnet.
+- Bot mới chọn prefix, hỏi Tin Tin, giữ cách nói trong PERSONA.
+
+Phương án bị loại: chép nguyên transcript phiên vào git, và viết giá trị env vào OPS.
+
+Hệ quả: bot không có thư mục này thì không có ngữ cảnh vận hành. File không cấp quyền merge, model trả phí, hay mở Funnel.
+
+Nguồn là task OSA-014, 07/11/2026. ADR này không đổi quyền merge.
+
 ## Thêm ADR
 
 `ADR-ID · Proposed/Accepted/Superseded · ngày Asia/Saigon` → context → decision → alternatives/why → consequences → source/approval → ADR thay thế nếu có. Giữ quyết định cũ và ghi superseded; không sửa lịch sử cho khớp hindsight.

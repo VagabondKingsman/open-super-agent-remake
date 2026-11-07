@@ -1,23 +1,32 @@
 # Snapshot bàn giao · 07/11/2026
 
-Mốc public đã xác minh: `origin/i18n-vi = 6e5d3ffe3e42362059d83117264c3414ed5e1603` (merge PR #8, 07/11/2026 12:31:44 Asia/Saigon). Mốc trước đó là `5dc007b` (merge PR #7, 12:23:22) và `3c08269` (merge PR #6, 08:26:01). Đây là **snapshot**, không phải latest vĩnh viễn. Phiên mới phải fetch/đọc ref và PR đang mở. Giờ trong file là **Asia/Saigon (UTC+7)**; ngày 07/11/2026 áp dụng cho bảng PR.
+Mốc public đã xác minh lúc soạn OSA-014: `origin/i18n-vi = c16e6bb0e42de25ddd0ac12f58e179bbd23f1ed3` (merge PR #15). `merged_at` API `2026-11-07T13:47:09Z`, tức 20:47:09 Asia/Saigon. `merged_by` là VagabondKingsman. Đây là **snapshot**. Phiên mới fetch lại ref và PR đang mở. Giờ trong file là **Asia/Saigon (UTC+7)**. File đọc đầu cho bot mới: [HANDOFF](HANDOFF.md).
+
+Bảng dưới đối chiếu GitHub API `merged_at` và `git rev-parse origin/i18n-vi` trong phiên OSA-014. Không dùng giờ commit làm giờ merge. `merged_by` của cả 15 PR là VagabondKingsman. Các mục "Bổ sung" phía dưới giữ nguyên lời lúc viết. Câu "Chưa merge" trong mục đó là trạng thái lúc viết mục. Bảng này mới hơn.
 
 ## Phiên bản và những gì đã merge
 
-OSA v0.6.0 + VI/EN/ZH; AI Native manifest version 2. Bảy package team-authored + mentor cài shared mặc định. Không khẳng định branch main hiện cùng tip vì phiên này chỉ xác minh i18n-vi.
+OSA v0.6.1 + VI/EN/ZH. Prompt gửi model là tiếng Anh, câu trả lời theo `i18n.lang()`. Chi phí lưu và hiện bằng USD. AI Native manifest version 2. Bảy package team-authored + mentor cài shared mặc định. Không khẳng định `main` cùng tip vì phiên này xác minh `i18n-vi`.
 
 | PR | Merge lúc | SHA merge | Nội dung |
 |---|---|---|---|
 | [#1](https://github.com/VagabondKingsman/open-super-agent-remake/pull/1) | 00:38:33 | 129db18 | Port upstream v0.6.0, Vietnamese Chinese-as-key, giữ missing-Docker/routine hardening và docs/scripts. |
 | [#2](https://github.com/VagabondKingsman/open-super-agent-remake/pull/2) | 00:52:43 | c6ec68b | Catalog locale thiếu/lỗi có fallback, HTML mặc định vi-VN, regression tests. |
-| [#3](https://github.com/VagabondKingsman/open-super-agent-remake/pull/3) | 01:03:49 | afdea0e | Localize nhãn/goal task của routine theo ngôn ngữ UI; không rewrite lịch sử chat cũ. |
+| [#3](https://github.com/VagabondKingsman/open-super-agent-remake/pull/3) | 01:03:49 | afdea0e | Localize nhãn/goal task của routine theo ngôn ngữ UI. Không rewrite lịch sử chat cũ. |
 | [#4](https://github.com/VagabondKingsman/open-super-agent-remake/pull/4) | 03:34:28 | 7c20454 | Skill pack/mentor, paging dài, verify_facts, inspect_repo/check_patch và live-eval v1–v3. |
 | [#5](https://github.com/VagabondKingsman/open-super-agent-remake/pull/5) | 07:51:47 | 2a36b59 | Bundle bảy nguồn + helpers, SHA-256, LICENSE/NOTICE và default shared install/reconcile/opt-out. |
-| [#6](https://github.com/VagabondKingsman/open-super-agent-remake/pull/6) | 08:26:01 | 3c08269 | Handoff `.agents/`, Skill Flow, STATE/BOARD/log. `merged_at` API `2026-11-07T01:26:01Z`, đổi sang UTC+7. |
-| [#7](https://github.com/VagabondKingsman/open-super-agent-remake/pull/7) | 12:23:22 | 5dc007b | CONTRIBUTING cho bot/remake (OSA-006). Head PR `b90e4d5`. `merged_at` API `2026-11-07T05:23:22Z`. Author git của merge commit là VagabondKingsman. Phiên ghi nhận Grok Bot merge với approval rõ của Tin Tin. CI backend, frontend, docker SUCCESS. |
-| [#8](https://github.com/VagabondKingsman/open-super-agent-remake/pull/8) | 12:31:44 | 6e5d3ff | Port upstream `0897360`, `ec71362`, `3432671` (OSA-004). Head PR `5914b9d`. `merged_at` API `2026-11-07T05:31:44Z`. Author git của merge commit là VagabondKingsman. Grok Bot merge với approval rõ của Tin Tin. CI backend, docker, frontend SUCCESS. |
+| [#6](https://github.com/VagabondKingsman/open-super-agent-remake/pull/6) | 08:26:01 | 3c08269 | Handoff `.agents/`, Skill Flow, STATE/BOARD/log. `merged_at` API `2026-11-07T01:26:01Z`. |
+| [#7](https://github.com/VagabondKingsman/open-super-agent-remake/pull/7) | 12:23:22 | 5dc007b | CONTRIBUTING cho bot/remake (OSA-006). Head PR `b90e4d5`. `merged_at` API `2026-11-07T05:23:22Z`. |
+| [#8](https://github.com/VagabondKingsman/open-super-agent-remake/pull/8) | 12:31:44 | 6e5d3ff | Port upstream `0897360`, `ec71362`, `3432671` (OSA-004). Head PR `5914b9d`. `merged_at` API `2026-11-07T05:31:44Z`. |
+| [#9](https://github.com/VagabondKingsman/open-super-agent-remake/pull/9) | 12:37:13 | d7f2ee9 | Docs đánh dấu OSA-004 xong sau PR #8. `merged_at` API `2026-11-07T05:37:13Z`. |
+| [#10](https://github.com/VagabondKingsman/open-super-agent-remake/pull/10) | 15:51:53 | 7b73abb | OSA-009 sửa audit B01–B07. Head `255246f`. `merged_at` API `2026-11-07T08:51:53Z`. |
+| [#11](https://github.com/VagabondKingsman/open-super-agent-remake/pull/11) | 15:59:20 | d2938f4 | Docs OSA-009 xong, mở OSA-010. `merged_at` API `2026-11-07T08:59:20Z`. |
+| [#12](https://github.com/VagabondKingsman/open-super-agent-remake/pull/12) | 18:25:08 | f471839 | OSA-010 một Heavy mỗi lượt, quorum draft, dừng khi hết hạn mức. Head `5c75acb`. `merged_at` API `2026-11-07T11:25:08Z`. |
+| [#13](https://github.com/VagabondKingsman/open-super-agent-remake/pull/13) | 18:25:37 | fcc2d89 | OSA-011 prompt gửi model sang tiếng Anh. Head `f83e3cb`. `merged_at` API `2026-11-07T11:25:37Z`. |
+| [#14](https://github.com/VagabondKingsman/open-super-agent-remake/pull/14) | 19:08:18 | 653f866 | OSA-012 trang offline tiếng Việt trước. Head `ee60893`. `merged_at` API `2026-11-07T12:08:18Z`. |
+| [#15](https://github.com/VagabondKingsman/open-super-agent-remake/pull/15) | 20:47:09 | c16e6bb | OSA-013 chi phí và đơn giá sang USD. Head `8798089`. `merged_at` API `2026-11-07T13:47:09Z`. |
 
-Nguồn bảng: GitHub PR API `merged_at` chuyển UTC+7, đối chiếu git log. Không dùng commit author time làm merge time. Một số report lịch sử có timezone/giờ tiêu đề không nhất quán; ngày ADR dùng 07/11, trình tự merge lấy API, không sửa nguồn để giấu khác biệt.
+Nguồn bảng: GitHub PR API `merged_at` chuyển UTC+7, đối chiếu `git log` lúc OSA-014. PR #1 đến #5 có `merged_at` trong ngày 06/11 UTC, tức sáng 07/11 giờ Sài Gòn. Một số report cũ lệch timezone. Trình tự merge lấy API. Không sửa log cũ để giấu khác biệt.
 
 ## Bằng chứng nền đã có, không phải test lại trong mọi phiên
 
@@ -142,3 +151,23 @@ Append. Không sửa các mục phía trên. `origin/i18n-vi` lúc mở OSA-013 
 Branch `grok-bot/osa-013-cost-usd`, tách từ `653f866`. [PR #15](https://github.com/VagabondKingsman/open-super-agent-remake/pull/15) vào `i18n-vi`. Head code `778446e7b2b2a0c65a4bb0d497c0d4630b174cbb`. Chi phí và đơn giá chuyển sang USD. models.dev không còn nhân 7.1. Bảng DeepSeek trong `config.yaml` đổi sang giá niêm yết USD (trang giá API, 07/11/2026). `llm_usage.cost` cũ đổi một lần, cờ `settings.cost_unit`. Tab giới hạn vẫn là token / bước / giây. Chưa merge. Không gọi LLM trả phí. Không đụng upstream kadaliao.
 
 Số test của phiên nằm ở [log OSA-013](log/2026-11-07-grok-bot-osa-013.md).
+
+## Bổ sung · OSA-013 đã merge · OSA-014 đang làm · grok-bot · 07/11/2026
+
+Append. Không sửa các mục phía trên. `origin/i18n-vi` lúc mở OSA-014 là `c16e6bb0e42de25ddd0ac12f58e179bbd23f1ed3`. Câu "Chưa merge" của PR #15 ở đoạn trên là trạng thái lúc viết OSA-013.
+
+[PR #15](https://github.com/VagabondKingsman/open-super-agent-remake/pull/15) đã merge vào `i18n-vi` tại `c16e6bb0e42de25ddd0ac12f58e179bbd23f1ed3`. Head của PR là `87980892e3a6141035516ee0b43d3d9136c1b3f5`. `merged_at` API `2026-11-07T13:47:09Z`, tức 20:47:09 Asia/Saigon. `merged_by` là VagabondKingsman. Lúc đối chiếu không có PR mở vào `i18n-vi`.
+
+Deploy box của SHA này, Tin Tin báo, phiên docs không mở DB. Process giữ `/workspace/osa-run/osa.db`. Thư mục `/workspace/osa-run/data` không tồn tại. 103 dòng usage, tổng ¥0.18457 thành $0.02600. Cờ `cost_unit` có `currency` USD, `legacy_cny_per_usd` 7.1, `repriced_models` 0, `divided_rows` 64. File `config.experiential.yaml` trên box vẫn khai ¥. Chi tiết và cách backup fd nằm ở [OPS](OPS.md).
+
+Branch `grok-bot/osa-014-handoff`. [PR #16](https://github.com/VagabondKingsman/open-super-agent-remake/pull/16) vào `i18n-vi`. Việc của branch là viết bàn giao trong `.agents/` để bot mới chỉ đọc thư mục đó là tiếp tục được. Chưa merge. Không gọi LLM trả phí. Không đụng upstream kadaliao. Log: [OSA-014](log/2026-11-07-grok-bot-osa-014.md).
+
+## Bổ sung · live OSA-011 vào PR #16 · 07/11/2026
+
+Append. Câu "Live provider sau bản sửa là NOT_CHECKED" trong mục OSA-011 phía trên là trạng thái lúc viết PR #13. Tin Tin đưa bằng chứng box vào PR #16.
+
+Head lúc chạy: `f83e3cb486b82a036d54303c6cba437840f49f18`. Provider Experiential, model đuôi `:free`, cost ghi 0. Bốn lượt: vi 2,01 giây, en 2,01 giây, single task #75 done 29,19 giây, heavy task #79 done 124 giây. CJK 0 ở cả bốn. Đúng một heavy task, 3 góc nhìn và reviewer. Không có `方案`.
+
+14 dòng usage, 116.236 token. Vượt mục tiêu khoảng 100.000 nên routine không chạy. Guard harness đếm sai cột token, phải sửa trước đợt sau. Websocket dừng vì regex 402 khớp offset 14025. Log server không có lỗi 402. `results.json` giữ heavy đang `running` tại 60,38 giây. Latency 124 giây lấy từ `summary.json` và báo cáo.
+
+Bằng chứng: [LIVE-TEST](evidence/osa-011-live-test/LIVE-TEST.md), [summary](evidence/osa-011-live-test/summary.json), [results](evidence/osa-011-live-test/results.json), [live.py](evidence/osa-011-live-test/live.py), [finish.py](evidence/osa-011-live-test/finish.py). Không có thư mục `raw/`. Phiên này không gọi lại provider.

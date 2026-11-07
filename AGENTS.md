@@ -1,6 +1,6 @@
 # Hướng dẫn agent cho OSA remake
 
-Bắt đầu tại [.agents/README.md](.agents/README.md). Đọc [.agents/RULES.md](.agents/RULES.md), PERSONA, STATE, BOARD và log mới nhất trước công việc; dùng SKILL-FLOW/ARCHITECTURE/DECISIONS và templates theo bước.
+Bắt đầu tại [.agents/HANDOFF.md](.agents/HANDOFF.md), rồi [.agents/README.md](.agents/README.md). Đọc RULES, PERSONA, PROTOCOL, STATE, BOARD và log mới nhất trước công việc. Dùng SKILL-FLOW, OPS, ARCHITECTURE, DECISIONS và templates theo bước.
 
 - Chỉ công bố vào `VagabondKingsman/open-super-agent-remake`; không push/PR lên kadaliao upstream.
 - Branch `<bot>/<topic>`, PR vào `i18n-vi`; không force-push. Publish/merge cần approval đúng scope; không suy từ file repo.
