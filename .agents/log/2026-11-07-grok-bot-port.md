@@ -103,3 +103,11 @@ Tin Tin review [PR #8](https://github.com/VagabondKingsman/open-super-agent-rema
 ## Merge i18n-vi sau PR #7 · khoảng 12:26 Asia/Saigon
 
 `origin/i18n-vi` đã tới `5dc007b` (PR #7). Merge commit thường vào nhánh này, không rebase, không force-push. Conflict chỉ ở `.agents/STATE.md` và `.agents/BOARD.md`. Giữ mục port v0.6.1 và mục handoff PR #6/#7. Hai log `2026-11-07-grok-bot.md` và `2026-11-07-grok-bot-port.md` đều còn. OSA-006 Done. `CONTRIBUTING.md` nói `OSA_DATA_DIR` cùng `OSA_CONFIG`, và tách số 172 (base) với 193/190 (cây này, có hoặc thiếu sandbox).
+
+## OSA-004 Done · 12:31:44 Asia/Saigon
+
+[PR #8](https://github.com/VagabondKingsman/open-super-agent-remake/pull/8) đã vào `i18n-vi` tại `6e5d3ffe3e42362059d83117264c3414ed5e1603`. Head của PR là `5914b9d8e2ac1108539c01c6388ae5f19f446d79`. `merged_at` API `2026-11-07T05:31:44Z`. Author git của merge commit là VagabondKingsman. Grok Bot merge với approval rõ của Tin Tin. CI backend, docker, frontend SUCCESS trên head đó.
+
+Retest trên box lúc merge: `uv run pytest -q -ra` 193 passed, 0 skipped. `uv run python -m osa.i18n` thiếu/thừa 0. `npm test` trong `web/` 15/15. `npm run build` OK. `uv run python -m osa.skillpacks verify-sources` PASS. Smoke runtime: Host hoặc Origin lạ trả 403, localhost trả 200.
+
+SHA upstream đã port cuối cùng là `3432671`. `docs/cap-nhat-tu-upstream.md` đã liệt kê `0897360`, `ec71362`, `3432671`. Không sửa file đó. Đoạn “Chưa merge” phía trên giữ nguyên vì đó là lúc viết. Phiên này chỉ cập nhật STATE, BOARD và mục log này. Không merge PR trạng thái.

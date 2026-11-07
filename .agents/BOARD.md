@@ -18,7 +18,7 @@ Snapshot 07/11/2026, Asia/Saigon (UTC+7). GitHub PR + base mới là trạng th�
 | OSA-001 | Live Router→Worker skill chaining | Xác minh dispatch thật, Worker tự nạp source/reference, TIP/AC đủ, verifier dùng đúng; native WS→task trace, cleanup/restore. Cần Tin Tin duyệt model/caps trước paid run. | Chưa nhận |
 | OSA-002 | Docker Computer E2E trên máy có Docker | App build + desktop/VNC/CDP, parallel windows, takeover re-observe, file upload/lifecycle; API 200 không đủ. Không reuse credential/session khác. | Chưa nhận |
 | OSA-003 | Code-split bundle frontend | Baseline + đo trước/sau, lazy route/component phù hợp, build/tests + browser regression; giữ VI/EN/ZH. Chốt target với owner, không bịa ngưỡng đã duyệt. | Chưa nhận |
-| OSA-004 | Kiểm release mới kadaliao | Read-only release/tag/diff sau v0.6.0, bảng delta/VI/security risks; chỉ port forward commits trên remake khi được giao. Không PR upstream. | grok-bot / `grok-bot/port-upstream-v0.6.1` · lát port 0897360+ec71362+3432671 · claimed 12:23 07/11/2026 Asia/Saigon |
+| OSA-004 | Kiểm release mới kadaliao | Read-only release/tag/diff sau v0.6.0, bảng delta/VI/security risks; chỉ port forward commits trên remake khi được giao. Không PR upstream. | Done · grok-bot / `grok-bot/port-upstream-v0.6.1` · xem mục Done |
 | OSA-005 | Rà/hardening GitHub Actions | CI đã có backend/frontend/Docker. Kiểm check-runs, trigger push i18n-vi, reporting sandbox skips và skill hashes; đề xuất gap rồi chốt thay đổi, không “tạo CI lần đầu”. | Chưa nhận |
 | OSA-007 | Rendered onboarding/responsive QA | Fresh isolated data, VI/EN/ZH persistence, empty states, navigation/keyboard, 375/768/1440, ảnh/evidence đã làm sạch. Không khai PASS bằng build. | Chưa nhận |
 | OSA-008 | Reconcile crash/drift review | Fault injection temp data cho FS/SQLite boundary, preserved edits/deletions; đề xuất recovery không mất dữ liệu, không auto-force reinstall. | Chưa nhận |
@@ -27,7 +27,7 @@ Snapshot 07/11/2026, Asia/Saigon (UTC+7). GitHub PR + base mới là trạng th�
 
 | ID | Owner / branch | Trạng thái / bước tiếp |
 |---|---|---|
-| OSA-004 | grok-bot / grok-bot/port-upstream-v0.6.1 | 12:23 07/11/2026 Asia/Saigon. [PR #8](https://github.com/VagabondKingsman/open-super-agent-remake/pull/8) vào `i18n-vi`. Port đúng `0897360`, `ec71362`, `3432671`. Không desktop/Tauri/v0.7. Log `.agents/log/2026-11-07-grok-bot-port.md`. Chưa merge. |
+| | | Không có task đang mở trên bảng này. OSA-004 đã chuyển Done. |
 
 ## Done · đã public
 
@@ -35,4 +35,5 @@ Snapshot 07/11/2026, Asia/Saigon (UTC+7). GitHub PR + base mới là trạng th�
 - PR #4: AI Native mentor/paging/verifiers + eval v1–v3; PR #5: full source bundle + safe shared defaults.
 - OSA-H01: [PR #6](https://github.com/VagabondKingsman/open-super-agent-remake/pull/6) đã merge vào `i18n-vi` lúc 08:26:01 07/11/2026 Asia/Saigon, SHA `3c08269`. CloudAgent đã `git am` trên base 2a36b59, tree khớp manifest, checks local PASS.
 - OSA-006: `OSA-006 / grok-bot / grok-bot/contributing-bots / CONTRIBUTING remake, không đụng code hay CI / claimed_at 07/11/2026 12:11 Asia/Saigon / [PR #7](https://github.com/VagabondKingsman/open-super-agent-remake/pull/7)`. Tin Tin đã giao task và duyệt plan. Đã merge vào `i18n-vi` tại `5dc007b` (head `b90e4d5`) lúc 12:23:22 07/11/2026 Asia/Saigon. Author git của merge commit là VagabondKingsman. Grok Bot merge với approval rõ của Tin Tin. CI backend, frontend, docker SUCCESS.
+- OSA-004: `OSA-004 / grok-bot / grok-bot/port-upstream-v0.6.1 / port 0897360+ec71362+3432671 / claimed_at 07/11/2026 12:23 Asia/Saigon / [PR #8](https://github.com/VagabondKingsman/open-super-agent-remake/pull/8)`. Đã merge vào `i18n-vi` tại `6e5d3ffe3e42362059d83117264c3414ed5e1603` (head `5914b9d`) lúc 12:31:44 07/11/2026 Asia/Saigon. Author git của merge commit là VagabondKingsman. Grok Bot merge với approval rõ của Tin Tin. CI backend, docker, frontend SUCCESS. Retest trên box: pytest 193 passed, 0 skipped. i18n thiếu/thừa 0. Web 15/15. Build OK. `verify-sources` PASS. Smoke: Host/Origin lạ 403, localhost 200.
 - Link/SHA/giờ merge ở STATE. “Eval GO” không phải nghiệm thu Worker/Docker E2E.
