@@ -25,7 +25,7 @@ Snapshot 07/11/2026, Asia/Saigon (UTC+7). GitHub PR + base mới là trạng th�
 
 ## In progress
 
-- OSA-012: `OSA-012 / grok-bot / grok-bot/osa-012-sw-offline-vi / trang offline của service worker: tiếng Việt trước, tiếng Anh sau; Cache Storage osa-lang; manifest vi-VN / claimed_at 07/11/2026 18:45 Asia/Saigon / PR mở trong phiên này`. Tách từ `i18n-vi` tại `fcc2d89`. Chưa merge. Không paid run.
+- OSA-012: `OSA-012 / grok-bot / grok-bot/osa-012-sw-offline-vi / trang offline của service worker: tiếng Việt trước, tiếng Anh sau; Cache Storage osa-lang; manifest vi-VN / claimed_at 07/11/2026 18:45 Asia/Saigon / [PR #14](https://github.com/VagabondKingsman/open-super-agent-remake/pull/14)`. Tách từ `i18n-vi` tại `fcc2d89`. Head `59c2001`. Chưa merge. Không paid run.
 
 ## Done · đã public
 
