@@ -98,4 +98,4 @@ READY cho phần port này. Deferred: Docker desktop E2E, Worker live, rendered 
 
 ## Next step
 
-Tin Tin review [PR #8](https://github.com/VagabondKingsman/open-super-agent-remake/pull/8) vào `i18n-vi`. Head `33d5f800399589798805be74619872afd06068a8`. Không tự merge. OSA-006 (`grok-bot/contributing-bots`) cùng sửa STATE/BOARD; phần thêm ở đây là append và một ô owner OSA-004.
+Tin Tin review [PR #8](https://github.com/VagabondKingsman/open-super-agent-remake/pull/8) vào `i18n-vi`. Code port nằm ở `8fd4327b4581a5adc3b5e026dd7e22bfdf718fa7`. Không tự merge. OSA-006 (`grok-bot/contributing-bots`) cùng sửa STATE/BOARD; phần thêm ở đây là append và một ô owner OSA-004.
