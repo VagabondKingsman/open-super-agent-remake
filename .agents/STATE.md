@@ -139,6 +139,6 @@ Append. Không sửa các mục phía trên. `origin/i18n-vi` lúc mở OSA-013 
 
 [PR #14](https://github.com/VagabondKingsman/open-super-agent-remake/pull/14) đã merge vào `i18n-vi` tại `653f8666414139228a3a6810c8832e71faad3bb2`. Head của PR là `ee6089316a90c7d8fa371a4673eba40219b0c288`. `merged_at` API `2026-11-07T12:08:18Z`, tức 19:08:18 Asia/Saigon. Giờ commit ghi `2026-11-07 19:08:17 +0700`; không dùng giờ commit làm giờ merge. Author git của merge commit là VagabondKingsman.
 
-Branch `grok-bot/osa-013-cost-usd`, tách từ `653f866`. Chi phí và đơn giá chuyển sang USD. models.dev không còn nhân 7.1. Bảng DeepSeek trong `config.yaml` đổi sang giá niêm yết USD (trang giá API, 07/11/2026). `llm_usage.cost` cũ đổi một lần, cờ `settings.cost_unit`. Tab giới hạn vẫn là token / bước / giây. Chưa merge. Không gọi LLM trả phí. Không đụng upstream kadaliao.
+Branch `grok-bot/osa-013-cost-usd`, tách từ `653f866`. [PR #15](https://github.com/VagabondKingsman/open-super-agent-remake/pull/15) vào `i18n-vi`. Head code `778446e7b2b2a0c65a4bb0d497c0d4630b174cbb`. Chi phí và đơn giá chuyển sang USD. models.dev không còn nhân 7.1. Bảng DeepSeek trong `config.yaml` đổi sang giá niêm yết USD (trang giá API, 07/11/2026). `llm_usage.cost` cũ đổi một lần, cờ `settings.cost_unit`. Tab giới hạn vẫn là token / bước / giây. Chưa merge. Không gọi LLM trả phí. Không đụng upstream kadaliao.
 
 Số test của phiên nằm ở [log OSA-013](log/2026-11-07-grok-bot-osa-013.md).

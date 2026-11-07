@@ -25,7 +25,7 @@ Snapshot 07/11/2026, Asia/Saigon (UTC+7). GitHub PR + base mới là trạng th�
 
 ## In progress
 
-- OSA-013: `OSA-013 / grok-bot / grok-bot/osa-013-cost-usd / chi phí và đơn giá chuyển sang USD, bỏ CNY / claimed_at 07/11/2026 19:09 Asia/Saigon / PR mở ở cuối phiên`. Tách từ `i18n-vi` tại `653f866`. Chưa merge. Không paid LLM. Không đụng upstream kadaliao.
+- OSA-013: `OSA-013 / grok-bot / grok-bot/osa-013-cost-usd / chi phí và đơn giá chuyển sang USD, bỏ CNY / claimed_at 07/11/2026 19:09 Asia/Saigon / [PR #15](https://github.com/VagabondKingsman/open-super-agent-remake/pull/15)`. Tách từ `i18n-vi` tại `653f866`. Head code `778446e`. Chưa merge. Không paid LLM. Không đụng upstream kadaliao.
 - OSA-012: `OSA-012 / grok-bot / grok-bot/osa-012-sw-offline-vi / trang offline của service worker: tiếng Việt trước, tiếng Anh sau; Cache Storage osa-lang; manifest vi-VN / claimed_at 07/11/2026 18:45 Asia/Saigon / [PR #14](https://github.com/VagabondKingsman/open-super-agent-remake/pull/14)`. Đã merge vào `i18n-vi` tại `653f8666414139228a3a6810c8832e71faad3bb2` (head `ee6089316a90c7d8fa371a4673eba40219b0c288`) lúc 19:08:18 07/11/2026 Asia/Saigon. `merged_at` API `2026-11-07T12:08:18Z`. Author git của merge commit là VagabondKingsman. Câu “Chưa merge” trong log OSA-012 là trạng thái lúc viết log đó.
 
 ## Done · đã public
