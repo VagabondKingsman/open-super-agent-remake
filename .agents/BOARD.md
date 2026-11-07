@@ -27,7 +27,7 @@ Snapshot 07/11/2026, Asia/Saigon (UTC+7). GitHub PR + base mới là trạng th�
 
 | ID | Owner / branch | Trạng thái / bước tiếp |
 |---|---|---|
-| OSA-009 | grok-bot / `grok-bot/osa-009-audit-fixes` | `OSA-009 / grok-bot / grok-bot/osa-009-audit-fixes / deep fix audit Zro B01–B07 / claimed_at 07/11/2026 15:00 Asia/Saigon / PR link pending`. Chưa merge. |
+| OSA-009 | grok-bot / `grok-bot/osa-009-audit-fixes` | `OSA-009 / grok-bot / grok-bot/osa-009-audit-fixes / deep fix audit Zro B01–B07 / claimed_at 07/11/2026 15:00 Asia/Saigon / [PR #10](https://github.com/VagabondKingsman/open-super-agent-remake/pull/10)`. Chưa merge. |
 
 ## Done · đã public
 
