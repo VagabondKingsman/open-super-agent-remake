@@ -113,7 +113,7 @@ Cap đặt trước: 3 USD ước tính, 160 request, 1.000.000 reported tokens,
 | Tổng | 16 | 68 | **0,700516** |
 
 - Prompt tokens **641.546**, trong đó cached **433.664** (không cộng cache lần nữa); output **11.320**. Tổng input+output **652.866 tokens**.
-- Theo metadata pricing OSA/models.dev: input 2 USD, cache 0,5 USD, output 6 USD / 1 triệu token. UI OSA lưu chi phí theo CNY với rate 7,1; ở đây quy về USD. Đây là ước tính từ token usage, **không phải hóa đơn xAI**.
+- Theo metadata pricing OSA/models.dev: input 2 USD, cache 0,5 USD, output 6 USD / 1 triệu token. Lúc chạy eval, UI OSA lưu chi phí theo CNY với rate 7,1; bảng này đã quy về USD. Từ OSA-013, `llm_usage.cost` và trang chi phí lưu và hiện USD, không còn đổi sang CNY. Đây là ước tính từ token usage, **không phải hóa đơn xAI**.
 
 ## GO / NO-GO
 

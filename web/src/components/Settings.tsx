@@ -6,6 +6,7 @@ import type { Rule, Settings as S } from '../types'
 import Backup from './Backup'
 import Channels from './Channels'
 import ModelSettings, { ROLE_NAMES } from './ModelSettings'
+import { formatUsd } from '../formatUsd'
 import { priceSource, priceText, ToastHost, useToast } from './settingsKit'
 
 // 设置：左边按类分组的导航，右边是这一页
@@ -128,7 +129,7 @@ function Usage() {
   const bots = useStore(x => x.bots)
   useEffect(() => { api('/api/usage').then(setU); const timer = setInterval(() => api('/api/usage').then(setU), 8000); return () => clearInterval(timer) }, [])
   if (!u) return <div className="muted">{t('加载中…')}</div>
-  const f = (v: number) => u.currency + v.toFixed(v < 1 ? 3 : 2)
+  const f = (v: number) => formatUsd(v)
   const max = Math.max(...u.by_day.map((d: any) => d.cost), 1e-9)
   return (
     <div className="usage">
@@ -171,10 +172,10 @@ function Prices() {
       {rows.map(([k, prov, model]) => {
         const info = s.model_info[`${prov}/${model}`]
         return <div className="kv" key={k} title={priceSource(info)}><span>{ROLE_NAMES[k] || k} · {model}</span>
-          <span className={priceText(info, p.currency) ? '' : 'muted'}>{priceText(info, p.currency) || t('没有单价，按 0 计')}</span></div>
+          <span className={priceText(info) ? '' : 'muted'}>{priceText(info) || t('没有单价，按 0 计')}</span></div>
       })}
-      <p className="muted small">{tn('单价自动从 {link} 获取，每天更新一次（上次：{when}），美元按 1 : {rate} 换成人民币；{config} 的 {pricing} 里写了的以它为准，本机的模型按 0 计。', {
-          link: <a href="https://models.dev" target="_blank" rel="noreferrer">models.dev</a>, when, rate: p.rate,
+      <p className="muted small">{tn('单价自动从 {link} 获取，每天更新一次（上次：{when}），按美元 / 百万 token 计；{config} 的 {pricing} 里写了的以它为准，本机的模型按 0 计。', {
+          link: <a href="https://models.dev" target="_blank" rel="noreferrer">models.dev</a>, when,
           config: <code>config.yaml</code>, pricing: <code>pricing</code> })}
         {p.error && <span className="error-line"> {t('上次更新失败：{error}', { error: p.error })}</span>}{' '}
         <button className="link-btn" disabled={busy} onClick={refresh}>{busy ? t('更新中…') : t('现在更新')}</button></p>

@@ -155,9 +155,8 @@ function ModelChoose({ name, onBack, onDone }: { name: string; onBack: () => voi
   }, [l])
   const item = l?.items.find(m => m.id === model)
   const vision = test.res?.ok ? test.res.vision : item?.vision === undefined ? undefined : item.vision ? 'yes' : 'no'
-  const cur = s.prices.currency
   const price = !item || item.input === undefined ? '' : !item.input && !item.output ? t('免费')
-    : t('输入 {input} · 输出 {output} / 百万 token', { input: money(item.input, cur), output: money(item.output, cur) })
+    : t('输入 {input} · 输出 {output} / 百万 token', { input: money(item.input), output: money(item.output) })
   const save = async () => {
     setBusy(true)
     const v = { provider: name, model }

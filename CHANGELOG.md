@@ -3,6 +3,10 @@
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
 ## [未发布]
+### 变更
+- 费用改为美元。models.dev 的单价本来就是美元 / 百万 token，不再乘 `usd_rate` 换成人民币。`config.yaml` 里 DeepSeek 的高峰、空闲价改成官网美元价。界面显示 `$0.0123` 这种格式。`/api/usage` 的 `currency` 仍在，值是 `$`。
+- 已有数据库里的 `llm_usage.cost` 在第一次启动时从人民币换成美元，并在 `settings.cost_unit` 做标记，不会除第二次。手写价表里的模型按 token 用现在的美元价重算，其余行除以 7.1（或配置里留下的 `usd_rate` / `legacy_cny_per_usd`）。限额页仍是 token 预算，不是金额上限。
+
 ### 新增
 - 环境变量 `OSA_DATA_DIR`：数据库、密钥、自己加的应用清单和工作目录都放到这个目录，代码目录可以是只读的（桌面版要用）
 

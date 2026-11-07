@@ -58,20 +58,29 @@ API Key 先看保险库（界面上填的），没有再看 `api_key_env` 写的
 **单价自动获取**，不用自己填：每天从 [models.dev](https://models.dev) 拉一次（两百多家服务商、几千个模型），存在 `data/model-prices.json`。
 
 - 按接口地址对上服务商，再按模型名字找单价；对不上的（比如自己搭的转发）按模型名字到各家找，设置页上会注明“按某某的价格估算”。
-- models.dev 的单价是美元，按 `pricing.usd_rate`（默认 7.1）换成人民币。
-- `config.yaml` 的 `pricing.models` 里写了的以它为准。DeepSeek 分高峰和空闲两档（`[高峰, 空闲]`），models.dev 没有，所以默认配置里写着。
+- 单价和费用都是美元。models.dev 的数字本来就是美元 / 百万 token，直接用，不再乘汇率。
+- `config.yaml` 的 `pricing.models` 里写了的以它为准，单位也是美元。DeepSeek 分高峰和空闲两档（`[高峰, 空闲]`），models.dev 没有，所以默认配置里写着。数字来自 [DeepSeek API 定价](https://api-docs.deepseek.com/quick_start/pricing/)（2026-11-07 核对）。
 - 本机和内网的模型按 0 计。找不到单价的也按 0 计，设置页上显示“没有单价”。
 - 连不上 models.dev 时用上一次存下的；一次都没取到过的话，只有 `pricing.models` 里写了的有单价。国内服务器可以设 `HTTPS_PROXY`，
   或者用 `pricing.source` 换一个地址。费用页的“单价”下面能看到上次更新的时间，也能点“现在更新”。
+- 界面和接口里的金额是美元，例如 `$0.0123`。`/api/usage` 和任务详情的 `currency` 字段还在，值固定是 `$`。`prices.rate` 还在，值固定是 `1`，不再表示汇率。
+- 限额页（限制与预算）管的是 token、步数和秒数，不是一笔人民币或美元上限。`daily_token_budget` 仍是每天最多多少 token。
+
+已经在用的库：`llm_usage.cost` 在这次改动之前是人民币。进程第一次打开这种库时做一次迁移，结果写在 `settings.cost_unit`，之后不再除。
+
+- `pricing.models` 里的模型按 token 列用**现在的美元单价**重算（含高峰时段）。
+- 其余非 0 的行除以 `pricing.legacy_cny_per_usd`。没写这项就用还留在配置里的 `pricing.usd_rate`，再没有就用 `7.1`（改动前的默认值：1 美元 = 7.1 人民币）。models.dev 的旧记录当时就是美元价乘这个数，除回去就是当时的美元。
+- 空库只写标记，不改数字。`legacy_cny_per_usd: 1` 表示库里的数已经是美元，一次都不改。
+- 默认配置里的 DeepSeek 表已经换成官网美元价。若第一次启动时配置仍把 `currency` 写成 `¥` / `CNY` / `元`，手写表还按人民币读，再除以上面的数。那张旧表是四舍五入过的人民币价，除以 7.1 会比官网美元价大约少 6%。要按官网价重算这两条模型的旧记录，先把 `pricing.models` 改成美元、`currency` 写成 `"$"`，再启动。
 
 ```yaml
 pricing:
-  currency: "¥"
-  usd_rate: 7.1                                  # 1 美元换多少人民币
+  currency: "$"
+  # legacy_cny_per_usd: 7.1                       # 只给第一次迁移旧库。旧账已经是美元就写 1
   # source: https://models.dev/api.json          # 单价从哪里取
   peak_hours: ["09:00-12:00", "14:00-18:00"]     # 只对下面分两档的模型有用；北京时间，周一至周五
   models:
-    deepseek-flash: {cache_hit: [0.04, 0.02], input: [2, 1], output: [8, 4]}
+    deepseek-flash: {cache_hit: [0.006, 0.003], input: [0.3, 0.15], output: [1.2, 0.6]}  # [高峰, 空闲] 美元 / 百万 token
 ```
 
 **限额**在 设置 → 限制与预算 里改：每天最多用多少 token、每个任务最多几步、任务最长跑多久、后台任务等确认多久、Heavy 模式同时跑几个。
@@ -93,7 +102,7 @@ Heavy 另有两项，也只在 `config.yaml` 里改：
 
 费用页的数字是**已记录的用量**，不是服务商账单。请求被取消时，流里已经有 usage 就照实记；没有 usage 回包但已经收到文字，就按大约 4 个字符一个 token 估算输出，并标成估算。进程被直接杀掉时，来不及记的用量不会出现在这里。
 
-点“测试”产生的调用记在“测试模型”下面，几分钱以内。
+点“测试”产生的调用记在“测试模型”下面，金额用美元。
 
 ## 电脑
 
