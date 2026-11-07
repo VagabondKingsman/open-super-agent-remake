@@ -39,7 +39,8 @@ Nguồn chi tiết: `docs/vi/ai-native-live-eval.md`, `ai-native-default-install
 ## Local-only và giới hạn
 
 - Nhánh local cũ được giữ ở `safety/i18n-vi-before-shared-handoff-20261107`, tip `abe6207`. Trước sync tree bằng public 2a36b59 (diff rỗng), không copy lại commit cũ chỉ vì SHA khác. Local i18n-vi đã ở public tip, handoff làm trên `build-bot/shared-handoff`.
-- `.agents/` và root pointers ở phiên này chỉ commit local, chưa PR/push/merge. Tra log/HEAD; sau công bố bot phụ trách cập nhật trạng thái và ref thực, không ghi trước PR number.
+- Công bố trên remake: [PR #6](https://github.com/VagabondKingsman/open-super-agent-remake/pull/6), branch `build-bot/shared-handoff`, base `2a36b59ca9d6236cd60935d71a2da8fcb690d8d1`. Commit patch `a682ad9a4426aa3aa1ffd1824d0b304789b19225`, tree `0904f3de3c8ac455478b03d746fd352fe583c7f8` khớp manifest. Chưa merge. Không force-push và không đụng upstream kadaliao.
+- CloudAgent, 07/11/2026 08:25 Asia/Saigon (UTC+7): `osa.i18n` PASS (EN/VI backend 500, frontend 883, thiếu/thừa 0, Chinese UI chưa wrap 0); `pytest -q` 172 passed, 0 skipped với bubblewrap 0.9.0 (3 SKIP ở `tests/test_local_checks.py` nếu không có bwrap); frontend `npm test` 15 passed, 0 skipped; `npm run build` PASS, JS 1.153,85 kB / gzip 374,59 kB, warning >500 kB còn; `verify-sources` 129 PASS. Không commit package-lock. CI remote của PR #6 là bằng chứng chính.
 - DB/config/vault/browser sessions/operator fixture registry/backup/full eval traces chỉ nằm trên máy vận hành; không đưa lên GitHub. Tài khoản/máy mới phải tự thiết lập và được cấp quyền, không kế thừa credential của Build Bot.
 - **Worker live** / Router→Worker skill chain chưa nghiệm thu với paid model; FakeLLM wiring không thay bằng chứng đó.
 - Docker/Computer: Build Bot box thiếu Docker; chỉ graceful unavailable đã kiểm. App image build và desktop/VNC/CDP/parallel/takeover/upload E2E trên box đó NOT_CHECKED. CI file có Docker job nhưng chưa đọc remote check-runs trong phiên này.
