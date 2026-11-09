@@ -267,7 +267,7 @@ async def create_chat(client, **kwargs):
     408/409/5xx 仍按 limits.provider_transient_retries 再试，避免把短暂故障变成任务失败。
     """
     rate_retries = max(0, int(CFG["limits"].get("provider_rate_retries", 1) or 0))
-    transient_retries = max(0, int(CFG["limits"].get("provider_transient_retries", 2) or 0))
+    transient_retries = max(0, int(CFG["limits"].get("provider_transient_retries", RETRIES) or 0))
     cap = max(0.0, float(CFG["limits"].get("provider_retry_cap_s", 120) or 0))
     # 测试里的假客户端没有 with_options。真客户端关掉 SDK 自带重试，避免把额度类 429 再打一遍。
     caller = client.with_options(max_retries=0) if hasattr(client, "with_options") else client

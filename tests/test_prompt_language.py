@@ -16,11 +16,15 @@ from pathlib import Path
 import pytest
 
 from conftest import until
-from osa import bots, i18n, library, memories, router, routines, search, server, teach, tools, verification, worker
+from types import SimpleNamespace
+
+from osa import (applets, botadmin, bots, events, i18n, images, library, mcpapps, media, memories, registry, router,
+                 routines, sandbox, search, server, skills, teach, verification, worker)
 from osa.computer import tools as ctools
 from osa.skillpacks import SCHEMAS as SKILL_SCHEMAS
 from osa.local_checks import SCHEMAS as CHECK_SCHEMAS
 
+HOST = SimpleNamespace(backend="host", workspace="/work", shell_enabled=lambda: True, desktop_enabled=lambda: True)
 ROOT = Path(__file__).resolve().parent.parent
 # The attachment marker is a stored contract. The prompt must name it.
 ALLOWED_CJK = ("[附件]",)
@@ -57,19 +61,46 @@ def _prompt_blobs() -> list[tuple[str, str]]:
         ("routines.PREVIOUS_LABEL", routines.PREVIOUS_LABEL),
         ("routines.FILTER_PROMPT", routines.FILTER_PROMPT),
         ("teach.DRAFT_PROMPT", teach.DRAFT_PROMPT),
-        ("ctools.SYSTEM_HINT", ctools.SYSTEM_HINT),
+        ("router.PRIMARY_RULE", router.PRIMARY_RULE),
+        ("router.OTHER_RULE", router.OTHER_RULE),
+        ("router.BOTADMIN_TURN", router.BOTADMIN_TURN),
+        ("router.BOTADMIN_OWED", router.BOTADMIN_OWED),
+        ("router.BOTADMIN_EDITED", router.BOTADMIN_EDITED),
+        ("router.ATTACH_SEE", router.ATTACH_SEE),
+        ("router.ATTACH_BLIND", router.ATTACH_BLIND),
+        ("worker.FILE_HINT", worker.FILE_HINT),
+        ("ctools.DESK_HINT", ctools.DESK_HINT),
+        ("ctools._BODY", ctools._BODY),
+        ("ctools.system_hint", ctools.system_hint()),
+        ("ctools.system_hint:host", ctools.system_hint(HOST)),
+        ("ctools.capability", ctools.capability()),
+        ("ctools.capability:host", ctools.capability(HOST)),
+        ("applets.GUIDE", applets.GUIDE),
+        ("mcpapps.MODEL_HINT", mcpapps.MODEL_HINT),
+        ("images.NO_MODEL", images.NO_MODEL),
+        ("sandbox.QUICK_TIMED_OUT", sandbox.QUICK_TIMED_OUT),
+        ("sandbox._no_sandbox", sandbox._no_sandbox()),
+        ("events.brief_sources", events.brief_sources()),
     ]
     blobs += [(f"answer:{lang}", text) for lang, text in i18n.ANSWER_LANG.items()]
     blobs += [(f"angle:{i}", text) for i, text in enumerate(worker.HEAVY_ANGLES)]
-    schemas = (router.ROUTER_TOOLS + [router.MESSAGE_BOT, router.HANDOFF] + ctools.SCHEMAS
-               + [library.SAVE_PAGE, library.READ_PAGE, search.SEARCH_TOOL, verification.SCHEMA]
-               + SKILL_SCHEMAS + CHECK_SCHEMAS)
+    scopes = [registry.schemas(registry.ROUTER, router.ROUTER_ENV),
+              registry.schemas(registry.WORKER, {"pages": True, "use_pc": True}),
+              registry.schemas(registry.WORKER, {"pages": False}),
+              registry.schemas(registry.APPLET, {})]
+    schemas = (router.ROUTER_TOOLS + [router.MESSAGE_BOT, router.HANDOFF] + ctools.SCHEMAS + ctools.schemas(HOST)
+               + ctools.desk_schemas(HOST) + botadmin.tools_for({"is_primary": True}) + botadmin.tools_for({"is_primary": False})
+               + [library.SAVE_PAGE, library.READ_PAGE, library.PAGE_DATA, search.SEARCH_TOOL, verification.SCHEMA,
+                  media.SEND_FILE, images.GENERATE_IMAGE, sandbox.RUN_CODE, sandbox.QUICK_CODE, skills.USE_SKILL,
+                  routines.CREATE_ROUTINE, routines.CREATE_EVENT, routines.LIST_ROUTINES, routines.UPDATE_ROUTINE,
+                  routines.DELETE_ROUTINE]
+               + SKILL_SCHEMAS + CHECK_SCHEMAS + [s for group in scopes for s in group])
     for schema in schemas:
         name = (schema.get("function") or {}).get("name", "?")
         blobs += [(f"schema:{name}", text) for text in _schema_text(schema)]
-    for name, (_, desc, params) in tools.TOOLS.items():
-        blobs.append((f"tool:{name}", desc))
-        blobs += [(f"tool:{name}:{key}", value) for key, value in params.items()]
+    for name, tool in registry.TOOLS.items():
+        blobs.append((f"tool:{name}", tool.describe))
+        blobs += [(f"tool:{name}:schema", text) for text in _schema_text(tool.schema)]
     return blobs
 
 
@@ -79,7 +110,8 @@ def _visible(text: str) -> str:
     return text
 
 
-def test_prompt_constants_and_tool_schemas_have_no_cjk():
+def test_prompt_constants_and_tool_schemas_have_no_cjk(monkeypatch):
+    monkeypatch.setattr(i18n, "_lang", "en")   # i18n.t sentences in model-facing text follow the UI language
     hits = [f"{name}: {i18n.CJK.search(text).group(0)!r}"
             for name, text in _prompt_blobs() if i18n.CJK.search(_visible(text))]
     assert hits == []
@@ -129,15 +161,18 @@ async def test_router_system_prompt_carries_the_directive(monkeypatch, llm, even
 def test_prompt_format_fields_are_closed():
     router.ROUTER_PROMPT.format(
         name="N", instructions="I", date="2026-11-07", capabilities="c", others="o",
-        skills="s", routines="r", memories="m", group="")
-    router.STATE_PROMPT.format(tasks="t", approvals="a", memories="", turn="")
+        skills="s", routines="r", memories="m", group="", attach_rule="a", bot_rule="b")
+    router.STATE_PROMPT.format(tasks="t", approvals="a", tools="x, y", memories="", turn="")
     router.GROUP_PROMPT.format(title="T", members="M", lead="L")
     router.DM_TURN.format(name="N")
     router.REPLY_OWED.format(owed="O", name="N")
+    router.OTHER_RULE.format(primary="P")
+    router.BOTADMIN_OWED.format(owed="O")
+    router.BOTADMIN_EDITED.format(fields="f")
     worker.WORKER_PROMPT.format(date="2026-11-07")
 
 
-def test_string_literals_sent_as_prompts_are_listed_above():
+def test_string_literals_sent_as_prompts_are_listed_above(monkeypatch):
     """Fail when a new module-level prompt constant with CJK shows up outside the registry.
 
     Docstrings, i18n.t/N_/later keys, and comments are not prompts. The names scanned here
