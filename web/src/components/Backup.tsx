@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { api } from '../store'
+import { api, useStore } from '../store'
 import { lang, locale, t, tc, tn } from '../i18n'
+import { ask } from './Dialog'
+import { isEnter } from '../keys'
 
 // 设置 → 备份与迁移：导出一个加密的备份文件；在新机器上上传它恢复
 type Info = { counts: Record<string, number>; secrets: number; started: number; version: string; staged: Staged | null }
@@ -16,8 +18,10 @@ const b64 = (s: string) => btoa(String.fromCharCode(...new TextEncoder().encode(
 
 export default function Backup() {
   const [info, setInfo] = useState<Info | null>(null)
+  const demo = useStore(s => !!s.settings?.security?.demo)
   const load = () => api('/api/backup').then(setInfo)
   useEffect(() => { load() }, [])
+  if (demo) return <p className="muted">{t('演示服务器上不能导出或恢复备份')}</p>
   if (!info) return <div className="muted">{t('加载中…')}</div>
   return (
     <div>
@@ -60,7 +64,7 @@ function Export({ info }: { info: Info }) {
       <div className="bk-row">
         <input type="password" autoComplete="new-password" placeholder={t('口令（至少 8 个字符）')} value={p1} onChange={e => setP1(e.target.value)} />
         <input type="password" autoComplete="new-password" placeholder={t('再输一遍')} value={p2} onChange={e => setP2(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && ok && go()} />
+          onKeyDown={e => isEnter(e) && ok && go()} />
         <button className="btn primary" disabled={!ok || busy} onClick={go}>{busy ? t('打包中…') : t('下载备份')}</button>
       </div>
       {p2 && p1 !== p2 && <div className="muted small">{t('两次输入的不一样')}</div>}
@@ -91,7 +95,7 @@ function Restore({ info, onChange }: { info: Info; onChange: () => void }) {
   }
   const cancel = async () => { await api('/api/backup/restore', { method: 'DELETE' }); onChange() }
   const confirm_ = async () => {
-    if (!confirm(t('用这个备份替换这台的全部数据？正在做的任务会被打断。原来的数据库会在服务器上留一份。'))) return
+    if (!(await ask(t('用这个备份替换这台的全部数据？正在做的任务会被打断。原来的数据库会在服务器上留一份。'), { ok: t('恢复并重启'), danger: true }))) return
     setBusy(t('正在重启…')); setErr('')
     try {
       await api('/api/backup/restore/confirm', { method: 'POST' })
@@ -132,7 +136,7 @@ function Restore({ info, onChange }: { info: Info; onChange: () => void }) {
           <button className="btn" onClick={() => input.current?.click()}>{file ? file.name : t('选择备份文件…')}</button>
           <input ref={input} type="file" accept=".osabak" hidden onChange={e => { setFile(e.target.files?.[0] || null); e.target.value = '' }} />
           <input type="password" autoComplete="off" placeholder={t('备份时设的口令')} value={pass} onChange={e => setPass(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && file && pass && upload()} />
+            onKeyDown={e => isEnter(e) && file && pass && upload()} />
           <button className="btn primary" disabled={!file || !pass || !!busy} onClick={upload}>{busy || t('检查备份')}</button>
         </div>
         {err && <div className="error-line">{err}</div>}

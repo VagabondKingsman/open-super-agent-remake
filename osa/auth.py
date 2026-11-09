@@ -15,28 +15,33 @@ import html
 import ipaddress
 import json
 import os
+import re
 import secrets
 import time
 from urllib.parse import parse_qs, quote, urlsplit
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from . import i18n
 from .config import CFG
 from .memory import db_path
 
-COOKIE = "osa_session"
+# 同一台机器上跑两个服务（比如桌面版和开发用的）时用 OSA_COOKIE 分开起名：cookie 不分端口，同名会互相把登录顶掉
+COOKIE = os.environ.get("OSA_COOKIE", "") if re.fullmatch(r"[A-Za-z0-9_-]{1,64}", os.environ.get("OSA_COOKIE", "")) else "osa_session"
 MAX_AGE = 30 * 86400          # 登录保持 30 天
 RENEW_BELOW = 15 * 86400      # 剩不到 15 天时，下一次请求自动续期
 FAIL_WINDOW, MAX_FAILS = 600, 5   # 同一个 IP 10 分钟内输错 5 次，暂停登录到窗口结束
+TICKET_TTL = 30              # 桌面 App 自动登录用的票，30 秒内有效，只能用一次
+PAIR_TTL = 300               # 手机 App 扫码配对用的票，5 分钟内有效，只能用一次
 
 # 前端构建产物里不含数据的文件：登录页和分享页要用
 PUBLIC_FILES = {"/manifest.json", "/sw.js", "/favicon.png", "/icon-192.png", "/icon-512.png", "/apple-touch-icon.png"}
-PUBLIC_PREFIXES = ("/assets/", "/hooks/", "/api/shared/", "/s/", "/skill/", "/template/")
+PUBLIC_PREFIXES = ("/assets/", "/hooks/", "/api/shared/", "/s/", "/skill/", "/template/", "/avatars/")
 # 没开登录时，Host 是这些名字才接受：别人没法让这些名字解析到你的 127.0.0.1
 LOCAL_SUFFIXES = (".localhost", ".local", ".ts.net")
 
 router = APIRouter()
 _fails: dict[str, list[float]] = {}
+_tickets: dict[str, float] = {}
 _key: bytes | None = None
 
 
@@ -136,7 +141,8 @@ def host_ok(host: str | None) -> bool:
 def _public(path: str) -> bool:
     if ".." in path:   # 不让 /s/../ 这种路径借公开前缀绕过
         return False
-    return path in PUBLIC_FILES or path in ("/login", "/logout") or path.startswith(PUBLIC_PREFIXES)
+    # /api/computer/link：借给服务器的 Mac 连进来，它自己查借用令牌（computer/link.py）
+    return path in PUBLIC_FILES or path in ("/login", "/logout", "/login/ticket", "/api/computer/link") or path.startswith(PUBLIC_PREFIXES)
 
 
 def _safe_next(n: str | None) -> str:
@@ -162,8 +168,10 @@ class AuthMiddleware:
         if (scope["type"] == "websocket" or method not in ("GET", "HEAD", "OPTIONS")) and not _same_origin(headers):
             return await _deny(scope, send, 403, i18n.t("跨站请求被拒绝"))
         if not enabled():
-            # 设了 webhook token 的，token 本身就挡住了浏览器（自定义请求头跨站发不出来），外面的地址可以照常调
-            if not (path.startswith("/hooks/") and os.environ.get("OSA_WEBHOOK_TOKEN")) and not host_ok(headers.get("host")):
+            # 设了 webhook token 的，token 本身就挡住了浏览器（自定义请求头跨站发不出来），外面的地址可以照常调；
+            # 事件自己的地址 /hooks/<随机密钥> 也一样：不知道密钥的网页凑不出这个地址
+            hook = path.startswith("/hooks/") and (os.environ.get("OSA_WEBHOOK_TOKEN") or len(path) - len("/hooks/") >= 16)
+            if not hook and not host_ok(headers.get("host")):
                 return await _deny(scope, send, 403, i18n.t(
                     "没有放行这个地址（{host}）：没设登录密码时，只接受本机、IP 地址和 Tailscale 的地址。要用这个地址访问，"
                     "请设置 OSA_PASSWORD 打开登录，或者把它加进 config.yaml 的 server.allowed_hosts",
@@ -221,7 +229,7 @@ def _blocked(ip: str) -> bool:
 
 # ---------- 登录页 ----------
 PAGE = """<!doctype html><html lang="{lang}"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#0d0d0e"><link rel="manifest" href="/manifest.json">
 <link rel="icon" type="image/png" href="/favicon.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Super Agent">
@@ -280,6 +288,55 @@ async def login(request: Request):
         return _page(request, nxt, i18n.t("密码不对", in_lang=_lang(request)), 401)
     _fails.pop(ip, None)
     r = RedirectResponse(nxt, 303)
+    r.headers.append("set-cookie", _cookie_header(new_token(), MAX_AGE, request.url.scheme == "https"))
+    return r
+
+
+@router.post("/login/ticket")
+async def login_ticket(request: Request):
+    """桌面 App 自动登录：带上密码（Authorization: Bearer）换一张票，再让窗口打开 GET /login/ticket?t=票，
+    种上普通的登录 cookie。密码不经过网页，页面里的脚本拿不到。浏览器跨站发不来（来源检查），输错和登录页一样限速。"""
+    if not enabled():
+        raise HTTPException(400, i18n.t("没有开登录"))
+    ip = request.client.host if request.client else "?"
+    if _blocked(ip):
+        raise HTTPException(429, i18n.t("输错次数太多，请 10 分钟后再试"))
+    if not check_password(request.headers.get("authorization", "").removeprefix("Bearer ").strip()):
+        _fails.setdefault(ip, []).append(time.time())
+        await asyncio.sleep(1)
+        raise HTTPException(401, i18n.t("密码不对"))
+    _fails.pop(ip, None)
+    return {"ticket": mint_ticket(TICKET_TTL), "expires_in": TICKET_TTL}
+
+
+def mint_ticket(ttl: int) -> str:
+    """发一张 ttl 秒内有效、只能用一次的登录票，用 GET /login/ticket?t= 兑换成登录 cookie。"""
+    now = time.time()
+    for k in [k for k, exp in _tickets.items() if exp < now]:
+        del _tickets[k]
+    ticket = secrets.token_urlsafe(32)
+    _tickets[ticket] = now + ttl
+    return ticket
+
+
+@router.post("/api/pair")
+async def pair():
+    """手机 App 扫码配对：已经登录的页面换一张 5 分钟内有效、只能用一次的票，放进二维码。
+    App 打开 GET /login/ticket?t=票，种上普通的登录 cookie。要登录才能调（不在公开路径里），别的网站发不来（来源检查）。
+    没开登录时不需要票。"""
+    if not enabled():
+        return {"ticket": "", "expires_in": 0}
+    return {"ticket": mint_ticket(PAIR_TTL), "expires_in": PAIR_TTL}
+
+
+@router.get("/login/ticket")
+async def use_ticket(request: Request):
+    nxt = _safe_next(request.query_params.get("next"))
+    if not enabled():
+        return RedirectResponse(nxt, 303)
+    if _tickets.pop(request.query_params.get("t", ""), 0) < time.time():   # 用过、过期或不存在：去登录页
+        return RedirectResponse("/login" + ("" if nxt == "/" else "?next=" + quote(nxt, safe="")), 303)
+    r = RedirectResponse(nxt, 303, headers={"cache-control": "no-store"})
     r.headers.append("set-cookie", _cookie_header(new_token(), MAX_AGE, request.url.scheme == "https"))
     return r
 

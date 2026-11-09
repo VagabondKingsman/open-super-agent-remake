@@ -1,4 +1,4 @@
-"""Worker 可用的工具。新增工具：写一个 async 函数并加进 TOOLS。"""
+"""内置的网页工具：web_search、fetch_url。注册在 builtin.py，Router / Worker / 小应用都从 registry 找。"""
 import asyncio
 import html
 import ipaddress
@@ -53,15 +53,21 @@ async def blocked(url: str) -> str | None:
         return i18n.t("只能抓取 http / https 网址")
     if (CFG.get("tools") or {}).get("fetch_private"):
         return None
-    host = u.hostname
+    if await private_host(url):
+        return i18n.t("没抓取：{host} 是本机或内网地址。要抓内网页面，在 config.yaml 里设 tools.fetch_private: true", host=u.hostname)
+    return None
+
+
+async def private_host(url: str) -> bool:
+    """网址的主机是不是本机或内网地址：先解析域名，解析到内网的也算。解析不了的算不是，交给真正的请求报错。"""
+    u = urlsplit(url)
+    host = u.hostname or ""
     try:
         ips = [host] if _is_ip(host) else [i[4][0] for i in await asyncio.get_running_loop().getaddrinfo(
             host, u.port or (443 if u.scheme == "https" else 80), type=socket.SOCK_STREAM)]
-    except OSError:
-        return None   # 解析不了的交给下面的请求报错
-    if any(private_ip(ip) for ip in ips):
-        return i18n.t("没抓取：{host} 是本机或内网地址。要抓内网页面，在 config.yaml 里设 tools.fetch_private: true", host=host)
-    return None
+    except (OSError, ValueError):
+        return False
+    return any(private_ip(ip) for ip in ips)
 
 
 def _is_ip(host: str) -> bool:
@@ -88,23 +94,9 @@ async def fetch_url(url: str) -> str:
     return re.sub(r"\s+", " ", text)[:8000]
 
 
-TOOLS = {
-    "web_search": (web_search, "Search the web. Returns titles, links, and snippets.", {"query": "search query"}),
-    "fetch_url": (fetch_url, "Fetch the text of a web page, truncated to 8000 characters.", {"url": "URL"}),
-}
-
-
-def lookup(name: str):
-    """内置工具或 MCP 工具，找不到返回 None。"""
-    from . import mcp_hub
-    if name in TOOLS:
-        return TOOLS[name][0]
-    return mcp_hub.TOOLS.get(name, (None,))[0]
-
-
-def schemas() -> list[dict]:
-    from . import mcp_hub
-    return [s for _, s in mcp_hub.TOOLS.values()] + [{"type": "function", "function": {
+def schema(name: str, desc: str, params: dict[str, str]) -> dict:
+    """参数都是文字的简单工具的 schema。"""
+    return {"type": "function", "function": {
         "name": name, "description": desc,
         "parameters": {"type": "object", "properties": {k: {"type": "string", "description": v} for k, v in params.items()},
-                       "required": list(params)}}} for name, (_, desc, params) in TOOLS.items()]
+                       "required": list(params)}}}

@@ -7,8 +7,8 @@
     avatar: {shape: star, color: "#f6c453"}
     instructions: 人设和工作方式
     apps: [exa, fetch]                      只写应用名，不带配置和密钥；装的时候列出来，没连的去应用页连
-    skills: [{name, description, body}]
-    routines: [{name, prompt, skill, trigger}]   trigger 和定时任务的一样（daily / every / webhook）
+    skills: [{name, description, body}]     可选 files（{相对路径: 文字}，技能带的脚本、参考资料）和 apps，见 docs/skills.md
+    routines: [{name, prompt, skill, trigger}]   trigger 和定时任务、事件的一样（once / daily / monthly / every / event）
     en: {name, description, instructions, apps, skills: [{name, description, body}], routines: [{name, prompt}]}
                                             可选：英文界面装的版本，只写要换的字段；skills、routines 按顺序和上面一一对应
 
@@ -23,7 +23,7 @@ import re
 import secrets
 from pathlib import Path
 import yaml
-from . import bots, catalog, i18n, mcp_hub, routines, skills
+from . import bots, catalog, events, i18n, mcp_hub, routines, skills
 from .memory import conn
 
 BUILTIN = Path(__file__).parent / "templates"
@@ -120,7 +120,12 @@ def parse(text: str, lang: str | None = None) -> dict:
         if sname in seen:
             raise ValueError(i18n.t("技能 /{name} 写了两次", name=sname))
         seen.add(sname)
-        out_skills.append({"name": sname, "description": " ".join(str(s.get("description") or "").split())[:200], "body": body})
+        try:   # 技能带的文件（scripts/、references/）和声明的应用，和技能包里的一样
+            files = skills.check_files(s.get("files"))
+        except ValueError as e:
+            raise ValueError(i18n.t("技能 {name}：{err}", name=sname, err=e))
+        out_skills.append({"name": sname, "description": " ".join(str(s.get("description") or "").split())[:200], "body": body,
+                           "files": files, "apps": skills.clean_apps(s["apps"]) if s.get("apps") is not None else None})
     out_routines = []
     raw_routines = t.get("routines") or []
     if not isinstance(raw_routines, list) or len(raw_routines) > MAX_ROUTINES:
@@ -141,8 +146,6 @@ def parse(text: str, lang: str | None = None) -> dict:
             trig = routines._clean_trigger(r.get("trigger") or {})
         except (ValueError, TypeError) as e:
             raise ValueError(i18n.t("定时任务 {name}：{err}", name=rname, err=e))
-        if trig["kind"] == "webhook" and not re.fullmatch(r"[\w-]{1,40}", rname):
-            raise ValueError(i18n.t("定时任务 {name}：webhook 类的名字会出现在网址里，只能用字母、数字、- 和 _", name=rname))
         out_routines.append({"name": rname, "prompt": prompt, "skill": skill, "trigger": trig})
     return {"name": name, "description": " ".join(str(t.get("description") or "").split())[:300], "avatar": avatar,
             "instructions": instructions, "apps": list(dict.fromkeys(apps)), "skills": out_skills, "routines": out_routines}
@@ -187,11 +190,14 @@ def from_bot(bot_id: int) -> dict:
     ss = [s for s in skills.list_for(bot_id) if s["bot_id"] == bot_id or s["name"] in used]
     body = " ".join([b["instructions"]] + [s["body"] for s in ss] + [r["prompt"] for r in rs])
     first = next((x.strip(" -#*") for x in b["instructions"].splitlines() if x.strip(" -#*")), "")
-    t = {"osa_template": FORMAT, "name": b["name"], "description": first[:120], "avatar": b["avatar"],
-         "instructions": b["instructions"], "apps": skills.apps_in(body),
-         "skills": [{"name": s["name"], "description": s["description"], "body": s["body"]} for s in ss],
+    t = {"osa_template": FORMAT, "name": b["name"], "description": first[:120],
+         "avatar": {k: b["avatar"][k] for k in ("shape", "color") if k in b["avatar"]},   # 头像图片只在这台上有，不带
+         "instructions": b["instructions"], "apps": sorted(set(skills.apps_in(body)) | {a for s in ss for a in s["apps"] or []}),
+         "skills": [{"name": s["name"], "description": s["description"], "body": s["body"],
+                     **({"apps": s["apps"]} if s["apps"] is not None else {}), **({"files": s["files"]} if s["files"] else {})}
+                    for s in ss],
          "routines": [{"name": r["name"], **({"prompt": r["prompt"]} if r["prompt"] else {}),
-                       **({"skill": r["skill"]} if r["skill"] else {}), "trigger": r["trigger"]} for r in rs]}
+                       **({"skill": r["skill"]} if r["skill"] else {}), "trigger": events.portable(r["trigger"])} for r in rs]}
     return t
 
 
@@ -283,14 +289,11 @@ def install(t: dict, enable_routines: bool = True, name: str = "") -> dict:
     b = bots.create(name.strip()[:40] or t["name"], t["avatar"], t["instructions"])
     try:
         for s in t["skills"]:
-            skills.save(b["id"], s["name"], s["body"], s["description"], "import")
+            skills.save(b["id"], s["name"], s["body"], s["description"], "import", files=s.get("files") or {}, apps=s.get("apps"))
         for r in t["routines"]:
-            rname = r["name"]
-            if r["trigger"]["kind"] == "webhook":   # webhook 的名字全局唯一：重名就加个后缀
-                n = 2
-                while routines.by_hook(rname):
-                    rname, n = f"{r['name'][:36]}-{n}", n + 1
-            routines.save(b["id"], r | {"name": rname, "enabled": enable_routines})
+            # 事件的 webhook 密钥每装一次重新生成（parse 时生成的那个不用）
+            trig = {k: v for k, v in r["trigger"].items() if k not in ("key", "path")}
+            routines.save(b["id"], r | {"trigger": trig, "enabled": enable_routines})
     except Exception:
         routines.delete_for_bot(b["id"])
         conn.execute("delete from skills where bot_id=?", (b["id"],))

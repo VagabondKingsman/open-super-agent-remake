@@ -23,6 +23,9 @@ from .memory import conn
 
 BASE = copy.deepcopy(CFG.get("providers") or {})   # config.yaml 里写的
 MODELS_TTL = 600
+# 服务那边临时出错（500、503、限流、连不上）时自动重试几次。SDK 默认只试 2 次、一共等 1.5 秒左右，
+# DeepSeek 高峰期连着报 500 时不够用；5 次按 0.5、1、2、4、8 秒退避，一共最多等 15 秒左右
+RETRIES = 5
 
 # 添加时可以选的服务商。key_url：去哪里拿密钥；embedding：推荐的 embedding 模型（没有就是这家不提供）；
 # models：推荐的对话模型，前面的优先，第一次打开的引导里默认选服务列出来的第一个（都要能看图，2026-11 抄自 models.dev）
@@ -168,7 +171,7 @@ def client(name: str, timeout: float | None = None) -> AsyncOpenAI:
         raise ValueError(i18n.t("没有这个模型服务：{name}", name=name))
     k = (p["base_url"], api_key(name) or "none", timeout)
     if k not in _clients:
-        _clients[k] = AsyncOpenAI(base_url=k[0], api_key=k[1], **({"timeout": timeout} if timeout else {}))
+        _clients[k] = AsyncOpenAI(base_url=k[0], api_key=k[1], max_retries=RETRIES, **({"timeout": timeout} if timeout else {}))
     return _clients[k]
 
 
@@ -264,7 +267,7 @@ async def create_chat(client, **kwargs):
     408/409/5xx 仍按 limits.provider_transient_retries 再试，避免把短暂故障变成任务失败。
     """
     rate_retries = max(0, int(CFG["limits"].get("provider_rate_retries", 1) or 0))
-    transient_retries = max(0, int(CFG["limits"].get("provider_transient_retries", 2) or 0))
+    transient_retries = max(0, int(CFG["limits"].get("provider_transient_retries", RETRIES) or 0))
     cap = max(0.0, float(CFG["limits"].get("provider_retry_cap_s", 120) or 0))
     # 测试里的假客户端没有 with_options。真客户端关掉 SDK 自带重试，避免把额度类 429 再打一遍。
     caller = client.with_options(max_retries=0) if hasattr(client, "with_options") else client
@@ -312,9 +315,19 @@ def explain(e: Exception, base_url: str = "") -> str:
         return i18n.t("连接超时：{url}", url=base_url)
     if isinstance(e, openai.APIConnectionError):
         return i18n.t("连不上 {url}", url=base_url)
+    if isinstance(e, openai.InternalServerError):
+        return i18n.t("模型服务那边临时出了故障（{code}），一般过一会儿就好，稍后再试一次", code=e.status_code)
     if isinstance(e, openai.APIStatusError):
         return i18n.t("出错了（{code}）：{detail}", code=e.status_code, detail=detail)
     return f"{type(e).__name__}: {str(e)[:200]}"
+
+
+def brief(e: Exception) -> str:
+    """对话和任务里报错时用：调模型出的错翻成人话（不带英文原文和 request_id），别的错误原样。"""
+    if not isinstance(e, openai.APIError):
+        return str(e)
+    url = getattr(getattr(e, "request", None), "url", None)
+    return explain(e, f"{url.scheme}://{url.host}" if url else "")
 
 
 # ---------- 模型列表 ----------
@@ -373,12 +386,29 @@ def _new_name(base: str) -> str:
     return name
 
 
+def same_origin(a: str, b: str) -> bool:
+    """两个接口地址是不是同一个服务（协议、主机、端口都一样）。"""
+    def origin(u: str):
+        p = urlparse(u)
+        try:
+            port = p.port
+        except ValueError:
+            return None
+        return p.scheme, (p.hostname or "").lower(), port or (443 if p.scheme == "https" else 80)
+    return origin(a) is not None and origin(a) == origin(b)
+
+
 def save(name: str | None, data: dict) -> str:
-    """name 为空是新建。api_key 留空表示不改；clear_key 删掉界面里填的密钥（回到环境变量）。"""
+    """name 为空是新建。api_key 留空表示不改；clear_key 删掉界面里填的密钥（回到环境变量）。
+    改到别的服务（主机或端口变了）时要重新填密钥：不然原来的密钥（可能是服务自己环境变量里的）会发到新地址去。"""
     d = _load()
     title = _stored_title((data.get("title") or "").strip()[:40])
     url = _clean_url(data.get("base_url", ""))
     preset = data.get("preset") if data.get("preset") in PRESET else None
+    key = (data.get("api_key") or "").strip()
+    if name is not None and name in CFG["providers"] and not key and api_key(name) \
+            and not same_origin(url, CFG["providers"][name]["base_url"]):
+        raise ValueError(i18n.t("换了接口地址要重新填 API Key（原来的密钥不会发给新地址）"))
     if name is None:
         name = _new_name(preset if preset and preset != "custom" else title or "custom")
         d[name] = {"title": title or PRESET.get(preset or "", {}).get("title") or name, "base_url": url, "preset": preset or "custom"}
@@ -386,7 +416,6 @@ def save(name: str | None, data: dict) -> str:
         if name not in CFG["providers"]:
             raise ValueError(i18n.t("没有这个模型服务：{name}", name=name))
         d.setdefault(name, {}).update({"base_url": url, **({"title": title} if title else {})})
-    key = (data.get("api_key") or "").strip()
     if key:
         vault.put(key_ref(name), key)
     elif data.get("clear_key"):
@@ -466,6 +495,8 @@ async def test(provider: str, model: str, kind: str = "chat", role: str = "") ->
         if not seen:   # 请求没报错，但没认出颜色：可能是服务把图片丢掉了，参考 models.dev 的记录
             from . import prices
             seen = {False: "no", True: "unsure"}.get(prices.lookup(provider, model).get("vision"), "unsure")
+        from . import media
+        media.remember_test(provider, model, "yes" if seen is True else seen)   # 以后按测出来的判断要不要给它看图
         return {"ok": True, "vision": "yes" if seen is True else seen, "reply": reply[:80], "ms": ms()}
     except (openai.AuthenticationError, openai.PermissionDeniedError, openai.APIConnectionError, openai.RateLimitError) as e:
         return {"ok": False, "error": explain(e, base), "ms": ms()}
@@ -474,6 +505,8 @@ async def test(provider: str, model: str, kind: str = "chat", role: str = "") ->
     try:
         t0 = time.time()
         reply = await ask("Reply with exactly: ok")
+        from . import media
+        media.remember_test(provider, model, "no")
         return {"ok": True, "vision": "no", "vision_error": img_err, "reply": reply[:80], "ms": ms()}
     except Exception as e:
         return {"ok": False, "error": explain(e, base), "ms": ms()}

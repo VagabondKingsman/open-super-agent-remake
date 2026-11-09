@@ -1,41 +1,47 @@
-"""资料库：Bot 生成的页面（Pages），以及共用电脑里 /data/workspace 的文件。
+"""资料库：Bot 生成的页面（Pages），以及共用电脑工作文件夹里的文件（Docker / Instabox 是 /data/workspace，本机电脑见 host.py）。
 
 页面存在数据库里，格式是 markdown 或 html。分享就是生成一个不可猜的链接 /s/<token>，取消分享后链接失效。
 html 页面只通过带 CSP 的 /raw 地址在沙箱 iframe 里显示：脚本可以跑，但拿不到这个站点的任何数据，也连不上接口。
-文件直接读写电脑里的目录，两个电脑后端都走 exec，所以要先开机。
+带清单 app 的 html 页面是小应用（见 applets.py）：页面里能通过 postMessage 调清单里允许的工具、读写自己的数据（page_data 表）。
+文件直接读写电脑里的目录（Computer.ls / stat_paths / rm / read_bytes / write_bytes），Docker 和 Instabox 要先开机。
 """
+import json
 import posixpath
 import re
 import secrets
-import shlex
 import time
 from . import i18n
 from .memory import conn
 
 conn.execute("""create table if not exists pages(
   id integer primary key, bot_id integer, title text, format text default 'markdown', content text,
-  share_token text, pinned integer default 0, task_id integer, created real, updated real)""")
+  share_token text, pinned integer default 0, task_id integer, created real, updated real, app text)""")
 conn.execute("create unique index if not exists pages_token on pages(share_token)")
+if "app" not in {r[1] for r in conn.execute("pragma table_info(pages)")}:
+    conn.execute("alter table pages add column app text")
+conn.execute("""create table if not exists page_data(
+  page_id integer, key text, value text, updated real, primary key(page_id, key))""")
 conn.execute("create table if not exists file_pins(path text primary key, ts real)")
 conn.commit()
 
 FORMATS = ("markdown", "html")
 MAX_PAGE = 500_000
 MAX_PAGES = 1000
-WORKSPACE = "/data/workspace"
+LEGACY = "/data/workspace"   # Docker / Instabox 电脑里的工作文件夹
 MAX_UPLOAD = 20 << 20
 RAW_CSP = ("sandbox allow-scripts allow-popups; default-src 'none'; script-src 'unsafe-inline' https:; "
            "style-src 'unsafe-inline' https:; img-src https: data:; font-src https: data:; media-src https: data:; "
            "connect-src 'none'; frame-src 'none'; form-action 'none'")
 
-_COLS = "id, bot_id, title, format, share_token, pinned, task_id, created, updated, length(content)"
+_COLS = "id, bot_id, title, format, share_token, pinned, task_id, created, updated, length(content), app"
 
 
 # ---------- 页面 ----------
 def _page(r, content: str | None = None) -> dict:
-    i, bot_id, title, fmt, token, pinned, task_id, created, updated, size = r
+    i, bot_id, title, fmt, token, pinned, task_id, created, updated, size, app = r
     p = {"id": i, "bot_id": bot_id, "title": title, "format": fmt, "share_token": token, "pinned": bool(pinned),
-         "task_id": task_id, "created": created, "updated": updated, "size": size or 0}
+         "task_id": task_id, "created": created, "updated": updated, "size": size or 0,
+         "app": json.loads(app) if app else None}
     if content is not None:
         p["content"] = content
     return p
@@ -58,24 +64,30 @@ def by_token(token: str) -> dict | None:
 
 
 def save_page(bot_id: int | None, title: str, content: str, fmt: str = "markdown",
-              pid: int | None = None, task_id: int | None = None) -> dict:
-    """新建，或者给 pid 时更新内容。"""
+              pid: int | None = None, task_id: int | None = None, app=None) -> dict:
+    """新建，或者给 pid 时更新内容。app 是小应用的清单（见 applets.manifest），只对 html 有效；更新时不给就保留原来的。"""
+    from . import applets
     title = " ".join((title or "").split())[:120] or i18n.t("未命名页面")
     fmt = fmt if fmt in FORMATS else "markdown"
+    app = applets.manifest(app) if fmt == "html" else None
     if not (content or "").strip():
         raise ValueError(i18n.t("页面内容不能为空"))
     if len(content) > MAX_PAGE:
         raise ValueError(i18n.t("页面太大（最多 {n}K 字）", n=MAX_PAGE // 1000))
     now = time.time()
     if pid is not None:
-        if not get_page(pid, False):
+        if not (old := get_page(pid, False)):
             raise ValueError(i18n.t("没有页面 #{id}", id=pid))
-        conn.execute("update pages set title=?, format=?, content=?, updated=? where id=?", (title, fmt, content, now, pid))
+        if app is None and fmt == "html":
+            app = old["app"]
+        conn.execute("update pages set title=?, format=?, content=?, updated=?, app=? where id=?",
+                     (title, fmt, content, now, json.dumps(app, ensure_ascii=False) if app else None, pid))
     else:
         if conn.execute("select count(*) from pages").fetchone()[0] >= MAX_PAGES:
             raise ValueError(i18n.t("资料库最多 {n} 个页面，先删掉一些", n=MAX_PAGES))
-        pid = conn.execute("insert into pages(bot_id, title, format, content, task_id, created, updated) "
-                           "values(?,?,?,?,?,?,?)", (bot_id, title, fmt, content, task_id, now, now)).lastrowid
+        pid = conn.execute("insert into pages(bot_id, title, format, content, task_id, created, updated, app) "
+                           "values(?,?,?,?,?,?,?,?)", (bot_id, title, fmt, content, task_id, now, now,
+                                                       json.dumps(app, ensure_ascii=False) if app else None)).lastrowid
     conn.commit()
     return get_page(pid, False)
 
@@ -101,7 +113,29 @@ def share(pid: int, on: bool) -> dict:
 
 def delete_page(pid: int):
     conn.execute("delete from pages where id=?", (pid,))
+    conn.execute("delete from page_data where page_id=?", (pid,))
     conn.commit()
+
+
+# ---------- 小应用的数据 ----------
+def get_data(pid: int) -> dict:
+    return {k: json.loads(v) for k, v in conn.execute("select key, value from page_data where page_id=? order by key", (pid,))}
+
+
+def set_data(pid: int, updates: dict) -> dict:
+    """合并写入：值为 None 的键删掉。返回全部数据。"""
+    from . import applets
+    cur = get_data(pid)
+    new = applets.check_data(updates, cur)
+    now = time.time()
+    for k in set(cur) - set(new):
+        conn.execute("delete from page_data where page_id=? and key=?", (pid, k))
+    for k, v in new.items():
+        if k not in cur or cur[k] != v:
+            conn.execute("insert or replace into page_data(page_id, key, value, updated) values(?,?,?,?)",
+                         (pid, k, json.dumps(v, ensure_ascii=False), now))
+    conn.commit()
+    return new
 
 
 def link(pid: int) -> str:
@@ -113,13 +147,53 @@ SAVE_PAGE = {"type": "function", "function": {
     "name": "save_page",
     "description": "Save a finished artifact (report, list, comparison, web page) as a library page and return its link. "
                    "Use it when the user asks for a page, a report, or a shareable page, or when the result is long and will be read again. "
-                   "Pass page_id to update that page.",
+                   "Pass page_id to update that page. "
+                   "For an interactive applet (form, board, calculator, a panel with buttons that look things up), use format=html "
+                   "and fill app; inside the page, window.osa calls tools, reads and writes data, and messages you "
+                   "(see the system prompt).",
     "parameters": {"type": "object", "properties": {
         "title": {"type": "string"},
         "content": {"type": "string", "description": "Full page text. markdown is Markdown. html is a complete HTML document; inline CSS and scripts are allowed."},
         "format": {"type": "string", "enum": list(FORMATS)},
-        "page_id": {"type": "integer", "description": "Optional: id of the page to update"}},
+        "page_id": {"type": "integer", "description": "Optional: id of the page to update"},
+        "app": {"type": "object", "description": "Optional, html only: makes the page an applet. tools lists the tool names the page "
+                                                 "may call (only tools you have now); chat=true lets the page message you on the user's behalf",
+                "properties": {"tools": {"type": "array", "items": {"type": "string"}}, "chat": {"type": "boolean"}}}},
         "required": ["title", "content"]}}}
+
+
+PAGE_DATA = {"type": "function", "function": {
+    "name": "page_data",
+    "description": "Read or write an applet's data (key-value pairs). What the user enters in the applet lives here; data you write is visible in the applet immediately (osa.store / osa.on('data')). "
+                   "Without set it is read-only.",
+    "parameters": {"type": "object", "properties": {
+        "page_id": {"type": "integer"},
+        "set": {"type": "object", "description": "keys and values to write (values can be any JSON; set to null to delete the key)"}},
+        "required": ["page_id"]}}}
+
+
+async def tool_page_data(bot_id: int, args: dict) -> str:
+    pid = args.get("page_id")
+    p = get_page(pid, False) if isinstance(pid, int) else None
+    if not p:
+        return f"No page #{pid}"
+    if not p.get("app"):
+        return f"Page #{pid} is not an applet, so it has no data. To make it an applet, update it with save_page and fill in app"
+    if (upd := args.get("set")) is not None:
+        if p["bot_id"] != bot_id:
+            return f"Not written: applet #{pid} was not created by you; read-only"
+        try:
+            data = set_data(pid, upd)
+        except (ValueError, TypeError) as e:
+            return f"Not written: {e}"
+        from . import registry
+        await registry.emit("page_data", page_id=pid, data=data)
+        head = f"Wrote {len(upd)} keys. "
+    else:
+        data, head = get_data(pid), ""
+    text = json.dumps(data, ensure_ascii=False, indent=1)
+    return f"{head}Data of applet \"{p['title']}\" ({len(data)} keys):\n{text[:12000]}" + ("\n… (too long, truncated)" if len(text) > 12000 else "")
+
 
 
 READ_PAGE = {"type": "function", "function": {
@@ -147,24 +221,45 @@ def tool_save_page(bot_id: int, args: dict, task_id: int | None = None) -> str:
     pid = args.get("page_id")
     if pid is not None and (not (old := get_page(pid, False)) or old["bot_id"] != bot_id):
         return i18n.t("没保存：页面 #{id} 不存在或不是你建的，只能更新自己的页面", id=pid)
+    app = args.get("app")
+    if app and (unknown := [t for t in (app.get("tools") or []) if isinstance(t, str) and not applets_known(t)]):
+        return i18n.t("没保存：app.tools 里有现在没有的工具 {tools}，只能列你这一轮能用的工具", tools=", ".join(unknown))
     try:
         p = save_page(bot_id, args.get("title", ""), args.get("content", ""), args.get("format") or "markdown",
-                      args.get("page_id"), task_id)
+                      args.get("page_id"), task_id, app)
     except (ValueError, TypeError) as e:
         return i18n.t("没保存：{error}", error=e)
+    if p["app"]:
+        return i18n.t("已保存小应用 #{id}「{title}」，链接 {link}。回复里用 Markdown 链接附上它，对话里会直接显示这个小应用，"
+                      "用户能在里面操作。用 page_data 能读写它的数据（page_id={id}）。",
+                      id=p["id"], title=p["title"], link=link(p["id"]))
     return i18n.t("已保存页面 #{id}「{title}」，链接 {link}（用户在资料库里也能看到）。回复里用 Markdown 链接附上它。",
                   id=p["id"], title=p["title"], link=link(p["id"]))
 
 
+def applets_known(tool: str) -> bool:
+    from . import applets
+    return applets.known(tool)
+
+
 # ---------- 文件 ----------
-def norm(path: str | None) -> str:
-    """把路径规范成 /data/workspace 下的绝对路径；跑出去就报错。"""
-    p = (path or "").strip() or WORKSPACE
+def root() -> str:
+    """现在这台电脑的工作文件夹。"""
+    from . import computer
+    return computer.get().workspace
+
+
+def norm(path: str | None, base: str | None = None) -> str:
+    """把路径规范成工作文件夹下的绝对路径（相对路径从工作文件夹算起）；跑出去就报错。"""
+    base = base or root()
+    p = (path or "").strip() or base
+    if base != LEGACY and (p == LEGACY or p.startswith(LEGACY + "/")):   # 技能、记忆里可能还写着 Docker 电脑里的路径
+        p = base + p[len(LEGACY):]
     if not p.startswith("/"):
-        p = posixpath.join(WORKSPACE, p)
+        p = posixpath.join(base, p)
     p = posixpath.normpath(p)
-    if p != WORKSPACE and not p.startswith(WORKSPACE + "/"):
-        raise ValueError(i18n.t("只能访问 {dir} 里的文件", dir=WORKSPACE))
+    if p != base and not p.startswith(base.rstrip("/") + "/"):
+        raise ValueError(i18n.t("只能访问 {dir} 里的文件", dir=base))
     return p
 
 
@@ -176,28 +271,14 @@ def check_name(name: str) -> str:
 
 
 async def list_dir(c, path: str) -> list[dict]:
-    p = norm(path)
-    q = shlex.quote(p)
-    r = await c.exec(f"[ -d {q} ] || exit 3; find {q} -mindepth 1 -maxdepth 1 -printf '%y\\t%s\\t%T@\\t%f\\n' | head -n 1000", 30)
-    if r.exit_code == 3:
-        raise ValueError(i18n.t("目录不存在"))
-    if r.exit_code:
-        raise ValueError((r.stderr or i18n.t("读取目录失败")).strip()[:200])
-    out = []
-    for line in r.stdout.splitlines():
-        parts = line.split("\t", 3)
-        if len(parts) != 4:
-            continue
-        kind, size, mtime, name = parts
-        out.append({"name": name, "path": posixpath.join(p, name), "dir": kind == "d",
-                    "size": int(size) if size.isdigit() else 0, "mtime": float(mtime or 0)})
+    out = await c.ls(norm(path, c.workspace))
     out.sort(key=lambda e: (not e["dir"], e["name"].lower()))
     return out
 
 
 async def put_file(c, directory: str, name: str, data: bytes) -> dict:
     """把文件写进电脑里的目录。同名时自动加序号，不覆盖。"""
-    d, name = norm(directory), check_name(name)
+    d, name = norm(directory, c.workspace), check_name(name)
     if len(data) > MAX_UPLOAD:
         raise ValueError(i18n.t("文件太大（最多 {n} MB）", n=MAX_UPLOAD >> 20))
     try:
@@ -216,32 +297,21 @@ async def put_file(c, directory: str, name: str, data: bytes) -> dict:
 
 async def stat_many(c, paths: list[str]) -> dict[str, dict]:
     """置顶文件的现状（可能已经被删了）。"""
-    if not paths:
-        return {}
-    qs = " ".join(shlex.quote(p) for p in paths)
-    r = await c.exec(f"for f in {qs}; do [ -e \"$f\" ] && stat -c '%F\t%s\t%Y\t%n' \"$f\"; done; true", 30)
-    out = {}
-    for line in r.stdout.splitlines():
-        parts = line.split("\t", 3)
-        if len(parts) == 4:
-            kind, size, mtime, name = parts
-            out[name] = {"name": posixpath.basename(name), "path": name, "dir": kind == "directory",
-                         "size": int(size) if size.isdigit() else 0, "mtime": float(mtime or 0)}
-    return out
+    return await c.stat_paths(paths) if paths else {}
 
 
 async def remove(c, path: str):
-    p = norm(path)
-    if p == WORKSPACE:
+    p = norm(path, c.workspace)
+    if p == c.workspace:
         raise ValueError(i18n.t("不能删除整个工作目录"))
-    r = await c.exec(f"rm -rf -- {shlex.quote(p)}", 60)
-    if r.exit_code:
-        raise ValueError((r.stderr or i18n.t("删除失败")).strip()[:200])
+    await c.rm(p)
     unpin(p)
 
 
 def pins() -> list[str]:
-    return [r[0] for r in conn.execute("select path from file_pins order by ts")]
+    """置顶的文件。换了电脑后，别的电脑里的置顶先不显示，换回去还在。"""
+    base = root().rstrip("/") + "/"
+    return [r[0] for r in conn.execute("select path from file_pins order by ts") if (r[0] + "/").startswith(base)]
 
 
 def pin(path: str):

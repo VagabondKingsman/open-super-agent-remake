@@ -194,6 +194,23 @@ def _show(n: float) -> float:
     return round(n, 6)
 
 
+def image_price(provider: str, model: str) -> float | None:
+    """画一张图多少钱（pricing.images，单位和 currency 一样）；本机的算 0，没写的返回 None。"""
+    from .providers import _local
+    base = ((CFG["providers"].get(provider) or {}).get("base_url") or "").lower()
+    if _local(base):
+        return 0.0
+    tail = model.rsplit("/", 1)[-1].lower()
+    for host, table in (CFG["pricing"].get("images") or {}).items():
+        if host.lower() not in base and host != provider:
+            continue
+        for name, price in (table or {}).items():
+            n = str(name).lower()
+            if n == model.lower() or ("/" not in n and n == tail):   # 写完整 id，或者只写最后一段
+                return float(price)
+    return None
+
+
 def lookup(provider: str | None, model: str) -> dict:
     """Prices for the settings page: USD per million tokens, vision, kind, source."""
     from .providers import _local

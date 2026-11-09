@@ -92,7 +92,7 @@ pricing:
 - `answer_continuations`：最终答案是空的，或 `finish_reason=length`，再向模型要几次完整答案。默认 1。用完仍空或仍被截断，任务记失败，不记完成。
 - `save_page_approval`：`true` 时 Worker 写本地页面要先等确认。已经有一条“自动允许”规则时仍直接写。默认 `false`，但每次写页面都会记在任务结果里。
 - `provider_rate_retries`：普通 429（`rate_limit_exceeded`，以及没有额度码的 429）按响应头 `Retry-After` 再试几次。默认 1。没有这个头就等 1 秒。`provider_retry_cap_s`（默认 120）是最多等多少秒。
-- `provider_transient_retries`：408、409 和 5xx 再试几次。默认 2。
+- `provider_transient_retries`：408、409 和 5xx 再试几次。默认 5（和 `providers.RETRIES` 一致）。
 
 Heavy 另有两项，也只在 `config.yaml` 里改：
 

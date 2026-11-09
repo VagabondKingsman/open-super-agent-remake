@@ -5,20 +5,24 @@ import time
 from dataclasses import dataclass, field
 from .config import CFG, call_kwargs, client_for
 from .providers import ProviderLimit, create_chat
-from . import approvals, i18n, library, memories, memory, mcp_hub, search, skillpacks, tasklog, tools, verification, local_checks
+from . import applets, approvals, dsml, i18n, local_checks, memories, memory, mcp_hub, providers, registry, skillpacks, tasklog, verification
+from . import builtin  # noqa: F401  导入即注册内置工具
 from .computer import tools as ctools
 
 PROGRESS = None   # 由 router 设置：async (task, text) -> None，把动作推送到任务卡片
-PAGES_CHANGED = None   # 由 server 设置：async () -> None，资料库有新页面时通知前端
 
 WORKER_PROMPT = """You are the Worker executing a task. Use tools to check facts. When you state a conclusion, include source links.
 To read or write the user's external services (apps), use tools whose names start with "app-name__". If the task says "@app-name", you must use that app.
+If the task says to follow skill /name but the method is not attached, or you need files the skill ships, fetch them with use_skill first.
 Write actions ask the user to confirm first. If they refuse, do not switch tools to bypass them. Adjust to their note or say you cannot finish.
+For arithmetic, dates, unit conversion, statistics, and data processing, run code in the sandbox with run_code when you have it. Do not compute in your head.
 Do only what the task says. If it does not ask you to save a page, search memory, or edit the library, do not call save_page, search_memory, or read_page.
 When you are done, write the final answer directly, in the reply language at the end of this prompt. Be concise and clearly structured. Do not output only your reasoning. Today is {date}."""
 # Same directive the router appends. The model can still drift; this is an instruction, not an output rewrite.
 ANSWER_LANG = i18n.ANSWER_LANG
-PAGE_HINT = "When the task asks for a page or a report, save it with save_page and include the returned link in the final answer."
+PAGE_HINT = "When the task asks for a page or a report, save it with save_page and include the returned link in the final answer.\n" + applets.GUIDE
+FILE_HINT = ("To hand the user a file from the computer (a screenshot, a drawn image, a finished spreadsheet or document), use send_file. "
+             "It shows under the task result. Do not build download links yourself.")
 # Continuation for the model. The failure the user sees goes through i18n.t.
 CONTINUE_PROMPT = "The previous reply was not a complete final answer (it was empty, or it was cut off because of length, finish_reason=length). Write the complete final answer now. Do not output only your reasoning."
 STEP_EXHAUSTED = "The step limit is reached. Give the final answer from the information you already have."
@@ -78,6 +82,8 @@ class Task:
     notes: str = ""                        # 只给 Worker 看的补充说明，不显示、不存进对话（定时任务：上次的结果、“无新内容”的约定）
     side_effects: list = field(default_factory=list)  # 本地写页面等，记下来给用户看
     degraded: bool = False                 # Heavy：审过了，但有研究员没交出草稿。结束时记 partial，不记 done
+    files: list = field(default_factory=list)   # send_file 发的文件（附件，见 media.py），显示在任务结果下面
+    apps: list = field(default_factory=list)    # 用到的应用界面（MCP Apps，见 mcpapps.py），显示在任务结果下面
 
 
 def _public(self) -> dict:
@@ -92,6 +98,7 @@ Task.public = _public
 
 async def run_worker(task: Task, goal: str, label: str = "") -> str:
     ctools.CLAIM.set(f"{task.id}:{label}")
+    memory.WHO.set({"bot_id": task.bot_id, "chat_id": task.chat_id, "task_id": task.id})   # 任务里的模型调用（画图等）记到这个任务上
     try:
         return await _run_worker(task, goal, label)
     finally:
@@ -108,13 +115,29 @@ async def _reply(task: Task, log: tasklog.Log, role: str, client, model: str, ms
 
     消息上的 finish_reason 是 stop / length / tool_calls 等。流被取消时，已有 usage 照实记；
     没有 usage 但已经收到文字就按估算记一条。"""
-    stream = await create_chat(client, model=model, messages=msgs, stream=True,
-                               stream_options={"include_usage": True},
-                               **({"tools": tools_} if tools_ else {}), **call_kwargs(role))
+    t0, first = time.monotonic(), None
+    try:
+        stream = await create_chat(client, model=model, messages=msgs, stream=True,
+                                   stream_options={"include_usage": True},
+                                   **({"tools": tools_} if tools_ else {}), **call_kwargs(role))
+    except Exception as e:
+        memory.record_error(role, model, providers.brief(e), task.id, bot_id=task.bot_id, chat_id=task.chat_id,
+                            ms=(time.monotonic() - t0) * 1000)
+        raise
     content, reasoning, calls, usage = "", "", {}, None
     finish = None
     think = text = None
     recorded = False
+    sent = 0   # 正文写进任务过程到哪了：DeepSeek 写进正文的工具调用（见 dsml.py）不写
+
+    async def say(piece: str):
+        nonlocal text
+        if think:
+            await log.finish(think)
+        if not text or text["status"] != "running":
+            text = await log.start("text")
+        await log.append(text, piece)
+
     try:
         async for chunk in stream:
             task.last_progress = time.time()   # 还在出字就算有进展，Watchdog 不会当成卡住
@@ -128,6 +151,9 @@ async def _reply(task: Task, log: tasklog.Log, role: str, client, model: str, ms
             d = choice.delta
             if d is None:
                 continue
+            if first is None and (getattr(d, "content", None) or getattr(d, "reasoning_content", None)
+                                  or getattr(d, "tool_calls", None)):
+                first = time.monotonic()
             if rc := getattr(d, "reasoning_content", None):
                 reasoning += rc
                 if not think or think["status"] != "running":
@@ -135,23 +161,31 @@ async def _reply(task: Task, log: tasklog.Log, role: str, client, model: str, ms
                 await log.append(think, rc)
             if getattr(d, "content", None):
                 content += d.content
-                if think:
-                    await log.finish(think)
-                if not text or text["status"] != "running":
-                    text = await log.start("text")
-                await log.append(text, d.content)
+                if (n := dsml.visible(content)) > sent:
+                    await say(content[sent:n])
+                    sent = n
             for tc in getattr(d, "tool_calls", None) or []:
                 c = calls.setdefault(tc.index, {"id": "", "name": "", "args": ""})
                 c["id"] = tc.id or c["id"]
                 if tc.function:
                     c["name"] += tc.function.name or ""
                     c["args"] += tc.function.arguments or ""
-        memory.record_usage(role, model, usage, task.id)
+        memory.record_usage(role, model, usage, task.id, bot_id=task.bot_id, chat_id=task.chat_id,
+                            ms=(time.monotonic() - t0) * 1000, ttft=None if first is None else (first - t0) * 1000)
         recorded = True
     except asyncio.CancelledError:
         if not recorded:
             memory.record_partial(role, model, usage, memory.streamed_output_text(content, reasoning, calls), task.id)
         raise
+    except Exception as e:
+        memory.record_error(role, model, providers.brief(e), task.id, bot_id=task.bot_id, chat_id=task.chat_id,
+                            ms=(time.monotonic() - t0) * 1000)
+        raise
+    content, leaked = dsml.split(content)
+    if len(content) > sent:   # 压着的结尾不是标记，或者标记后面还有话
+        await say(content[sent:])
+    if not calls and tools_:
+        calls = dict(enumerate(leaked))
     if think:
         await log.finish(think)
     if text:
@@ -178,9 +212,25 @@ def _accept_answer(msg: dict) -> str:
     raise IncompleteAnswer(i18n.t("回答被截断了，不能当成完成。已收到的内容：\n{text}", text=content))
 
 
-async def _tool(task: Task, log: tasklog.Log, step: dict, name: str, raw: str, progress, pages: bool,
+async def _tool(task: Task, log: tasklog.Log, step: dict, name: str, raw: str, progress, env: dict,
                 shots: list) -> tuple[str, str]:
-    """执行一个工具调用，返回 (给模型的结果, 这一步的状态)。工具出错交给模型自己处理。"""
+    """调一个工具；调完发 tool_done 事件（只读，插件能看不能改，不等它们）。"""
+    out, status = await _call_tool(task, log, step, name, raw, progress, env, shots)
+    if registry.listening("tool_done"):
+        from . import bots
+        try:
+            args = json.loads(raw or "{}")
+        except json.JSONDecodeError:
+            args = {}
+        registry.fire("tool_done", scope="worker", bot=bots.get(task.bot_id) or {"id": task.bot_id}, chat_id=task.chat_id,
+                      task=task.public(), name=name, args=args, result=out, status=status)
+    return out, status
+
+
+async def _call_tool(task: Task, log: tasklog.Log, step: dict, name: str, raw: str, progress, env: dict,
+                     shots: list) -> tuple[str, str]:
+    """执行一个工具调用，返回 (给模型的结果, 这一步的状态)。工具出错交给模型自己处理。
+    电脑工具单独处理（和任务、窗口绑得紧），其余都从注册表找（env 决定这一轮有哪些）。"""
     try:
         args = json.loads(raw or "{}")
         if name in local_checks.NAMES:
@@ -194,42 +244,37 @@ async def _tool(task: Task, log: tasklog.Log, step: dict, name: str, raw: str, p
             if shot:
                 shots.append(shot)
             return out, "done"
-        if name == "search_memory":
-            await progress(i18n.t("查记忆和资料库：{query}", query=str(args.get("query", ""))[:40]))
-            return await search.tool(task.bot_id, args), "done"
-        if name == "read_page":
-            await progress(i18n.t("读页面 #{id}", id=args.get("page_id")))
-            return library.tool_read_page(args), "done"
-        if name == "save_page" and pages:
-            await progress(i18n.t("保存页面：{title}", title=str(args.get("title", ""))[:40]))
+        tool = registry.available(name, registry.WORKER, env)
+        if not tool:
+            return i18n.t("未知工具"), "error"
+        await progress(tool.progress(args) if tool.progress else f"{name} {str(args.get('query') or args.get('url') or '')[:60]}")
+        if name == "save_page":
             ask, why = approvals.decide("save_page")
-            # 规则“自动允许”优先于开关；开关只在没有命中规则时生效。默认关，避免每次存页面都打断。
+            # remake：规则“自动允许”优先于开关；开关只在没有命中规则时生效。默认关，避免每次存页面都打断。
             if ask or (CFG["limits"].get("save_page_approval") and "自动允许" not in why):
                 await log.update(step, status="waiting")
                 ok, note = await approvals.request(task, name, args)
                 if not ok:
                     return i18n.t("用户拒绝了这个操作，没有执行。{note}", note=note).strip(), "rejected"
                 await log.update(step, status="running")
-            out = library.tool_save_page(task.bot_id, args, task.id)
-            failed = i18n.t("没保存：{error}", error="\0").replace("\0", "")
-            if not out.startswith(failed):
-                task.side_effects.append({"tool": "save_page", "summary": out})
-            if PAGES_CHANGED:
-                await PAGES_CHANGED()
-            return out, "done"
-        what = str(args.get("query") or args.get("url") or "")[:60]
-        await progress(i18n.t("搜索：{what}", what=what) if name == "web_search" else
-                       i18n.t("读取网页：{what}", what=what) if name == "fetch_url" else f"{name} {what}")
-        fn = tools.lookup(name)
-        if fn and name in mcp_hub.TOOLS and approvals.decide(name)[0]:
+        if tool.gated and approvals.decide(name, args=args)[0]:
             await log.update(step, status="waiting")
             ok, note = await approvals.request(task, name, args)
             if not ok:
                 return i18n.t("用户拒绝了这个操作，没有执行。{note}", note=note).strip(), "rejected"
             await log.update(step, status="running")
-        if not fn:
-            return i18n.t("未知工具"), "error"
-        return await fn(**args), "done"
+        from . import bots
+        out = await tool.run(registry.Call(registry.WORKER, bots.get(task.bot_id) or {"id": task.bot_id}, task.chat_id,
+                                           task.approval_chat_id or task.chat_id, args, task=task, files=task.files, apps=task.apps, env=env))
+        if isinstance(out, tuple):   # (文字, 截图)
+            if out[1]:
+                shots.append(out[1])
+            out = out[0]
+        if name == "save_page":
+            failed = i18n.t("没保存：{error}", error="\0").replace("\0", "")
+            if not str(out).startswith(failed):
+                task.side_effects.append({"tool": "save_page", "summary": out})
+        return out, "done"
     except mcp_hub.ToolResultError as e:
         return e.text, "error"
     except Exception as e:
@@ -239,7 +284,7 @@ async def _tool(task: Task, log: tasklog.Log, step: dict, name: str, raw: str, p
 def worker_system(task: Task, pages: bool) -> str:
     use_pc = (CFG.get("computer") or {}).get("enabled", True)
     system = WORKER_PROMPT.format(date=time.strftime("%Y-%m-%d")) + ("\n" + PAGE_HINT if pages else "") \
-        + ("\n\n" + ctools.SYSTEM_HINT if use_pc else "")
+        + ("\n" + FILE_HINT if pages and use_pc else "") + ("\n\n" + ctools.system_hint() if use_pc else "")
     system += verification.HINT + local_checks.runtime_hint() + skillpacks.runtime_hint(task.bot_id)
     if known := memories.worker_block(task.bot_id):
         system += f"\n\nAbout the user (long-term memory; follow these preferences):\n{known}"
@@ -265,8 +310,8 @@ async def _run_worker(task: Task, goal: str, label: str = "") -> str:
     pages = not label   # Heavy 模式的几个 Worker 只出草稿，不各自存页面
     system = worker_system(task, pages)
     msgs = [{"role": "system", "content": system}, {"role": "user", "content": goal}]
-    schemas = local_checks.SCHEMAS + [verification.SCHEMA] + skillpacks.SCHEMAS + tools.schemas() + ([library.SAVE_PAGE] if pages else []) + [library.READ_PAGE, search.SEARCH_TOOL] \
-        + (ctools.SCHEMAS if use_pc else [])
+    env = {"scope": registry.WORKER, "pages": pages, "use_pc": use_pc}
+    schemas = registry.schemas(registry.WORKER, env) + (ctools.schemas() if use_pc else [])
     log = tasklog.Log(task, label)
     continuations = 0
     extra = int(CFG["limits"].get("answer_continuations", 1) or 0)
@@ -308,7 +353,7 @@ async def _run_worker(task: Task, goal: str, label: str = "") -> str:
             if blocked or _looping(history, f"{name}:{raw}"):
                 out, status, blocked = skipped, "error", True
             else:
-                out, status = await _tool(task, log, step, name, raw, progress, pages, shots)
+                out, status = await _tool(task, log, step, name, raw, progress, env, shots)
             msgs.append({"role": "tool", "tool_call_id": call["id"], "content": out[:8000]})
             await log.finish(step, status, out)
             task.last_progress = time.time()

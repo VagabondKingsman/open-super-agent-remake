@@ -4,13 +4,19 @@ import type { SearchHit, Avatar, FileEntry, FileListing, Page } from '../types'
 import BotAvatar from './BotAvatar'
 import Markdown from './Markdown'
 import { locale, t, tc } from '../i18n'
+import { ask } from './Dialog'
+import { isEnter } from '../keys'
+import { useBack } from '../swipe'
+import { AppletFrame } from './Applet'
 
 const when = (ts: number) => new Date(ts * 1000).toLocaleString(locale, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 export const size = (n: number) => n < 1024 ? `${n} B` : n < 1 << 20 ? `${(n / 1024).toFixed(1)} KB` : `${(n / (1 << 20)).toFixed(1)} MB`
 const shareUrl = (token: string) => `${location.origin}/s/${token}`
 
-// 页面正文：markdown 直接渲染；html 放进沙箱 iframe，地址带 CSP，碰不到这个站点的数据
-export function PageBody({ format, content, rawUrl }: { format: string; content: string; rawUrl: string }) {
+// 页面正文：markdown 直接渲染；html 放进沙箱 iframe，地址带 CSP，碰不到这个站点的数据；
+// 小应用（带清单的 html）加上宿主桥，页面里才能调工具、读写数据（分享出去的没有，只能看）
+export function PageBody({ format, content, rawUrl, applet }: { format: string; content: string; rawUrl: string; applet?: number }) {
+  if (format === 'html' && applet) return <AppletFrame id={applet} rawUrl={rawUrl} fill />
   if (format === 'html') return <iframe className="page-frame" src={rawUrl} sandbox="allow-scripts allow-popups" title={t('页面')} />
   return <div className="page-md"><Markdown text={content} /></div>
 }
@@ -19,7 +25,9 @@ export default function Library() {
   const pageId = useStore(s => s.libraryPage)
   const [tab, setTab] = useState(() => localStorage.getItem('osa.libtab') || 'pages')
   useEffect(() => localStorage.setItem('osa.libtab', tab), [tab])
-  if (pageId) return <main className="chat library"><PageView id={pageId} /></main>
+  const page = useRef<HTMLElement>(null)
+  useBack(() => openLibrary(), page, !!pageId)   // 页面 → 资料库列表
+  if (pageId) return <main className="chat library" ref={page}><PageView id={pageId} /></main>
   return (
     <main className="chat library">
       <header className="chat-head">
@@ -81,10 +89,10 @@ function Pages() {
       )) : <div className="muted small">{t('没找到相关的页面')}</div>)}
       {!hits && list.map(p => (
         <button key={p.id} className="lib-row" onClick={() => openLibrary(p.id)}>
-          <span className="lib-icon">{p.format === 'html' ? '◧' : '▤'}</span>
+          <span className="lib-icon">{p.app ? '▣' : p.format === 'html' ? '◧' : '▤'}</span>
           <span className="lib-main">
             <b>{p.pinned && <span className="pin-mark">📌 </span>}{p.title}</b>
-            <span className="lib-meta"><BotTag id={p.bot_id} /> · {when(p.updated)}{p.share_token && <span className="tag">{t('已分享')}</span>}</span>
+            <span className="lib-meta"><BotTag id={p.bot_id} /> · {when(p.updated)}{p.app && <span className="tag">{t('小应用')}</span>}{p.share_token && <span className="tag">{t('已分享')}</span>}</span>
           </span>
         </button>
       ))}
@@ -111,7 +119,7 @@ function PageView({ id }: { id: number }) {
   }
   const copy = (token: string) => { navigator.clipboard?.writeText(shareUrl(token)); setCopied(true); setTimeout(() => setCopied(false), 1500) }
   const del = async () => {
-    if (!confirm(t('删除页面「{title}」？分享链接也会失效。', { title: p!.title }))) return
+    if (!(await ask(t('删除页面「{title}」？分享链接也会失效。', { title: p!.title }), { ok: t('删除'), danger: true }))) return
     await api(`/api/pages/${id}`, { method: 'DELETE' }); openLibrary()
   }
   return (
@@ -121,7 +129,7 @@ function PageView({ id }: { id: number }) {
         {p && (rename !== null
           ? <input className="page-title-input" autoFocus value={rename} onChange={e => setRename(e.target.value)}
               onBlur={() => { patch({ title: rename }); setRename(null) }}
-              onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setRename(null) }} />
+              onKeyDown={e => { if (isEnter(e)) (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setRename(null) }} />
           : <span className="head-name page-title" title={t('点击改名')} onClick={() => setRename(p.title)}>{p.title}</span>)}
         <span className="grow" />
         {p && <div className="page-actions">
@@ -138,7 +146,7 @@ function PageView({ id }: { id: number }) {
         <div className={'scroller' + (p.format === 'html' ? ' frame-wrap' : '')}>
           {p.format !== 'html' && <div className="page-info muted small"><BotTag id={p.bot_id} /> · {t('更新于 {time}', { time: when(p.updated) })}{p.task_id ? ' · ' + t('来自任务 #{id}', { id: p.task_id }) : ''}
             {p.share_token && <> · {t('任何拿到链接的人都能看')}</>}</div>}
-          <PageBody format={p.format} content={p.content || ''} rawUrl={`/api/pages/${id}/raw`} />
+          <PageBody format={p.format} content={p.content || ''} rawUrl={`/api/pages/${id}/raw`} applet={p.app ? id : undefined} />
         </div>
       )}
     </>
@@ -200,7 +208,7 @@ function Files() {
     setBusy(''); load()
   }
   const del = async (e: FileEntry) => {
-    if (!confirm(e.dir ? t('删除文件夹「{name}」？里面的东西会一起删掉。', { name: e.name }) : t('删除文件「{name}」？', { name: e.name }))) return
+    if (!(await ask(e.dir ? t('删除文件夹「{name}」？里面的东西会一起删掉。', { name: e.name }) : t('删除文件「{name}」？', { name: e.name }), { ok: t('删除'), danger: true }))) return
     try { await api(`/api/files?path=${encodeURIComponent(e.path)}`, { method: 'DELETE' }); load() } catch (x: any) { setErr(x.message) }
   }
   const pin = async (e: FileEntry, on: boolean) => { await api('/api/files/pin', { method: 'POST', body: { path: e.path, on } }); load() }

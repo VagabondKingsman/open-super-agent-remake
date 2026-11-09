@@ -9,13 +9,15 @@
 - 群里的 Bot 私信了群外的 Bot（见 dm.py），回信回到群里时，它按 "dm" 排进来接着说。
 """
 import asyncio
+import logging
 import re
 import time
-from . import bots, i18n, memory
+from . import bots, i18n, memory, providers
 
 MAX_TURNS = 8
 EVERYONE = ("everyone", "所有人", "全体成员")
 notify = None   # 由 server 设置：async (event) -> None
+log = logging.getLogger(__name__)
 
 
 class Group:
@@ -46,8 +48,10 @@ class Group:
             try:
                 await router.runtime(bot_id).respond(self.chat_id, turn if why == "dm" else {"depth": turn.get("depth", 0)})
             except Exception as e:
+                log.exception("群聊 %s 里 Bot %s 出错", self.chat_id, bot_id)
                 if notify:
-                    await notify({"type": "error", "chat_id": self.chat_id, "message": i18n.t("{name} 出错了：{e}", name=_name(bot_id), e=e)})
+                    await notify({"type": "error", "chat_id": self.chat_id,
+                                  "message": i18n.t("{name} 出错了：{e}", name=_name(bot_id), e=providers.brief(e))})
             # 交出去的工作排在最前面，按交接的先后
             queue = [(b, "handoff") for b in self.handoffs] + [q for q in queue if q[0] not in self.handoffs]
         self.handoffs = []
@@ -99,9 +103,9 @@ async def note(chat_id: int, text: str):
     await _message(chat_id, "task", f"[{text}]", None, kind="note")
 
 
-async def on_user(chat: dict, text: str, via: str = ""):
-    """用户在群里发了一条消息。via：从哪个聊天软件发来的（网页上发的为空）。"""
-    await _message(chat["id"], "user", text, **({"via": via} if via else {}))
+async def on_user(chat: dict, text: str, via: str = "", attachments: list | None = None):
+    """用户在群里发了一条消息。via：从哪个聊天软件发来的（网页上发的为空）。attachments：附件（见 media.py）。"""
+    await _message(chat["id"], "user", text, **({"via": via} if via else {}), **({"attachments": attachments} if attachments else {}))
     g = get(chat["id"])
     async with g.lock:
         chat = bots.chat(chat["id"]) or chat
@@ -109,7 +113,8 @@ async def on_user(chat: dict, text: str, via: str = ""):
             await note(chat["id"], i18n.t("群里没有 Bot 了，先在右栏添加成员"))
             return
         hit = mentions(text, chat["bot_ids"])
-        lead = chat["lead"] if chat["lead"] in chat["bot_ids"] else chat["bot_ids"][0]
+        # 讨论串里没 @ 人：由被回复的那条消息的作者接；回复的是用户自己的消息，还是协调者接
+        lead = chat.get("root_bot") or (chat["lead"] if chat["lead"] in chat["bot_ids"] else chat["bot_ids"][0])
         await g.run([(b, "mention") for b in hit] or [(lead, "lead")])
 
 

@@ -1,0 +1,51 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Open Super Agent",
+  "version": "../package.json",
+  "identifier": "com.kadaliao.opensuperagent",
+  "build": {
+    "frontendDist": "../setup"
+  },
+  "app": {
+    "windows": [],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "app",
+      "dmg"
+    ],
+    "category": "public.app-category.productivity",
+    "shortDescription": "Self-hosted AI teammates with their own computer",
+    "copyright": "© Kada Liao, MIT License",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "macOS": {
+      "minimumSystemVersion": "12.0",
+      "files": {
+        "Resources/Assets.car": "icons/Assets.car"
+      }
+    },
+    "resources": {
+      "../build/runtime/": "runtime/",
+      "../build/app/": "app/"
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEFGRTdBNjI2QzU0MDM0MzkKUldRNU5FREZKcWJucnlyTjlzazdFSVhUM1JDMmduWjVQMldHUjRYOFNqK09ZZmxJL2tGVmdGa3kK",
+      "endpoints": [
+        "https://github.com/kadaliao/open-super-agent/releases/download/desktop-updates/latest.json"
+      ]
+    }
+  }
+}

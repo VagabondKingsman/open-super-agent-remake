@@ -53,9 +53,10 @@ class Log:
 
     async def start(self, kind: str, title: str = "", detail: str = "", status: str = "running") -> dict:
         now = time.time()
-        sid = conn.execute("insert into task_steps(task_id, ts, worker, kind, title, body, status, dur, detail) "
-                           "values(?,?,?,?,?,?,?,?,?)",
-                           (self.task.id, now, self.worker, kind, title, "", status, 0, detail)).lastrowid
+        sid = conn.execute("insert into task_steps(task_id, ts, worker, kind, title, body, status, dur, detail, name) "
+                           "values(?,?,?,?,?,?,?,?,?,?)",
+                           (self.task.id, now, self.worker, kind, title, "", status, 0, detail,
+                            title if kind == "tool" else "")).lastrowid
         conn.commit()
         s = {"id": sid, "task_id": self.task.id, "ts": now, "worker": self.worker, "kind": kind, "title": title,
              "body": "", "status": status, "dur": 0, "detail": detail, "_sent": 0, "_t": now}
@@ -128,9 +129,9 @@ def list_tasks(bot_id: int | None = None, chat_id: int | None = None, before: in
     if bot_id:
         where.append("bot_id=?")
         args.append(bot_id)
-    if chat_id:
-        where.append("chat_id=?")
-        args.append(chat_id)
+    if chat_id:   # 连同这个对话下面的讨论串里派的
+        where.append("chat_id in (select ? union select id from chats where kind='thread' and parent=?)")
+        args += [chat_id, chat_id]
     rows = conn.execute(f"select id, ts, content, meta, chat_id, bot_id from messages where {' and '.join(where)} "
                         "order by id desc limit ?", (*args, limit)).fetchall()
     return [_task(r) for r in rows]
@@ -152,7 +153,7 @@ def detail(task_id: int) -> dict | None:
     cost, tokens, estimated = conn.execute(
         """select coalesce(sum(cost), 0), coalesce(sum(cache_hit+cache_miss+output), 0),
                   coalesce(sum(case when estimated=1 then cache_hit+cache_miss+output else 0 end), 0)
-           from llm_usage where task_id=?""", (task_id,)).fetchone()
+           from llm_calls where task_id=?""", (task_id,)).fetchone()
     # usage=recorded：库里的数是已记录用量，不是服务商账单。estimated_tokens 来自取消时的估算。
     t |= {"cost": round(cost, 6), "tokens": tokens, "estimated_tokens": estimated,
           "usage": "recorded", "currency": memory.USAGE_CURRENCY}

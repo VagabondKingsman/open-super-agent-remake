@@ -1,8 +1,9 @@
-"""定时任务：没有新内容时不打扰；按时间触发的带上上次的结果。"""
+"""定时任务：没有新内容时不打扰；按时间触发的带上上次的结果；Bot 在对话里能看、改、暂停、删自己的。"""
 import pytest
 
 from conftest import find, settle, until
-from osa import channels, i18n, memory, routines, skills, tasklog
+from fakellm import Call
+from osa import bots, channels, i18n, memory, registry, routines, server, skills, tasklog
 
 
 def _routine(bot: dict, kind: str = "every") -> dict:
@@ -83,6 +84,97 @@ def test_not_quiet(text):
     assert not routines.is_quiet(text)
 
 
+async def test_bot_tools_list_update_delete_own_only(events, make_bot):
+    a, b = make_bot(), make_bot()
+    r = routines.save(a["id"], {"name": "早报", "prompt": "整理今天的科技新闻，" + "细节" * 200,
+                                "trigger": {"kind": "daily", "times": ["09:00"]}})
+    other = _routine(b)
+
+    brief = await routines.tool_list(a, {})
+    assert f'#{r["id"]} "早报" Every day at 09:00, next' in brief and "for the full text use list_routines with id" in brief
+    assert "查邮件" not in brief                                          # 别的 Bot 的看不到
+    full = await routines.tool_list(a, {"id": r["id"]})
+    assert "细节" * 200 in full and "never ran" in full
+    assert "you can only manage your own" in await routines.tool_list(a, {"id": other["id"]})
+    assert "belong to the primary Bot" in await routines.tool_list(a, {"bot": b["name"]})
+    assert "belong to the primary Bot" in await routines.tool_create(a, {"bot": b["name"], "name": "x", "prompt": "x", "kind": "every", "minutes": 30})
+
+    # 只改时间：要求、名字照旧；没改的字段模型常填成 null
+    out = await routines.tool_update(a, {"id": r["id"], "times": ["08:30"], "days": [1, 3, 5], "prompt": None})
+    got = routines.get(r["id"])
+    assert out.startswith("Changed routine: ") and got["trigger"] == {"kind": "daily", "times": ["08:30"], "days": [1, 3, 5]}
+    assert got["prompt"] == r["prompt"] and got["name"] == "早报"
+    # 换触发方式
+    await routines.tool_update(a, {"id": r["id"], "kind": "every", "minutes": 120})
+    assert routines.get(r["id"])["trigger"] == {"kind": "every", "minutes": 120}
+    assert "间隔至少 5 分钟" in await routines.tool_update(a, {"id": r["id"], "minutes": 1})
+    # 暂停、恢复
+    assert "paused" in await routines.tool_update(a, {"id": r["id"], "enabled": False})
+    assert not routines.get(r["id"])["enabled"]
+    await routines.tool_update(a, {"id": r["id"], "enabled": True})
+    assert routines.get(r["id"])["enabled"]
+    assert "nothing to change was given" in await routines.tool_update(a, {"id": r["id"]})
+    out = await routines.tool_update(a, {"ids": [r["id"], other["id"]], "enabled": False})   # 一次改几个：别人的那个不动
+    assert "Changed routine" in out and f"Not changed #{other['id']}" in out and "you can only manage your own" in out
+    assert not routines.get(r["id"])["enabled"] and routines.get(other["id"])["enabled"]
+
+    assert "you can only manage your own" in await routines.tool_delete(a, {"id": other["id"]})
+    out = await routines.tool_delete(a, {"id": r["id"]})
+    assert routines.get(r["id"]) is None and routines.get(other["id"])
+    assert "Deleted routine" in out and "细节" * 200 in out             # 原设置留在对话里，反悔了能重建
+    await settle()
+    assert {e["bot_id"] for e in events.of("routines_changed")} >= {a["id"]}
+    bots.delete(a["id"]), bots.delete(b["id"])
+
+
+async def test_primary_bot_manages_every_bots_routines(events, make_bot):
+    boss, a, idle = make_bot("Chief"), make_bot("Scout"), make_bot("Idle")
+    me = boss | {"is_primary": True}          # 只看 is_primary；不去改测试库里真正的主 Bot
+    mine = routines.save(boss["id"], {"name": "周报", "prompt": "提醒写周报", "trigger": {"kind": "daily", "times": ["16:00"]}})
+    r1, r2 = _routine(a), routines.save(a["id"], {"name": "早报", "prompt": "整理新闻", "trigger": {"kind": "every", "minutes": 60}})
+
+    every = await routines.tool_list(me, {})
+    assert every.index("Chief (you):") < every.index("Scout:")   # 自己的在前
+    assert f"#{r1['id']}" in every and f"#{r2['id']}" in every and "Bots with no routines or events:" in every and "Idle" in every
+    only = await routines.tool_list(me, {"bot": "scout"})
+    assert f"#{r1['id']}" in only and f"#{mine['id']}" not in only
+    assert "Idle has no routines or events yet" in await routines.tool_list(me, {"bot": "Idle"})
+    assert "No Bot named Nobody" in await routines.tool_list(me, {"bot": "Nobody"})
+    assert "(This is Scout's routine)" in await routines.tool_list(me, {"id": r1["id"]})
+
+    # 全部暂停：一次改完，标明是谁的
+    out = await routines.tool_update(me, {"ids": [mine["id"], r1["id"], r2["id"]], "enabled": False})
+    assert out.count("Changed") == 3 and "Changed Scout's routine: " in out
+    assert not any(routines.get(x["id"])["enabled"] for x in (mine, r1, r2))
+
+    # 给别的 Bot 建：建在它名下，技能按它的找
+    out = await routines.tool_create(me, {"bot": "Idle", "name": "巡检", "prompt": "看看服务器", "kind": "every", "minutes": 30})
+    assert out.startswith("Created routine") and " for Idle: " in out
+    assert [x["name"] for x in routines.list_for(idle["id"])] == ["巡检"]
+    assert "没有技能" in await routines.tool_create(me, {"bot": "Idle", "name": "y", "skill": "nope", "kind": "every", "minutes": 30})
+
+    out = await routines.tool_delete(me, {"id": r2["id"]})
+    assert routines.get(r2["id"]) is None and out.startswith("Deleted Scout's routine") and "Bot: Scout" in out
+    await settle()
+    assert {e["bot_id"] for e in events.of("routines_changed")} >= {a["id"], idle["id"]}
+    for b in (boss, a, idle):
+        routines.delete_for_bot(b["id"]), bots.delete(b["id"])
+
+
+async def test_router_has_routine_tools_worker_does_not(llm, events, make_bot):
+    a = make_bot("Timer")
+    r = routines.save(a["id"], {"name": "周报", "prompt": "提醒写周报", "trigger": {"kind": "daily", "times": ["16:00"], "days": [5]}})
+    llm.script("router:Timer", Call("update_routine", {"id": r["id"], "enabled": False}), "暂停了")
+    await server.safe_handle(bots.chat(a["chat_id"]), "周报提醒先停一下")
+    await until(lambda: find(a["chat_id"], role="assistant", text="暂停了"), what="回复")
+    assert not routines.get(r["id"])["enabled"]
+    body = llm.bodies("router", "Timer")[-1]
+    mine = {"create_routine", "list_routines", "update_routine", "delete_routine"}
+    assert mine <= {t["function"]["name"] for t in body["tools"]}
+    assert f'#{r["id"]} routine "周报"' in body["messages"][0]["content"]          # 提示词里的列表带编号，能直接用
+    worker = {s["function"]["name"] for s in registry.schemas(registry.WORKER, {"scope": registry.WORKER, "pages": True})}
+    assert not mine & worker                                              # 定时任务跑在 Worker 里，不让它自己改
+    bots.delete(a["id"])
 # RETRO-02: persisted task text must follow the UI language, not model-only prompts.
 @pytest.mark.parametrize("language, heading, skill_text, prompt_text, event_text", [
     ("vi", 'Đây là lần chạy của lịch "Audit ping" (Mỗi 1 giờ).',

@@ -32,8 +32,15 @@ for k in ("OSA_VAULT_KEY", "INSTABOX_API_KEY", "OSA_PASSWORD", "OSA_WEBHOOK_TOKE
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).parent))
 
-from osa import bots, memory, providers, server  # noqa: E402
+from osa import bots, i18n, memory, mcp_hub, providers, registry, server  # noqa: E402
 from fakellm import FakeLLM  # noqa: E402
+
+# remake 默认界面语言是 vi。upstream 的测试按源语言（中文）断言提示文字，所以整个测试会话设成 zh；
+# 测越南语的用例（test_i18n_vi、test_locale_fallback 等）自己 monkeypatch i18n._lang。
+i18n.set_lang("zh")
+# upstream 的测试刚好控制在 50 个 Bot 以内；remake 自己的测试也用 make_bot，合起来会超过上限。
+# 上限本身不是这些测试要测的，测试库里放宽
+bots.MAX_BOTS = 500
 
 
 def pytest_sessionfinish(session, exitstatus):
@@ -127,3 +134,38 @@ def find(chat_id: int, **want) -> list[dict]:
             continue
         out.append(m)
     return out
+
+
+@pytest.fixture
+def mcp_tool():
+    """冒充一个连接了的应用：按 (全名, 函数, schema, 要不要确认) 注册一个工具，测试结束撤销。"""
+    ctx = registry.Context("mcp:test")
+    added = []
+
+    def add(name: str, fn, schema: dict | None = None, confirm: bool = False):
+        server_name = name.split("__", 1)[0]
+        ctx.simple(name, schema or {"type": "function", "function": {"name": name, "description": name,
+                                                                        "parameters": {"type": "object", "properties": {}}}},
+                   fn, where=frozenset({registry.WORKER, registry.APPLET}), gated=True, group=server_name)
+        if confirm:
+            mcp_hub.CONFIRM.add(name)
+            added.append(name)
+    yield add
+    ctx.dispose()
+    for n in added:
+        mcp_hub.CONFIRM.discard(n)
+
+
+@pytest.fixture
+def no_password(monkeypatch):
+    """没开登录（默认）。"""
+    monkeypatch.delenv("OSA_PASSWORD", raising=False)
+    monkeypatch.delenv("OSA_WEBHOOK_TOKEN", raising=False)
+    monkeypatch.delenv("OSA_ALLOWED_HOSTS", raising=False)
+
+
+@pytest.fixture
+def password(monkeypatch):
+    """开了登录，密码是 test-password。"""
+    monkeypatch.setenv("OSA_PASSWORD", "test-password")
+    monkeypatch.delenv("OSA_WEBHOOK_TOKEN", raising=False)
