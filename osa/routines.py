@@ -143,6 +143,8 @@ def _clean_trigger(t: dict, old: dict | None = None) -> dict:
         raise ValueError(i18n.t("触发方式只能是 once（某个时间点一次）、daily（每天定时）、monthly（每月几号）、every（每隔几分钟）或 event（事件）"))
     kind = t.get("kind")
     if kind == "webhook":   # 旧版的 webhook 定时任务（旧模板、旧的 config.yaml）
+        if t.get("llm_filter") is not None and not isinstance(t.get("llm_filter"), str):
+            raise ValueError(i18n.t("过滤规则必须是文字"))
         kind, t = "event", events.migrate_legacy(t, "")
     if kind not in KINDS:
         raise ValueError(i18n.t("触发方式只能是 once（某个时间点一次）、daily（每天定时）、monthly（每月几号）、every（每隔几分钟）或 event（事件）"))
