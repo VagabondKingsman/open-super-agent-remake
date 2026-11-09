@@ -233,6 +233,8 @@
   "任务 #{id} 的结果": "Result of task #{id}",
   "任务失败": "Task failed",
   "任务完成": "Task done",
+  "任务部分完成": "Task partly finished",
+  "部分完成": "Partial",
   "任务已取消": "Task canceled",
   "任务最长跑多久（秒）": "Max task run time (seconds)",
   "企业内机器人发送消息权限": "permission for internal robots to send messages",
@@ -323,7 +325,7 @@
   "单价是每百万 token 的输入 / 输出价，{eye} 表示能看图": "Prices are input / output per 1M tokens. {eye} means it can see images",
   "单价自动从 models.dev 获取": "Price fetched from models.dev",
   "单价自动从 models.dev 获取（按 {via} 的价格估算）": "Price fetched from models.dev (estimated from {via})",
-  "单价自动从 {link} 获取，每天更新一次（上次：{when}），美元按 1 : {rate} 换成人民币；{config} 的 {pricing} 里写了的以它为准，本机的模型按 0 计。": "Prices are fetched from {link} once a day (last: {when}) and converted from USD to CNY at 1 : {rate}. Prices set under {pricing} in {config} take priority, and local models count as 0.",
+  "单价自动从 {link} 获取，每天更新一次（上次：{when}），按美元 / 百万 token 计；{config} 的 {pricing} 里写了的以它为准，本机的模型按 0 计。": "Prices are fetched from {link} once a day (last: {when}), in USD per million tokens. Prices set under {pricing} in {config} take priority, and local models count as 0.",
   "原来那台如果还开着，记得停掉，不然定时任务会跑两遍。": "If the old machine is still running, stop it, or routines will run twice.",
   "去 {name} 后台拿一个": "Get one from {name}",
   "去 {name} 的私聊": "Go to {name}'s chat",
@@ -617,6 +619,7 @@
   "新话题 · 之前的对话不再带进上下文，长期记忆还在": "New topic · earlier messages are no longer used as context; long-term memory stays",
   "方块": "Square",
   "无": "None",
+  "无法使用": "Unavailable",
   "时间（多个用逗号分开）": "Times (separate with commas)",
   "星星": "Star",
   "昨天": "Yesterday",
@@ -993,6 +996,7 @@
   "（任务 #{id}）": " (task #{id})",
   "（后台在算）": " (computing in the background)",
   "（没有返回内容）": "(No output)",
+<<<<<<< ours
   "，算好向量 {n} 段": ", {n} with vectors",
   "这张图片打不开，换一张 PNG 或 JPG 试试": "Can't open this image. Try a PNG or JPG",
   "扁平插画风格，正脸，居中，背景是干净的纯色，画面里不要有文字。": "Flat illustration style, facing forward, centered, on a clean solid-color background, no text in the image.",
@@ -1413,4 +1417,11 @@
   "本次任务内允许": "Allow for this task",
   "也可以按参数匹配：{form}，冒号后面和工具的第一个参数比（终端是命令），例如 {shell}、{path}。本机终端只认这种带命令前缀的规则，命令里带 ; | $( 重定向这类符号的照样每次问。": "Rules can also match an argument: {form}. The part after the colon is compared with the tool's first argument (the command, for the terminal), e.g. {shell} or {path}. The terminal on this computer only honors rules with a command prefix, and still asks every time for commands containing ; | $( or redirects.",
   "工具:参数": "tool:argument"
+=======
+  "（还没连接）": " (not connected)",
+  "，算好向量 {n} 段": ", {n} with vectors",
+  "这里是已记录的用量，不是服务商账单。取消时如果已经收到用量就照实记；没有用量回包时，按已收到的文字估算，并标成估算。": "These figures are recorded usage, not the provider's bill. A canceled request that already returned usage is stored as-is. If it didn't, the text received so far is estimated and labeled as an estimate.",
+  "含 {n} 次估算": "includes {n} estimates",
+  "含估算 {n} token": "includes {n} estimated tokens"
+>>>>>>> theirs
 }

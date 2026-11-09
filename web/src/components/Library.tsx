@@ -190,9 +190,9 @@ function Files() {
   if (!data) return <div className="muted">{t('加载中…')}</div>
   if (!data.running) return (
     <div className="lib-empty">
-      <p>{data.state === 'paused' ? t('电脑没开（已暂停）。') : data.state === 'none' ? t('电脑没开（还没创建）。') : t('电脑没开。')}</p>
+      <p>{data.state === 'unavailable' ? data.detail || t('无法使用') : data.state === 'paused' ? t('电脑没开（已暂停）。') : data.state === 'none' ? t('电脑没开（还没创建）。') : t('电脑没开。')}</p>
       <p className="muted small">{t('文件在所有 Bot 共用的电脑里（{root}），Bot 下载、生成的文件都在这里。', { root: data.root })}</p>
-      <button className="btn primary" disabled={!!busy} onClick={async () => { setBusy(t('开机中…')); await load(path, true); setBusy('') }}>{busy || t('开机查看')}</button>
+      <button className="btn primary" disabled={!!busy || data.state === 'unavailable'} onClick={async () => { setBusy(t('开机中…')); await load(path, true); setBusy('') }}>{busy || t('开机查看')}</button>
       {err && <div className="error-line">{err}</div>}
     </div>
   )

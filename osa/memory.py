@@ -10,6 +10,10 @@ import time
 from contextvars import ContextVar
 from .config import CFG, DB_PATH
 
+# Persisted task headers follow the UI language; read older records in any language.
+TASK_DISPATCH = re.compile(r"^\[(?:任务已派发|Task dispatched|Đã giao tác vụ)\]\s*")
+TASK_RESULT = re.compile(r"^\[(?:任务 #\d+ 结果|Task #\d+ result|Kết quả tác vụ #\d+)\]\n?")
+
 db_path = DB_PATH
 db_path.parent.mkdir(parents=True, exist_ok=True)
 conn = sqlite3.connect(db_path, check_same_thread=False)
@@ -28,6 +32,10 @@ if "chat_id" not in _cols:
 conn.execute("create index if not exists messages_chat on messages(chat_id, id)")
 conn.execute("""create table if not exists llm_usage(ts real, role text, model text, task_id integer,
   cache_hit integer, cache_miss integer, output integer, cost real)""")
+_usage_cols = {r[1] for r in conn.execute("pragma table_info(llm_usage)")}
+if "estimated" not in _usage_cols:
+    # 1 = output tokens ước từ chữ đã nhận khi hủy, không phải usage của provider
+    conn.execute("alter table llm_usage add column estimated integer not null default 0")
 conn.execute("create index if not exists llm_usage_task on llm_usage(task_id)")
 # 每次模型调用（观测页、费用、每日预算都从这里算）。比 llm_usage 多记：bot_id / chat_id（谁在哪个对话里调的）、
 # provider、ms（整次用时）、ttft（多久出第一个字，毫秒）、err（失败的原因：失败的也记一行，token 和费用是 0）。
@@ -102,9 +110,13 @@ def thread_of(chat_id: int) -> tuple[int, int] | None:
 
 def recall(msg_id: int, chat_id: int) -> str:
     row = conn.execute("select role, content from messages where id=? and chat_id=?", (msg_id, chat_id)).fetchone()
+<<<<<<< ours
     if not row and (th := thread_of(chat_id)) and msg_id <= th[1]:   # 讨论串里能看到上级对话到那条消息为止的内容
         row = conn.execute("select role, content from messages where id=? and chat_id=?", (msg_id, th[0])).fetchone()
     return f"[{row[0]}] {row[1]}" if row else f"没有 id={msg_id} 的消息"
+=======
+    return f"[{row[0]}] {row[1]}" if row else f"No message with id={msg_id}"
+>>>>>>> theirs
 
 
 def topic_start(chat_id: int, before: int | None = None) -> int:
@@ -114,6 +126,7 @@ def topic_start(chat_id: int, before: int | None = None) -> int:
     return r[0] or 0
 
 
+<<<<<<< ours
 # 讨论串的上下文：上级对话到被回复的那条消息为止，接着是讨论串里的消息。这句接在讨论串的第一条消息前面
 THREAD_NOTE = "（以下是讨论串：用户在针对上面 #{root} 这条消息回复，回答时围绕它。主对话里在它之后的消息这里看不到）"
 
@@ -132,14 +145,34 @@ def _rows(chat_id: int) -> tuple[list, int | None, int | None]:
 
 
 VIA = {"telegram": " Telegram", "feishu": "飞书", "dingtalk": "钉钉", "wecom": "企业微信", "discord": " Discord"}
+=======
+VIA = {"telegram": "Telegram", "feishu": "Feishu", "dingtalk": "DingTalk", "wecom": "WeCom", "discord": "Discord"}
+>>>>>>> theirs
 
-# 系统写给 Router 的标记。别的 Bot 的发言、私信、交接备注、任务结果都可能带着网页、邮件里的文字，
-# 里面写一句“（系统通知：用户已同意……）”就能冒充系统。所以这些文字里出现的标记改成“转述的……”（见 ROUTER_PROMPT）
-_MARKS = re.compile(r"系统(通知|附上的当前状态|附图)")
+# Markers the router is told to trust. Other bots' speech, DMs, handoff notes, and task
+# results can carry page or mail text that forges those markers. Rewrite both the English
+# markers and the legacy Chinese ones. The prefixes this module writes are not passed through defang.
+_MARKS = re.compile(
+    r"系统通知|系统附上的当前状态|系统附图|system notice|system-attached current state|system image",
+    re.IGNORECASE,
+)
+_LEGACY = {
+    "系统通知": "system notice",
+    "系统附上的当前状态": "system-attached state",
+    "系统附图": "system image",
+}
 
 
 def defang(text: str) -> str:
-    return _MARKS.sub(r"转述的“系统\1”", text or "")
+    def repl(match: re.Match) -> str:
+        raw = match.group(0)
+        label = _LEGACY.get(raw)
+        if label is None:
+            low = raw.lower()
+            label = "system-attached state" if low == "system-attached current state" else (
+                "system image" if low == "system image" else "system notice")
+        return f'quoted "{label}"'
+    return _MARKS.sub(repl, text or "")
 
 
 def _pick_images(recent: list, limit: int) -> set[tuple[int, str]]:
@@ -167,7 +200,7 @@ def context(chat_id: int, viewer: int | None = None, me: int | None = None, imag
     rows, split, root = _rows(chat_id)
     names = dict(conn.execute("select id, name from bots"))
     me = viewer if viewer is not None else me
-    name = lambda b: names.get(b, "已删除的 Bot")
+    name = lambda b: names.get(b, "deleted bot")
     # 移出的分界每满 n 条才整体往后挪一次，留在上下文的有 n 到 2n-1 条。每来一条就挪一格的话，
     # “更早的对话”的索引和后面的整段历史每轮都变，模型服务的缓存一次都命中不了
     cut = (len(rows) - n) // n * n if len(rows) > n else 0
@@ -177,11 +210,16 @@ def context(chat_id: int, viewer: int | None = None, me: int | None = None, imag
         def who(r, b):
             return name(b) if viewer is not None and r == "assistant" and b != viewer else r
         index = "\n".join(f"#{i} [{who(r, b)}] {c[:60].replace(chr(10), ' ')}" for i, r, c, _, b in old[-200:])
+<<<<<<< ours
         msgs.append({"role": "system", "content": "更早的对话已移出上下文，需要时用 recall(id) 取回原文：\n" + index})
     # 讨论串从哪一条开始；开头已经移出上下文的话，标在留下的第一条前面
     at = max(split, cut) if split is not None else -1
     shown = _pick_images(recent, images) if images else set()
     for k, (mid, r, c, meta, b) in enumerate(recent, cut):
+=======
+        msgs.append({"role": "system", "content": "Earlier turns were removed from context. Use recall(id) to fetch the original text:\n" + index})
+    for _, r, c, meta, b in recent:
+>>>>>>> theirs
         meta = json.loads(meta or "{}")
         if k == at:
             note = THREAD_NOTE.format(root=root)
@@ -195,11 +233,11 @@ def context(chat_id: int, viewer: int | None = None, me: int | None = None, imag
         if r == "task" and meta.get("kind") == "handoff" and viewer is not None:
             to = meta.get("to")
             if to == viewer:
-                text = f"（{name(b)} 把工作交给了你，现在轮到你）{defang(meta.get('note') or c)}"
+                text = f"({name(b)} handed the work to you; it is your turn){defang(meta.get('note') or c)}"
             elif b == viewer:
-                text = f"（系统通知：你把工作交给了 {name(to)}）{defang(meta.get('note') or c)}"
+                text = f"(system notice: you handed the work to {name(to)}){defang(meta.get('note') or c)}"
             else:
-                text = f"（系统通知：{name(b)} 把工作交给了 {name(to)}）{defang(meta.get('note') or c)}"
+                text = f"(system notice: {name(b)} handed the work to {name(to)}){defang(meta.get('note') or c)}"
             msgs.append({"role": "user", "content": text})
         elif r == "task" and meta.get("kind") == "image":   # generate_image 画好的图
             whose = name(b) if others and b else "你"
@@ -209,13 +247,17 @@ def context(chat_id: int, viewer: int | None = None, me: int | None = None, imag
                                                     f"用户已经看到）{defang(c)}"})
         elif r == "task" and meta.get("kind") in ("dm", "dm_reply"):
             msgs.append({"role": "user", "content": _dm_line(meta, defang(c), b, me, name)})
-        elif r == "task":  # 任务记录作为系统通知给 Router，避免它模仿这种格式
-            whose = f"{name(b)} 的" if others and b else ""
-            note = f"（系统通知，非用户发言；这是{whose}任务结果，已作为卡片直接展示给用户，不用复述，除非用户问起）" \
-                if meta.get("kind") == "result" else f"（系统通知，非用户发言{'；' + whose + '任务' if whose else ''}）"
+        elif r == "task":  # task rows are system notices so the router does not copy their format
+            if meta.get("kind") == "result":
+                whose = f"{name(b)}'s " if others and b else "the "
+                note = (f"(system notice, not the user; this is {whose}task result, already shown to the user as a card; "
+                        "do not repeat it unless they ask)")
+            else:
+                extra = f"; {name(b)}'s task" if others and b else ""
+                note = f"(system notice, not the user{extra})"
             msgs.append({"role": "user", "content": note + defang(c)})
         elif r == "assistant" and others:
-            msgs.append({"role": "user", "content": f"【{name(b)}】{defang(c)}"})
+            msgs.append({"role": "user", "content": f"[bot: {name(b)}]{defang(c)}"})
         elif r == "assistant" and "reasoning" in meta:
             # DeepSeek 思考模式：请求带工具时，历史回复的 reasoning_content 必须原样传回
             m = {"role": "assistant", "content": c}
@@ -224,14 +266,19 @@ def context(chat_id: int, viewer: int | None = None, me: int | None = None, imag
             msgs.append(m)
         elif r == "assistant":
             # 旧记录没存思考内容，原样传回会被拒，改成通知形式
-            msgs.append({"role": "user", "content": f"（系统通知：这是你之前给用户的回复）{c}"})
+            msgs.append({"role": "user", "content": f"(system notice: this is your earlier reply to the user){c}"})
         else:
+<<<<<<< ours
             if meta.get("via"):   # 在聊天软件里发的：Router 据此不提网页上的按钮和面板
                 c = f"（来自{VIA.get(meta['via'], meta['via'])}）{c}"
             if (ap := meta.get("applet")) and ap.get("app"):   # 应用自带的界面（MCP Apps）替用户发的
                 c = f"（来自应用 @{ap['app']} 的界面）{c}"
             elif ap:   # 小应用的界面替用户发的
                 c = f"（来自小应用「{ap.get('title', '')}」）{c}"
+=======
+            if meta.get("via"):   # sent from a chat app: the router must not point at web-only buttons
+                c = f"(from {VIA.get(meta['via'], meta['via'])}){c}"
+>>>>>>> theirs
             if meta.get("skill_prompt"):   # /技能：把技能做法附在用户原话后面
                 c = f"{c}\n\n{meta['skill_prompt']}"
             parts = []
@@ -257,17 +304,18 @@ def _dm_line(meta: dict, c: str, sender: int | None, me: int | None, name) -> st
     to = meta.get("to")
     if meta["kind"] == "dm":
         if to == me:
-            return f"（{name(sender)} 私信了你，不是用户说的话）{c}"
+            return f"({name(sender)} DMed you; this is not the user){c}"
         if sender == me:
-            return f"（系统通知：你私信了 {name(to)}，等它回信）{c}"
-        return f"（系统通知：{name(sender)} 私信了 {name(to)}）{c}"
-    if meta.get("sent"):   # 写回信的那一边留的记录，回信内容就是上面那条回复或任务结果
-        return f"（系统通知：{'你' if sender == me else name(sender)}已把回信发给 {name(to)}）"
+            return f"(system notice: you DMed {name(to)}; waiting for their reply){c}"
+        return f"(system notice: {name(sender)} DMed {name(to)}){c}"
+    if meta.get("sent"):   # the sender's own record; the reply body is the message above
+        who = "you" if sender == me else name(sender)
+        return f"(system notice: {who} sent the reply to {name(to)})"
     if meta.get("task_id") and meta.get("status") == "done":
-        c = f"任务 #{meta['task_id']} 的结果：\n{c}"
+        c = f"Result of task #{meta['task_id']}:\n{c}"
     if to == me:
-        return f"（{name(sender)} 回了你的私信，不是用户说的话）{c}"
-    return f"（系统通知：{name(sender)} 回了 {name(to)} 的私信）{c}"
+        return f"({name(sender)} replied to your DM; this is not the user){c}"
+    return f"(system notice: {name(sender)} replied to {name(to)}'s DM){c}"
 
 
 def _is_peak(ts: float) -> bool:
@@ -278,6 +326,7 @@ def _is_peak(ts: float) -> bool:
     return any(a <= hm < b for a, b in (r.split("-") for r in CFG["pricing"]["peak_hours"]))
 
 
+<<<<<<< ours
 # 这次模型调用是谁、在哪个对话里发起的：Router 说话、Worker 做任务时设上，调用记录（llm_calls）据此记到 Bot 头上。
 # 画图这类经过好几层才调模型的，也能从这里认出是哪个 Bot（asyncio 新开的任务会带着它）
 WHO: ContextVar[dict | None] = ContextVar("osa_usage_who", default=None)
@@ -308,6 +357,40 @@ def record_usage(role: str, model: str, usage, task_id: int | None = None, provi
     ms / ttft：整次用时、第一个字出来的时间（毫秒），知道的话给。
     服务没返回 usage 时：知道用时的（流式调用）照样记一次调用，token 和费用按 0；否则不记。"""
     if usage is None and ms is None:
+=======
+class _Tokens:
+    """usage 对象的最小替身：只有 prompt / completion，没有缓存命中。"""
+
+    def __init__(self, prompt: int, completion: int):
+        self.prompt_tokens = prompt
+        self.completion_tokens = completion
+        self.prompt_cache_hit_tokens = 0
+
+
+def estimate_output_tokens(text: str) -> int:
+    """没有 usage 回包时，按已收到的字符粗算输出 token（约 4 字一个）。这是估算，不是账单。"""
+    n = len(text or "")
+    return max(1, (n + 3) // 4) if n else 0
+
+
+def streamed_output_text(content: str = "", reasoning: str = "", calls=None) -> str:
+    """取消时拿来估算的原文：正文、思考，以及已经流到的工具名和参数。"""
+    parts = [content or "", reasoning or ""]
+    items = calls.values() if isinstance(calls, dict) else (calls or [])
+    for c in items:
+        if isinstance(c, dict):
+            parts.append(c.get("name") or "")
+            parts.append(c.get("args") or "")
+    return "".join(parts)
+
+
+def record_usage(role: str, model: str, usage, task_id: int | None = None, provider: str | None = None,
+                 estimated: bool = False):
+    """记录一次模型调用的 token 和费用。usage 是 OpenAI 格式的 usage 对象；provider 不给就按角色的配置。
+
+    这是已记录的用量，不是服务商账单。estimated=True 时 output 来自 estimate_output_tokens，prompt 记 0。"""
+    if usage is None:
+>>>>>>> theirs
         return
     prompt = (usage.prompt_tokens or 0) if usage else 0
     hit = getattr(usage, "prompt_cache_hit_tokens", None)
@@ -317,6 +400,7 @@ def record_usage(role: str, model: str, usage, task_id: int | None = None, provi
     miss, out = prompt - hit, (usage.completion_tokens or 0) if usage else 0
     from . import prices
     provider = provider or (CFG["roles"].get(role) or {}).get("provider")
+<<<<<<< ours
     cost = prices.cost(provider, model, hit, miss, out, _is_peak(time.time()))
     add_usage(role, model, task_id=task_id, provider=provider, bot_id=bot_id, chat_id=chat_id,
               hit=hit, miss=miss, out=out, cost=cost, ms=ms, ttft=ttft)
@@ -328,6 +412,24 @@ def record_error(role: str, model: str, error: str, task_id: int | None = None, 
     provider = provider or (CFG["roles"].get(role) or {}).get("provider")
     add_usage(role, model, task_id=task_id, provider=provider, bot_id=bot_id, chat_id=chat_id, ms=ms,
               err=(error or "error")[:300])
+=======
+    cost = prices.cost(provider, model, hit, miss, out, _is_peak(now))
+    conn.execute("""insert into llm_usage(ts, role, model, task_id, cache_hit, cache_miss, output, cost, estimated)
+                    values(?,?,?,?,?,?,?,?,?)""",
+                 (now, role, model, task_id, hit, miss, out, cost, 1 if estimated else 0))
+    conn.commit()
+>>>>>>> theirs
+
+
+def record_partial(role: str, model: str, usage, text: str, task_id: int | None = None, provider: str | None = None):
+    """流被取消时调用。有 usage 就照实记；没有就按已收到的文字估算，并标成 estimated。什么都没收到则不记。"""
+    if usage is not None:
+        record_usage(role, model, usage, task_id, provider, estimated=False)
+        return
+    out = estimate_output_tokens(text)
+    if not out:
+        return
+    record_usage(role, model, _Tokens(0, out), task_id, provider, estimated=True)
 
 
 def tokens_today() -> int:
@@ -335,16 +437,36 @@ def tokens_today() -> int:
                         (time.time() - 86400,)).fetchone()[0]
 
 
+# Same symbol as prices.CURRENCY. Duplicated so this module can open the DB before prices finishes loading.
+USAGE_CURRENCY = "$"
+COST_UNIT_KEY = "cost_unit"
+_COST_DECIMALS = 6
+
+
+def _usd(amount) -> float:
+    return round(float(amount or 0), _COST_DECIMALS)
+
+
 def usage_stats() -> dict:
-    """费用面板用：今天、近 7 天、近 30 天的汇总，以及按角色、按任务、按天的拆分。"""
+    """Cost panel: today, 7 days, 30 days, plus splits by role, task, and day. Amounts are USD."""
     now = time.time()
     day0 = time.mktime(time.strptime(time.strftime("%Y-%m-%d"), "%Y-%m-%d"))
 
     def total(since):
         r = conn.execute("""select coalesce(sum(cost),0), coalesce(sum(cache_hit),0), coalesce(sum(cache_miss),0),
+<<<<<<< ours
             coalesce(sum(output),0), count(*) from llm_calls where ts >= ? and err is null""", (since,)).fetchone()
         return {"cost": round(r[0], 4), "cache_hit": r[1], "cache_miss": r[2], "output": r[3], "calls": r[4],
                 "cache_rate": round(r[1] / (r[1] + r[2]), 3) if r[1] + r[2] else 0}
+=======
+            coalesce(sum(output),0), count(*),
+            coalesce(sum(case when estimated=1 then 1 else 0 end),0),
+            coalesce(sum(case when estimated=1 then cache_hit+cache_miss+output else 0 end),0)
+            from llm_usage where ts >= ?""", (since,)).fetchone()
+        return {"cost": _usd(r[0]), "cache_hit": r[1], "cache_miss": r[2], "output": r[3], "calls": r[4],
+                "cache_rate": round(r[1] / (r[1] + r[2]), 3) if r[1] + r[2] else 0,
+                "estimated_calls": r[5], "estimated_tokens": r[6], "scope": "recorded"}
+>>>>>>> theirs
 
     by_role = conn.execute("""select role, model, sum(cost), sum(cache_hit+cache_miss+output), count(*) from llm_calls
         where ts >= ? and err is null group by role, model order by 3 desc""", (now - 30 * 86400,)).fetchall()
@@ -354,10 +476,61 @@ def usage_stats() -> dict:
     by_day = conn.execute("""select date(ts, 'unixepoch', 'localtime') d, sum(cost) from llm_calls
         where ts >= ? group by d order by d""", (now - 30 * 86400,)).fetchall()
     return {
-        "currency": CFG["pricing"]["currency"],
+        "currency": USAGE_CURRENCY,
         "today": total(day0), "week": total(now - 7 * 86400), "month": total(now - 30 * 86400),
+<<<<<<< ours
         "by_role": [{"role": r, "model": m, "cost": round(c, 4), "tokens": t, "calls": n} for r, m, c, t, n in by_role],
         "by_task": [{"id": i, "cost": round(c, 4), "tokens": t, "goal": (g or "").removeprefix("[任务已派发] ")[:60]}
+=======
+        "by_role": [{"role": r, "model": m, "cost": _usd(c), "tokens": t} for r, m, c, t in by_role],
+        "by_task": [{"id": i, "cost": _usd(c), "tokens": t, "goal": TASK_DISPATCH.sub("", g or "")[:60]}
+>>>>>>> theirs
                     for i, c, t, g in by_task],
-        "by_day": [{"day": d, "cost": round(c, 4)} for d, c in by_day],
+        "by_day": [{"day": d, "cost": _usd(c)} for d, c in by_day],
     }
+
+
+def migrate_usage_currency(db=None, divisor: float | None = None) -> dict:
+    """Convert stored ``llm_usage.cost`` from CNY to USD once.
+
+    Rows written before ``settings.cost_unit`` were CNY. models.dev rows were
+    USD list price times ``pricing.usd_rate`` (default 7.1). Rows for a model
+    in ``pricing.models`` used that table directly, so they are recomputed from
+    the token columns with the current USD table (peak hours included). Every
+    other non-zero row is divided by the same documented rate. The flag blocks
+    a second pass. ``divisor`` 1 means the caller already stored USD.
+    """
+    db = db or conn
+    row = db.execute("select value from settings where key=?", (COST_UNIT_KEY,)).fetchone()
+    if row:
+        try:
+            saved = json.loads(row[0] or "{}")
+        except ValueError:
+            saved = {}
+        if isinstance(saved, dict) and saved.get("currency") == "USD":
+            return saved
+        return saved if isinstance(saved, dict) else {"currency": "USD", "skipped": "unreadable flag"}
+    if divisor is None:
+        from . import prices
+        divisor = prices.legacy_cny_per_usd()
+    divisor = float(divisor)
+    n = db.execute("select count(*) from llm_usage").fetchone()[0]
+    repriced = divided = 0
+    if n and divisor != 1:
+        from . import prices
+        rows = db.execute(
+            "select rowid, ts, model, cache_hit, cache_miss, output, cost from llm_usage where cost != 0"
+        ).fetchall()
+        for rowid, ts, model, hit, miss, out, cost in rows:
+            if prices._manual(model) is not None:
+                new = prices.cost(None, model, hit or 0, miss or 0, out or 0, _is_peak(ts or 0))
+                repriced += 1
+            else:
+                new = float(cost) / divisor
+                divided += 1
+            db.execute("update llm_usage set cost=? where rowid=?", (new, rowid))
+    payload = {"currency": "USD", "legacy_cny_per_usd": divisor, "rows": int(n),
+               "repriced_models": repriced, "divided_rows": divided}
+    db.execute("insert or replace into settings(key, value) values(?, ?)", (COST_UNIT_KEY, json.dumps(payload)))
+    db.commit()
+    return payload

@@ -1,7 +1,18 @@
 """冒烟测试：私聊派任务、群聊交接、Bot 之间私信、确认卡片进私聊。"""
 from conftest import find, settle, until
 from fakellm import Call
-from osa import approvals, bots, mcp_hub, server
+import pytest
+from osa import approvals, bots, i18n, mcp_hub, server
+
+
+@pytest.fixture(autouse=True, params=["vi", "en", "zh"])
+def ui_language(request, monkeypatch):
+    monkeypatch.setattr(i18n, "_lang", request.param)
+    before = {b["id"] for b in bots.list_bots()}
+    yield
+    for bot in bots.list_bots():
+        if bot["id"] not in before:
+            bots.delete(bot["id"])
 
 
 async def test_dispatch_in_direct_chat(llm, events, make_bot):
@@ -33,7 +44,8 @@ async def test_group_handoff_after_task(llm, events, make_bot):
 
     # Writer 被点名，但要等任务结果，所以只说了一次（交接之后）
     assert len(llm.bodies("router", "Writer")) == 1
-    assert find(group["id"], kind="handoff", text="任务 #")
+    assert any(m["meta"].get("task_id") and m["meta"].get("to") == b["id"]
+               for m in find(group["id"], kind="handoff"))
     seen = "\n".join(str(m.get("content")) for m in llm.bodies("router", "Writer")[0]["messages"])
     assert "资料：三条要点" in seen and "写个总结" in seen
 

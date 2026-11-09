@@ -18,11 +18,17 @@ from fastapi.staticfiles import StaticFiles
 from starlette.background import BackgroundTask
 from . import backup
 backup.apply_pending()   # 确认过的恢复：在打开数据库之前换上
+<<<<<<< ours
 from . import applets, approvals, auth, avatars, botadmin, bots, catalog, channels, computer, dm, events, groups, i18n, library, mcp_hub, media, memories, memory, push, router as rt, routines
 from . import mcpapps, observe, outputs, plugins, prices, providers, search, security, settings, skills, tasklog, teach, templates, unfurl, vault
 from .computer import link
 from .computer.base import HOSTS
 from . import builtin, registry  # noqa: F401  builtin：导入即注册内置工具
+=======
+from . import approvals, auth, bots, catalog, channels, computer, dm, groups, i18n, library, mcp_hub, memories, memory, push, router as rt, routines
+from . import prices, providers, search, settings, skills, skillpacks, tasklog, teach, templates, vault
+from . import worker as worker_mod
+>>>>>>> theirs
 from .watchdog import watchdog
 
 DIST = Path(__file__).parent / "static" / "dist"
@@ -88,6 +94,7 @@ async def lifespan(app):
     bots.ensure_default()
     tasklog.startup()   # 上次没做完的任务标成“已中断”，清掉太旧的任务过程
     settings.apply()
+    skillpacks.ensure_defaults()
     routines.import_legacy(bots.primary()["id"])
     await mcp_hub.start()
     await plugins.start()   # 启用了的插件（服务器锁下不加载）
@@ -120,8 +127,9 @@ def _err(e: Exception):
 # ---------- Bot 与对话 ----------
 @app.get("/api/bootstrap")
 async def bootstrap(request: Request):
-    if not i18n.chosen():   # 第一次打开：新装的按浏览器的语言，升级上来的老用户保持中文
-        i18n.set_lang(i18n.from_header(request.headers.get("accept-language")) if settings.onboarding() else "zh")
+    if not i18n.chosen():
+        preferred = request.query_params.get("lang")
+        i18n.set_lang(preferred if preferred in i18n.LANGS else "vi")
     return {"bots": bots.list_bots(), "chats": bots.list_chats(), "settings": settings.public(),
             "shapes": bots.SHAPES, "colors": bots.COLORS,
             "tasks": [t.public() for t in rt.TASKS.values() if t.status == "running"],
@@ -1095,7 +1103,11 @@ async def list_files(path: str = "", start: bool = False):
         _err(e)
     c = await _files_pc(start)
     if not c:
+<<<<<<< ours
         return {"running": False, "state": (await computer.get().status())["state"], "path": p, "root": library.root()}
+=======
+        return {"running": False, **(await computer.get().status()), "path": p, "root": library.WORKSPACE}
+>>>>>>> theirs
     try:
         entries = await library.list_dir(c, p)
         pinned = library.pins()
@@ -1608,7 +1620,7 @@ def _oauth_page(ok: bool, title: str, detail: str = "") -> HTMLResponse:
     from html import escape
     mark = "✓" if ok else "!"
     js = json.dumps({"type": "osa-app", "ok": ok})
-    return HTMLResponse(f"""<!doctype html><html lang="{"en" if i18n.lang() == "en" else "zh-CN"}"><meta charset="utf-8">
+    return HTMLResponse(f"""<!doctype html><html lang="{i18n.lang()}"><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>{escape(title)}</title>
 <style>body{{margin:0;height:100vh;display:grid;place-items:center;font-family:-apple-system,"PingFang SC",sans-serif;
 background:#0d0d0e;color:#ececec;text-align:center}}@media(prefers-color-scheme:light){{body{{background:#fbfbfa;color:#18181a}}}}
