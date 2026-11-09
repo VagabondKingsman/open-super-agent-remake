@@ -157,14 +157,14 @@ async def test_budget_alert_thresholds(tmp_path, monkeypatch):
                           services={"messenger": m}, log=None)
     assert await ba.check(ctx, tokens=500_000, cost=1.0, today="2026-11-09") == []
     [msg] = await ba.check(ctx, tokens=850_000, cost=1.2, today="2026-11-09")
-    assert "85%" in msg and "85.0 万 / 100.0 万" in msg and "¥1.20" in msg and m.sent[-1][1] == "Nova"
+    assert "85%" in msg and "85.0 万 / 100.0 万" in msg and "$1.20" in msg and m.sent[-1][1] == "Nova"
     assert await ba.check(ctx, tokens=900_000, cost=1.3, today="2026-11-09") == []       # 一天只提醒一次
     [msg] = await ba.check(ctx, tokens=1_200_000, cost=1.5, today="2026-11-09")
     assert msg.startswith("⛔") and "用完了" in msg
     [msg] = await ba.check(ctx, tokens=1_200_000, cost=4.2, today="2026-11-09")
-    assert "¥4.20" in msg and "84%" in msg and "每天 ¥5" in msg
+    assert "$4.20" in msg and "84%" in msg and "每天 $5" in msg
     [msg] = await ba.check(ctx, tokens=1_200_000, cost=6.0, today="2026-11-09")
-    assert "超过了你定的每天 ¥5" in msg
+    assert "超过了你定的每天 $5" in msg
     # 第二天重新算；一下子跨过两条线只发一条
     out = await ba.check(ctx, tokens=1_100_000, cost=0.1, today="2026-11-10")
     assert len(out) == 1 and out[0].startswith("⛔")
