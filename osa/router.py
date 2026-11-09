@@ -645,7 +645,7 @@ class Router:
         if name in botadmin.TOOLS:
             out = await botadmin.call(name, self.bot, self.chat["id"], self.chat_id, args, self.add, self.emit,
                                       self.turn.get("reply"), self.turn.get("depth", 0))
-            if out.startswith("已弹出"):
+            if out.startswith(botadmin.CARD_SHOWN):
                 self._turn_waits += 1
             return out
         if name == "look_at_screen":

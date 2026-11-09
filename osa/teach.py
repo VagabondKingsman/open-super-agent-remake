@@ -11,7 +11,7 @@ import re
 import time
 from urllib.parse import urlparse
 from .config import call_kwargs, client_for
-from . import computer, i18n, memory, skills
+from . import computer, i18n, memory, providers, skills
 
 MAX_S = 600
 KEY = "teach"
@@ -173,7 +173,7 @@ async def draft_skill(steps: list[str], note: str = "") -> dict:
     user = (f"The user said this demo is: {note}\n\n" if note else "") + "Recorded actions:\n" + "\n".join(steps)
     d = {}
     for _ in range(2):   # 解析不出来就再问一次
-        resp = await client.chat.completions.create(model=model, messages=[
+        resp = await providers.create_chat(client, model=model, messages=[
             {"role": "system", "content": DRAFT_PROMPT + i18n.model_hint()}, {"role": "user", "content": user}],
             response_format={"type": "json_object"}, **call_kwargs("router"))
         memory.record_usage("router", model, resp.usage)

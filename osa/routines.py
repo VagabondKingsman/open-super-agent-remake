@@ -17,7 +17,7 @@ import re
 import time
 from .config import CFG, call_kwargs, client_for
 from .memory import conn
-from . import bots, events, i18n, memory, skills
+from . import bots, events, i18n, memory, providers, skills
 
 conn.execute("""create table if not exists routines(
   id integer primary key, bot_id integer, name text, prompt text default '', skill text default '',
@@ -342,7 +342,7 @@ FILTER_PROMPT = (
 
 async def _llm_filter(rule: str, text: str, bot_id: int | None = None) -> tuple[bool, str]:
     client, model = client_for("filter")
-    resp = await client.chat.completions.create(model=model, messages=[
+    resp = await providers.create_chat(client, model=model, messages=[
         {"role": "system", "content": FILTER_PROMPT + i18n.model_hint()},
         {"role": "user", "content": f"Rule:\n{rule}\n\nEvent:\n{text[:6000]}"}],
         response_format={"type": "json_object"}, **call_kwargs("filter"))

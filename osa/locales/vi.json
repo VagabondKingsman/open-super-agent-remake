@@ -1173,5 +1173,7 @@
   "没保存：app.tools 里有现在没有的工具 {tools}，只能列你这一轮能用的工具": "Chưa lưu: app.tools có công cụ bạn không có lúc này ({tools}). Chỉ liệt kê công cụ dùng được trong lượt này.",
   "已保存小应用 #{id}「{title}」，链接 {link}。回复里用 Markdown 链接附上它，对话里会直接显示这个小应用，用户能在里面操作。用 page_data 能读写它的数据（page_id={id}）。": "Đã lưu ứng dụng mini #{id} “{title}”, liên kết {link}. Hãy gắn nó bằng liên kết Markdown trong câu trả lời; khung chat sẽ hiện ứng dụng mini để người dùng thao tác. Dùng page_data để đọc ghi dữ liệu của nó (page_id={id}).",
   "这是事件「{name}」（{when}）触发的一次运行。": "Đây là một lần chạy do sự kiện “{name}” ({when}) kích hoạt.",
-  "[事件 {name}]": "[Sự kiện {name}]"
+  "[事件 {name}]": "[Sự kiện {name}]",
+  "在「{app}」里点击「{label}」": "Bấm “{label}” trong {app}",
+  "在「{app}」的输入框里按 {keys}": "Nhấn {keys} trong ô nhập của {app}"
 }

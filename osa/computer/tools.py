@@ -443,7 +443,7 @@ async def _desktop(task, c, name: str, args: dict, key: str, notify_progress) ->
         el = await c.desk("inspect", key, x=x, y=y)
         label = el.get("label") or ""
         if button == "left" and len(label) <= 40 and DESK_SUBMIT.search(label):
-            what = f"在「{el.get('app') or '?'}」里点击「{label}」"
+            what = i18n.t("在「{app}」里点击「{label}」", app=el.get('app') or '?', label=label)
         op, kw = "click", {"x": x, "y": y, "button": button, "double": bool(args.get("double"))}
         done = f"Clicked ({x}, {y})" + (f" \"{label}\"" if label else "") + ". "
     elif name == "desktop_drag":
@@ -457,7 +457,7 @@ async def _desktop(task, c, name: str, args: dict, key: str, notify_progress) ->
         if any(macdesk.parse_keys(k)[1] in ("enter", "return") for k in keys.split()):
             f = await c.desk("focused", key)
             if f.get("role") == "AXTextArea":   # 多行输入框（聊天软件、终端）里按回车，多半是发出去、执行
-                what = f"在「{f.get('app') or '?'}」的输入框里按 {keys}"
+                what = i18n.t("在「{app}」的输入框里按 {keys}", app=f.get('app') or '?', keys=keys)
         op, kw, done = "key", {"keys": keys}, f"Pressed {keys}. "
     elif name == "desktop_scroll":
         op, kw = "scroll", {"x": int(args["x"]), "y": int(args["y"]), "direction": args.get("direction") or "down",

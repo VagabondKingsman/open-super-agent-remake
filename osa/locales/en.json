@@ -1212,5 +1212,7 @@
   "没保存：app.tools 里有现在没有的工具 {tools}，只能列你这一轮能用的工具": "Not saved: app.tools lists tools you do not have now ({tools}). List only tools you can use in this turn.",
   "已保存小应用 #{id}「{title}」，链接 {link}。回复里用 Markdown 链接附上它，对话里会直接显示这个小应用，用户能在里面操作。用 page_data 能读写它的数据（page_id={id}）。": "Saved applet #{id} \"{title}\" at {link}. Attach it as a Markdown link in the reply; the chat shows the applet and the user can operate it. Use page_data to read and write its data (page_id={id}).",
   "这是事件「{name}」（{when}）触发的一次运行。": "This run was triggered by event \"{name}\" ({when}).",
-  "[事件 {name}]": "[Event {name}]"
+  "[事件 {name}]": "[Event {name}]",
+  "在「{app}」里点击「{label}」": "Click \"{label}\" in {app}",
+  "在「{app}」的输入框里按 {keys}": "Press {keys} in a text box in {app}"
 }
