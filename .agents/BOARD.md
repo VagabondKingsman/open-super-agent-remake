@@ -31,9 +31,11 @@ Snapshot 07/11/2026, Asia/Saigon (UTC+7). GitHub PR + base mới là trạng th�
 
 ## In progress
 
-- OSA-023: `OSA-023 / hoplite / hoplite/osa-023-docs-sync / đồng bộ HANDOFF, STATE, BOARD sau khi PR #18 merge / claimed_at 09/11/2026 19:05 Asia/Saigon / [PR #19](https://github.com/VagabondKingsman/open-super-agent-remake/pull/19)`. Tách từ `i18n-vi` tại `b628fe4`. Chỉ sửa docs. Chi tiết ở [log OSA-023](log/2026-11-09-hoplite-osa-023.md).
+- OSA-024: `OSA-024 / hoplite / hoplite/osa-024-skill-bridges / bridge Hoplite cho đủ bộ AI Native (refinery, sot-kernel-in-a-box, html3d-slides, unslop, ai-native-mentor), ghi cách cài vào SKILL-FLOW / claimed_at 09/11/2026 19:56 Asia/Saigon / [PR #20](https://github.com/VagabondKingsman/open-super-agent-remake/pull/20)`. Tách từ `i18n-vi` tại `1b0de69`. Chỉ sửa `.agents/`. Chi tiết ở [log OSA-024](log/2026-11-09-hoplite-osa-024.md).
 
 ## Done · đã public
+
+- OSA-023: `OSA-023 / hoplite / hoplite/osa-023-docs-sync / đồng bộ HANDOFF, STATE, BOARD sau khi PR #18 merge / claimed_at 09/11/2026 19:05 Asia/Saigon / [PR #19](https://github.com/VagabondKingsman/open-super-agent-remake/pull/19)`. Đã merge vào `i18n-vi` tại `1b0de69002bb37ffabe9d6ff314b94de2e04c4f5` (head `1fa26a2`) lúc 19:29:21 09/11/2026 Asia/Saigon. `merged_at` API `2026-11-09T12:29:21Z`. Merge bởi Hoplite (`app/usehoplite`) qua chế độ tự merge, trước câu duyệt. Tri Tran viết "Duyệt merge" lúc 19:33 để xác nhận sau. CI push trên `1b0de69` SUCCESS.
 
 - OSA-022: `OSA-022 / hoplite / hoplite/osa-022-port-followups / việc còn mở sau port v0.12 + OSA-015, OSA-007, OSA-003, OSA-008, OSA-019 / claimed_at 09/11/2026 14:25 Asia/Saigon / [PR #18](https://github.com/VagabondKingsman/open-super-agent-remake/pull/18)`. Đã merge vào `i18n-vi` tại `b628fe4e91e557217f8f41abfc92463151e57fa6` (head `79e31ff`) lúc 18:16:57 09/11/2026 Asia/Saigon. `merged_at` API `2026-11-09T11:16:57Z`. `merged_by` là VagabondKingsman. CI backend, frontend, docker SUCCESS trên PR và trên push `b628fe4`. Câu "Chưa merge" trong log OSA-022 là trạng thái lúc viết log đó. OSA-007 và OSA-019 còn phần mở, xem Backlog.
 
