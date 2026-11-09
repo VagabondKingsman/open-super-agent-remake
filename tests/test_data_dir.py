@@ -9,13 +9,13 @@ from conftest import ROOT, TMP
 
 PROBE = """
 import json
-from osa import auth, backup, catalog, mcp_hub, memory, prices
+from osa import auth, backup, catalog, config, mcp_hub, memory, prices
 from osa.computer.local import LocalComputer
 auth._signing_key()
 print(json.dumps({"db": str(memory.db_path), "backup_db": str(backup.DB), "apps": str(backup.APPS),
                   "catalog_apps": str(catalog.LOCAL), "workspace": str(mcp_hub.WORKSPACE),
                   "catalog_workspace": str(catalog.WORKSPACE), "prices": str(prices.FILE),
-                  "computer": LocalComputer(1).data}))
+                  "computer": LocalComputer(1).data, "db_outside": config.db_outside_data_dir()}))
 """
 
 

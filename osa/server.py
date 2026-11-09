@@ -21,6 +21,7 @@ backup.apply_pending()   # 确认过的恢复：在打开数据库之前换上
 from . import applets, approvals, auth, avatars, botadmin, bots, catalog, channels, computer, dm, events, groups, i18n, library, mcp_hub, media, memories, memory, push, router as rt, routines
 from . import mcpapps, observe, outputs, plugins, prices, providers, search, security, settings, skills, skillpacks, tasklog, teach, templates, unfurl, vault
 from . import worker as worker_mod
+from . import config
 from .computer import link
 from .computer.base import HOSTS
 from . import builtin, registry  # noqa: F401  builtin：导入即注册内置工具
@@ -86,6 +87,9 @@ async def parent_watch(pid: int, every: float = 2):
 async def lifespan(app):
     if not auth.enabled():
         print("未设置 OSA_PASSWORD：网页不用登录就能访问，只能在本机或内网使用", flush=True)
+    if config.db_outside_data_dir():
+        print(i18n.t("注意：设置了 OSA_DATA_DIR（{data}），但 memory.db 是绝对路径 {db}，数据库不在数据目录里。备份和迁移时别漏了它。",
+                     data=config.DATA, db=config.DB_PATH), flush=True)
     bots.ensure_default()
     tasklog.startup()   # 上次没做完的任务标成“已中断”，清掉太旧的任务过程
     settings.apply()
@@ -699,8 +703,11 @@ MAX_BACKUP = 4 << 30
 
 @app.get("/api/backup")
 async def backup_info():
-    return {"counts": backup.counts(memory.conn), "secrets": len(vault.names()), "staged": backup.staged(),
-            "started": STARTED, "version": backup.version()}
+    out = {"counts": backup.counts(memory.conn), "secrets": len(vault.names()), "staged": backup.staged(),
+           "started": STARTED, "version": backup.version()}
+    if not security.demo():   # 演示服务器不露服务器上的路径
+        out |= {"db": str(config.DB_PATH), "data_dir": str(config.DATA), "db_outside": config.db_outside_data_dir()}
+    return out
 
 
 def _no_backup_in_demo():

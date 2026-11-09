@@ -1,4 +1,5 @@
 {
+  "注意：设置了 OSA_DATA_DIR（{data}），但 memory.db 是绝对路径 {db}，数据库不在数据目录里。备份和迁移时别漏了它。": "Note: OSA_DATA_DIR is set ({data}), but memory.db is the absolute path {db}, so the database is outside the data directory. Include it when you back up or migrate.",
   " 等 {n} 个": " ({n} bots)",
   "**↩️ {name} 回信**": "**↩️ {name} replied**",
   "3 分钟没有进展": "No progress for 3 minutes",
