@@ -26,6 +26,7 @@ MAX_SKILLS = 10          # 一次带上或改的技能
 MAX_INSTRUCTIONS = 4000
 MAX_SKILL_SHOWN = 3000   # 查看时每个技能的做法最多给模型看这么多，要全文用 skill 参数
 CARD_LIMIT = 12000       # 卡片参数（JSON）的长度：职责最长 4000 字，改动里新旧两份都有
+CARD_SHOWN = "Approval card shown"   # tool-result prefix; router counts these as waits
 
 _SKILL_ITEMS = {"type": "object", "properties": {
     "name": {"type": "string", "description": "short name, used to invoke it as /name; no spaces"},
@@ -390,7 +391,7 @@ async def call(tool: str, bot: dict, chat_id: int, private_chat_id: int, args: d
     t.add_done_callback(_running.discard)
     what = {"create_bot": f"create Bot \"{label}\"", "update_bot": f"change Bot \"{label}\"", "delete_bot": f"delete Bot \"{label}\""}[tool]
     after = f"; your reply then goes to {dm._name(owed['bot'])} as the answer" if owed else ""
-    return (f"已弹出 (approval card shown: {what}); the card is in your private chat. Once the user approves, it will {verb} it automatically. "
+    return (f"{CARD_SHOWN} ({what}); the card is in your private chat. Once the user approves, it will {verb} it automatically. "
             f"When there is an outcome you get another turn to speak{after}; whatever should happen afterwards (e.g. DM the new Bot instructions) is done then. "
             f"For now just briefly ask the user to confirm; do not say it is already done.")
 
