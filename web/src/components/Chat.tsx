@@ -15,6 +15,11 @@ import { cardFor, registerCard, type CardProps } from '../cards'
 import { McpAppView } from './Applet'
 import type { AppView } from '../mcpapp'
 
+// Stored headers can use any supported language, regardless of the current UI language.
+const TASK_DISPATCH = /^\[(?:任务已派发|Task dispatched|Đã giao tác vụ)\]\s*/ // i18n-ignore: stored headers
+const TASK_RESULT = /^\[(?:任务 #(\d+) 结果|Task #(\d+) result|Kết quả tác vụ #(\d+))\]\n?/ // i18n-ignore: stored headers
+const ROUTINE_LABEL = /^\[(?:定时任务|Routine|Lịch) [^\]]+\]\s*/ // i18n-ignore: stored labels
+
 const time = (ts: number) => new Date(ts * 1000).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
 const VIA: Record<string, string> = {
   telegram: t('来自 Telegram'), feishu: t('来自飞书'), dingtalk: t('来自钉钉'), wecom: t('来自企业微信'), discord: t('来自 Discord'),
@@ -24,9 +29,9 @@ const secs = (s: number) => (s < 60 ? t('{n} 秒', { n: Math.round(s) }) : t('{m
 // 旧版本的任务记录没有 kind，从文字里推断
 function taskKind(m: Message): { kind: string; taskId?: number } {
   if (m.meta.kind) return { kind: m.meta.kind, taskId: m.meta.task_id ?? (m.meta.kind === 'dispatch' ? m.id : undefined) }
-  if (m.content.startsWith('[任务已派发]')) return { kind: 'dispatch', taskId: m.id }   // i18n-ignore：存在消息里的标记
-  const r = m.content.match(/^\[任务 #(\d+) 结果\]/)   // i18n-ignore：存在消息里的标记
-  if (r) return { kind: 'result', taskId: Number(r[1]) }
+  if (TASK_DISPATCH.test(m.content)) return { kind: 'dispatch', taskId: m.id }   // i18n-ignore：存在消息里的标记
+  const r = m.content.match(TASK_RESULT)   // i18n-ignore：存在消息里的标记
+  if (r) return { kind: 'result', taskId: Number(r[1] || r[2] || r[3]) }
   if (/^\[任务 #\d+ 已取消/.test(m.content)) return { kind: 'cancel' }   // i18n-ignore：存在消息里的标记
   if (m.content.startsWith('[触发器')) return { kind: 'trigger' }   // i18n-ignore：存在消息里的标记
   return { kind: 'note' }
@@ -235,8 +240,8 @@ function TaskCard({ m, task, owner, handoffTo, replyTo }: { m: Message; task?: T
     const timer = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(timer)
   }, [status])
-  const goal = m.content.replace(/^\[任务已派发\]\s*/, '')   // i18n-ignore：存在消息里的标记
-  const label: Record<string, string> = { running: task?.waiting_approval ? t('等你确认') : t('进行中'), done: t('已完成'), failed: t('失败'), cancelled: t('已取消'), interrupted: t('已中断') }
+  const goal = m.content.replace(TASK_DISPATCH, '')   // i18n-ignore：存在消息里的标记
+  const label: Record<string, string> = { running: task?.waiting_approval ? t('等你确认') : t('进行中'), done: t('已完成'), partial: t('部分完成'), failed: t('失败'), cancelled: t('已取消'), interrupted: t('已中断') }
   const heavy = m.meta.mode === 'heavy'
   const name = owner ? (heavy ? t('{name} 的Heavy 任务', { name: owner.name }) : t('{name} 的后台任务', { name: owner.name })) : heavy ? t('Heavy 任务') : t('后台任务')
   return (
@@ -265,7 +270,11 @@ function SavePageBtn({ bot, text, goal, taskId }: { bot?: Bot; text: string; goa
     setBusy(true)
     try {
       const h1 = text.match(/^#\s+(.+)$/m)?.[1]
+<<<<<<< ours
       const title = (h1 || goal.split('\n').find(l => l.trim()) || t('任务 #{id} 的结果', { id: taskId ?? '' })).replace(/^\[(定时任务|事件) [^\]]+\]\s*/, '').slice(0, 60)   // i18n-ignore：去掉存在消息里的标记
+=======
+      const title = (h1 || goal.split('\n').find(l => l.trim()) || t('任务 #{id} 的结果', { id: taskId ?? '' })).replace(ROUTINE_LABEL, '').slice(0, 60)   // i18n-ignore：去掉存在消息里的标记
+>>>>>>> theirs
       const p = await api('/api/pages', { method: 'POST', body: { bot_id: bot?.id, title, content: text, task_id: taskId } })
       setSaved(p.id)
     } finally { setBusy(false) }
@@ -273,8 +282,13 @@ function SavePageBtn({ bot, text, goal, taskId }: { bot?: Bot; text: string; goa
   return <button className="ghost-btn" disabled={busy} onClick={save}>{t('存为页面')}</button>
 }
 
+<<<<<<< ours
 function ResultMessage({ bot, m, goal, showName, reply }: { bot?: Bot; m: Message; goal: string; showName?: boolean; reply?: Reply }) {
   const text = m.content.replace(/^\[任务 #\d+ 结果\]\n?/, '')   // i18n-ignore：存在消息里的标记
+=======
+function ResultMessage({ bot, m, goal, showName }: { bot?: Bot; m: Message; goal: string; showName?: boolean }) {
+  const text = m.content.replace(TASK_RESULT, '')   // i18n-ignore：存在消息里的标记
+>>>>>>> theirs
   const [open, setOpen] = useState(text.length < 1800)
   const status = m.meta.status || 'done'
   return (
@@ -283,7 +297,7 @@ function ResultMessage({ bot, m, goal, showName, reply }: { bot?: Bot; m: Messag
       <div className="msg-body">
         <Speaker bot={bot} show={showName} />
         <div className={`result-head ${status}`}>
-          {status === 'failed' ? t('任务失败') : t('任务完成')} · #{taskKind(m).taskId}{m.meta.elapsed ? ` · ${t('用时 {time}', { time: secs(m.meta.elapsed) })}` : ''}
+          {status === 'failed' ? t('任务失败') : status === 'partial' ? t('任务部分完成') : t('任务完成')} · #{taskKind(m).taskId}{m.meta.elapsed ? ` · ${t('用时 {time}', { time: secs(m.meta.elapsed) })}` : ''}
         </div>
         <div className={open ? '' : 'clamp'}><Markdown text={text} embeds /></div>
         {!open && <button className="expand" onClick={() => setOpen(true)}>{t('展开全文')}</button>}
@@ -291,9 +305,14 @@ function ResultMessage({ bot, m, goal, showName, reply }: { bot?: Bot; m: Messag
         {(m.meta.apps as AppView[] | undefined)?.map((v, i) => <McpAppView key={i} view={v} botId={m.bot_id} />)}
         <ThreadLink m={m} reply={reply} />
         <div className="msg-actions"><span>{time(m.ts)}</span><CopyBtn text={text} />
+<<<<<<< ours
           {status === 'done' && <SavePageBtn bot={bot} text={text} goal={goal} taskId={taskKind(m).taskId} />}
           {taskKind(m).taskId && <button className="ghost-btn" onClick={() => showTask(taskKind(m).taskId!)}>{t('查看过程')}</button>}
           <ReplyBtn m={m} reply={reply} /></div>
+=======
+          {(status === 'done' || status === 'partial') && <SavePageBtn bot={bot} text={text} goal={goal} taskId={taskKind(m).taskId} />}
+          {taskKind(m).taskId && <button className="ghost-btn" onClick={() => showTask(taskKind(m).taskId!)}>{t('查看过程')}</button>}</div>
+>>>>>>> theirs
       </div>
     </div>
   )
@@ -530,14 +549,20 @@ function DmLine({ m, from, to, here }: { m: Message; from?: Bot; to?: Bot; here:
 // 私信的回信：显示成发信 Bot 的一条消息，长的折起来
 function DmReply({ m, bot, to, reply }: { m: Message; bot?: Bot; to?: Bot; reply?: Reply }) {
   const [open, setOpen] = useState(m.content.length < 1800)
-  const bad = m.meta.status && m.meta.status !== 'done'
+  const bad = m.meta.status === 'failed' || m.meta.status === 'cancelled'
+  const tone = m.meta.status === 'partial' ? ' partial' : bad ? ' failed' : ''
   return (
     <div className="msg bot">
       {bot && <BotAvatar avatar={bot.avatar} size={28} />}
       <div className="msg-body">
         <div className="speaker">{bot?.name || t('已删除的 Bot')}</div>
+<<<<<<< ours
         <div className={'result-head' + (bad ? ' failed' : '')}>↩ {t('回了 {name} 的私信', { name: to?.name || t('已删除的 Bot') })}{m.meta.task_id ? ' · ' + t('任务 #{id}', { id: m.meta.task_id }) : ''}</div>
         <div className={open ? '' : 'clamp'}><Markdown text={m.content} embeds /></div>
+=======
+        <div className={'result-head' + tone}>↩ {t('回了 {name} 的私信', { name: to?.name || t('已删除的 Bot') })}{m.meta.task_id ? ' · ' + t('任务 #{id}', { id: m.meta.task_id }) : ''}</div>
+        <div className={open ? '' : 'clamp'}><Markdown text={m.content} /></div>
+>>>>>>> theirs
         {!open && <button className="expand" onClick={() => setOpen(true)}>{t('展开全文')}</button>}
         <ThreadLink m={m} reply={reply} />
         <div className="msg-actions"><span>{time(m.ts)}</span><CopyBtn text={m.content} />
@@ -776,9 +801,56 @@ export default function Chat({ onToggleDetails }: { onToggleDetails: () => void 
               <div className="starters">{starters.map(s => <button key={s} onClick={() => window.dispatchEvent(new CustomEvent('osa-fill', { detail: s }))}>{s}</button>)}</div>
             </div>
           ))}
+<<<<<<< ours
           {messages && <MessageList chat={chat} list={messages} reply={{ chat: chat.id }} />}
           <StreamMessage chat={chat} chatId={chat.id} />
           <PendingApprovals here={a => a.chat_id === active} from={a => a.origin_chat_id === active} />
+=======
+          {messages?.map(m => {
+            if (m.role === 'user') return <div key={m.id} className="msg user">
+              {m.meta.via && <span className="via">{VIA[m.meta.via] || m.meta.via}</span>}<div className="bubble">{m.content}</div></div>
+            if (m.role === 'assistant') return m.content || m.meta.tasks?.length ? (
+              <BotMessage key={m.id} bot={speaker(m)} m={m} showName={group}>
+                {(m.meta.tasks || []).map(task)}
+              </BotMessage>) : null
+            const k = taskKind(m)
+            // 没有新内容的定时任务（跑完才知道）不显示，运行记录在右栏“定时”里
+            if (k.kind === 'dispatch') return attached.has(m.id) || m.meta.quiet || tasks[m.id]?.quiet ? null : task(m.id)
+            if (k.kind === 'result') return <ResultMessage key={m.id} bot={speaker(m)} m={m} showName={group}
+              goal={(k.taskId && byId.get(k.taskId)?.content.replace(TASK_DISPATCH, '')) || ''} />   // i18n-ignore：存在消息里的标记
+            if (k.kind === 'handoff') return <HandoffLine key={m.id} from={botOf(m.bot_id)} to={botOf(m.meta.to)} text={m.meta.note || m.content} />
+            if (k.kind === 'dm') return <DmLine key={m.id} m={m} from={botOf(m.bot_id)} to={botOf(m.meta.to)} here={chat.id} />
+            if (k.kind === 'dm_reply' && m.meta.sent) return <div key={m.id} className="sys-line">↩ {t('已把回信发给 {name}', { name: botOf(m.meta.to)?.name || t('已删除的 Bot') })}
+              {m.meta.chat && m.meta.chat !== chat.id && <> · <button className="link-btn" onClick={() => openChat(m.meta.chat)}>{t('去看')}</button></>}</div>
+            if (k.kind === 'dm_reply') return <DmReply key={m.id} m={m} bot={botOf(m.bot_id)} to={botOf(m.meta.to)} />
+            if (k.kind === 'reset') return <div key={m.id} className="topic-line"><span>{t('新话题 · 之前的对话不再带进上下文，长期记忆还在')}</span></div>
+            if (k.kind === 'trigger') return <div key={m.id} className="sys-line">⚡ {m.content.replace(/^\[触发器 ([^\]]+)\]/, (_, name) => t('触发器 {name}：', { name })).slice(0, 160)}</div>   // i18n-ignore：存在消息里的标记
+            return <div key={m.id} className="sys-line">{m.content.replace(/^\[|\]$/g, '').slice(0, 160)}</div>
+          })}
+          {stream && (() => {
+            const who = group ? botOf(stream.bot_id) : bot
+            return (
+              <div className="msg bot">
+                {who && <BotAvatar avatar={who.avatar} size={28} busy />}
+                <div className="msg-body">
+                  <Speaker bot={who} show={group} />
+                  <Thinking text={stream.thinking} live={!stream.text} seconds={(Date.now() - stream.started) / 1000} />
+                  {stream.text ? <Markdown text={stream.text + ' ▍'} /> : !stream.thinking && <div className="typing"><i /><i /><i /></div>}
+                </div>
+              </div>
+            )
+          })()}
+          {pending.map(a => <ApprovalCard key={a.id} a={a} />)}
+          {elsewhere.map(a => {
+            const b = botOf(a.bot_id)
+            return (
+              <div key={a.id} className="elsewhere">
+                <span>⚠ {a.kind === 'help' ? t('{name} 的任务 #{id} 需要你帮忙，卡片在它的私聊里', { name: b?.name || '', id: a.task_id }) : t('{name} 的任务 #{id} 需要你确认，卡片在它的私聊里', { name: b?.name || '', id: a.task_id })}</span>
+                {b && <button className="btn" onClick={() => openChat(b.chat_id)}>{t('去处理')}</button>}
+              </div>
+            )
+          })}
+>>>>>>> theirs
           {error && <div className="error-line">{error}</div>}
         </div>
       </div>

@@ -90,7 +90,7 @@ def parse(text: str, lang: str | None = None) -> dict:
         raise ValueError(i18n.t("这个模板是更新版本的 open-super-agent 做的，先升级再装"))
     if t.get("en") is not None:
         _check_en(t)
-        if (lang or i18n.lang()) == "en":
+        if (lang or i18n.lang()) != "zh":
             t = _english(t)
     name = str(t.get("name") or "").strip()[:40]
     if not name:

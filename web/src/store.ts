@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react'
-import { syncLang, t } from './i18n'
+import { lang, syncLang, t } from './i18n'
 import type { App, Approval, Attachment, Bot, CatalogItem, Chat, ComputerState, Message, OpenThread, Settings, Skill, Stream, Task, TaskInfo, TaskStep, Teach, TeachDraft, ThreadInfo, ThreadSummary } from './types'
 import { notice } from './components/Dialog'
 import { desktop, phone } from './desktop'
@@ -87,7 +87,7 @@ export async function api<T = any>(path: string, opts: { method?: string; body?:
 }
 
 export async function bootstrap() {
-  const b = await api('/api/bootstrap')
+  const b = await api(`/api/bootstrap?lang=${lang}`)
   if (syncLang(b.settings?.language)) return new Promise<void>(() => {})   // 语言和服务端的不一样：重新加载中
   const tasks: Record<number, Task> = {}
   b.tasks.forEach((t: Task) => (tasks[t.id] = t))
@@ -133,7 +133,7 @@ const byId = (list: ThreadInfo[] = []) => Object.fromEntries(list.map(x => [x.id
 export const setTeachDraft = (d: TeachDraft | null) => set({ teachDraft: d })
 
 export async function refreshLists() {
-  const b = await api('/api/bootstrap')
+  const b = await api(`/api/bootstrap?lang=${lang}`)
   set({ bots: b.bots, chats: b.chats, settings: b.settings, apps: b.apps || [] })
 }
 
@@ -310,7 +310,7 @@ export function connect() {
 async function resync() {
   // 断线重连后：刷新列表，丢掉已缓存的消息，重新加载当前对话
   await refreshLists()
-  const b = await api('/api/bootstrap')
+  const b = await api(`/api/bootstrap?lang=${lang}`)
   if (syncLang(b.settings?.language)) return new Promise<void>(() => {})   // 语言和服务端的不一样：重新加载中
   const tasks: Record<number, Task> = {}
   b.tasks.forEach((t: Task) => (tasks[t.id] = t))

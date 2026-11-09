@@ -474,11 +474,21 @@ async def cancel_login(name: str):
 
 
 # ---------- 连接 ----------
-def _text(result) -> str:
+class ToolResultError(Exception):
+    """工具自己报告失败。text 交给模型，步骤记成 error，不当成成功。"""
+
+    def __init__(self, text: str):
+        super().__init__(text)
+        self.text = text
+
+
+def _text(result) -> tuple[str, bool]:
     parts = [getattr(c, "text", None) or str(c) for c in result.content]
     out = "\n".join(parts)
-    is_error = getattr(result, "is_error", None) or getattr(result, "isError", False)  # 兼容新旧 SDK 字段名
-    return ("工具报错：" + out) if is_error else out
+    is_error = bool(getattr(result, "is_error", None) or getattr(result, "isError", False))  # 兼容新旧 SDK 字段名
+    if is_error:
+        out = i18n.t("工具报错：{detail}", detail=out)
+    return out, is_error
 
 
 def _needs_confirm(name: str, a: dict, tool) -> bool:
@@ -559,13 +569,18 @@ async def _serve(name: str, a: dict, ready: asyncio.Future, stop: asyncio.Event,
 
                 async def run(c: registry.Call, _tool=t.name, _full=full, _ui=ui):
                     try:
+<<<<<<< ours
                         result = await session.call_tool(_tool, c.args)
+=======
+                        result = await session.call_tool(_tool, args)
+>>>>>>> theirs
                     except Exception as e:
                         # 连接断了（远程会话过期、进程退出）：重连一次再试
                         if not _lost(e) or stop.is_set() or time.time() - _reconnected.get(name, 0) < 60:
                             raise
                         _reconnected[name] = time.time()
                         await connect(name)
+<<<<<<< ours
                         again = registry.get(_full)
                         if not again or again.owner != f"mcp:{name}":
                             hint = "，请用户到应用市场重新登录" if name in _needs_login else ""   # 写给模型看的
@@ -587,6 +602,23 @@ async def _serve(name: str, a: dict, ready: asyncio.Future, stop: asyncio.Event,
                     gated=True, group=name,
                     meta={"mcp": {"tool": t.name, "ui": ui, "visibility": vis, "description": t.description or "",
                                   "inputSchema": params}}))
+=======
+                        fn = TOOLS.get(_full)
+                        if not fn:
+                            hint = i18n.t("，请用户到应用市场重新登录") if name in _needs_login else ""
+                            raise RuntimeError(i18n.t("应用 @{name} 连接断开：{status}{hint}", name=name,
+                                                      status=status.get(name, ""), hint=hint)) from e
+                        return await fn[0](**args)
+                    text, is_error = _text(result)
+                    if is_error:
+                        raise ToolResultError(text)
+                    return text
+
+                TOOLS[full] = (call, {"type": "function", "function": {
+                    "name": full, "description": (t.description or "")[:1000],
+                    "parameters": getattr(t, "input_schema", None) or getattr(t, "inputSchema", None)
+                                  or {"type": "object", "properties": {}}}})
+>>>>>>> theirs
                 if _needs_confirm(name, a, t):
                     CONFIRM.add(full)
                     c += 1

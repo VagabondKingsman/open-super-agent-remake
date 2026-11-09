@@ -16,7 +16,9 @@ roles:
   # 每个角色还可以加：thinking: false（关闭思考模式，更快更便宜）、reasoning_effort: low/high/max
 
 heavy:
-  workers: 3                 # Heavy 模式并行 Worker 数（类似 Grok Heavy）
+  workers: 3                 # Heavy 模式研究员数量（类似 Grok Heavy）
+  concurrency: 1             # 同时真正调用模型的研究员上限。默认 1，避免一口气打满服务商限额
+  min_drafts: 2              # 可用草稿少于此数就不叫审稿人，任务记失败。超过 workers 时按 workers 计
 
 search:
   searxng_url: ""            # 例如 http://localhost:8080 ；留空则用 DuckDuckGo HTML
@@ -48,10 +50,16 @@ security:
 
 limits:
   worker_max_steps: 30        # 电脑操作一步一个动作，步数要多一些
+  repeat_tool_limit: 3        # 同一个工具调用连续这么多次就停下，改要最终答案。0 表示不查
+  answer_continuations: 1     # 最终答案是空的，或 finish_reason=length 时，再要一次完整答案
+  save_page_approval: false   # true：Worker 的 save_page 先等确认。命中“自动允许”规则时仍直接写
   task_timeout_s: 600
   watchdog_interval_s: 15
   approval_timeout_s: 1800   # 写操作等待确认的时限，超时按拒绝
   daily_token_budget: 2000000
+  provider_rate_retries: 1   # 普通 429（rate_limit_exceeded）按 Retry-After 再试几次。额度用尽不重试
+  provider_retry_cap_s: 120  # Retry-After 最多等这么多秒
+  provider_transient_retries: 2  # 408/409/5xx 再试几次。0 表示不试
 
 memory:
   db: data/osa.db
@@ -65,17 +73,20 @@ embedding:
   provider: ""
   model: ""
 
-# 单价：元 / 百万 tokens。不用自己填：每天自动从 models.dev 获取（美元按 usd_rate 换算）。
-# 下面 models 里写了的以它为准，用于 models.dev 没有的情况，比如 DeepSeek 的高峰、空闲两档价（2026-11-04 抄自官网）。
-# 两档的：工作日 peak_hours 内按第一个数计，其余时段按第二个
+# 单价：美元 / 百万 tokens。不用自己填：每天自动从 models.dev 获取（那边就是美元，不再换成人民币）。
+# 下面 models 里写了的以它为准，单位也是美元。DeepSeek 分高峰、空闲两档，models.dev 没有，所以写在这里。
+# 数字来自 DeepSeek API 文档 https://api-docs.deepseek.com/quick_start/pricing/ ，2026-11-07 核对。
+# 两档的：工作日 peak_hours 内按第一个数计，其余时段按第二个。
+# 库里 OSA-013 之前的 llm_usage.cost 是人民币。第一次启动会换成美元并在 settings.cost_unit 记一笔，不会再除第二次。
+# 旧配置如果 currency 仍是人民币（CNY、RMB 或人民币符号），models 里的数仍按人民币读，除以 legacy_cny_per_usd（没有这项则看 usd_rate，再没有则 7.1）。
 pricing:
-  currency: "¥"
-  usd_rate: 7.1                  # 1 美元换多少人民币
+  currency: "$"
+  # legacy_cny_per_usd: 7.1       # 只给第一次迁移旧库用。旧账本来就是美元时写成 1
   # source: https://models.dev/api.json   # 单价从哪里取；连不上时可以换成镜像地址
   peak_hours: ["09:00-12:00", "14:00-18:00"]     # 北京时间，周一至周五
   models:
-    deepseek-flash:  {cache_hit: [0.04, 0.02], input: [2, 1],   output: [8, 4]}       # [高峰, 空闲]
-    deepseek-v4-pro: {cache_hit: [0.30, 0.15], input: [9, 4.5], output: [27, 13.5]}
+    deepseek-flash:  {cache_hit: [0.006, 0.003], input: [0.3, 0.15], output: [1.2, 0.6]}     # [高峰, 空闲] USD / 百万 token
+    deepseek-v4-pro: {cache_hit: [0.044, 0.022], input: [1.32, 0.66], output: [3.96, 1.98]}
   # 本机和内网的模型按 0 计
   # 画图：元 / 张。models.dev 没有按张的价格，只能写在这里：先按服务商（接口地址里有这个词，或者就是服务的名字），
   # 再按模型名字（不分大小写，前面的 Kwai-Kolors/ 这类前缀可以不写）。没写的显示“价格未知”，费用按 0 记，次数照记
@@ -134,3 +145,7 @@ computer:
   chrome_path: ""            # host 用的浏览器；留空按常见位置找 Chrome（Chromium、Edge、Brave 也行）
   host_shell: false          # host 的终端：默认关，打开后 Bot 每条命令都要你确认（电脑面板里也能开关）
   host_desktop: true         # 本机是 Mac 时，给了“辅助功能”和“屏幕录制”权限后 Bot 还能看整个屏幕、用鼠标键盘操作别的 App；false 只用浏览器
+
+# Bundled methods are shared by all bots; false opts out of startup reconciliation.
+skills:
+  ai_native_defaults: true
