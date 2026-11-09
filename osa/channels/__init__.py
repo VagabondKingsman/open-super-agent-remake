@@ -270,9 +270,9 @@ def render(m: dict, group: bool) -> str | None:
     kind = meta.get("kind")
     if kind == "result":
         tid, status = meta.get("task_id"), meta.get("status")
-        body = re.sub(r"^\[任务 #\d+ 结果\]\s*", "", content)
+        body = memory.TASK_RESULT.sub("", content).lstrip()
         d = conn.execute("select content from messages where id=?", (tid,)).fetchone()
-        routine = re.match(r"\[任务已派发\] \[定时任务 ([^\]]+)\]", d[0]) if d else None
+        routine = re.match(r"\[(?:定时任务|Routine|Lịch) ([^\]]+)\]", memory.TASK_DISPATCH.sub("", d[0])) if d else None
         if routine:
             head = i18n.t("✅ 定时任务「{name}」完成", name=routine[1]) if status == "done" else \
                 i18n.t("❌ 定时任务「{name}」失败", name=routine[1]) if status == "failed" else \

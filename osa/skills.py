@@ -193,17 +193,19 @@ def parse(bot_id: int, text: str) -> tuple[dict, str] | None:
 
 def expand(skill: dict, extra: str = "", by_user: bool = True) -> str:
     """把技能写成交给模型的说明。by_user：用户用 /名字 调用的（False 是 Bot 自己用 use_skill 取的）。"""
-    head = f"（用户调用了技能 /{skill['name']}，请按下面的做法执行；用户补充的要求优先。）" if by_user else \
-        f"（技能 /{skill['name']} 的做法，按它执行；和用户这次的要求冲突时以用户的为准。）"
+    head = (f"(The user invoked skill /{skill['name']}. Follow the method below. Extra instructions from the user win.)"
+            if by_user else
+            f"(Method of skill /{skill['name']}. Follow it; if it conflicts with the user's current request, the user wins.)")
     files = skill.get("files") or {}
-    return (f"{head}\n--- 技能做法 ---\n{skill['body']}\n--- 结束 ---"
-            + (f"\n这个技能带了文件：{'、'.join(files)}。要看全文或运行，用 use_skill(name=\"{skill['name']}\", file=\"路径\") 取。"
+    return (f"{head}\n--- skill method ---\n{skill['body']}\n--- end ---"
+            + (f"\nThis skill ships files: {', '.join(files)}. To read one in full or run it, call "
+               f"use_skill(name=\"{skill['name']}\", file=\"<path>\")."
                if by_user and files else "")
-            + (f"\n用户补充：{extra}" if extra else ""))
+            + (f"\nUser added: {extra}" if extra else ""))
 
 
 def summary(bot_id: int) -> str:
-    return "\n".join(f"- /{s['name']}：{s['description'] or s['body'][:40]}" for s in list_for(bot_id)) or "暂无技能"
+    return "\n".join(f"- /{s['name']}: {s['description'] or s['body'][:40]}" for s in list_for(bot_id)) or "(no skills)"
 
 
 # ---------- use_skill 工具 ----------

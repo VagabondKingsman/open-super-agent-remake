@@ -13,7 +13,7 @@ export const when = (ts: number | null) => ts ? new Date(ts * 1000).toLocaleStri
   : { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'
 // 周一到周日。英文是 Mon…Sun，选星期的小按钮里只放前两个字母（Mo、Tu…），中文不受影响
 const DAYS = [tc('weekday', '一'), tc('weekday', '二'), tc('weekday', '三'), tc('weekday', '四'), tc('weekday', '五'), tc('weekday', '六'), tc('weekday', '日')]
-const LIST = lang === 'en' ? ', ' : '、'   // 列举用的分隔符
+const LIST = lang !== 'zh' ? ', ' : '、'   // 列举用的分隔符
 export const STATUS: Record<string, string> = {
   running: t('运行中'), done: t('完成'), failed: t('失败'), cancelled: t('已取消'), skipped: t('跳过'), filtered: t('被过滤'),
   quiet: t('没有新内容'), ignored: t('不处理'),

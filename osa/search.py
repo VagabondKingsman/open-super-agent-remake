@@ -16,6 +16,7 @@ import re
 import struct
 import time
 from .config import CFG
+from . import i18n
 from .memory import conn
 
 conn.execute("""create table if not exists search_docs(
@@ -261,11 +262,12 @@ def snippet(text: str, q: str, width: int = 120) -> str:
 # ---------- 给 Bot 用的工具 ----------
 SEARCH_TOOL = {"type": "function", "function": {
     "name": "search_memory",
-    "description": "按意思查长期记忆和资料库里的页面。提示词里只放了最近的记忆；用户提到以前说过的事、以前做过的报告或页面，"
-                   "或者要参考之前的结果时用它。查到页面要看全文用 read_page。",
+    "description": "Search long-term memories and library pages by meaning. The prompt only includes recent memories. "
+                   "Use this when the user mentions something said earlier, an older report or page, or you need a previous result. "
+                   "Use read_page for the full page.",
     "parameters": {"type": "object", "properties": {
-        "query": {"type": "string", "description": "要找什么，用自然的说法；可以多写几个同义的词"},
-        "scope": {"type": "string", "enum": ["all", "memories", "pages"], "description": "默认 all"}},
+        "query": {"type": "string", "description": "What to find, in natural language. A few synonyms help."},
+        "scope": {"type": "string", "enum": ["all", "memories", "pages"], "description": "Default all"}},
         "required": ["query"]}}}
 
 
@@ -274,12 +276,13 @@ async def tool(bot_id: int, args: dict) -> str:
     kinds = {"memories": ("memory",), "pages": ("page",)}.get(args.get("scope") or "all", ("memory", "page"))
     hits = await search(str(args.get("query") or ""), bot_id, kinds, 8)
     if not hits:
-        return "没找到相关的记忆或页面"
+        return i18n.t("没找到相关的记忆或页面")
     lines = []
     for h in hits:
         if h["kind"] == "memory":
-            who = "所有 Bot 共享" if h["bot_id"] is None else "做过的事" if h["sub"] == "work" else "你的记忆"
-            lines.append(f"- 记忆 #{h['ref']}（{who}）：{h['snippet']}")
+            who = i18n.t("所有 Bot 共享") if h["bot_id"] is None else i18n.t("做过的事") if h["sub"] == "work" else i18n.t("你的记忆")
+            lines.append(i18n.t("- 记忆 #{id}（{who}）：{snippet}", id=h["ref"], who=who, snippet=h["snippet"]))
         else:
-            lines.append(f"- 页面 #{h['ref']}《{h['title']}》{library.link(h['ref'])}：{h['snippet']}")
+            lines.append(i18n.t("- 页面 #{id}《{title}》{link}：{snippet}", id=h["ref"], title=h["title"],
+                                link=library.link(h["ref"]), snippet=h["snippet"]))
     return "\n".join(lines)

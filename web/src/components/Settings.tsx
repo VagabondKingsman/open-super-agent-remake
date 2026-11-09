@@ -3,7 +3,7 @@ import { encode } from 'uqr'
 import { api, setSettings, useStore } from '../store'
 import { desktop, phone } from '../desktop'
 import { Icon } from '../icons'
-import { lang, locale, syncLang, t, tc, tn } from '../i18n'
+import { languages, lang, locale, syncLang, t, tc, tn } from '../i18n'
 import type { Routine, Rule, Settings as S } from '../types'
 import Backup from './Backup'
 import BotAvatar from './BotAvatar'
@@ -11,6 +11,7 @@ import { describe, STATUS, when } from './Routines'
 import Channels from './Channels'
 import Plugins from './Plugins'
 import ModelSettings, { ROLE_NAMES } from './ModelSettings'
+import { formatUsd } from '../formatUsd'
 import { priceSource, priceText, ToastHost, useToast } from './settingsKit'
 import { ask } from './Dialog'
 import { useBack } from '../swipe'
@@ -99,10 +100,13 @@ export default function Settings({ onClose, initial }: { onClose: () => void; in
 // 切换界面语言：按钮上写另一种语言的名字。服务端的报错、卡片、推送也跟着换
 function LangSwitch() {
   const toast = useToast()
-  const other = lang === 'zh' ? 'en' : 'zh'
-  const change = () => api('/api/settings', { method: 'PUT', body: { language: other } })
+  const change = (language: string) => api('/api/settings', { method: 'PUT', body: { language } })
     .then(r => syncLang(r.language)).catch(e => toast(e.message, true))
-  return <button className="set-item" title={t('界面语言')} onClick={change}><Icon name="globe" />{other === 'en' ? 'English' : '中文'}</button>   // i18n-ignore：语言自己的名字
+  return <label className="set-item" title={t('界面语言')}><Icon name="globe" />
+    <select aria-label={t('界面语言')} value={lang} onChange={e => change(e.target.value)}>
+      {languages.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
+    </select>
+  </label>
 }
 
 function Limits() {
@@ -144,12 +148,12 @@ function Usage() {
   const bots = useStore(x => x.bots)
   useEffect(() => { api('/api/usage').then(setU); const timer = setInterval(() => api('/api/usage').then(setU), 8000); return () => clearInterval(timer) }, [])
   if (!u) return <div className="muted">{t('加载中…')}</div>
-  const f = (v: number) => u.currency + v.toFixed(v < 1 ? 3 : 2)
+  const f = (v: number) => formatUsd(v)
   const max = Math.max(...u.by_day.map((d: any) => d.cost), 1e-9)
   return (
     <div className="usage">
       <div className="stat-row">
-        <div className="stat"><div className="muted small">{t('今天')}</div><div className="big">{f(u.today.cost)}</div><div className="muted small">{t('{n} 次调用 · 缓存命中 {rate}%', { n: u.today.calls, rate: (u.today.cache_rate * 100).toFixed(0) })}</div></div>
+        <div className="stat"><div className="muted small">{t('今天')}</div><div className="big">{f(u.today.cost)}</div><div className="muted small">{t('{n} 次调用 · 缓存命中 {rate}%', { n: u.today.calls, rate: (u.today.cache_rate * 100).toFixed(0) })}{u.today.estimated_calls ? ` · ${t('含 {n} 次估算', { n: u.today.estimated_calls })}` : ''}</div></div>
         <div className="stat"><div className="muted small">{t('近 7 天')}</div><div className="big">{f(u.week.cost)}</div></div>
         <div className="stat"><div className="muted small">{t('近 30 天')}</div><div className="big">{f(u.month.cost)}</div></div>
       </div>
@@ -160,6 +164,7 @@ function Usage() {
         <div><h4>{t('按任务（最近 20 个）')}</h4>{u.by_task.map((tk: any) => <div className="kv" key={tk.id}><span>#{tk.id} {tk.goal}</span><span>{f(tk.cost)}</span></div>)}</div>
       </div>
       <Prices />
+      <p className="muted small">{t('这里是已记录的用量，不是服务商账单。取消时如果已经收到用量就照实记；没有用量回包时，按已收到的文字估算，并标成估算。')}</p>
       <p className="muted small">{t('{n} 个 Bot 共用一个每日预算，在“限制与预算”里改。', { n: bots.length })}</p>
     </div>
   )
@@ -186,10 +191,10 @@ function Prices() {
       {rows.map(([k, prov, model]) => {
         const info = s.model_info[`${prov}/${model}`]
         return <div className="kv" key={k} title={priceSource(info)}><span>{ROLE_NAMES[k] || k} · {model}</span>
-          <span className={priceText(info, p.currency) ? '' : 'muted'}>{priceText(info, p.currency) || t('没有单价，按 0 计')}</span></div>
+          <span className={priceText(info) ? '' : 'muted'}>{priceText(info) || t('没有单价，按 0 计')}</span></div>
       })}
-      <p className="muted small">{tn('单价自动从 {link} 获取，每天更新一次（上次：{when}），美元按 1 : {rate} 换成人民币；{config} 的 {pricing} 里写了的以它为准，本机的模型按 0 计。', {
-          link: <a href="https://models.dev" target="_blank" rel="noreferrer">models.dev</a>, when, rate: p.rate,
+      <p className="muted small">{tn('单价自动从 {link} 获取，每天更新一次（上次：{when}），按美元 / 百万 token 计；{config} 的 {pricing} 里写了的以它为准，本机的模型按 0 计。', {
+          link: <a href="https://models.dev" target="_blank" rel="noreferrer">models.dev</a>, when,
           config: <code>config.yaml</code>, pricing: <code>pricing</code> })}
         {p.error && <span className="error-line"> {t('上次更新失败：{error}', { error: p.error })}</span>}{' '}
         <button className="link-btn" disabled={busy} onClick={refresh}>{busy ? t('更新中…') : t('现在更新')}</button></p>
@@ -295,7 +300,7 @@ function Notifications() {
   }
   const test = async () => {
     setMsg('')
-    try { const r = await api('/api/push/test', { method: 'POST' }); setMsg(r.results.every((x: string) => x === 'ok') ? t('已发出，几秒内应该收到') : r.results.join(lang === 'en' ? '; ' : '；')) }
+    try { const r = await api('/api/push/test', { method: 'POST' }); setMsg(r.results.every((x: string) => x === 'ok') ? t('已发出，几秒内应该收到') : r.results.join(lang !== 'zh' ? '; ' : '；')) }
     catch (e: any) { setMsg(e.message) }
   }
   return (
