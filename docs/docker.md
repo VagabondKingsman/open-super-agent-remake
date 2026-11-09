@@ -79,13 +79,15 @@ docker compose --profile https up -d
 | 变量 | 默认 | 用途 |
 |---|---|---|
 | `OSA_PORT` | `8765` | 宿主机上的端口 |
-| `OSA_BIND` | `127.0.0.1` | 监听地址。局域网里直接访问改成 `0.0.0.0`，先设 `OSA_PASSWORD`：对外又没设密码时服务拒绝启动（确实要这样再设 `OSA_ALLOW_NO_PASSWORD=1`） |
+| `OSA_BIND` | `127.0.0.1` | 监听地址。局域网里直接访问改成 `0.0.0.0`，先设 `OSA_PASSWORD` |
 | `TZ` | `Asia/Shanghai` | 时区，定时任务按它算 |
 | `OSA_DOMAIN` | | `--profile https` 用的域名 |
 | `FORWARDED_ALLOW_IPS` | `*` | 信任哪些来源带的真实 IP（`X-Forwarded-For`）。默认只有本机连得进来，所以都信任；`OSA_BIND=0.0.0.0` 直接对外时改成 `127.0.0.1`，否则别人可以伪造 IP 绕过登录限速 |
 | `APT_MIRROR`、`NPM_REGISTRY`、`PYPI_INDEX` | | 构建镜像用的软件源，见下面 |
 
 `.env` 里的注释要单独占一行，写在值后面的注释可能被当成值的一部分。
+
+`OSA_BIND` 不是 `127.0.0.1`（服务对外）又没设 `OSA_PASSWORD` 时，服务拒绝启动。只在可信的内网里确实要这样，再设 `OSA_ALLOW_NO_PASSWORD=1`。不用 compose、直接 `docker run -p 8765:8765` 时也一样，要么设密码，要么写成 `-p 127.0.0.1:8765:8765 -e OSA_BIND=127.0.0.1`。
 
 ## 国内网络
 
