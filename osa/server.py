@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import hmac
 import json
 import logging
 import mimetypes
@@ -1901,13 +1902,18 @@ async def _hook_body(request: Request) -> bytes:
 async def hook(name: str, request: Request):
     """外部事件入口（不用登录）。
     新地址 /hooks/<密钥>：每个事件自己的随机密钥，地址本身就是凭据。
-    旧地址 /hooks/<名字>（以前的 webhook 定时任务）：设置了 OSA_WEBHOOK_TOKEN 时请求头 X-OSA-Token 必须一致，没设置时只接受本机请求。"""
+    旧地址 /hooks/<名字>（以前的 webhook 定时任务）：设置了 OSA_WEBHOOK_TOKEN 时请求头 X-OSA-Token 必须一致；
+    没设置时，开了登录（OSA_PASSWORD）就拒绝，没开登录只接受本机请求。"""
     r = events.by_key(name) if len(name) >= 16 else None
     if not r:
         token = os.environ.get("OSA_WEBHOOK_TOKEN")
         if token:
-            if request.headers.get("x-osa-token") != token:
+            if not hmac.compare_digest(request.headers.get("x-osa-token", "").encode(), token.encode()):
                 raise HTTPException(401, i18n.t("token 不对"))
+        elif auth.enabled():
+            # With a password the service is meant to be reachable from outside, and "local" can't be told apart
+            # from a proxy that adds no forwarding headers, so the old address needs the token.
+            raise HTTPException(403, i18n.t("设置了 OSA_PASSWORD 时，旧的 webhook 地址要配 OSA_WEBHOOK_TOKEN，或者改用事件自己的地址"))
         elif request.client.host not in ("127.0.0.1", "::1") or any(
                 h in request.headers for h in ("x-forwarded-for", "forwarded", "tailscale-user-login")):
             # 经反向代理（如 tailscale serve）转发的请求来源也显示为本机，按外部请求处理
