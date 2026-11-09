@@ -104,6 +104,9 @@ async def test_docker_missing_is_unavailable(monkeypatch):
         raise FileNotFoundError("docker")
     monkeypatch.setattr(local.asyncio, "create_subprocess_exec", missing)
     monkeypatch.setattr(i18n, "_lang", "vi")
+    # conftest 关了电脑（computer.enabled=false）；v0.8 起这个开关先于 Docker 检查，这里打开它才测得到 docker_missing
+    from osa.config import CFG
+    monkeypatch.setitem(CFG["computer"], "enabled", True)
     assert await local._run("docker", "inspect") == (127, "", "docker-missing")
     pc = local.LocalComputer(0)
     info = await pc.status()
@@ -144,7 +147,8 @@ def test_login_and_oauth_language(monkeypatch):
     {"kind": "daily", "times": ["09:00"], "days": [True]},
     {"kind": "daily", "times": ["09:00"], "days": False},
     {"kind": "every", "minutes": True}, {"kind": "every", "minutes": 5.5},
-    {"kind": "webhook", "include": "bug"}, {"kind": "webhook", "llm_filter": []},
+    # v0.12：旧 webhook 会转成事件，include 写成一个字符串时 events.clean 会拆成列表（upstream 的设计），不再算错
+    {"kind": "webhook", "llm_filter": []},
 ])
 def test_schedule_validation(trigger):
     with pytest.raises(ValueError):
@@ -152,6 +156,8 @@ def test_schedule_validation(trigger):
 
 
 async def test_webhook_filter_reserved_before_await(monkeypatch, make_bot):
+    # v0.12：LLM 过滤在 events.deliver 里（fire 之前）。第一份还在过滤时到的第二份要排队，不能派出两份。
+    from osa import events
     bot = make_bot()
     r = routines.save(bot["id"], {"name": f"race-{bot['id']}", "prompt": "Read only", "trigger": {"kind": "webhook", "llm_filter": "Check"}})
     entered, release = asyncio.Event(), asyncio.Event()
@@ -165,15 +171,16 @@ async def test_webhook_filter_reserved_before_await(monkeypatch, make_bot):
         return SimpleNamespace(id=123)
     monkeypatch.setattr(routines, "_llm_filter", filter_)
     monkeypatch.setattr(router, "runtime", lambda *args: SimpleNamespace(dispatch=dispatch))
-    first = asyncio.create_task(routines.fire(r, "webhook", "event"))
+    first = asyncio.create_task(events.deliver(r, [{"title": "a", "text": "a"}], "webhook"))
     await asyncio.wait_for(entered.wait(), 2)
-    second = await routines.fire(r, "webhook", "event")
+    second = await events.deliver(r, [{"title": "b", "text": "b"}], "webhook")
     release.set()
     try:
-        assert (await first)["accepted"] and not second["accepted"]
-        assert len(calls) == 1 and r["id"] not in routines.FIRING
+        assert (await first)["accepted"] and second.get("queued") == 1
+        assert len(calls) == 1 and r["id"] not in routines.FIRING and r["id"] not in events.FILTERING
     finally:
         routines.RUNNING.pop(r["id"], None)
+        events.PENDING.pop(r["id"], None)
         routines.delete(r["id"])
 
 

@@ -323,7 +323,6 @@
   "单价是每百万 token 的输入 / 输出价，{eye} 表示能看图": "Prices are input / output per 1M tokens. {eye} means it can see images",
   "单价自动从 models.dev 获取": "Price fetched from models.dev",
   "单价自动从 models.dev 获取（按 {via} 的价格估算）": "Price fetched from models.dev (estimated from {via})",
-  "单价自动从 {link} 获取，每天更新一次（上次：{when}），美元按 1 : {rate} 换成人民币；{config} 的 {pricing} 里写了的以它为准，本机的模型按 0 计。": "Prices are fetched from {link} once a day (last: {when}) and converted from USD to CNY at 1 : {rate}. Prices set under {pricing} in {config} take priority, and local models count as 0.",
   "原来那台如果还开着，记得停掉，不然定时任务会跑两遍。": "If the old machine is still running, stop it, or routines will run twice.",
   "去 {name} 后台拿一个": "Get one from {name}",
   "去 {name} 的私聊": "Go to {name}'s chat",
