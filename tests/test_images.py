@@ -45,8 +45,8 @@ def test_image_price():
     CFG["providers"]["sf2"] = {"base_url": "https://api.siliconflow.cn/v1"}
     try:
         assert prices.image_price("sf2", "Kwai-Kolors/Kolors") == 0
-        assert prices.image_price("sf2", "Tongyi-MAI/Z-Image-Turbo") == 0.1
-        assert prices.image_price("sf2", "Tongyi-MAI/Z-Image") == 0.3   # 不会被 Z-Image-Turbo 那一行认走
+        assert prices.image_price("sf2", "Tongyi-MAI/Z-Image-Turbo") == 0.014   # remake：config 里是美元
+        assert prices.image_price("sf2", "Tongyi-MAI/Z-Image") == 0.042   # 不会被 Z-Image-Turbo 那一行认走
         assert prices.image_price("sf2", "black-forest-labs/FLUX.1-dev") is None
     finally:
         del CFG["providers"]["sf2"]
@@ -89,7 +89,7 @@ async def test_ask_then_draw_then_always(llm, events, make_bot, sf):
     await server.safe_handle(bots.chat(cid), "再画一只")
     await until(lambda: len(find(cid, kind="image")) == 2, what="第二张")
     tool = [m for m in llm.bodies("router", "Painter")[-1]["messages"] if m["role"] == "tool"][0]
-    assert tool["content"].startswith("已画好")
+    assert tool["content"].startswith("Drawn.")   # remake：给模型的工具结果是英文
     assert not [x for x in approvals.pending.values() if x["tool"] == "generate_image"]
 
     # 下一轮的上下文里知道自己画过什么

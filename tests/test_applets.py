@@ -175,7 +175,7 @@ async def test_say_goes_to_bot_chat(no_password, llm, events, bot):
     user = find(b["chat_id"], role="user", text="张三报名了")[0]
     assert user["meta"]["applet"] == {"id": p["id"], "title": "报名表"}
     body = llm.bodies("router", "Formy")[-1]
-    assert any(m["role"] == "user" and "（来自小应用「报名表」）张三报名了" in m["content"] for m in body["messages"])
+    assert any(m["role"] == "user" and '(sent from applet "报名表") 张三报名了' in m["content"] for m in body["messages"])
     library.delete_page(p["id"])
 
 

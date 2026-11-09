@@ -15,6 +15,10 @@ def real_client(llm, monkeypatch):
     monkeypatch.setattr(providers, "AsyncOpenAI", lambda **kw: make(**kw, http_client=httpx.AsyncClient(transport=llm.transport)))
     monkeypatch.setattr(providers, "client", REAL_CLIENT)
     monkeypatch.setattr(openai._base_client.BaseClient, "_calculate_retry_timeout", lambda self, *a, **kw: 0)
+    # remake：重试由 providers.create_chat 做（关掉 SDK 自带的，额度类 429 不重试），它的退避也不真的等
+    async def no_wait(_s):
+        return None
+    monkeypatch.setattr(providers, "_pause", no_wait)
     providers._clients.clear()
     yield llm
     providers._clients.clear()

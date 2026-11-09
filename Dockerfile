@@ -25,6 +25,10 @@ ENV PYTHONUNBUFFERED=1 \
     npm_config_cache=/cache/npm \
     npm_config_update_notifier=false
 
+# remake：run_code / quick_code 和 inspect_repo / check_patch 用 bubblewrap 隔离。容器不允许 user namespace 时
+# bwrap 起不来，这些工具会报不可用，不会退回到不隔离的本机 shell
+RUN apt-get update && apt-get install -y --no-install-recommends bubblewrap && rm -rf /var/lib/apt/lists/*
+
 # Node 和 npx：直接从官方 Node 镜像拷，两边都是 Debian bookworm
 COPY --from=node /usr/local/bin/node /usr/local/bin/node
 COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules

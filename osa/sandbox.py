@@ -46,7 +46,7 @@ MAX_FILES = 20
 RUN = ".run"           # 工作文件夹里每次运行一个子文件夹
 KEEP_DAYS = 7          # 超过这么多天的运行文件夹下次跑的时候清掉
 MARK = "__OSA_RUN_EXIT__"
-QUICK_TIMED_OUT = "超时了，改派后台任务"
+QUICK_TIMED_OUT = "Timed out; dispatch a background task instead"
 
 
 def exec_mode() -> str:
@@ -107,15 +107,15 @@ def _probe() -> str:
 
 
 def _no_sandbox() -> str:
-    s = "这台机器没有沙箱（macOS 的 sandbox-exec、Linux 的 bwrap 或 unshare 都用不了），跑不了代码。"
+    s = "This machine has no sandbox (macOS sandbox-exec, Linux bwrap and unshare are all unavailable), so code cannot run. "
     from . import computer
     if exec_mode() != "host":
-        return s + "这台服务器只允许在沙箱里执行代码。"
+        return s + "This server only allows code to run in a sandbox."
     if computer.backend_name() == "host":
         from .computer import host
         if host.shell_on():
-            return s + "可以改用 computer_shell 在终端里跑（每条命令要用户确认）。"
-        return s + "用户在电脑面板打开“允许 Bot 用终端”后，可以用 computer_shell 跑（每条命令要用户确认）。"
+            return s + "You can run it with computer_shell in the terminal instead (each command needs user confirmation)."
+        return s + "Once the user turns on \"Let Bots use the terminal\" in the computer panel, you can run it with computer_shell (each command needs user confirmation)."
     return s
 
 
@@ -139,20 +139,20 @@ async def execute(lang: str, code: str, files: dict | None = None, timeout: int 
                   computer: bool = True) -> Result:
     lang = (lang or "python").strip().lower()
     if lang not in LANGS:
-        return Result(f"不支持 {lang}，只能用 {' / '.join(LANGS)}")
+        return Result(f"{lang} is not supported; use one of {' / '.join(LANGS)}")
     if not isinstance(code, str) or not code.strip():
-        return Result("没有要跑的代码")
+        return Result("No code to run")
     inputs = _inputs(files, f"main.{EXT[lang]}")
     if isinstance(inputs, str):
         return Result(inputs)
     if len(code.encode()) + sum(len(v.encode()) for v in inputs.values()) > MAX_INPUT:
-        return Result(f"代码和文件加起来太大了（最多 {MAX_INPUT >> 20} MB），大文件先存进工作文件夹再在代码里读")
+        return Result(f"Code and files together are too large (at most {MAX_INPUT >> 20} MB); save large files to the working folder first and read them from the code")
     try:
         timeout = max(1, min(MAX_TIMEOUT, int(timeout or TIMEOUT)))
     except (TypeError, ValueError):
         timeout = TIMEOUT
     if exec_mode() == "off":
-        return Result("这台服务器关掉了执行代码（config.yaml 的 security.exec: off）")
+        return Result("This server has code execution turned off (security.exec: off in config.yaml)")
     where = place(quick=not computer)
     if not where:
         return Result(_no_sandbox())
@@ -162,7 +162,7 @@ async def execute(lang: str, code: str, files: dict | None = None, timeout: int 
             return await _in_computer(pc.get(), lang, code, inputs, timeout)
         return await _on_host(lang, code, inputs, timeout, net)
     except Exception as e:   # 给模型一句话，别让工具调用整个失败
-        return Result(f"没跑成：{e}")
+        return Result(f"Did not run: {e}")
 
 
 def _inputs(files, main: str) -> dict[str, str] | str:
@@ -170,16 +170,16 @@ def _inputs(files, main: str) -> dict[str, str] | str:
     if not files:
         return {}
     if not isinstance(files, dict):
-        return "files 要写成 {文件名: 内容}"
+        return "files must be {file_name: content}"
     if len(files) > MAX_FILES:
-        return f"一次最多带 {MAX_FILES} 个文件"
+        return f"At most {MAX_FILES} files per call"
     out = {}
     for name, content in files.items():
         p = PurePosixPath(str(name).replace("\\", "/"))
         if not p.parts or p.is_absolute() or ".." in p.parts or str(p) in (main, ".") or str(p).startswith("-"):
-            return f"文件名不行：{name}（写相对路径，不能有 ..）"
+            return f"Bad file name: {name} (use a relative path without ..)"
         if not isinstance(content, str):
-            return f"{name} 的内容要是文字"
+            return f"The content of {name} must be text"
         out[str(p)] = content
     return out
 
@@ -191,11 +191,11 @@ def _rid() -> str:
 def _text(rc: int, out: str, timed_out: bool, timeout: int, files: list[str], note: str = "") -> str:
     out = out.rstrip()
     if len(out) > LIMIT:
-        out = out[:LIMIT] + f"\n…（输出太长，后面 {len(out) - LIMIT} 字没给）"
-    head = f"超时了：{timeout} 秒内没跑完，已经停掉" if timed_out else f"退出码 {rc}"
-    text = head + "\n" + (out or "（没有输出）")
+        out = out[:LIMIT] + f"\n… (output too long; the last {len(out) - LIMIT} characters are omitted)"
+    head = f"Timed out: did not finish within {timeout} seconds and was stopped" if timed_out else f"Exit code {rc}"
+    text = head + "\n" + (out or "(no output)")
     if files:
-        text += "\n产出的文件：\n" + "\n".join(f"- {f}" for f in files)
+        text += "\nFiles produced:\n" + "\n".join(f"- {f}" for f in files)
     return text + (f"\n{note}" if note else "")
 
 
@@ -233,12 +233,12 @@ printf '\\n{MARK}%s\\n%s\\n' "$rc" "$outs"
     c.last_used = time.time()
     r = await c.exec("bash -c " + shlex.quote(script), timeout + 30, stdin=_tarball({**inputs, main: code}))
     if r.exit_code == 97:
-        return Result(f"电脑里没有 {exe}，换一种语言写吧")
+        return Result(f"{exe} is not installed on the computer; write it in another language")
     at = r.stdout.rfind("\n" + MARK)
     if at < 0:
         if r.timed_out:
             return Result(_text(124, r.stdout, True, timeout, []), timed_out=True)
-        return Result(f"没跑成：{(r.stderr or r.stdout).strip()[-500:] or f'退出码 {r.exit_code}'}")
+        return Result(f"Did not run: {(r.stderr or r.stdout).strip()[-500:] or f'exit code {r.exit_code}'}")
     out, tail = r.stdout[:at], r.stdout[at + len(MARK) + 1:].splitlines()
     rc = int(tail[0]) if tail and tail[0].strip().lstrip("-").isdigit() else r.exit_code
     files = [f"{d}/{x}" for x in tail[1:] if x.strip()]
@@ -522,7 +522,7 @@ async def _on_host(lang: str, code: str, inputs: dict[str, str], timeout: int, n
     kind = host_sandbox()
     exe = _interpreter(lang)
     if not exe:
-        return Result(f"这台机器上没有 {lang}，换一种语言写吧")
+        return Result(f"{lang} is not installed on this machine; write it in another language")
     ws = DATA / "workspace"
     ws.mkdir(parents=True, exist_ok=True)
     ws = Path(_real(ws))
@@ -561,32 +561,34 @@ async def _to_linked(run: Path, rid: str, made: list[str]) -> tuple[list[str], s
             await c.write_bytes(p, (run / x).read_bytes())
             out.append(posixpath.join(c.workspace, p) if c.workspace else p)
     except Exception as e:
-        return [str(run / x) for x in made], f"（代码在服务器上跑的，产出的文件没能传到你的 Mac：{e}；文件还在服务器的工作文件夹里）"
+        return [str(run / x) for x in made], f"(The code ran on the server and the produced files could not be copied to your Mac: {e}; the files are still in the server's working folder)"
     shutil.rmtree(run, ignore_errors=True)
-    return out, "（代码在服务器上跑的，读不到 Mac 上的文件；产出的文件已经传到 Mac 的工作文件夹）"
+    return out, "(The code ran on the server and cannot read files on the Mac; the produced files were copied to the Mac's working folder)"
 
 
 # ---------- 工具 ----------
 RUN_CODE = {"type": "function", "function": {
     "name": "run_code",
-    "description": "在沙箱里跑一段代码（python / bash / node），返回输出和产出的文件。算数、算日期、换单位、统计和处理数据、"
-                   "画图表、转换文件格式都用它算，不要心算。在沙箱里跑：当前目录在工作文件夹里，用相对路径写的文件会留下来"
-                   "（结果里列出路径，可以 send_file），工作文件夹外改不了；电脑是用户自己的电脑时读不到用户的其他文件，"
-                   "也可能不能联网（要下载的先用 fetch_url 或浏览器存进工作文件夹）。",
+    "description": "Run a piece of code (python / bash / node) in a sandbox; returns the output and any files produced. "
+                   "Use it for arithmetic, dates, unit conversion, statistics and data processing, charts and file format conversion; do not calculate in your head. "
+                   "It runs in the sandbox: the current directory is the working folder, files written with relative paths are kept "
+                   "(the result lists their paths, so you can send_file them), and nothing outside the working folder can be changed; "
+                   "when the computer is the user's own, the user's other files are unreadable and the network may be unavailable "
+                   "(download what you need first with fetch_url or the browser into the working folder).",
     "parameters": {"type": "object", "properties": {
-        "lang": {"type": "string", "enum": list(LANGS), "description": "语言，默认 python"},
-        "code": {"type": "string", "description": "要跑的代码，结果用 print / echo 输出"},
+        "lang": {"type": "string", "enum": list(LANGS), "description": "language, default python"},
+        "code": {"type": "string", "description": "the code to run; print / echo the result"},
         "files": {"type": "object", "additionalProperties": {"type": "string"},
-                  "description": "可选：一起放进去的文字文件 {相对路径: 内容}，比如数据、要调用的脚本"},
-        "timeout": {"type": "integer", "description": f"最多跑多少秒，默认 {TIMEOUT}，最多 {MAX_TIMEOUT}"}},
+                  "description": "optional: text files to place alongside, {relative_path: content}, e.g. data or scripts to call"},
+        "timeout": {"type": "integer", "description": f"maximum seconds to run, default {TIMEOUT}, at most {MAX_TIMEOUT}"}},
         "required": ["code"]}}}
 
 QUICK_CODE = {"type": "function", "function": {
     "name": "quick_code",
-    "description": "在沙箱里马上跑一小段 Python，返回输出。算数、换单位、算日期和星期、算时差、算百分比这类要算准的，用它算，不要心算。"
-                   f"在沙箱里跑：{QUICK_TIMEOUT} 秒内要跑完，不能联网，工作文件夹外改不了。要处理文件、联网或跑得久的派任务。",
+    "description": "Run a short piece of Python in a sandbox right away; returns the output. Use it for anything that must be exact: arithmetic, unit conversion, dates and weekdays, time differences, percentages; do not calculate in your head. "
+                   f"It runs in the sandbox: it must finish within {QUICK_TIMEOUT} seconds, has no network, and cannot change anything outside the working folder. For files, network access or long runs, dispatch a task.",
     "parameters": {"type": "object", "properties": {
-        "code": {"type": "string", "description": "Python 代码，结果用 print 输出"}}, "required": ["code"]}}}
+        "code": {"type": "string", "description": "Python code; print the result"}}, "required": ["code"]}}}
 
 
 async def tool_run(call) -> str:
