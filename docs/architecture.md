@@ -81,6 +81,7 @@ osa/
     image/         本地电脑镜像
 Dockerfile          服务镜像：后端、构建好的前端、应用要用的 Node 和 uv
 compose.yaml        Docker Compose 部署（deploy/Caddyfile 是 --profile https 的反向代理），见 docs/docker.md
+compose.computer.yaml  叠在 compose.yaml 上：挂 docker.sock、构建本地电脑镜像，用本地电脑时才加
 web/public/         PWA：manifest.json、sw.js（推送和离线提示页）、图标
 web/src/
   store.ts         全局状态、REST 封装、WebSocket 事件处理

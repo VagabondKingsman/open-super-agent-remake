@@ -93,6 +93,10 @@ class LocalComputer(Computer):
         code, out, err = await _run("docker", "inspect", "-f", "{{json .State}}", self.name, timeout=15)
         if code == 127 or err == "docker-missing":
             return {"state": "unavailable", "detail": i18n.t("未安装 Docker，无法使用本地电脑"), "reason": "docker_missing"}
+        # Compose without compose.computer.yaml lands here. Wording differs by CLI version (29.x: "failed to connect to the docker API")
+        if code and ("Cannot connect to the Docker daemon" in err or "failed to connect to the docker API" in err):
+            return {"state": "unavailable", "reason": "docker_unreachable",
+                    "detail": i18n.t("连不上 Docker，无法使用本地电脑。用 Docker Compose 部署的，要加上 compose.computer.yaml（见 docs/docker.md）")}
         if code:
             return {"state": "none", "detail": i18n.t("还没有创建")}
         st = json.loads(out)
