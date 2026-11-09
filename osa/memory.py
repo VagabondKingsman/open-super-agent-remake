@@ -33,9 +33,8 @@ conn.execute("create index if not exists messages_chat on messages(chat_id, id)"
 conn.execute("""create table if not exists llm_usage(ts real, role text, model text, task_id integer,
   cache_hit integer, cache_miss integer, output integer, cost real)""")
 _usage_cols = {r[1] for r in conn.execute("pragma table_info(llm_usage)")}
-if "estimated" not in _usage_cols:
-    # 1 = output tokens ước từ chữ đã nhận khi hủy, không phải usage của provider
-    conn.execute("alter table llm_usage add column estimated integer not null default 0")
+# remake 以前给 llm_usage 加过 estimated 列（OSA-009）；现在用量记在 llm_calls，旧表不再加列：
+# 退回旧版本时它们按位置插 8 个值（见下面 upstream 的说明）。已经有这列的旧库照样能搬。
 conn.execute("create index if not exists llm_usage_task on llm_usage(task_id)")
 # 每次模型调用（观测页、费用、每日预算都从这里算）。比 llm_usage 多记：bot_id / chat_id（谁在哪个对话里调的）、
 # provider、ms（整次用时）、ttft（多久出第一个字，毫秒）、err（失败的原因：失败的也记一行，token 和费用是 0）。
@@ -57,10 +56,11 @@ def _move_legacy_usage():
     last = conn.execute("select max(ts) from llm_usage where ts > ?", (done,)).fetchone()[0]
     if last is None:
         return
-    conn.execute("""insert into llm_calls(ts, role, model, task_id, cache_hit, cache_miss, output, cost, bot_id, chat_id,
+    est = "coalesce(u.estimated, 0)" if "estimated" in _usage_cols else "0"
+    conn.execute(f"""insert into llm_calls(ts, role, model, task_id, cache_hit, cache_miss, output, cost, bot_id, chat_id,
         estimated)
         select u.ts, u.role, u.model, u.task_id, u.cache_hit, u.cache_miss, u.output, u.cost, m.bot_id, m.chat_id,
-        coalesce(u.estimated, 0)
+        {est}
         from llm_usage u left join messages m on m.id = u.task_id where u.ts > ? and u.ts <= ? order by u.ts""", (done, last))
     conn.execute("insert or replace into settings values('llm_usage_moved', ?)", (json.dumps(last),))
 
