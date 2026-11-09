@@ -396,6 +396,7 @@
   "要绑定的对话不存在": "The chat to link to doesn't exist",
   "规则不能为空": "The rule can't be empty",
   "订阅信息不完整": "Incomplete subscription info",
+  "推送地址不能是本机或内网地址": "The push endpoint can't be a local or private address",
   "订阅已失效，已删除": "The subscription expired and was removed",
   "讨论串里不能开新话题": "You can't start a new topic inside a thread",
   "记忆内容不能为空": "A memory can't be empty",

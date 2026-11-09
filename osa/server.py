@@ -491,8 +491,13 @@ async def push_info():
 
 @app.post("/api/push/subscribe")
 async def push_subscribe(request: Request, data: dict = Body(...)):
+    from . import tools
+    sub = data.get("subscription") or {}
+    ep = sub.get("endpoint") if isinstance(sub, dict) else None
+    if isinstance(ep, str) and await tools.private_host(ep):
+        raise HTTPException(400, i18n.t("推送地址不能是本机或内网地址"))
     try:
-        n = push.subscribe(data.get("subscription") or {}, request.headers.get("user-agent", ""))
+        n = push.subscribe(sub, request.headers.get("user-agent", ""))
     except ValueError as e:
         _err(e)
     return {"count": n}
