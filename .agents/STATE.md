@@ -171,3 +171,11 @@ Head lúc chạy: `f83e3cb486b82a036d54303c6cba437840f49f18`. Provider Experient
 14 dòng usage, 116.236 token. Vượt mục tiêu khoảng 100.000 nên routine không chạy. Guard harness đếm sai cột token, phải sửa trước đợt sau. Websocket dừng vì regex 402 khớp offset 14025. Log server không có lỗi 402. `results.json` giữ heavy đang `running` tại 60,38 giây. Latency 124 giây lấy từ `summary.json` và báo cáo.
 
 Bằng chứng: [LIVE-TEST](evidence/osa-011-live-test/LIVE-TEST.md), [summary](evidence/osa-011-live-test/summary.json), [results](evidence/osa-011-live-test/results.json), [live.py](evidence/osa-011-live-test/live.py), [finish.py](evidence/osa-011-live-test/finish.py). Không có thư mục `raw/`. Phiên này không gọi lại provider.
+
+## Bổ sung · PR #16 đã merge · OSA-021 đang làm · hoplite · 09/11/2026
+
+Append. Không sửa các mục phía trên. Câu "PR #16 chưa merge" ở trên là trạng thái lúc viết OSA-014.
+
+[PR #16](https://github.com/VagabondKingsman/open-super-agent-remake/pull/16) đã merge vào `i18n-vi` tại `3b02a80f1b4b04e311c48f3283719f4798d7befd`. Head của PR là `c876608701a942b7a24d3d9857c0aed127c48493`. `merged_at` API `2026-11-07T14:14:45Z`, tức 21:14:45 Asia/Saigon. `merged_by` là VagabondKingsman.
+
+OSA-021 port upstream `kadaliao/open-super-agent` v0.12.0 (`d432c74`) lên remake. Branch `hoplite/megara-e725a8f4`, PR vào `i18n-vi`, chưa merge. Cách làm: dựng nền v0.12.0 rồi port lại phần riêng của remake, giữ VI mặc định, prompt tiếng Anh, Heavy, chi phí USD, skill pack AI Native. `desktop/` và `mobile/` có trong cây, không có workflow build. Local: pytest 690 passed, 5 skipped. i18n backend 1175, frontend 1244, thiếu/thừa 0. Web 27/27, build OK. Docker build và smoke OK. Chi tiết và việc còn mở ở [log OSA-021](log/2026-11-09-hoplite-osa-021.md). Không gọi model trả phí trong phiên hoàn tất.

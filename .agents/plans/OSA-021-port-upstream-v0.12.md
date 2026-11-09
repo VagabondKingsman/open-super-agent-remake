@@ -1,6 +1,6 @@
 # OSA-021 · Plan cập nhật upstream v0.6.1 → v0.12.0
 
-Soạn 09/11/2026 khoảng 12:50 Asia/Saigon. Người soạn: Hoplite. Trạng thái: **PLAN, chưa BUILD**. Chưa claim trên BOARD, chưa push.
+Soạn 09/11/2026 khoảng 12:50 Asia/Saigon. Người soạn: Hoplite. Trạng thái lúc soạn: **PLAN, chưa BUILD**. Cập nhật 14:40: đã BUILD theo chiến lược B, PR vào `i18n-vi`, xem [log OSA-021](../log/2026-11-09-hoplite-osa-021.md).
 
 - Skill Flow: osa-dev → ai-work-method → vibecode-kit (quy mô lớn: đủ 8 bước) → unslop-vi cho docs.
 - Base remake: `i18n-vi` = `3b02a80` (merge PR #16). Upstream `kadaliao/open-super-agent` `main` = tag `v0.12.0` = `d432c74`. Remote `upstream` chỉ fetch, push URL `DISABLED`.
