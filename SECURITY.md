@@ -6,6 +6,7 @@
   只有一个密码，没有多用户和权限区分。**不设置时不用登录**，能访问到这个端口的人就能和你的 Bot 对话、操作电脑、使用你接入的应用，
   这时请只在本机或内网（例如 Tailscale）使用。部署到公网时务必设置一个足够长的随机密码，并通过 HTTPS 访问。
 - 登录状态是一个签了名的 HttpOnly cookie（SameSite=Lax，HTTPS 下带 Secure），签名密钥在 `data/session.key`。同一个 IP 10 分钟内输错 5 次会暂停登录。
+  另外所有来源的密码校验排成一队，输错一次占 1 秒，所以换 IP 或伪造 `X-Forwarded-For` 也只能每秒试一次左右；排队的超过 8 个时直接回“请求太多”，不校验。
 - 来源（Origin）和本站不一致的写请求与 WebSocket 一律拒绝，不管开没开登录，webhook 也一样。所以你在浏览器里打开的网页，没法连上本机的服务替你发消息、处理确认卡片。
 - 没开登录时，只接受用 `localhost`、IP 地址、`*.local`、`*.ts.net` 和 `server.allowed_hosts` 里的名字访问，防 DNS rebinding（别人把自己的域名解析到 127.0.0.1，借你的浏览器读写本机的服务）。
 - 本地电脑的 VNC 没有密码，只监听电脑容器里的 127.0.0.1，不映射到宿主机端口，由服务端经 `docker exec` 转发给浏览器。电脑里 Chromium 的 DevTools 端口（9222）只监听电脑内部，也不做端口映射。
@@ -24,6 +25,7 @@
     要抓内网页面在 `config.yaml` 里设 `tools.fetch_private: true`。检查和真正连接之间域名还可能换地址（DNS rebinding），这一点没有防。
   - 写操作要先过确认卡片（见设置里的确认规则）。
 - **电脑里能连到什么**：
+  - 本地电脑的容器带 `--security-opt no-new-privileges`、`--pids-limit 4096`，去掉了 `NET_RAW`、`MKNOD` 两个权限。只对新建的容器生效，已有的 `osa-computer` 要删掉重建（`docker rm -f osa-computer`，`/data` 在卷里不会丢）。
   - macOS 的 Docker Desktop 上（2026-11-06 实测），本地电脑能通过 `host.docker.internal` 连到宿主机上**只监听 127.0.0.1 的服务**，
     宿主机看到的来源也是 127.0.0.1，和你自己的浏览器分不出来。所以在 Mac 上不设 `OSA_PASSWORD` 时，Bot 在电脑终端或浏览器里能直接调用本服务的接口
     （包括处理确认卡片），网页里的提示注入可以借此绕过确认。用 Docker Compose 跑、端口映射到 127.0.0.1 时应该也一样（没有单独测）。
