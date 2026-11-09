@@ -6,7 +6,8 @@
 （computer_shell:git * 也管单独一个 git）。
 电脑工具也按规则走（见 computer/tools.py）：本机电脑默认上传文件、写文件、提交（browser_submit）都先问，终端每条命令都问，
 只有带命令前缀的“自动允许”规则（computer_shell:git *）放行，而且命令里有 ; & | ` $ ( ) < > 换行这类连接、替换、重定向的
-不算命中（不然 git status; rm -rf ~ 也混得过去）；Docker、Instabox 的电脑默认不问，靠 Worker 自己用 ask_approval。
+不算命中（不然 git status; rm -rf ~ 也混得过去）；Docker、Instabox 的电脑在对话里派的任务默认不问，靠 Worker 自己用 ask_approval，
+后台任务（定时、webhook）的终端命令和写文件要问（BG_ASK）。
 确认卡片上同意时选作用域（resolve 的 scope）：once 只这一次；task 这个任务里同一个工具不再问，任务结束（做完、失败、取消）清掉；
 minutes:N 接下来 N 分钟不再问；always 生成一条“自动允许”规则（终端是“总是允许这个命令前缀”，默认是命令的第一个词）。
 task、minutes 只记在内存里（grants），服务重启就没了。once=True 的卡片（新建、修改、删除 Bot，Worker 的 ask_approval）只能一次一次地允许。
@@ -89,6 +90,9 @@ def delete_rule(rid: int):
 # 本机电脑默认先问的电脑工具。desktop：任务第一次用整个屏幕（真实的鼠标键盘）；desktop_submit：在屏幕上点“发送 / 付款”这类按钮、在输入框里按回车
 PC_ASK = {"browser_upload", "computer_write_file", "browser_submit", "desktop", "desktop_submit"}
 PC_TOOLS = PC_ASK | {"computer_shell"}
+# Docker / Instabox computers: a background task (routine, webhook) has nobody watching and may be steered by the
+# page, mail or webhook text it reads, so its shell commands and file writes need a card (expires = refused).
+BG_ASK = {"computer_shell", "computer_write_file"}
 ASK = {"generate_image"}   # 默认每次都问的（画图要花钱）；点“总是允许”后不再问
 HOSTS = ("host", "linked")   # 用户自己的电脑（同 computer.base.HOSTS；这里不 import computer）
 SHELL = "computer_shell"
@@ -147,9 +151,10 @@ def _asks(pattern: str, tool: str, value: str | None) -> bool:
     return False
 
 
-def decide(tool: str, backend: str | None = None, args: dict | None = None) -> tuple[bool, str]:
+def decide(tool: str, backend: str | None = None, args: dict | None = None, background: bool = False) -> tuple[bool, str]:
     """返回 (是否要确认, 原因)。规则用通配符匹配工具全名（filesystem__*）或“工具:参数”（见文件开头）。
-    backend：电脑工具在哪种电脑上用。args：这次调用的参数，“工具:参数”的规则要用。"""
+    backend：电脑工具在哪种电脑上用。args：这次调用的参数，“工具:参数”的规则要用。
+    background: the call comes from a background task (routine / webhook); see BG_ASK."""
     value = subject(tool, args)
     host_shell = tool == SHELL and backend in HOSTS
     rs = rules()
@@ -162,6 +167,8 @@ def decide(tool: str, backend: str | None = None, args: dict | None = None) -> t
     if host_shell:
         return True, "本机电脑的终端每条命令都要确认"
     if tool in PC_TOOLS:
+        if background and tool in BG_ASK:
+            return True, "后台任务在电脑里执行命令、写文件要确认"
         return backend in HOSTS and tool in PC_ASK, "默认策略"
     if tool in ASK:
         return True, "默认策略"

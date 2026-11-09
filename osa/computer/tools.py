@@ -280,7 +280,8 @@ async def _confirm(task, c, name: str, args: dict, key: str) -> str | None:
         if not info.get("submit"):
             return None
         tool, shown = "browser_submit", {"操作": info.get("what"), "页面": f"{info.get('title') or ''} | {info.get('url') or ''}"}
-    if not approvals.decide(tool, c.backend, args if tool != "browser_submit" else shown)[0]:
+    if not approvals.decide(tool, c.backend, args if tool != "browser_submit" else shown,
+                            background=bool(getattr(task, "background", False)))[0]:
         return None
     ok, note = await approvals.request(task, tool, shown)   # 终端：卡片上能“总是允许这个命令前缀”（approvals.resolve）
     return None if ok else f"The user refused this action; it was not performed. {note}".strip()

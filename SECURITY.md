@@ -24,6 +24,8 @@
   - `fetch_url` 默认不抓本机和内网地址（回环、内网、链路本地、云服务器的元数据地址 `169.254.169.254`、100.64/10），解析到内网的域名和跳转到内网的也挡住；
     要抓内网页面在 `config.yaml` 里设 `tools.fetch_private: true`。检查和真正连接之间域名还可能换地址（DNS rebinding），这一点没有防。
   - 写操作要先过确认卡片（见设置里的确认规则）。
+  - 定时任务、webhook 触发的后台任务没人盯着，读到的内容又最容易带注入：在 Docker、Instabox 的电脑里执行终端命令（`computer_shell`）、写文件（`computer_write_file`）前都要确认，
+    卡片超时按拒绝处理。对话里派的任务照旧不问。确认规则里的“自动允许”（比如 `computer_shell:git *`）对后台任务同样有效。
 - **电脑里能连到什么**：
   - 本地电脑的容器带 `--security-opt no-new-privileges`、`--pids-limit 4096`，去掉了 `NET_RAW`、`MKNOD` 两个权限。只对新建的容器生效，已有的 `osa-computer` 要删掉重建（`docker rm -f osa-computer`，`/data` 在卷里不会丢）。
   - macOS 的 Docker Desktop 上（2026-11-06 实测），本地电脑能通过 `host.docker.internal` 连到宿主机上**只监听 127.0.0.1 的服务**，
