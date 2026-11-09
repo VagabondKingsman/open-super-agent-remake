@@ -40,6 +40,19 @@ Các biến cần có sẵn trong môi trường, lấy từ kho secret của bo
 
 `OSA_DATA_DIR` đã khai trên box là `/workspace/osa-run/data`. Thư mục đó không tồn tại. Process vẫn mở `/workspace/osa-run/osa.db`. `osa/config.py` `_db_path()` thấy `memory.db` tuyệt đối thì trả đúng đường đó. Đặt biến môi trường không chứng minh DB nằm trong data dir. OSA-015.
 
+Từ OSA-022, Tin Tin chọn giữ nguyên đường DB. Khi gặp trường hợp này, lúc khởi động app in một dòng cảnh báo vào log, và mục Cài đặt → Sao lưu hiện đường DB thật kèm cảnh báo đỏ. Khi backup bằng tay, phải mang theo file DB ở đường tuyệt đối đó.
+
+### Khối `security` từ v0.12
+
+File config của box soạn theo v0.6.1 nên không có khối `security`. Thiếu khối này thì `osa/security.py` dùng mặc định `local_exec: true`, tức `exec: host`, `plugins: any`, `apps: any`: ai đăng nhập web được là chạy được lệnh trên box. Upstream khuyên máy chủ dùng `false`. Box chỉ mở trong tailnet và có mật khẩu, nhưng nên thêm vào file config trên box trước khi deploy bản 0.12:
+
+```yaml
+security:
+  local_exec: false   # hoặc từng khóa: exec: sandbox, plugins: market, apps: market
+```
+
+`exec: sandbox` cần `bwrap` trong máy. Image Docker đã có. Box chạy uvicorn trực tiếp thì kiểm `command -v bwrap`. Đổi khối này là việc của operator, không commit file config.
+
 Worktree box là checkout tách, detach tại `i18n-vi`. Không sửa code trên worktree rồi copy lên git. Sửa repo bằng PR.
 
 ## Provider
