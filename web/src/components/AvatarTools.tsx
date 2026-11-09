@@ -5,7 +5,7 @@ import type { Avatar } from '../types'
 
 // 能画图的模型（GET /api/avatars/models）。price：每张多少钱（config.yaml 的 pricing.images），不知道是 null
 export type ImageModel = { provider: string; title: string; model: string; price: number | null }
-export const imagePrice = (p: number | null | undefined, cur = '¥') =>
+export const imagePrice = (p: number | null | undefined, cur = '$') =>
   p === null || p === undefined ? t('价格未知') : p === 0 ? t('免费') : t('{price} / 张', { price: cur + p })
 
 // 把一张图（比如对话里画的）设为 Bot 或群聊的头像：裁成 256 像素的正方形存成头像，再改 Bot / 群聊
