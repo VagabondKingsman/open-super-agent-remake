@@ -100,9 +100,9 @@ def brief_sources() -> str:
     for src in registry.SOURCES.values():
         if unavailable(src):
             continue
-        fs = "、".join(f"{f['key']}（{f.get('label', '')}{'，必填' if f.get('required') else ''}"
-                      f"{'，可选：' + '/'.join(o['value'] for o in f['options']) if f.get('options') else ''}）" for f in src.fields)
-        lines.append(f"- {src.id}：{src.title}。{src.description}" + (f" 参数：{fs}" if fs else ""))
+        fs = ", ".join(f"{f['key']} ({i18n.t(f.get('label', ''))}{', required' if f.get('required') else ''}"
+                       f"{', one of: ' + '/'.join(o['value'] for o in f['options']) if f.get('options') else ''})" for f in src.fields)
+        lines.append(f"- {src.id}: {i18n.t(src.title)}. {i18n.t(src.description)}" + (f" Parameters: {fs}" if fs else ""))
     return "\n".join(lines)
 
 
@@ -318,27 +318,27 @@ def _plain(e: dict) -> str:
 
 
 def render(src: Source | None, params: dict, events: list[dict]) -> str:
-    head = f"事件来源：{src.title if src else '?'}"
+    head = f"Event source: {i18n.t(src.title) if src else '?'}"
     if src and src.summary:
         try:
             if what := src.summary(params):
                 head += f"（{what}）"
         except Exception:
             pass
-    parts, used = [head + (f"，共 {len(events)} 条" if len(events) > 1 else "")], 0
+    parts, used = [head + (f", {len(events)} events" if len(events) > 1 else "")], 0
     for i, e in enumerate(events[:MAX_EVENTS], 1):
         block = (f"{i}. " if len(events) > 1 else "") + (e["title"] or "").strip()
         if e.get("url"):
-            block += f"\n链接：{e['url']}"
+            block += f"\nLink: {e['url']}"
         if e["text"].strip() and e["text"].strip() != e["title"].strip():
             block += "\n" + e["text"].strip()
         if used + len(block) > MAX_TEXT:
-            parts.append(f"……还有 {len(events) - i + 1} 条，太长没放进来")
+            parts.append(f"… {len(events) - i + 1} more not included (too long)")
             break
         used += len(block)
         parts.append(block)
     if len(events) > MAX_EVENTS:
-        parts.append(f"……还有 {len(events) - MAX_EVENTS} 条，太多没放进来")
+        parts.append(f"… {len(events) - MAX_EVENTS} more not included (too many)")
     return "\n\n".join(parts)
 
 
@@ -525,5 +525,5 @@ async def test(r: dict) -> dict:
             return out
     row = conn.execute("select sample from event_state where routine_id=?", (r["id"],)).fetchone()
     sample = json.loads(row[0]) if row and row[0] else None
-    sample = sample or src.sample or {"title": "（这是一次手动测试，没有真实事件）", "text": ""}
+    sample = sample or src.sample or {"title": "(This is a manual test; there is no real event)", "text": ""}
     return await deliver(r, [sample], "test")

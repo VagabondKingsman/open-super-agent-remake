@@ -15,7 +15,7 @@ from osa.worker import Task
 
 def _usage_rows(task_id: int):
     return memory.conn.execute(
-        "select cache_hit, cache_miss, output, estimated from llm_usage where task_id=? order by ts",
+        "select cache_hit, cache_miss, output, estimated from llm_calls where task_id=? order by ts",
         (task_id,)).fetchall()
 
 
@@ -225,7 +225,12 @@ async def test_b06_mcp_is_error_marks_the_step_error(monkeypatch):
     async def boom(**kwargs):
         raise mcp_hub.ToolResultError(text)
 
-    monkeypatch.setitem(mcp_hub.TOOLS, "demo__expected_error", (boom, {}))
+    # v0.12：MCP 工具挂在注册表上（mcp_hub.TOOLS 没了）。这里注册一个同样抛 ToolResultError 的 Worker 工具
+    from osa import registry
+    ctx = registry.Context("test-b06")
+    ctx.simple("demo__expected_error", {"type": "function", "function": {"name": "demo__expected_error",
+                                                                           "parameters": {"type": "object", "properties": {}}}},
+               boom, where=frozenset({registry.WORKER}))
     task = Task(id=7706, goal="g", bot_id=1, chat_id=1)
     log = tasklog.Log(task)
     step = await log.start("tool", "demo__expected_error")
@@ -233,7 +238,11 @@ async def test_b06_mcp_is_error_marks_the_step_error(monkeypatch):
     async def progress(_):
         return None
 
-    out, status = await worker._tool(task, log, step, "demo__expected_error", "{}", progress, True, [])
+    try:
+        out, status = await worker._tool(task, log, step, "demo__expected_error", "{}", progress,
+                                         {"scope": registry.WORKER}, [])
+    finally:
+        ctx.dispose()
     assert status == "error"
     assert "expected_error" in out
     await log.finish(step, status, out)
@@ -442,5 +451,5 @@ async def test_r3_router_cancel_counts_tool_arguments(make_bot):
     with pytest.raises(asyncio.CancelledError):
         await run
     rows = memory.conn.execute(
-        "select output, estimated from llm_usage where model=? order by ts", ("router-tool-only",)).fetchall()
+        "select output, estimated from llm_calls where model=? order by ts", ("router-tool-only",)).fetchall()
     assert rows == [(memory.estimate_output_tokens("verify_facts" + args), 1)]
