@@ -3,6 +3,7 @@ import { lang, syncLang, t } from './i18n'
 import type { App, Approval, Attachment, Bot, CatalogItem, Chat, ComputerState, Message, OpenThread, Settings, Skill, Stream, Task, TaskInfo, TaskStep, Teach, TeachDraft, ThreadInfo, ThreadSummary } from './types'
 import { notice } from './components/Dialog'
 import { desktop, phone } from './desktop'
+import { reconnectDelay } from './reconnect'
 
 type State = {
   ready: boolean
@@ -295,14 +296,15 @@ document.addEventListener('visibilitychange', () => {
   reportVisibility()
 })
 
+let attempts = 0   // consecutive failed reconnects
 export function connect() {
   ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws')
-  ws.onopen = () => { set({ connected: true }); reportVisibility(); if (state.ready) resync() }
+  ws.onopen = () => { attempts = 0; set({ connected: true }); reportVisibility(); if (state.ready) resync() }
   ws.onclose = () => {
     set({ connected: false })
     // WebSocket 被拒时拿不到状态码：问一下接口，没登录的话 api() 会跳去登录页
     if (state.auth) api('/api/me').catch(() => {})
-    setTimeout(connect, 1500)
+    setTimeout(connect, reconnectDelay(attempts++))
   }
   ws.onmessage = e => handle(JSON.parse(e.data))
 }
