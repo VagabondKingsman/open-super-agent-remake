@@ -108,6 +108,13 @@ def _tasks(a: float, b: float, bot: int | None) -> list[dict]:
                     "status": m.get("status", "done"), "elapsed": m.get("elapsed"), "steps": m.get("steps"),
                     "mode": m.get("mode", "single"), "quiet": bool(m.get("quiet")), "chat_id": chat_id, "bot_id": bot_id,
                     "routine": hit.group(1) if hit else None})
+    # langcheck stores lang_flag on the task's result message, not the dispatch one. Flagged results are rare, so one
+    # query over the window (no IN list that could hit SQLite's variable limit) and match ids here.
+    flags = {tid: json.loads(f) for tid, f in conn.execute(
+        """select json_extract(meta, '$.task_id'), json_extract(meta, '$.lang_flag') from messages where role='task'
+        and json_extract(meta, '$.kind')='result' and json_extract(meta, '$.lang_flag') is not null and ts>=?""", (a,))}
+    for t in out:
+        t["lang_flag"] = flags.get(t["id"])
     return out
 
 
