@@ -31,7 +31,7 @@ Snapshot 07/11/2026, Asia/Saigon (UTC+7). GitHub PR + base mới là trạng th�
 
 ## In progress
 
-- OSA-030: `OSA-030 / hoplite / hoplite/osa-030-docs-sync / đồng bộ BOARD, STATE, HANDOFF sau khi PR #21, #23, #24, #25 merge / claimed_at 09/11/2026 22:30 Asia/Saigon / PR vào i18n-vi`. Chỉ sửa `.agents/`.
+- OSA-030: `OSA-030 / hoplite / hoplite/osa-030-docs-sync / đồng bộ BOARD, STATE, HANDOFF sau khi PR #21, #23, #24, #25 merge / claimed_at 09/11/2026 22:30 Asia/Saigon / [PR #26](https://github.com/VagabondKingsman/open-super-agent-remake/pull/26)`. Chỉ sửa `.agents/`.
 
 ## Done · đã public
 
