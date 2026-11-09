@@ -1,6 +1,8 @@
 """Bot 管理 Bot（botadmin.py）：主 Bot 能查看、新建、修改、删除所有 Bot，别的 Bot 只能改自己。
 新建、修改、删除每次都弹卡片（不能“总是允许”），同意才做，拒绝留一笔；参数不对不弹卡片；别的 Bot 的提示词让它去找主 Bot。
 有了结果发起的 Bot 会被叫醒接着说一轮（能去私信新 Bot）；别的 Bot 托它做的，结果作为回信送回去。"""
+import re
+
 import pytest
 from conftest import find, settle, until
 from fakellm import Call, system_of
@@ -48,9 +50,9 @@ async def test_only_primary_can_create(llm, events, boss, make_bot):
     b, o = llm.bodies("router", "Boss")[-1], llm.bodies("router", "Helper7")[-1]
     assert {"get_bot", "create_bot", "update_bot", "delete_bot"} <= tools_of(b)
     assert "update_bot" in tools_of(o) and not {"get_bot", "create_bot", "delete_bot"} & tools_of(o)   # 只能改自己
-    assert "你是主 Bot，负责管理所有 Bot" in system_of(b)
-    assert "管理 Bot 的事归主 Bot「Boss」" in system_of(o) and "message_bot" in system_of(o)
-    assert "只有主 Bot（Boss）能新建 Bot" in tool_outputs(o)[0]   # 没给它工具，它硬调也不行
+    assert "You are the primary bot and manage all bots" in system_of(b)
+    assert 'Managing bots belongs to the primary bot "Boss"' in system_of(o) and "message_bot" in system_of(o)
+    assert "Only the primary Bot (Boss) can create Bots" in tool_outputs(o)[0]   # 没给它工具，它硬调也不行
     assert not card() and not bots.by_name("Sneaky")
 
 
@@ -61,7 +63,7 @@ async def test_create_after_approval(llm, events, boss):
         "skills": [{"name": "quark7", "description": "找资源存网盘", "body": "1. 找资源\n2. 存进网盘"}]}), "请在卡片上确认",
         Call("message_bot", {"to": "Quark7", "text": "交代一下：夸克要扫码登录"}), "已经交代给 Quark7 了")
     await server.safe_handle(bots.chat(cid), "帮我建一个 Bot 叫 Quark7，专门找资源存网盘")
-    assert "有了结果你会接着说一轮" in tool_outputs(llm.bodies("router", "Boss")[-1])[0]
+    assert "you get another turn to speak" in tool_outputs(llm.bodies("router", "Boss")[-1])[0]
     c = await until(card, what="确认卡片")
     assert c["chat_id"] == cid and c.get("once")
     assert "Quark7" in c["args"] and "专门找资源" in c["args"] and "/quark7" in c["args"]
@@ -84,8 +86,8 @@ async def test_create_after_approval(llm, events, boss):
     dm = await until(lambda: find(q["chat_id"], kind="dm", text="夸克要扫码登录"), what="主 Bot 私信新 Bot")
     assert dm[0]["bot_id"] == boss["id"]
     woke = llm.bodies("router", "Boss")[2]   # 前两次是用户那一轮（调工具、再说话）
-    assert "新建 / 修改 / 删除 Bot 有结果了" in last_user(woke) and "已新建 Bot「Quark7」" in str(woke["messages"])
-    assert find(cid, role="assistant", text="已经交代给 Quark7 了")
+    assert "has an outcome" in last_user(woke) and "已新建 Bot「Quark7」" in str(woke["messages"])
+    await until(lambda: find(cid, role="assistant", text="已经交代给 Quark7 了"), what="主 Bot 说完")
     await settle()
 
 
@@ -99,7 +101,7 @@ async def test_reject_leaves_a_note(llm, events, boss):
     assert "名字换一个" in note[0]["content"] and not bots.by_name("Nope7")
     # 附了意见：叫醒主 Bot，好按意见改了再提
     await until(lambda: len(llm.bodies("router", "Boss")) == 3, what="主 Bot 被叫醒")
-    assert "新建 / 修改 / 删除 Bot 有结果了" in last_user(llm.bodies("router", "Boss")[2])
+    assert "has an outcome" in last_user(llm.bodies("router", "Boss")[2])
 
 
 async def test_reject_without_note_stays_quiet(llm, events, boss):
@@ -122,13 +124,13 @@ async def test_requested_by_other_bot_gets_result(llm, events, boss, make_bot):
     await server.safe_handle(bots.chat(other["chat_id"]), "让 Boss 建个管网盘的 Bot")
     c = await until(card, what="确认卡片")
     await settle()
-    assert "回信发给 Asker8" in tool_outputs(llm.bodies("router", "Boss")[-1])[0]
+    assert "goes to Asker8 as the answer" in tool_outputs(llm.bodies("router", "Boss")[-1])[0]
     assert not find(other["chat_id"], kind="dm_reply")   # 还没结果：不回信
 
     approvals.resolve(c["id"], True)
     reply = await until(lambda: find(other["chat_id"], kind="dm_reply"), what="回信")
     assert "Quark8 建好了，可以私信它" in reply[0]["content"] and bots.by_name("Quark8")
-    assert "Asker8 私信请你做的" in last_user(llm.bodies("router", "Boss")[-1])
+    assert "This was requested by a DM from Asker8" in last_user(llm.bodies("router", "Boss")[-1])
     assert '"请求方": "Asker8"' in c["args"]   # 卡片上写着是谁托它建的
     await until(lambda: find(other["chat_id"], role="assistant", text="Quark8 建好了"), what="Asker8 收到回信后接着说")
 
@@ -141,7 +143,7 @@ async def test_bad_args_no_card(llm, events, boss, make_bot):
     await server.safe_handle(bots.chat(boss["chat_id"]), "建几个 Bot")
     await settle()
     out = tool_outputs(llm.bodies("router", "Boss")[-1])
-    assert "已经有叫 Taken7 的 Bot" in out[0] and "职责是空的" in out[1] and "技能 有 空格" in out[2]
+    assert "A Bot named Taken7 already exists" in out[0] and "The role is empty" in out[1] and "Skill 有 空格" in out[2]
     assert not card() and not bots.by_name("Empty7") and not bots.by_name("Bad7")
 
 
@@ -154,15 +156,15 @@ async def test_missing_bot_means_create_it(llm, events, boss, make_bot):
 
     await server.safe_handle(bots.chat(boss["chat_id"]), "让 Quark 找本书")
     out = tool_outputs(llm.bodies("router", "Boss")[-1])[-1]
-    assert "没有叫 Quark" in out and "create_bot" in out and "设置" in out
-    assert "以这里为准" in system_of(llm.bodies("router", "Boss")[-1])   # 提示词：Bot 列表比记忆可信
+    assert "no other bot named Quark" in out and "create_bot" in out and "Settings" in out
+    assert "trust this list" in system_of(llm.bodies("router", "Boss")[-1])   # 提示词：Bot 列表比记忆可信
 
     await server.safe_handle(bots.chat(boss["chat_id"]), "再试")
-    assert tool_outputs(llm.bodies("router", "Boss")[-1])[-1] == "没发：这是你自己"
+    assert tool_outputs(llm.bodies("router", "Boss")[-1])[-1] == "Not sent: that is you"
 
     await server.safe_handle(bots.chat(other["chat_id"]), "让 Quark 找本书")
     out = tool_outputs(llm.bodies("router", "Helper9")[-1])[-1]
-    assert "没有叫 Quark" in out and "Boss" in out and "create_bot" not in out
+    assert "no other bot named Quark" in out and "Boss" in out and "create_bot" not in out
 
 
 async def test_get_bot(llm, events, boss, make_bot):
@@ -177,14 +179,14 @@ async def test_get_bot(llm, events, boss, make_bot):
     await server.safe_handle(bots.chat(boss["chat_id"]), "看看 Viewer9")
     await settle()
     overview, detail, skill, missing = tool_outputs(llm.bodies("router", "Boss")[-1])
-    assert "个 Bot" in overview and "Boss（主 Bot，就是你）" in overview
-    assert "Viewer9：负责写周报。 每周五交。" in overview and "技能 1 个" in overview and "在 1 个群里" in overview
-    assert "负责写周报。\n每周五交。" in detail and "/weekly：写周报" in detail and "1. 收集本周进展" in detail
-    assert "后面还有" in detail and "skill 参数" in detail                    # 太长的做法截断，告诉它怎么看全文
-    assert "周五提醒" in detail and "「周报组」" in detail and "它自己记了 1 条" in detail
+    assert re.search(r"\d+ Bots \(at most", overview) and "Boss (primary Bot, that is you)" in overview
+    assert "Viewer9: 负责写周报。 每周五交。" in overview and "1 skills" in overview and "in 1 groups" in overview
+    assert "负责写周报。\n每周五交。" in detail and "/weekly: 写周报" in detail and "1. 收集本周进展" in detail
+    assert "more characters" in detail and "skill parameter" in detail                    # 太长的做法截断，告诉它怎么看全文
+    assert "周五提醒" in detail and '"周报组"' in detail and "it has noted 1 items" in detail
     assert "用户喜欢简短的周报" not in detail                                    # 别的 Bot 的记忆内容不给看
-    assert skill.endswith("很长" * 2000) and "它自己的" in skill
-    assert "没有叫 Ghost9 的 Bot" in missing and "Viewer9" in missing
+    assert skill.endswith("很长" * 2000) and "its own" in skill
+    assert "No Bot named Ghost9" in missing and "Viewer9" in missing
     assert not approvals.pending
     bots.delete_group(g["id"])
 
@@ -200,7 +202,7 @@ async def test_update_after_approval(llm, events, boss, make_bot):
         "skills": [{"name": "draft", "body": "新的写法"}, {"name": "fresh", "description": "新技能", "body": "做法"}],
         "remove_skills": ["/old"]}), "请确认", "改好了")
     await server.safe_handle(bots.chat(boss["chat_id"]), "Writer9 改成周五上午交，改名 Scribe9")
-    assert "修改 Bot「Writer9」" in tool_outputs(llm.bodies("router", "Boss")[-1])[0]
+    assert 'change Bot "Writer9"' in tool_outputs(llm.bodies("router", "Boss")[-1])[0]
     c = await until(lambda: card("update_bot"), what="确认卡片")
     d = __import__("json").loads(c["args"])
     assert c["once"] and c["chat_id"] == boss["chat_id"]
@@ -235,8 +237,8 @@ async def test_update_checks(llm, events, boss, make_bot):
     await server.safe_handle(bots.chat(boss["chat_id"]), "改一下")
     await settle()
     out = tool_outputs(llm.bodies("router", "Boss")[-1])
-    assert out[0].startswith("没改：没有叫 Ghost9 的 Bot") and "没有要改的" in out[1] and "已经有叫 Taken9 的 Bot" in out[2]
-    assert "没有自己的技能 /shared9" in out[3] and "职责太长了" in out[4]
+    assert out[0].startswith("Did not change: No Bot named Ghost9") and "Nothing to change" in out[1] and "A Bot named Taken9 already exists" in out[2]
+    assert "has no skill of its own /shared9" in out[3] and "The role is too long" in out[4]
     assert not card("update_bot") and bots.get(w["id"])["instructions"] == "原来的职责"
     memory.conn.execute("delete from skills where name='shared9'")
     memory.conn.commit()
@@ -249,7 +251,7 @@ async def test_other_bot_updates_only_itself(llm, events, boss, make_bot):
                Call("update_bot", {"name": "Self9", "instructions": "新职责"}), "请确认", "改好了")
     await server.safe_handle(bots.chat(me["chat_id"]), "把你的职责改成新职责")
     out = tool_outputs(llm.bodies("router", "Self9")[-1])
-    assert "你只能改你自己" in out[0] and "Boss" in out[0] and out[1].startswith("已弹出确认卡片")
+    assert "You can only change yourself" in out[0] and "Boss" in out[0] and out[1].startswith("已弹出")
     c = await until(lambda: card("update_bot"), what="确认卡片")
     assert c["chat_id"] == me["chat_id"] and c["bot_id"] == me["id"]
     approvals.resolve(c["id"], True)
@@ -294,8 +296,8 @@ async def test_delete_checks(llm, events, boss, make_bot):
     await server.safe_handle(bots.chat(other["chat_id"]), "删")
     await settle()
     out = tool_outputs(llm.bodies("router", "Boss")[-1])
-    assert "主 Bot 不能删除" in out[0] and "没有叫 Ghost9" in out[1]
-    assert "只有主 Bot（Boss）能删除 Bot" in tool_outputs(llm.bodies("router", "Asker9")[-1])[0]
+    assert "The primary Bot cannot be deleted" in out[0] and "No Bot named Ghost9" in out[1]
+    assert "Only the primary Bot (Boss) can delete Bots" in tool_outputs(llm.bodies("router", "Asker9")[-1])[0]
     assert not card("delete_bot") and bots.get(boss["id"])
 
 
@@ -308,7 +310,7 @@ async def test_target_deleted_while_waiting(llm, events, boss, make_bot):
     await botadmin.remove(w["id"])   # 用户在设置里删了它
     approvals.resolve(c["id"], True)
     note = await until(lambda: find(boss["chat_id"], kind="note", text="没改成 Bot「Flaky9」"), what="没改成的记录")
-    assert "没有叫 Flaky9" in note[0]["content"]
+    assert "No Bot named Flaky9" in note[0]["content"]
     await until(lambda: find(boss["chat_id"], role="assistant", text="它已经没了"), what="主 Bot 被叫醒")
 
 
@@ -366,7 +368,7 @@ async def test_edit_role_on_card(llm, events, boss):
     assert b and b["instructions"] == "用户改过的职责" and not bots.by_name("Hacked9")
     assert [e for e in events.of("approval") if e.get("id") == c["id"] and e.get("edited") == ["职责"]]
     await until(lambda: len(llm.bodies("router", "Boss")) == 3, what="主 Bot 被叫醒")
-    assert "用户在卡片上改过职责" in last_user(llm.bodies("router", "Boss")[2])
+    assert "The user agreed only after editing" in last_user(llm.bodies("router", "Boss")[2])
     await settle()
 
 
@@ -399,6 +401,6 @@ async def test_turn_lists_current_tools(llm, events, boss, make_bot):
     await server.safe_handle(bots.chat(other["chat_id"]), "你好")
     await settle()
     mine, theirs = last_user(llm.bodies("router", "Boss")[-1]), last_user(llm.bodies("router", "Plain9")[-1])
-    assert "这一轮你能用的工具" in mine and "delete_bot" in mine and "以前说过“做不到”" in mine
+    assert "Tools you can use in this turn" in mine and "delete_bot" in mine and 'you said earlier in the chat that you "can\'t"' in mine
     assert "update_bot" in theirs and "delete_bot" not in theirs
-    assert "以这一轮给你的工具为准" in system_of(llm.bodies("router", "Boss")[-1])
+    assert "What you can do is decided by the tools you have in this turn" in system_of(llm.bodies("router", "Boss")[-1])

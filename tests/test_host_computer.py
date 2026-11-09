@@ -199,7 +199,7 @@ async def test_click_asks_only_for_submit(fake, monkeypatch):
 
     fake.info = {"submit": True, "what": "点击「发布」", "url": "https://x.example/", "title": "X"}
     out, _ = await ctools.call(TASK, "browser_click", {"ref": 4}, _noop, key="7:")
-    assert "用户拒绝" in out and fake.ops[-1] == "inspect"           # 被拒绝：没点
+    assert "The user refused" in out and fake.ops[-1] == "inspect"           # 被拒绝：没点
     assert user.asked[-1][0] == "browser_submit" and user.asked[-1][1]["操作"] == "点击「发布」"
 
     user.answer = True
@@ -215,11 +215,11 @@ async def test_upload_and_write_ask(fake, monkeypatch):
     monkeypatch.setattr(approvals, "request", user)
     await fake.write_bytes("a.pdf", b"%PDF")
     out, _ = await ctools.call(TASK, "browser_upload", {"ref": 2, "paths": "a.pdf"}, _noop, key="7:")
-    assert "用户拒绝" in out and "upload" not in fake.ops and user.asked[-1][0] == "browser_upload"
+    assert "The user refused" in out and "upload" not in fake.ops and user.asked[-1][0] == "browser_upload"
     out, _ = await ctools.call(TASK, "browser_upload", {"ref": 2, "paths": ["/etc/hosts"]}, _noop, key="7:")
     assert "工作文件夹" in out and len(user.asked) == 1                     # 工作文件夹外的文件：不问，直接不行
     out, _ = await ctools.call(TASK, "computer_write_file", {"path": "b.txt", "content": "x"}, _noop, key="7:")
-    assert "用户拒绝" in out and not (fake.root / "b.txt").exists()
+    assert "The user refused" in out and not (fake.root / "b.txt").exists()
     user.answer = True
     await ctools.call(TASK, "browser_upload", {"ref": 2, "paths": ["a.pdf"]}, _noop, key="7:")
     assert fake.ops[-2:] == ["upload", "snapshot"]
@@ -245,10 +245,10 @@ def test_host_tools_and_prompt(fake, monkeypatch):
     names = {s["function"]["name"] for s in ctools.schemas(fake)}
     assert "computer_shell" not in names and "browser_upload" in names
     hint = ctools.system_hint(fake)
-    assert fake.workspace in hint and "Linux" not in hint and "没有终端" in hint
+    assert fake.workspace in hint and "Linux" not in hint and "No terminal" in hint
     monkeypatch.setitem(CFG.setdefault("computer", {}), "host_shell", True)
     assert "computer_shell" in {s["function"]["name"] for s in ctools.schemas(fake)}
-    assert "每条命令都要用户确认" in ctools.system_hint(fake)
+    assert "Every command needs user confirmation" in ctools.system_hint(fake)
 
 
 def test_once_card_cannot_be_always_allowed():
