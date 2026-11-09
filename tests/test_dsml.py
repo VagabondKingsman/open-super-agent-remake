@@ -50,7 +50,7 @@ async def test_router_runs_leaked_call(llm, events, make_bot):
     assert "我私信它一下。" in said[0]["content"] and "DSML" not in said[0]["content"]
     assert not [e for e in events.of("stream") if "DSML" in (e.get("delta") or "")]   # 边收边推送时也没漏出去
     tool = [m for m in llm.bodies("router", "Leaky")[1]["messages"] if m["role"] == "tool"]
-    assert tool and tool[0]["content"].startswith("已私信 Target")
+    assert tool and tool[0]["content"].startswith("Sent a DM to Target")
 
 
 async def test_worker_runs_leaked_call(llm, events, make_bot):

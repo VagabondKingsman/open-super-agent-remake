@@ -106,7 +106,7 @@ async def test_screen_through_the_link(mac, monkeypatch):
     task = SimpleNamespace(id=5, bot_id=1, chat_id=1, goal="g", background=False)
     assert mac.desktop_enabled() and ctools.DESKTOP <= {s["function"]["name"] for s in ctools.schemas(mac)}
     out, shot = await ctools.call(task, "desktop_click", {"x": 640, "y": 360}, _noop, key="5:")
-    assert "已点击" in out and shot == png() and d.ops[-1][0] == "click" and "desk" in mac.pipe.sent
+    assert "Clicked" in out and shot == png() and d.ops[-1][0] == "click" and "desk" in mac.pipe.sent
     assert (await mac.desk_state())["problem"] == ""
     assert await mac.peek() == png()
     d.el = {"role": "AXButton", "label": "允许", "pid": os.getpid()}          # Mac 上照样不碰自己的窗口
