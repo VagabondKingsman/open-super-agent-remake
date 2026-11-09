@@ -1,6 +1,6 @@
 name: CI
 on:
-  push: { branches: [main] }
+  push: { branches: [main, i18n-vi] }
   pull_request:
 
 jobs:
@@ -20,6 +20,8 @@ jobs:
         run: uv run python -m osa.templates
       - name: Check translations
         run: uv run python -m osa.i18n
+      - name: Check bundled AI Native skill sources
+        run: uv run python -m osa.skillpacks verify-sources
       - name: Tests
         run: uv run pytest -q
 

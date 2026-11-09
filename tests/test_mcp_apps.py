@@ -139,7 +139,7 @@ async def test_say_from_view(uiapp, no_password, llm, events, bot):
     user = find(b["chat_id"], role="user", text="杭州已刷新")[0]
     assert user["meta"]["applet"] == {"app": "uidemo", "title": "@uidemo"}
     body = llm.bodies("router", "Talky")[-1]
-    assert any(m["role"] == "user" and "（来自应用 @uidemo 的界面）界面说" in m["content"] for m in body["messages"])
+    assert any(m["role"] == "user" and "(sent from the UI of app @uidemo) 界面说" in m["content"] for m in body["messages"])
 
 
 async def test_disconnect_drops_tools_and_views(no_password):
