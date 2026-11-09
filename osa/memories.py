@@ -161,10 +161,11 @@ def prompt_block(bot_id: int) -> str:
     """写进 Router 系统提示词的记忆。只放记下、改掉、删掉时才变的，系统提示词才能一直命中缓存；
     每轮都可能变的（相关的更早记忆、做过的事）见 turn_block。"""
     full, shared, own = _shown(bot_id)
-    parts = [f"关于用户（所有 Bot 共享）：\n{_lines(shared) or '（暂无）'}",
-             f"你自己记得的：\n{_lines(own) or '（暂无）'}"]
+    parts = [f"About the user (shared by all bots):\n{_lines(shared) or '(none)'}",
+             f"What you remember:\n{_lines(own) or '(none)'}"]
     if not full:
-        parts.append("（记忆比较多，这里只放了最近的；和这次对话可能相关的更早记忆附在最新一条消息后面，其余的用 search_memory 查。）")
+        parts.append("(There are more memories than fit here; only recent ones are included. "
+                     "Earlier memories that may matter for this turn are attached to the latest message. Use search_memory for the rest.)")
     return "\n".join(parts)
 
 
@@ -176,9 +177,9 @@ def turn_block(bot_id: int, related_ids: list[int] = ()) -> str:
     work = _list(bot_id, "work", PROMPT_WORK)
     parts = []
     if extra:
-        parts.append(f"和这次对话可能相关的更早记忆（#后面是编号）：\n{_lines(extra)}")
+        parts.append(f"Earlier memories that may matter for this turn (# is the id):\n{_lines(extra)}")
     if work:
-        parts.append(f"最近做过的事（自动记录）：\n{_lines(work)}")
+        parts.append(f"Recent work (recorded automatically):\n{_lines(work)}")
     return "\n\n".join(parts)
 
 
@@ -189,16 +190,16 @@ def worker_block(bot_id: int) -> str:
 
 
 # ---------- 从其他助手导入 ----------
-IMPORT_PROMPT = """用户从别的 AI 助手（ChatGPT、Claude、Gemini 等）导出了它记得的关于用户的内容，请整理成一条条独立的长期记忆。
-- 每条是一句完整、独立能看懂的话，用中文，以“用户”开头或直接陈述。
-- 合并重复的，去掉一次性的、过时的、和用户无关的内容；“已有的记忆”里已经说过的也去掉。
-- 关于用户本人的基本事实（名字、时区、所在地、常用语言、职业）shared=true，其余（偏好、习惯、正在做的事）shared=false。
-只输出 JSON：{"items": [{"text": "...", "shared": false}]}"""
+IMPORT_PROMPT = """The user exported what another AI assistant (ChatGPT, Claude, Gemini, or similar) remembered about them. Turn it into separate long-term memories.
+- Each item is one complete sentence that stands on its own. Write it in the reply language. Start with a phrase that means "The user" in that language, or state the fact directly.
+- Merge duplicates. Drop one-off, outdated, and irrelevant items. Also drop anything already listed under Existing memories.
+- shared=true only for basic facts about the user (name, timezone, location, usual language, job). Preferences, habits, and current work are shared=false.
+Output JSON only: {"items": [{"text": "...", "shared": false}]}"""
 
 
 def _import_prompt() -> str:
-    """英文界面时记忆用英文写；中文界面和以前一样。"""
-    return IMPORT_PROMPT if i18n.lang() == "zh" else IMPORT_PROMPT.replace("用中文，以“用户”开头", "用英文，以“The user”开头")
+    """English instructions plus the current reply-language directive."""
+    return IMPORT_PROMPT + i18n.model_hint()
 
 
 async def parse_import(text: str, existing: list[str] | None = None) -> list[dict]:
@@ -206,12 +207,12 @@ async def parse_import(text: str, existing: list[str] | None = None) -> list[dic
     text = (text or "").strip()[:20000]
     if not text:
         raise ValueError(i18n.t("没有可导入的内容"))
-    have = "\n".join(f"- {t}" for t in existing or []) or "（无）"
+    have = "\n".join(f"- {t}" for t in existing or []) or "(none)"
     try:
         client, model = client_for("filter")
         resp = await client.chat.completions.create(model=model, messages=[
             {"role": "system", "content": _import_prompt()},
-            {"role": "user", "content": f"已有的记忆：\n{have}\n\n导出的内容：\n{text}"}],
+            {"role": "user", "content": f"Existing memories:\n{have}\n\nExported text:\n{text}"}],
             response_format={"type": "json_object"}, **call_kwargs("filter"))
         memory.record_usage("filter", model, resp.usage)
         items = json.loads(resp.choices[0].message.content).get("items") or []

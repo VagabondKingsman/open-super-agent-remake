@@ -12,7 +12,7 @@ import { useBack } from '../swipe'
 import { isEnter } from '../keys'
 
 const MIN = 2, MAX = 6
-const SEP = lang === 'en' ? ', ' : '、'
+const SEP = lang !== 'zh' ? ', ' : '、'
 
 function BotPicker({ bots, picked, onChange }: { bots: Bot[]; picked: number[]; onChange: (ids: number[]) => void }) {
   return (
