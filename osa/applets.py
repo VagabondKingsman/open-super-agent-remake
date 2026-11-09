@@ -189,9 +189,9 @@ def inject(html: str) -> str:
     return _TAG + html
 
 
-GUIDE = """做小应用（可交互的界面）时 format=html 并填 app，页面里直接用 window.osa（服务器会自动注入，不用引脚本）：
-  osa.call(工具名, 参数对象) → 文字结果（只能用 app.tools 里列的工具；要确认的会弹卡片）；
-  osa.send(文字) 替用户给你发一条消息（要 app.chat=true），你会像收到用户消息一样接着处理；
-  osa.store.get(键) / set(键, 值) / all() / remove(键) 读写这个小应用的数据，你用 page_data 工具也能读写同一份数据，
-  osa.on('data', fn) 在数据被改时收到通知。页面高度会自动适应内容，不要写死 100vh；不要用 fetch，外网和接口都连不上。
-用户在对话里会直接看到小应用并能操作，所以回复里附上链接就行，不用复述界面内容。"""
+GUIDE = """When building an applet (an interactive UI), set format=html and fill in app. The page can use window.osa directly (the server injects it; do not add a script tag):
+  osa.call(tool_name, args_object) → text result (only tools listed in app.tools; ones that need confirmation pop up a card);
+  osa.send(text) sends you a message on the user's behalf (needs app.chat=true); you handle it as if the user had sent it;
+  osa.store.get(key) / set(key, value) / all() / remove(key) read and write this applet's data; the page_data tool reads and writes the same data,
+  osa.on('data', fn) is called when the data changes. Page height adapts to the content automatically, so do not hard-code 100vh; do not use fetch, the internet and APIs are unreachable.
+The user sees the applet in the chat and can use it directly, so just attach the link in your reply; do not restate the UI content."""
