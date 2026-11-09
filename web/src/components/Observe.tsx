@@ -46,7 +46,8 @@ const PREV: Record<string, string> = { today: t('比昨天'), '7d': t('比前 7 
 const WEEK = [tc('weekday', '一'), tc('weekday', '二'), tc('weekday', '三'), tc('weekday', '四'), tc('weekday', '五'), tc('weekday', '六'), tc('weekday', '日')]
 
 // ---------- 数字的写法 ----------
-const money = (v: number, cur: string) => cur + (v === 0 ? '0' : v < 1 ? v.toFixed(3) : v < 1000 ? v.toFixed(2) : Math.round(v).toLocaleString(locale))
+// Costs are stored in USD; share Settings' formatter so small amounts don't round to $0.000.
+const money = (v: number) => formatUsd(v)
 export function compact(n: number): string {
   if (lang === 'zh') return n < 1e4 ? n.toLocaleString(locale) : n < 1e8 ? `${+(n / 1e4).toFixed(1)}万` : `${+(n / 1e8).toFixed(1)}亿`   // i18n-ignore：中文的数量单位
   return n < 1e4 ? n.toLocaleString(locale) : n < 1e6 ? `${+(n / 1e3).toFixed(1)}K` : n < 1e9 ? `${+(n / 1e6).toFixed(1)}M` : `${+(n / 1e9).toFixed(1)}B`
@@ -173,7 +174,7 @@ function Tiles({ s }: { s: Stats }) {
     <div className="ob-tiles">
       <div className="ob-tile">
         <span className="ob-label">{t('费用')}</span>
-        <b className="ob-value">{money(k.cost, s.currency)}</b>
+        <b className="ob-value">{money(k.cost)}</b>
         {delta(k.cost, p?.cost, true) || <span className="ob-sub">{t('{n} 次模型调用', { n: k.calls })}</span>}
       </div>
       <div className="ob-tile">
@@ -213,7 +214,7 @@ function Trend({ s, color, name, single }: { s: Stats; color: (id: number | null
   const [hover, setHover] = useState<number | null>(null)
   const plot = useRef<HTMLDivElement>(null)
   useEffect(() => { try { localStorage.setItem('osa.obs.metric', metric) } catch { /* 无痕窗口 */ } }, [metric])
-  const fmt = (v: number) => metric === 'cost' ? money(v, s.currency) : compact(v)
+  const fmt = (v: number) => metric === 'cost' ? money(v) : compact(v)
   // 叠的顺序和图例：按颜色分组，“其他”在最上面
   const order = useMemo(() => {
     const seen = new Set<string>()
@@ -322,7 +323,7 @@ function BotTable({ s, color, name, onPick }: { s: Stats; color: (id: number | n
                 <tr key={r.bot_id} className="click" onClick={() => onPick(r.bot_id)}>
                   <td><span className="ob-name">{b ? <BotAvatar avatar={b.avatar} size={18} /> : <i className="ob-swatch" style={{ background: color(r.bot_id) }} />}{name(r.bot_id)}</span>
                     <span className="ob-bar"><i style={{ width: `${(r.cost / max) * 100}%`, background: color(r.bot_id) }} /></span></td>
-                  <td>{money(r.cost, s.currency)}</td>
+                  <td>{money(r.cost)}</td>
                   <td>{r.tasks || '—'}</td>
                   <td className={r.success != null && r.success < 0.8 ? 'bad' : ''}>{r.success != null ? pct(r.success) : '—'}</td>
                   <td>{dur(r.avg_s)}</td>
@@ -377,7 +378,7 @@ function Models({ s }: { s: Stats }) {
                 <td><span className="ob-name">{m.model}{m.provider && <span className="muted small">{m.provider}</span>}</span></td>
                 <td>{m.calls.toLocaleString(locale)}</td>
                 <td className={m.errors ? 'bad' : ''}>{m.errors ? `${m.errors}（${pct(m.errors / (m.calls + m.errors))}）` : '—'}</td>
-                <td>{money(m.cost, s.currency)}</td>
+                <td>{money(m.cost)}</td>
                 <td>{compact(m.tokens)}</td>
                 <td>{m.calls ? pct(m.cache_rate) : '—'}</td>
                 <td>{secs(m.ttft)}</td>
@@ -420,7 +421,7 @@ function Routines({ s, name, onChange }: { s: Stats; name: (id: number | null) =
                 <td>{r.done - r.quiet || '—'}</td>
                 <td className={r.failed + r.interrupted ? 'bad' : ''}>{r.failed + r.interrupted || '—'}</td>
                 <td>{r.quiet || '—'}</td>
-                <td>{money(r.cost, s.currency)}</td>
+                <td>{money(r.cost)}</td>
                 <td><label className="switch" title={r.enabled ? t('暂停') : t('开启')}><input type="checkbox" checked={r.enabled} disabled={busy === r.id}
                   onChange={e => toggle(r, e.target.checked)} /><span /></label></td>
               </tr>
@@ -468,7 +469,7 @@ function Roles({ s }: { s: Stats }) {
       <div className="ob-card-head"><h4>{t('按用途')}</h4><span className="muted small">{t('钱花在哪类工作上')}</span></div>
       {s.roles.map(r => (
         <div key={r.role} className="ob-role">
-          <div className="kv"><span>{roleName(r.role)} · {t('{n} 次模型调用', { n: r.calls })}{r.errors > 0 && <span className="bad"> · {t('出错 {n}', { n: r.errors })}</span>}</span><span>{money(r.cost, s.currency)}</span></div>
+          <div className="kv"><span>{roleName(r.role)} · {t('{n} 次模型调用', { n: r.calls })}{r.errors > 0 && <span className="bad"> · {t('出错 {n}', { n: r.errors })}</span>}</span><span>{money(r.cost)}</span></div>
           <span className="ob-bar"><i style={{ width: `${(r.cost / max) * 100}%` }} /></span>
         </div>
       ))}
@@ -494,7 +495,7 @@ function Tasks({ s, name }: { s: Stats; name: (id: number | null) => string }) {
             </span>
             <span className="ob-task-nums">
               <span className={x.status === 'failed' || x.status === 'interrupted' ? 'bad' : ''}>{TASK_STATUS[x.status] || x.status}</span>
-              <span className="muted">{dur(x.elapsed)} · {money(x.cost, s.currency)}</span>
+              <span className="muted">{dur(x.elapsed)} · {money(x.cost)}</span>
             </span>
           </button>
         ))}
@@ -538,7 +539,7 @@ function Calls({ range, bot, name, currency }: { range: Range; bot: number | nul
                   <td><span className="ob-name">{c.model}{c.err && <span className="bad small">{c.err}</span>}</span></td>
                   <td title={c.cache_hit ? t('其中缓存命中 {n}', { n: c.cache_hit.toLocaleString(locale) }) : ''}>{c.err ? '—' : compact(c.input)}</td>
                   <td>{c.err ? '—' : compact(c.output)}</td>
-                  <td>{c.err ? '—' : money(c.cost, currency)}</td>
+                  <td>{c.err ? '—' : money(c.cost)}</td>
                   <td>{secs(c.ms)}</td>
                   <td>{secs(c.ttft)}</td>
                 </tr>

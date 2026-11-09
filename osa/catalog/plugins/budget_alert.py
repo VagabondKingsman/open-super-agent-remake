@@ -10,6 +10,7 @@ import json
 import time
 from osa import memory
 from osa.config import CFG
+from osa.prices import CURRENCY
 
 META = {"title": "花费提醒", "version": "1.0", "author": "open-super-agent", "inject": ["messenger"],
         "config": {"bot": "", "warn_at_percent": [80, 100], "daily_cost": 0}}
@@ -66,7 +67,7 @@ async def check(ctx, tokens: int | None = None, cost: float | None = None, today
     percents = _percents(ctx.config.get("warn_at_percent", [80, 100]))
     budget = int(CFG["limits"].get("daily_token_budget") or 0)
     limit = float(ctx.config.get("daily_cost") or 0)
-    cur = CFG["pricing"].get("currency") or ""
+    cur = CURRENCY   # costs are stored in USD whatever pricing.currency says
     todo = []
     # 一下子跨过好几条线（比如从 50% 直接到 105%）只发最高的那条，低的一起记成提醒过
     if hit := crossed(tokens, budget, percents, sent, "tokens"):
