@@ -114,7 +114,7 @@ function ProviderRow({ p, onEdit }: { p: Provider; onEdit: () => void }) {
       <ProviderBadge preset={p.preset} url={p.base_url} title={p.title} />
       <span className="prov-main">
         <span className="prov-name">{p.title}{p.source === 'config' && <span className="tag" title={t('在 config.yaml 的 providers 里写的')}>config.yaml</span>}</span>
-        <span className="prov-sub">{host(p.base_url)} · {keyText(p)}{used.length ? ' · ' + t('{roles}在用', { roles: used.join(lang === 'en' ? ', ' : '、') }) : ''}</span>
+        <span className="prov-sub">{host(p.base_url)} · {keyText(p)}{used.length ? ' · ' + t('{roles}在用', { roles: used.join(lang !== 'zh' ? ', ' : '、') }) : ''}</span>
       </span>
       <span className={'m-state ' + cls} title={text}><i />{text}</span>
       <Icon name="chevron" size={16} className="prov-go" />
@@ -353,7 +353,6 @@ export function ModelPicker({ kind, value, onChange, allowNone, only }: {
   only?: string   // 只列这个服务的模型
 }) {
   const s = useStore(x => x.settings) as S
-  const cur = s.prices.currency
   const { lists, load } = useContext(ListsCtx)
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
@@ -393,7 +392,7 @@ export function ModelPicker({ kind, value, onChange, allowNone, only }: {
     if (provider !== value.provider || model !== value.model) onChange(provider, model)
   }
   const first = groups.find(g => g.items.length)
-  const price = (m: ModelItem) => m.input === undefined ? '' : !m.input && !m.output ? t('免费') : `${money(m.input, cur)} / ${money(m.output, cur)}`
+  const price = (m: ModelItem) => m.input === undefined ? '' : !m.input && !m.output ? t('免费') : `${money(m.input)} / ${money(m.output)}`
   return (
     <div className="mp" ref={box}>
       <button className={'mp-btn' + (open ? ' on' : '')} onClick={() => setOpen(!open)}>

@@ -377,7 +377,7 @@ def _check_checks(ck, keys: set, bad: list) -> set[str]:
 def _en(it: dict) -> dict:
     """英文界面时，用清单 en 里写了的英文换掉中文；没写的、中文界面都原样返回。"""
     en = it.get("en")
-    if not en or i18n.lang() != "en":
+    if not en or i18n.lang() == "zh":
         return it
     o = it | {k: en[k] for k in (*EN_TEXT, *EN_LIST) if k in en}
     if "copy" in en:

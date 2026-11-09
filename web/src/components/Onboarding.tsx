@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { api, openApps, openChat, refreshLists, setSettings, useStore } from '../store'
 import { Icon } from '../icons'
-import { lang, syncLang, t, tc, tn } from '../i18n'
+import { languages, lang, syncLang, t, tc, tn } from '../i18n'
 import { BRANDS } from '../brandIcons'
 import type { Bot, CatalogItem, Preset, Settings as S } from '../types'
 import BotAvatar from './BotAvatar'
@@ -19,7 +19,7 @@ import { TemplateInstall, TemplatePicker, type TemplatePreview } from './Templat
 const STEPS = [t('接上模型'), t('你的 Bot'), t('连一个应用')]
 const PICKS = ['notion', 'flomo', 'dida', 'tencent-docs', 'train', 'exa']   // 推荐的应用：登录就能用，或者免配置
 const CHANNELS = ['telegram', 'feishu', 'dingtalk', 'wecom', 'discord']
-const SEP = lang === 'en' ? ', ' : '、'
+const SEP = lang !== 'zh' ? ', ' : '、'
 
 export default function Onboarding({ onClose }: { onClose: () => void }) {
   const primary = useStore(s => s.bots.find(b => b.is_primary) || s.bots[0])
@@ -73,10 +73,13 @@ function Foot({ children }: { children: ReactNode }) {
 // 换界面语言：按钮上写另一种语言的名字。换完页面会重新加载，引导没走完会自己再打开（回到第一步）
 function LangSwitch() {
   const toast = useToast()
-  const other = lang === 'zh' ? 'en' : 'zh'
-  const change = () => api('/api/settings', { method: 'PUT', body: { language: other } })
+  const change = (language: string) => api('/api/settings', { method: 'PUT', body: { language } })
     .then(r => syncLang(r.language)).catch(e => toast(e.message, true))
-  return <button className="ghost-btn" title={t('界面语言')} onClick={change}><Icon name="globe" size={13} /> {other === 'en' ? 'English' : '中文'}</button>   // i18n-ignore：语言自己的名字
+  return <label className="ghost-btn" title={t('界面语言')}><Icon name="globe" size={13} />
+    <select aria-label={t('界面语言')} value={lang} onChange={e => change(e.target.value)}>
+      {languages.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
+    </select>
+  </label>
 }
 
 // ---------- 第一步：接上模型 ----------
@@ -153,9 +156,8 @@ function ModelChoose({ name, onBack, onDone }: { name: string; onBack: () => voi
   }, [l])
   const item = l?.items.find(m => m.id === model)
   const vision = test.res?.ok ? test.res.vision : item?.vision === undefined ? undefined : item.vision ? 'yes' : 'no'
-  const cur = s.prices.currency
   const price = !item || item.input === undefined ? '' : !item.input && !item.output ? t('免费')
-    : t('输入 {input} · 输出 {output} / 百万 token', { input: money(item.input, cur), output: money(item.output, cur) })
+    : t('输入 {input} · 输出 {output} / 百万 token', { input: money(item.input), output: money(item.output) })
   const save = async () => {
     setBusy(true)
     const v = { provider: name, model }

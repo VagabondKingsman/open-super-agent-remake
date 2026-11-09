@@ -145,17 +145,19 @@ def link(pid: int) -> str:
 
 SAVE_PAGE = {"type": "function", "function": {
     "name": "save_page",
-    "description": "把成品（报告、清单、对比表、网页等）保存成资料库里的页面，返回页面链接。"
-                   "用户要“做成页面/报告/可以分享的页面”，或结果很长、以后还要看时用。给 page_id 就是更新那个页面。"
-                   "要做成可交互的小应用（表单、看板、计算器、能点按钮查东西的面板）时 format=html 并填 app，"
-                   "页面里用 window.osa 调工具、读写数据、给你发消息（见系统提示词里的说明）。",
+    "description": "Save a finished artifact (report, list, comparison, web page) as a library page and return its link. "
+                   "Use it when the user asks for a page, a report, or a shareable page, or when the result is long and will be read again. "
+                   "Pass page_id to update that page. "
+                   "For an interactive applet (form, board, calculator, a panel with buttons that look things up), use format=html "
+                   "and fill app; inside the page, window.osa calls tools, reads and writes data, and messages you "
+                   "(see the system prompt).",
     "parameters": {"type": "object", "properties": {
         "title": {"type": "string"},
-        "content": {"type": "string", "description": "页面全文。markdown 用 Markdown；html 是完整的 HTML（可以带内联 CSS 和脚本）"},
+        "content": {"type": "string", "description": "Full page text. markdown is Markdown. html is a complete HTML document; inline CSS and scripts are allowed."},
         "format": {"type": "string", "enum": list(FORMATS)},
-        "page_id": {"type": "integer", "description": "可选：要更新的页面编号"},
-        "app": {"type": "object", "description": "可选，只对 html 有效：填了就是小应用。tools 是页面里允许调用的工具名（只能是你现在有的工具）；"
-                                                 "chat 为 true 时页面能替用户给你发消息",
+        "page_id": {"type": "integer", "description": "Optional: id of the page to update"},
+        "app": {"type": "object", "description": "Optional, html only: makes the page an applet. tools lists the tool names the page "
+                                                 "may call (only tools you have now); chat=true lets the page message you on the user's behalf",
                 "properties": {"tools": {"type": "array", "items": {"type": "string"}}, "chat": {"type": "boolean"}}}},
         "required": ["title", "content"]}}}
 
@@ -196,7 +198,7 @@ async def tool_page_data(bot_id: int, args: dict) -> str:
 
 READ_PAGE = {"type": "function", "function": {
     "name": "read_page",
-    "description": "读资料库里一个页面的全文（html 页面只给文字）。页面编号可以用 search_memory 查到",
+    "description": "Read the full text of one library page (HTML pages return text only). Find the page id with search_memory.",
     "parameters": {"type": "object", "properties": {"page_id": {"type": "integer"}}, "required": ["page_id"]}}}
 
 
@@ -204,30 +206,35 @@ def tool_read_page(args: dict, limit: int = 12000) -> str:
     from . import search
     p = get_page(args.get("page_id")) if isinstance(args.get("page_id"), int) else None
     if not p:
-        return f"没有页面 #{args.get('page_id')}"
+        return i18n.t("没有页面 #{id}", id=args.get("page_id"))
     text = search._plain(p["content"] or "", p["format"])
     if p["format"] == "html":
         text = re.sub(r"[ \t]+", " ", re.sub(r"\n\s*\n+", "\n\n", text)).strip()
-    more = f"\n…（还有 {len(text) - limit} 字没显示）" if len(text) > limit else ""
-    return f"《{p['title']}》{link(p['id'])}，{time.strftime('%Y-%m-%d', time.localtime(p['updated']))} 更新\n\n{text[:limit]}{more}"
+    body = text[:limit]
+    if len(text) > limit:
+        body += i18n.t("\n…（还有 {n} 字没显示）", n=len(text) - limit)
+    return i18n.t("《{title}》{link}，{date} 更新\n\n{body}", title=p["title"], link=link(p["id"]),
+                  date=time.strftime("%Y-%m-%d", time.localtime(p["updated"])), body=body)
 
 
 def tool_save_page(bot_id: int, args: dict, task_id: int | None = None) -> str:
     pid = args.get("page_id")
     if pid is not None and (not (old := get_page(pid, False)) or old["bot_id"] != bot_id):
-        return f"没保存：页面 #{pid} 不存在或不是你建的，只能更新自己的页面"
+        return i18n.t("没保存：页面 #{id} 不存在或不是你建的，只能更新自己的页面", id=pid)
     app = args.get("app")
     if app and (unknown := [t for t in (app.get("tools") or []) if isinstance(t, str) and not applets_known(t)]):
-        return f"没保存：app.tools 里有现在没有的工具 {', '.join(unknown)}，只能列你这一轮能用的工具"
+        return i18n.t("没保存：app.tools 里有现在没有的工具 {tools}，只能列你这一轮能用的工具", tools=", ".join(unknown))
     try:
         p = save_page(bot_id, args.get("title", ""), args.get("content", ""), args.get("format") or "markdown",
                       args.get("page_id"), task_id, app)
     except (ValueError, TypeError) as e:
-        return f"没保存：{e}"
+        return i18n.t("没保存：{error}", error=e)
     if p["app"]:
-        return (f"已保存小应用 #{p['id']}「{p['title']}」，链接 {link(p['id'])}。回复里用 Markdown 链接附上它，对话里会直接显示这个小应用，"
-                f"用户能在里面操作。用 page_data 能读写它的数据（page_id={p['id']}）。")
-    return f"已保存页面 #{p['id']}「{p['title']}」，链接 {link(p['id'])}（用户在资料库里也能看到）。回复里用 Markdown 链接附上它。"
+        return i18n.t("已保存小应用 #{id}「{title}」，链接 {link}。回复里用 Markdown 链接附上它，对话里会直接显示这个小应用，"
+                      "用户能在里面操作。用 page_data 能读写它的数据（page_id={id}）。",
+                      id=p["id"], title=p["title"], link=link(p["id"]))
+    return i18n.t("已保存页面 #{id}「{title}」，链接 {link}（用户在资料库里也能看到）。回复里用 Markdown 链接附上它。",
+                  id=p["id"], title=p["title"], link=link(p["id"]))
 
 
 def applets_known(tool: str) -> bool:

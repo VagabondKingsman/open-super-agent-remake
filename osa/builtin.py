@@ -77,6 +77,17 @@ def load():
     ctx.tool(Tool("run_code", sandbox.RUN_CODE, sandbox.tool_run, where=frozenset({WORKER}), when=lambda env: bool(sandbox.place()),
                   progress=sandbox.progress, describe="在沙箱里跑 Python / bash / node 代码：算数、处理表格和数据、画图表、转换格式"))
     ctx.tool(Tool("quick_code", sandbox.QUICK_CODE, sandbox.tool_quick, where=router, when=lambda env: bool(sandbox.place(quick=True))))
+    # remake：kiểm số liệu (verify_facts), fixture vá lỗi trong bwrap (inspect_repo / check_patch), skill pack AI Native.
+    # Router 和 Worker 都能用；结果是纯文字，不走确认（只读或在沙箱里跑固定命令）。
+    from . import local_checks, skillpacks, verification
+    both = frozenset({ROUTER, WORKER})
+    for s in local_checks.SCHEMAS:
+        n = s["function"]["name"]
+        ctx.tool(Tool(n, s, lambda c, n=n: local_checks.tool(n, c.args), where=both))
+    ctx.tool(Tool("verify_facts", verification.SCHEMA, lambda c: verification.tool(c.args), where=both))
+    for s in skillpacks.SCHEMAS:
+        n = s["function"]["name"]
+        ctx.tool(Tool(n, s, lambda c, n=n: skillpacks.tool(c.bot_id, n, c.args), where=both))
     # 给插件用的服务（插件在 META 的 inject 里写要哪个），见 services.py
     from . import services, sources
     services.register(ctx)

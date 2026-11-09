@@ -44,7 +44,8 @@ export type TaskInfo = {
   id: number; ts: number; goal: string; mode: string; status: string; chat_id: number; bot_id: number
   elapsed?: number | null; steps?: number | null; handoff_to?: number | null
   started?: number; waiting_approval?: number | null; last_action?: string
-  result?: string; finished?: number; cost?: number; tokens?: number; currency?: string
+  result?: string; finished?: number; cost?: number; tokens?: number; estimated_tokens?: number
+  usage?: 'recorded'; currency?: string
 }
 // 正在用电脑的任务：每个占一个浏览器窗口（window：已经开了窗口）
 export type ComputerUser = { key: string; label: string; task_id: number | null; bot_id: number | null; window: boolean }
@@ -82,7 +83,7 @@ export type Preset = {
   id: string; title: string; base_url: string; color: string; desc: string; key_url?: string; embedding?: string; no_key?: boolean; note?: string
   models?: string[]   // 推荐的对话模型，前面的优先
 }
-// 单价是元 / 百万 token。source：config（config.yaml 手写）、models.dev（自动获取）、local（本机，免费）
+// Unit price is USD per million tokens. source: config (handwritten), models.dev, or local (free).
 export type ModelInfo = {
   source: '' | 'config' | 'models.dev' | 'local'; input?: number; output?: number; cache?: number | null
   offpeak?: [number, number]; vision?: boolean; kind?: string; name?: string; via?: string
@@ -104,9 +105,9 @@ export type Settings = {
   embedding: { provider: string; model: string }
   image_model: { provider: string; model: string }   // 画图用哪个模型（对话里画图、生成头像共用），空的是用排在最前面的
   model_info: Record<string, ModelInfo>   // 键是 服务/模型
-  prices: { source: string; updated: number; error: string; rate: number; currency: string; models: number }
+  prices: { source: string; updated: number; error: string; rate: number; currency: string; unit?: string; models: number }
   problem: string                         // 对话或后台任务的模型没法用的原因；能用是空
-  language: 'zh' | 'en'                   // 界面语言
+  language: 'vi' | 'zh' | 'en'                   // 界面语言
   // 服务器锁（local_exec 为 false：网页上不能让服务器执行任意命令）和演示模式，只能在服务器的 config.yaml 里改。旧版服务没有这一项
   // exec / plugins / apps：策略表（osa/security.py），没写新键时按 local_exec / demo 推出来
   security?: { local_exec: boolean; demo: boolean; exec?: 'host' | 'sandbox' | 'off'; plugins?: 'any' | 'market' | 'off'; apps?: 'any' | 'market' }
@@ -195,7 +196,7 @@ export type Teach = { bot_id: number; started: number; note: string; max_s: numb
 export type TeachDraft = { bot_id: number; draft: { name: string; description: string; body: string }; steps: string[] }
 export type FileEntry ={ name: string; path: string; dir: boolean; size: number; mtime: number; missing?: boolean }
 export type FileListing =
-  | { running: false; state: string; path: string; root: string }
+  | { running: false; state: string; detail?: string; path: string; root: string }
   | { running: true; path: string; root: string; entries: FileEntry[]; pins: FileEntry[] }
 export type ChannelKind = 'telegram' | 'feishu' | 'dingtalk' | 'wecom' | 'discord'
 export type Channel = {

@@ -1,18 +1,50 @@
-"""界面语言。中文原文就是翻译的键：t("没有这个 Bot") 在英文界面返回 locales/en.json 里对应的英文，没有翻译就返回中文。
+"""界面语言。中文原文就是翻译的键：t("没有这个 Bot") 在英文界面返回 locales/en.json 里对应的英文。
+越南语缺这句时改用英文；英文也没有就返回中文原文。语言包缺失、读不出、JSON 坏了或不是对象时记一条警告并当作空目录，导入不会因此失败。
 
-只翻用户会看到的文字（接口报错、对话里的系统消息、卡片、推送、聊天软件里的按钮）；写给模型的提示词和工具说明保持中文。
+只翻用户会看到的文字（接口报错、对话里的系统消息、卡片、推送、聊天软件里的按钮）。写给模型的提示词和工具说明用英文，再附上 ANSWER_LANG。
 存进数据库、之后还要按原文比对的标记（比如 “[新话题]”）不要翻，在显示的地方翻。
 
-语言存在 settings 表的 language 里，前后端共用。没设过时：新装的按浏览器的语言定，升级上来的老用户保持中文。
+语言存在 settings 表的 language 里，前后端共用。没设过时：默认越南语；旧 remake 的 overrides.locale 迁移一次，已设的 language 优先。
 
 `uv run python -m osa.i18n` 检查前后端：代码里用到但 en.json 里没有的、en.json 里多余的、占位符对不上的，
-以及前端还没包进 t() 的中文。"""
+以及前端还没包进 t() 的中文；EN 和 VI 都要检查。"""
 import json
+import logging
 import re
 from pathlib import Path
 
-LANGS = ("zh", "en")
-EN: dict = json.loads((Path(__file__).parent / "locales" / "en.json").read_text())
+log = logging.getLogger(__name__)
+
+LANGS = ("vi", "zh", "en")
+
+
+def _catalog_path(name: str) -> Path:
+    return Path(__file__).parent / "locales" / f"{name}.json"
+
+
+def _load_catalog(name: str) -> dict:
+    """读一种语言。缺失、读不出、不是合法 JSON 或不是对象时警告并返回空目录。"""
+    path = _catalog_path(name)
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        log.warning("语言包 %s 读不了，改用空目录：%s", path.name, exc)
+        return {}
+    if not isinstance(data, dict):
+        log.warning("语言包 %s 不是对象，改用空目录", path.name)
+        return {}
+    return data
+
+
+def _load_locales() -> None:
+    global EN, VI
+    en, vi = _load_catalog("en"), _load_catalog("vi")
+    EN, VI = en, vi
+
+
+EN: dict = {}
+VI: dict = {}
+_load_locales()
 _lang: str | None = None
 
 
@@ -22,12 +54,20 @@ def chosen() -> str:
     if _lang is None:
         from .memory import conn
         r = conn.execute("select value from settings where key='language'").fetchone()
-        _lang = json.loads(r[0]) if r else ""
+        value = json.loads(r[0]) if r else ""
+        _lang = value if value in LANGS else ""
+        if not _lang:
+            # The v0.5 remake stored its preference under overrides.locale.
+            legacy = conn.execute("select value from settings where key='overrides'").fetchone()
+            overrides = json.loads(legacy[0]) if legacy else {}
+            value = overrides.get("locale") if isinstance(overrides, dict) else None
+            if value in LANGS:
+                set_lang(value)
     return _lang or ""
 
 
 def lang() -> str:
-    return chosen() or "zh"
+    return chosen() or "vi"
 
 
 def set_lang(value: str):
@@ -41,9 +81,9 @@ def set_lang(value: str):
 
 
 def from_header(accept: str | None) -> str:
-    """按浏览器的 Accept-Language 猜：排在最前面的是中文就用中文，否则用英文。"""
+    """按 Accept-Language 第一项识别 vi* / zh*，其余是英文；默认 UI 不调用探测。"""
     first = (accept or "").split(",")[0].strip().lower()
-    return "zh" if not first or first.startswith("zh") else "en"
+    return "vi" if first.startswith("vi") else "zh" if first.startswith("zh") else "en"
 
 
 def _fill(s: str, kw: dict) -> str:
@@ -53,14 +93,18 @@ def _fill(s: str, kw: dict) -> str:
 
 def t(zh: str, /, in_lang: str | None = None, **kw) -> str:
     """翻译一句话，变量写成 {名字}：t("最多 {n} MB", n=5)。英文可以写成 ["{n} task", "{n} tasks"]，按 n 是不是 1 选。
-    in_lang 指定语言（比如登录页还没设语言时按浏览器的）；不给就用设置里的。"""
+    in_lang 指定语言（比如登录页还没设语言时按浏览器的）；不给就用设置里的。
+    越南语没有这句时用英文，英文也没有就用中文原文。"""
     s = zh
-    if (in_lang or lang()) == "en":
-        v = EN.get(zh)
+    language = in_lang or lang()
+    catalogs = (VI, EN) if language == "vi" else (EN,) if language == "en" else ()
+    for catalog in catalogs:
+        v = catalog.get(zh)
         if isinstance(v, list):
             v = v[0 if kw.get("n") == 1 else 1]
         if v:
             s = v
+            break
     return _fill(s, kw)
 
 
@@ -96,14 +140,35 @@ def N_(zh: str) -> str:
     return zh
 
 
+_REPLY_RULE = (
+    "Write every user-visible answer in that language, including summaries, pages, and memories you save. "
+    "Use another language only when the user's own request is written in that language. "
+    "Do not switch to a third language. "
+    "Keep tool names, URLs, code, JSON keys, and exact markers unchanged."
+)
+# 写给模型的回复语言。三种界面都用英文指令，避免提示词本身把回答带向中文。
+ANSWER_LANG = {
+    "vi": "Reply in Vietnamese. The UI language is Vietnamese. " + _REPLY_RULE,
+    "en": "Reply in English. The UI language is English. " + _REPLY_RULE,
+    "zh": "Reply in Chinese. The UI language is Chinese. " + _REPLY_RULE,
+}
+
+
 def model_hint() -> str:
-    """写给模型的一句话：英文界面时默认用英文回复。中文界面什么都不加，行为和以前一样。"""
-    return "" if lang() == "zh" else "\n用户的界面语言是英文：默认用英文回复，结果、页面和记下的记忆也用英文；用户用别的语言说话时跟着用那种语言。"
+    """English reply-language directive for the current UI language.
+
+    This is only an instruction. Callers must not rewrite model output to fake compliance."""
+    language = lang() if lang() in ANSWER_LANG else "vi"
+    return "\n" + ANSWER_LANG[language]
 
 
 def both(zh: str) -> set[str]:
     """一句话的中英文两种说法：解析用户回复的文字命令时，两种语言都认。"""
-    return {zh, *([EN[zh]] if isinstance(EN.get(zh), str) else EN.get(zh) or [])}
+    values = {zh}
+    for dictionary in (EN, VI):
+        value = dictionary.get(zh)
+        values.update([value] if isinstance(value, str) else value or [])
+    return values
 
 
 # ---------- 检查 ----------
@@ -203,18 +268,19 @@ def _report(name: str, used: dict[str, list[str]], path: Path) -> int:
                 print(f"  占位符对不上 {k!r} → {s!r}")
                 bad += 1
             elif CJK.search(s):
-                print(f"  英文里有中文 {k!r} → {s!r}")
+                print(f"  翻译里有中文 {k!r} → {s!r}")
                 bad += 1
-    print(f"{name}：用到 {len(used)} 句，en.json {len(d)} 句，缺 {len(missing)}，多余 {len(unused)}")
+    print(f"{name}：用到 {len(used)} 句，{path.name} {len(d)} 句，缺 {len(missing)}，多余 {len(unused)}")
     return bad + len(missing)
 
 
 def check() -> int:
-    print("后端 osa/")
-    bad = _report("后端", _py_keys(), ROOT / "osa" / "locales" / "en.json")
-    print("前端 web/src/")
+    bad = 0
     keys, left = _js_scan()
-    bad += _report("前端", keys, ROOT / "web" / "src" / "locales" / "en.json")
+    for language in ("en", "vi"):
+        print(f"Language: {language}")
+        bad += _report("后端", _py_keys(), ROOT / "osa" / "locales" / f"{language}.json")
+        bad += _report("前端", dict(keys), ROOT / "web" / "src" / "locales" / f"{language}.json")
     for ln in left:
         print("  没翻译 " + ln)
     print(f"前端还有 {len(left)} 行中文没包进 t()（数据、协议标记这类不用翻的，在行尾注释 i18n-ignore）")

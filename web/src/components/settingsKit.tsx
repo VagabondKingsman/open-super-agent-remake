@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useState, type ReactNode } from 'react'
-import { useStore } from '../store'
 import { Icon } from '../icons'
+import { formatUnitUsd } from '../formatUsd'
 import { t } from '../i18n'
 import type { ModelInfo } from '../types'
 
@@ -36,20 +36,20 @@ export function ToastHost({ children }: { children: ReactNode }) {
   )
 }
 
-// 单价：元 / 百万 token
-export function money(n: number | null | undefined, cur = '¥') {
+// Unit price: USD per million tokens.
+export function money(n: number | null | undefined) {
   if (n === undefined || n === null) return ''
   if (n === 0) return t('免费')
-  return cur + (n >= 10 ? n.toFixed(0) : n >= 1 ? String(+n.toFixed(2)) : String(+n.toPrecision(2)))
+  return formatUnitUsd(n)
 }
 
-export function priceText(info: ModelInfo | undefined, cur = '¥') {
+export function priceText(info: ModelInfo | undefined) {
   if (!info) return ''
   if (info.source === 'local') return t('本机运行，免费')
   if (info.input === undefined) return ''
   if (!info.input && !info.output) return t('免费')
-  const main = t('输入 {input} · 输出 {output} / 百万 token', { input: money(info.input, cur), output: money(info.output, cur) })
-  return info.offpeak ? t('{main}（空闲时段 {input} · {output}）', { main, input: money(info.offpeak[0], cur), output: money(info.offpeak[1], cur) }) : main
+  const main = t('输入 {input} · 输出 {output} / 百万 token', { input: money(info.input), output: money(info.output) })
+  return info.offpeak ? t('{main}（空闲时段 {input} · {output}）', { main, input: money(info.offpeak[0]), output: money(info.offpeak[1]) }) : main
 }
 
 export function priceSource(info: ModelInfo | undefined) {
@@ -60,7 +60,6 @@ export function priceSource(info: ModelInfo | undefined) {
 }
 
 export function PriceTag({ info }: { info: ModelInfo | undefined }) {
-  const cur = useStore(x => x.settings?.prices.currency) || '¥'
-  const text = priceText(info, cur)
+  const text = priceText(info)
   return <span className={'chip' + (text ? '' : ' faint')} title={priceSource(info)}>{text || t('没有单价')}</span>
 }
