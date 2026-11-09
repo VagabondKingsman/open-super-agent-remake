@@ -24,9 +24,9 @@ class LLM:
 
     async def complete(self, prompt, system: str | None = None, role: str = "worker") -> str:
         if role not in ("router", "worker"):
-            raise ValueError("role 只能是 router 或 worker（用哪项工作配的模型）")
+            raise ValueError("role must be router or worker (which job's configured model to use)")
         if memory.tokens_today() > CFG["limits"]["daily_token_budget"]:
-            raise RuntimeError("今日 token 预算已用完")
+            raise RuntimeError("Today's token budget is used up")
         msgs = prompt if isinstance(prompt, list) else [{"role": "user", "content": str(prompt)}]
         if system:
             msgs = [{"role": "system", "content": system}, *msgs]
@@ -63,17 +63,17 @@ class Messenger:
         from . import bots, router
         b = bots.primary() if bot is None else bots.get(bot) if isinstance(bot, int) else bots.by_name(str(bot))
         if not b:
-            raise LookupError(f"没有 Bot {bot}")
+            raise LookupError(f"No such Bot: {bot}")
         cid = chat_id or b["chat_id"]
         chat = bots.chat(cid)
         if not chat or b["id"] not in chat["bot_ids"]:
-            raise LookupError(f"{b['name']} 不在对话 #{cid} 里")
+            raise LookupError(f"{b['name']} is not in chat #{cid}")
         text = str(text or "").strip()[:MAX_POST]
         if not text:
-            raise ValueError("消息不能为空")
+            raise ValueError("The message cannot be empty")
         return await router.runtime(b["id"]).add("task", text, cid, kind="plugin", plugin=self.plugin)
 
 
 def register(ctx):
-    ctx.provide("llm", LLM(), "调这台服务配好的模型（花钱，算进每天的预算）")
-    ctx.provide("messenger", Messenger(), "以 Bot 的名义往对话里发消息")
+    ctx.provide("llm", LLM(), "call the model configured on this server (costs money, counts toward the daily budget)")
+    ctx.provide("messenger", Messenger(), "post a message into a chat in a Bot's name")

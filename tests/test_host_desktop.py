@@ -95,9 +95,9 @@ def names(c) -> set:
 async def test_permissions_are_the_switch(desk, monkeypatch):
     """没有开关：是 Mac、给了两个权限就有 desktop_*；缺权限、不是 Mac、服务器锁、config 里关掉都没有。"""
     monkeypatch.delitem(CFG["computer"], "host_desktop")                # 默认就开
-    assert ctools.DESKTOP <= names(desk) and "整台电脑" in ctools.system_hint(desk)
+    assert ctools.DESKTOP <= names(desk) and "The whole computer" in ctools.system_hint(desk)
     desk.fake.perms["screen"] = False                                    # 缺屏幕录制：只用浏览器
-    assert not ctools.DESKTOP & names(desk) and not ctools.desk_schemas(desk) and "整台电脑" not in ctools.system_hint(desk)
+    assert not ctools.DESKTOP & names(desk) and not ctools.desk_schemas(desk) and "The whole computer" not in ctools.system_hint(desk)
     st = await desk.desk_state()
     assert st["supported"] and not st["screen"] and "屏幕录制" in st["problem"]   # 面板上提示去打开
     desk.fake.perms["screen"] = True
@@ -116,8 +116,8 @@ async def test_first_use_asks_once_and_refusal_sticks(desk, monkeypatch):
     monkeypatch.setattr(approvals, "request", user)
     text, shot = await ctools.call(task(), "desktop_screenshot", {}, _noop, key="7:")
     assert user.asked == [("desktop", {"任务": "整理备忘录"})]
-    assert "1280×720" in text and "备忘录 — 笔记" in text and shot.caption == "整个屏幕的截图"
-    assert "整个屏幕" in ctools.image_message(shot)["content"][0]["text"]
+    assert "1280×720" in text and "备忘录 — 笔记" in text and shot.caption == "screenshot of the whole screen"
+    assert "the whole screen" in ctools.image_message(shot)["content"][0]["text"]
     text, _ = await ctools.call(task(), "desktop_screenshot", {"save": True}, _noop, key="7:")
     saved = next(desk.root.glob("screenshots/*.png"))
     assert saved.read_bytes() == png() and str(saved.name) in text and "send_file" in text   # 存进工作文件夹，能发给用户
@@ -128,16 +128,16 @@ async def test_first_use_asks_once_and_refusal_sticks(desk, monkeypatch):
     no = Recorder(False)
     monkeypatch.setattr(approvals, "request", no)
     out, _ = await ctools.call(task(8), "desktop_click", {"x": 1, "y": 1}, _noop, key="8:")
-    assert "没同意" in out and not desk.desk_owner                      # 不同意：屏幕让出来
+    assert "did not allow you to operate the whole screen" in out and not desk.desk_owner                      # 不同意：屏幕让出来
     out, _ = await ctools.call(task(8), "desktop_click", {"x": 1, "y": 1}, _noop, key="8:")
-    assert "没同意" in out and len(no.asked) == 1                        # 一会儿之内不再问
+    assert "did not allow you to operate the whole screen" in out and len(no.asked) == 1                        # 一会儿之内不再问
     assert all(op[0] != "click" for op in desk.fake.ops)
 
     rule = approvals.add_rule("desktop", "allow")                       # “总是允许”过
     try:
         monkeypatch.setattr(approvals, "request", Recorder(False))
         out, _ = await ctools.call(task(9), "desktop_screenshot", {}, _noop, key="9:")
-        assert "屏幕截图" in out
+        assert "Screenshot" in out
     finally:
         approvals.delete_rule(rule["id"])
 
@@ -168,7 +168,7 @@ async def test_one_task_at_a_time(desk, monkeypatch):
     assert "正被" in out                                                   # 对话里直接操作的不排队，直接告诉模型
     await desk.release("1:")
     out, _ = await asyncio.wait_for(second, 2)
-    assert "屏幕截图" in out and desk.desk_owner == "2:"
+    assert "Screenshot" in out and desk.desk_owner == "2:"
 
 
 async def test_your_input_pauses_the_bot(desk, monkeypatch):
@@ -201,7 +201,7 @@ async def test_locked_screen_and_missing_permissions(desk, monkeypatch):
     desk.fake.lock = False
     desk.fake.perms["accessibility"] = False
     out, _ = await ctools.call(task(), "desktop_type", {"text": "hi"}, _noop, key="7:")
-    assert "辅助功能" in out and not desk.fake.ops
+    assert "Accessibility" in out and not desk.fake.ops
     assert "辅助功能" in (await desk.desk_state())["problem"]
 
 
@@ -213,14 +213,14 @@ async def test_send_buttons_and_enter_ask(desk, monkeypatch):
     user.answer = False
     desk.fake.el = {"role": "AXButton", "label": "发送", "pid": 50}
     out, _ = await ctools.call(task(), "desktop_click", {"x": 1, "y": 1}, _noop, key="7:")
-    assert "用户拒绝" in out and user.asked[-1] == ("desktop_submit", {"操作": "在「备忘录」里点击「发送」"})
+    assert "The user refused" in out and user.asked[-1] == ("desktop_submit", {"操作": "在「备忘录」里点击「发送」"})
     assert sum(op[0] == "click" for op in desk.fake.ops) == 1
     out, _ = await ctools.call(task(), "desktop_key", {"keys": "enter"}, _noop, key="7:")
-    assert "用户拒绝" in out and "输入框里按 enter" in user.asked[-1][1]["操作"]
+    assert "The user refused" in out and "输入框里按 enter" in user.asked[-1][1]["操作"]
     await ctools.call(task(), "desktop_key", {"keys": "cmd+a"}, _noop, key="7:")
     assert desk.fake.ops[-1] == ("press_seq", ("cmd+a",), {})
     out, _ = await ctools.call(task(), "desktop_key", {"keys": "1 2 * 3 enter"}, _noop, key="7:")
-    assert "用户拒绝" in out                                               # 一串键里有回车：也先问
+    assert "The user refused" in out                                               # 一串键里有回车：也先问
 
 
 async def test_never_touches_its_own_window(desk, monkeypatch):

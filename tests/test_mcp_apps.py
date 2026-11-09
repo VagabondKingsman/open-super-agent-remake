@@ -123,7 +123,7 @@ async def test_task_result_carries_view(uiapp, llm, events, bot):
     assert v["app"] == "uidemo" and v["tool"] == "show_weather" and v["uri"] == URI and v["input"] == {"city": "杭州"}
     assert v["result"]["structuredContent"] == {"city": "杭州", "temp": 21, "sky": "晴"}
     tool = [m for m in llm.bodies("worker")[-1]["messages"] if m["role"] == "tool"][0]
-    assert "不要贴原始数据" in tool["content"]                          # 告诉模型不用复述界面
+    assert "do not paste the raw data" in tool["content"]                          # 告诉模型不用复述界面
     assert not any(t["function"]["name"] == "uidemo__refresh_weather" for t in llm.bodies("worker")[-1]["tools"])
 
 
@@ -139,7 +139,7 @@ async def test_say_from_view(uiapp, no_password, llm, events, bot):
     user = find(b["chat_id"], role="user", text="杭州已刷新")[0]
     assert user["meta"]["applet"] == {"app": "uidemo", "title": "@uidemo"}
     body = llm.bodies("router", "Talky")[-1]
-    assert any(m["role"] == "user" and "（来自应用 @uidemo 的界面）界面说" in m["content"] for m in body["messages"])
+    assert any(m["role"] == "user" and "(sent from the UI of app @uidemo) 界面说" in m["content"] for m in body["messages"])
 
 
 async def test_disconnect_drops_tools_and_views(no_password):

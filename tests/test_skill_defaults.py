@@ -12,7 +12,7 @@ from osa import bots, memory, server, skillpacks, skills
 @pytest.fixture
 def defaults_store(tmp_path, monkeypatch):
     conn = sqlite3.connect(tmp_path / "fresh.db", check_same_thread=False)
-    for name in ("skills", "bots", "chats", "messages"):
+    for name in ("skills", "bots", "chats", "messages", "settings"):   # v0.12：bots.create 在 settings 里记用过的最大编号
         sql = memory.conn.execute("select sql from sqlite_master where name=?", (name,)).fetchone()[0]
         conn.execute(sql)
     monkeypatch.setattr(memory, "conn", conn)

@@ -278,9 +278,9 @@ def test_once_and_monthly(one_bot):
 async def test_bot_creates_and_manages_events(events, one_bot):
     a = one_bot
     out = await routines.tool_create_event(a, {"name": "x"})
-    assert "要填 source" in out and "- webhook：" in out and "- github：" in out   # 不知道有哪些来源：给它清单
+    assert "source is required" in out and "- webhook:" in out and "- github:" in out   # 不知道有哪些来源：给它清单
     out = await routines.tool_create_event(a, {"name": "表单", "source": "webhook", "prompt": "整理", "include": ["报名"]})
-    assert "已建事件" in out and "/hooks/" in out
+    assert "Created event" in out and "/hooks/" in out
     r = next(x for x in routines.list_for(a["id"]) if x["name"] == "表单")
     assert r["trigger"]["include"] == ["报名"]
     assert "地址本身就是密钥" in out
@@ -296,7 +296,7 @@ async def test_bot_creates_and_manages_events(events, one_bot):
     out = await routines.tool_update(a, {"id": r["id"], "kind": "daily", "times": ["10:00"]})
     assert "不能改成按时间跑" in out
     out = await routines.tool_update(a, {"id": r["id"], "exclude": ["测试"], "llm_filter": "只要真人报名"})
-    assert "已改好" in out and routines.get(r["id"])["trigger"]["exclude"] == ["测试"]
+    assert "Updated" in out and routines.get(r["id"])["trigger"]["exclude"] == ["测试"]
     assert routines.get(r["id"])["trigger"]["key"] == r["trigger"]["key"]   # 改别的不换地址
     out = await routines.tool_delete(a, {"id": r["id"]})
     assert "create_event" in out and r["trigger"]["key"] not in out

@@ -98,10 +98,10 @@ async def test_data_and_limits(bot):
         library.set_data(pid, {"": 1})
     # Bot 用工具读写：别人的只能读；不是小应用的没有数据
     other = bot()
-    assert "只能读" in await library.tool_page_data(other["id"], {"page_id": pid, "set": {"a": 1}})
+    assert "read-only" in await library.tool_page_data(other["id"], {"page_id": pid, "set": {"a": 1}})
     assert "张三" in await library.tool_page_data(other["id"], {"page_id": pid})
     out = await library.tool_page_data(b["id"], {"page_id": pid, "set": {"status": "done"}})
-    assert "已写入 1 个键" in out and '"status": "done"' in out
+    assert "Wrote 1 keys" in out and '"status": "done"' in out
     plain = library.save_page(b["id"], "报告", "# hi")
     assert "不是小应用" in await library.tool_page_data(b["id"], {"page_id": plain["id"]})
     assert "没有页面" in await library.tool_page_data(b["id"], {"page_id": 999999})
@@ -175,7 +175,7 @@ async def test_say_goes_to_bot_chat(no_password, llm, events, bot):
     user = find(b["chat_id"], role="user", text="张三报名了")[0]
     assert user["meta"]["applet"] == {"id": p["id"], "title": "报名表"}
     body = llm.bodies("router", "Formy")[-1]
-    assert any(m["role"] == "user" and "（来自小应用「报名表」）张三报名了" in m["content"] for m in body["messages"])
+    assert any(m["role"] == "user" and '(sent from applet "报名表") 张三报名了' in m["content"] for m in body["messages"])
     library.delete_page(p["id"])
 
 
