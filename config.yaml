@@ -59,7 +59,7 @@ limits:
   daily_token_budget: 2000000
   provider_rate_retries: 1   # 普通 429（rate_limit_exceeded）按 Retry-After 再试几次。额度用尽不重试
   provider_retry_cap_s: 120  # Retry-After 最多等这么多秒
-  provider_transient_retries: 2  # 408/409/5xx 再试几次。0 表示不试
+  provider_transient_retries: 5  # 408/409/5xx 再试几次（和 upstream 的 providers.RETRIES 一致）。0 表示不试
 
 memory:
   db: data/osa.db

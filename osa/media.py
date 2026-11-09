@@ -224,7 +224,7 @@ def strip_images(msgs: list[dict]) -> bool:
     for m in msgs:
         if isinstance(m.get("content"), list) and any(p.get("type") == "image_url" for p in m["content"]):
             text = "\n\n".join(p.get("text") or "" for p in m["content"] if p.get("type") == "text")
-            m["content"] = text + "\n（附带的图片没发给你：这个模型不收图片）"
+            m["content"] = text + "\n(The attached images were not sent to you: this model does not accept images)"
             hit = True
     return hit
 
@@ -239,10 +239,10 @@ def image_part(mid: str) -> dict | None:
 # ---------- send_file：把电脑里的文件发进对话 ----------
 SEND_FILE = {"type": "function", "function": {
     "name": "send_file",
-    "description": "把电脑里的文件发给用户：图片直接显示在对话里，其他文件显示成能点开、下载的卡片。"
-                   "截图、画好的图、做好的表格和文档要交给用户时用。不要自己拼下载链接。",
+    "description": "Send a file from the computer to the user: images are shown directly in the chat, other files appear as cards the user can open and download. "
+                   "Use it to hand over screenshots, drawn images, finished spreadsheets and documents. Do not build download links yourself.",
     "parameters": {"type": "object", "properties": {
-        "path": {"type": "string", "description": "文件在电脑里的路径（可以写相对工作文件夹的）"}}, "required": ["path"]}}}
+        "path": {"type": "string", "description": "path of the file on the computer (may be relative to the working folder)"}}, "required": ["path"]}}}
 MAX_SEND = 5   # 一轮（一个任务）最多发几个
 
 
@@ -255,9 +255,9 @@ async def from_computer(path: str) -> dict:
         await c.start()
     st = (await c.stat_paths([p])).get(p)
     if not st:
-        raise ValueError(f"电脑里没有这个文件：{p}")
+        raise ValueError(f"No such file on the computer: {p}")
     if st["dir"]:
-        raise ValueError(f"{p} 是文件夹，只能发文件")
+        raise ValueError(f"{p} is a folder; only files can be sent")
     att = {"name": posixpath.basename(p), "path": p, "size": st["size"]}
     if st["size"] <= MAX_BYTES and re.search(r"\.(png|jpe?g|webp|gif)$", p, re.I):
         try:
@@ -272,5 +272,5 @@ async def from_computer(path: str) -> dict:
 
 def sent_text(att: dict) -> str:
     """send_file 成功后给模型的话。"""
-    what = "图片已经显示在对话里" if att.get("media") else "文件卡片已经显示在对话里，用户点开就能看或下载"
-    return f"已发给用户：{att['name']}（{what}）。回复里不用再贴链接。"
+    what = "the image is already shown in the chat" if att.get("media") else "the file card is already shown in the chat; the user can open or download it"
+    return f"Sent to the user: {att['name']} ({what}). No need to paste a link in your reply."

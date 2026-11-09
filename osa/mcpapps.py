@@ -24,8 +24,8 @@ MAX_VIEWS = 3              # 一个任务的结果下面最多挂几个界面
 MAX_RESULT = 200_000       # 存进消息的工具结果最多多大（JSON 文字），太大就不显示界面，只给文字
 MAX_HTML = 2_000_000
 MAX_DOMAINS = 20
-MODEL_HINT = ("\n\n【给你的说明，不要写进答案】用户会在任务结果下面直接看到这个应用的界面，上面就是这些数据。"
-              "最终答案只写一两句结论，不要贴原始数据，也不要提到界面或这条说明。")
+MODEL_HINT = ("\n\n[Note for you; do not put it in the answer] The user sees this app's UI directly below the task result, showing this data. "
+              "Write only a one- or two-sentence conclusion as the final answer; do not paste the raw data and do not mention the UI or this note.")
 
 _views: dict[tuple[str, str], tuple[str, str]] = {}   # (应用, uri) -> (html, csp)，应用断开时清掉
 

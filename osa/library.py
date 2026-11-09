@@ -164,11 +164,11 @@ SAVE_PAGE = {"type": "function", "function": {
 
 PAGE_DATA = {"type": "function", "function": {
     "name": "page_data",
-    "description": "读或写一个小应用的数据（键值对）。用户在小应用里填的内容在这里；你写进去的数据小应用里马上能看到（osa.store / osa.on('data')）。"
-                   "不给 set 就只读。",
+    "description": "Read or write an applet's data (key-value pairs). What the user enters in the applet lives here; data you write is visible in the applet immediately (osa.store / osa.on('data')). "
+                   "Without set it is read-only.",
     "parameters": {"type": "object", "properties": {
         "page_id": {"type": "integer"},
-        "set": {"type": "object", "description": "要写入的键值（值可以是任何 JSON；设为 null 删除这个键）"}},
+        "set": {"type": "object", "description": "keys and values to write (values can be any JSON; set to null to delete the key)"}},
         "required": ["page_id"]}}}
 
 
@@ -176,23 +176,23 @@ async def tool_page_data(bot_id: int, args: dict) -> str:
     pid = args.get("page_id")
     p = get_page(pid, False) if isinstance(pid, int) else None
     if not p:
-        return f"没有页面 #{pid}"
+        return f"No page #{pid}"
     if not p.get("app"):
-        return f"页面 #{pid} 不是小应用，没有数据。要做成小应用，用 save_page 更新它并填 app"
+        return f"Page #{pid} is not an applet, so it has no data. To make it an applet, update it with save_page and fill in app"
     if (upd := args.get("set")) is not None:
         if p["bot_id"] != bot_id:
-            return f"没写：小应用 #{pid} 不是你建的，只能读"
+            return f"Not written: applet #{pid} was not created by you; read-only"
         try:
             data = set_data(pid, upd)
         except (ValueError, TypeError) as e:
-            return f"没写：{e}"
+            return f"Not written: {e}"
         from . import registry
         await registry.emit("page_data", page_id=pid, data=data)
-        head = f"已写入 {len(upd)} 个键。"
+        head = f"Wrote {len(upd)} keys. "
     else:
         data, head = get_data(pid), ""
     text = json.dumps(data, ensure_ascii=False, indent=1)
-    return f"{head}小应用「{p['title']}」的数据（{len(data)} 个键）：\n{text[:12000]}" + ("\n…（太长，截断）" if len(text) > 12000 else "")
+    return f"{head}Data of applet \"{p['title']}\" ({len(data)} keys):\n{text[:12000]}" + ("\n… (too long, truncated)" if len(text) > 12000 else "")
 
 
 
