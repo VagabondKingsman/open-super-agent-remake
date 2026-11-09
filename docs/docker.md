@@ -79,7 +79,7 @@ docker compose --profile https up -d
 | 变量 | 默认 | 用途 |
 |---|---|---|
 | `OSA_PORT` | `8765` | 宿主机上的端口 |
-| `OSA_BIND` | `127.0.0.1` | 监听地址。局域网里直接访问改成 `0.0.0.0`，先设 `OSA_PASSWORD` |
+| `OSA_BIND` | `127.0.0.1` | 监听地址。局域网里直接访问改成 `0.0.0.0`，先设 `OSA_PASSWORD`：对外又没设密码时服务拒绝启动（确实要这样再设 `OSA_ALLOW_NO_PASSWORD=1`） |
 | `TZ` | `Asia/Shanghai` | 时区，定时任务按它算 |
 | `OSA_DOMAIN` | | `--profile https` 用的域名 |
 | `FORWARDED_ALLOW_IPS` | `*` | 信任哪些来源带的真实 IP（`X-Forwarded-For`）。默认只有本机连得进来，所以都信任；`OSA_BIND=0.0.0.0` 直接对外时改成 `127.0.0.1`，否则别人可以伪造 IP 绕过登录限速 |

@@ -277,6 +277,7 @@
   "未安装 Docker，无法使用本地电脑": "Chưa cài Docker nên không dùng được Computer local",
   "未知操作": "Thao tác không rõ",
   "未设置 OSA_WEBHOOK_TOKEN 时只接受本机请求": "Khi chưa đặt OSA_WEBHOOK_TOKEN, chỉ chấp nhận yêu cầu local",
+  "服务监听在 {bind}，别的机器也能连进来，但没有设置 OSA_PASSWORD：谁都能不登录就用你的 Bot 和电脑。请设置 OSA_PASSWORD，或者只监听 127.0.0.1；确实要这样（比如只在可信的内网里）再设 OSA_ALLOW_NO_PASSWORD=1": "Dịch vụ đang nghe ở {bind}, máy khác kết nối được, nhưng chưa đặt OSA_PASSWORD: ai cũng dùng được Bot và Computer của bạn mà không cần đăng nhập. Hãy đặt OSA_PASSWORD hoặc chỉ nghe ở 127.0.0.1. Nếu thật sự muốn vậy (ví dụ chỉ trong mạng nội bộ tin cậy), đặt OSA_ALLOW_NO_PASSWORD=1",
   "设置了 OSA_PASSWORD 时，旧的 webhook 地址要配 OSA_WEBHOOK_TOKEN，或者改用事件自己的地址": "Khi đã đặt OSA_PASSWORD, địa chỉ webhook cũ cần OSA_WEBHOOK_TOKEN, hoặc chuyển sang địa chỉ riêng của sự kiện",
   "本机跑的模型，不用密钥": "Model chạy trên máy này, không cần khóa",
   "查看页面": "Xem trang",

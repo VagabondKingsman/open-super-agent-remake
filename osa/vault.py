@@ -27,8 +27,10 @@ def _key() -> Fernet:
     if not raw:
         f = db_path.parent / "vault.key"
         if not f.exists():
-            f.write_bytes(Fernet.generate_key())
-            f.chmod(0o600)
+            # Create with 0600 from the start: write-then-chmod leaves the key world-readable for a moment.
+            fd = os.open(f, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(fd, "wb") as out:
+                out.write(Fernet.generate_key())
         raw = f.read_text().strip()
     try:
         _fernet = Fernet(raw.encode())

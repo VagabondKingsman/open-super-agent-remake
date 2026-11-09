@@ -283,6 +283,7 @@
   "未命名页面": "Untitled page",
   "未知操作": "Unknown action",
   "未设置 OSA_WEBHOOK_TOKEN 时只接受本机请求": "Without OSA_WEBHOOK_TOKEN set, only local requests are accepted",
+  "服务监听在 {bind}，别的机器也能连进来，但没有设置 OSA_PASSWORD：谁都能不登录就用你的 Bot 和电脑。请设置 OSA_PASSWORD，或者只监听 127.0.0.1；确实要这样（比如只在可信的内网里）再设 OSA_ALLOW_NO_PASSWORD=1": "The service listens on {bind}, so other machines can connect, but OSA_PASSWORD is not set: anyone could use your bots and computer without logging in. Set OSA_PASSWORD or listen on 127.0.0.1 only. If you really mean it (for example on a trusted LAN only), set OSA_ALLOW_NO_PASSWORD=1",
   "设置了 OSA_PASSWORD 时，旧的 webhook 地址要配 OSA_WEBHOOK_TOKEN，或者改用事件自己的地址": "With OSA_PASSWORD set, the old webhook address needs OSA_WEBHOOK_TOKEN, or use the event's own address",
   "本机电脑没有远程画面，浏览器窗口就在这台电脑的屏幕上": "The local computer has no remote view. The browser window is on this computer's screen",
   "本机电脑的终端没有打开（电脑面板里可以打开，打开后每条命令都要你确认）": "The terminal is off on the local computer. You can turn it on in the computer panel; each command will then need your approval",

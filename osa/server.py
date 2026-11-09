@@ -87,6 +87,9 @@ async def parent_watch(pid: int, every: float = 2):
 @asynccontextmanager
 async def lifespan(app):
     if not auth.enabled():
+        if why := auth.startup_refusal():
+            print(why, flush=True)
+            raise RuntimeError(why)
         print("未设置 OSA_PASSWORD：网页不用登录就能访问，只能在本机或内网使用", flush=True)
     if config.db_outside_data_dir():
         print(i18n.t("注意：设置了 OSA_DATA_DIR（{data}），但 memory.db 是绝对路径 {db}，数据库不在数据目录里。备份和迁移时别漏了它。",
