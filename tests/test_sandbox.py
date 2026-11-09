@@ -60,7 +60,7 @@ print(sum(range(10)))
 """
     try:
         r = await sandbox.execute("python", code, {"sub/in.csv": "a,b"}, timeout=30, computer=False)
-        assert r.text.startswith("退出码 0"), r.text
+        assert r.text.startswith("Exit code 0"), r.text
         assert "input: a,b" in r.text and "45" in r.text
         assert "读到了" not in r.text and "机密" not in r.text                  # 数据目录、代码目录（配置）读不到
         assert not outside.exists() and not home.exists() and not (data / "x.txt").exists()   # 工作文件夹外写不进去
@@ -106,9 +106,9 @@ async def test_host_run_code_tool_and_timeout(kind, data, monkeypatch):
     tool = registry.available("run_code", registry.WORKER, {"scope": registry.WORKER, "use_pc": False})
     assert tool and not tool.gated
     out = await tool.run(call("run_code", lang="bash", code="echo $((2 ** 10)); echo oops >&2; exit 3"))
-    assert out.startswith("退出码 3") and "1024" in out and "oops" in out
+    assert out.startswith("Exit code 3") and "1024" in out and "oops" in out
     r = await sandbox.execute("python", "import time\nprint('开始', flush=True)\ntime.sleep(30)", timeout=1, computer=False)
-    assert r.timed_out and "超时了" in r.text and "开始" in r.text
+    assert r.timed_out and "Timed out" in r.text and "开始" in r.text
 
 
 @host_kinds
@@ -127,7 +127,7 @@ async def test_linked_mac_gets_the_outputs(kind, data, monkeypatch):
     monkeypatch.setattr(computer, "get", lambda bot_id=0: mac)
     r = await sandbox.execute("python", "open('chart.txt', 'w').write('图')", timeout=30)
     assert len(r.files) == 1 and r.files[0].startswith("/Users/me/OSA/.run/") and r.files[0].endswith("/chart.txt")
-    assert list(mac.got.values()) == ["图".encode()] and "传到 Mac" in r.text
+    assert list(mac.got.values()) == ["图".encode()] and "copied to the Mac" in r.text
     assert not list((data / "workspace" / ".run").iterdir())
 
 
@@ -138,10 +138,10 @@ async def test_no_sandbox_explains(data, monkeypatch):
     assert registry.available("quick_code", registry.ROUTER, {"scope": registry.ROUTER}) is None
     monkeypatch.setitem(CFG, "computer", {**CFG["computer"], "backend": "host"})
     text, files = await sandbox.run("python", "print(1)")
-    assert "没有沙箱" in text and "computer_shell" in text and files == []   # 本机电脑：可以改用终端（每条确认）
+    assert "no sandbox" in text and "computer_shell" in text and files == []   # 本机电脑：可以改用终端（每条确认）
     monkeypatch.setitem(CFG, "security", {"local_exec": False})
     text, _ = await sandbox.run("python", "print(1)")
-    assert "只允许在沙箱里" in text
+    assert "only allows code to run in a sandbox" in text
 
 
 def test_exec_mode(monkeypatch):
@@ -157,15 +157,15 @@ async def test_exec_off(data, monkeypatch):
     monkeypatch.setattr(sandbox, "_computer_backend", lambda: "local")
     assert sandbox.place() == "" and sandbox.place(quick=True) == ""
     text, _ = await sandbox.run("python", "print(1)")
-    assert "关掉了执行代码" in text
+    assert "code execution turned off" in text
 
 
 async def test_bad_input():
-    assert "不支持" in (await sandbox.run("ruby", "puts 1"))[0]
-    assert "没有要跑的代码" in (await sandbox.run("python", "  "))[0]
-    assert "文件名不行" in (await sandbox.run("python", "print(1)", {"../x": "1"}))[0]
-    assert "文件名不行" in (await sandbox.run("python", "print(1)", {"/etc/x": "1"}))[0]
-    assert "太大" in (await sandbox.run("python", "x" * (sandbox.MAX_INPUT + 1)))[0]
+    assert "not supported" in (await sandbox.run("ruby", "puts 1"))[0]
+    assert "No code to run" in (await sandbox.run("python", "  "))[0]
+    assert "Bad file name" in (await sandbox.run("python", "print(1)", {"../x": "1"}))[0]
+    assert "Bad file name" in (await sandbox.run("python", "print(1)", {"/etc/x": "1"}))[0]
+    assert "too large" in (await sandbox.run("python", "x" * (sandbox.MAX_INPUT + 1)))[0]
 
 
 # ---------- 电脑后端 ----------
@@ -213,7 +213,7 @@ async def test_runs_in_computer(box):
     assert cmd.startswith("bash -c ")
     with tarfile.open(fileobj=io.BytesIO(base64.b64decode(stdin))) as t:   # 代码和文件经 stdin 打包进去，命令行不会太长
         assert sorted(t.getnames()) == ["data.csv", "main.sh"]
-    assert r.text.startswith("退出码 0"), r.text
+    assert r.text.startswith("Exit code 0"), r.text
     assert "A,B" in r.text and "warn" in r.text
     assert len(r.files) == 1 and r.files[0].startswith(f"{box.workspace}/.run/") and r.files[0].endswith("/out/r.txt")
     run = Path(r.files[0]).parent.parent
@@ -221,21 +221,21 @@ async def test_runs_in_computer(box):
     assert not (run / "main.sh").exists() and (run / "data.csv").exists()
 
     r = await sandbox.execute("bash", "echo 只是算一下; exit 2", timeout=20)
-    assert r.text.startswith("退出码 2") and "只是算一下" in r.text and r.files == []
+    assert r.text.startswith("Exit code 2") and "只是算一下" in r.text and r.files == []
     assert [p.name for p in (Path(box.workspace) / ".run").iterdir()] == [run.name]   # 没产出的运行文件夹删掉了
 
 
 async def test_computer_missing_language_and_timeout(box, monkeypatch):
     box.missing = "node"
     text, files = await sandbox.run("node", "console.log(1)")
-    assert "电脑里没有 node" in text and files == []
+    assert "node is not installed on the computer" in text and files == []
     box.missing = ""
 
     async def slow(cmd, timeout=120, stdin=None):
         return ExecResult(0, "跑了一半\n\n" + sandbox.MARK + "124\n\n", "")
     monkeypatch.setattr(box, "exec", slow)
     r = await sandbox.execute("python", "while True: pass", timeout=3)
-    assert r.timed_out and "超时了：3 秒" in r.text and "跑了一半" in r.text
+    assert r.timed_out and "Timed out: did not finish within 3 seconds" in r.text and "跑了一半" in r.text
 
 
 async def test_router_quick_code_never_waits_for_computer(box, monkeypatch):
@@ -250,5 +250,5 @@ def test_registered():
     assert rc.where == frozenset({registry.WORKER}) and qc.where == frozenset({registry.ROUTER})
     assert not rc.gated and not qc.gated
     for t in (rc, qc):
-        assert "沙箱" in t.schema["function"]["description"] and "工作文件夹外改不了" in t.schema["function"]["description"]
+        assert "sandbox" in t.schema["function"]["description"] and "outside the working folder" in t.schema["function"]["description"]
     assert rc.progress({"code": "\n\nimport math\nprint(1)"}).endswith("import math")

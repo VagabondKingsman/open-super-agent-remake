@@ -71,6 +71,20 @@ Khi đã cùng lịch sử, tạo nhánh thử từ dòng remake đã xác minh 
 
 Lịch sử remake và upstream không có merge-base. Ba commit `0897360`, `ec71362`, `3432671` được áp bằng patch thủ công lên `i18n-vi`, không merge và không lấy commit desktop/Tauri sau đó. Remote `upstream` chỉ fetch; push URL để `DISABLED`.
 
+## Port v0.12.0 (09/11/2026, OSA-021)
+
+Upstream đi từ v0.6.1 lên v0.12.0 trong ba ngày: 84 commit, khoảng 27.000 dòng ở `osa/`, `web/`, `tests/`. Phần riêng của remake chỉ khoảng 5.000 dòng. Vì vậy lần này dựng nền mới rồi port remake lên, giống lần v0.6.0, không áp từng commit upstream.
+
+1. Safety branch tại tip cũ (`safety/i18n-vi-before-v0.12-20261109`).
+2. Một commit forward lấy cây v0.12.0 cho `osa/`, `web/` (trừ `web/tests/`), `tests/`, `pyproject.toml`, `uv.lock`, `config.yaml`, `Dockerfile`, `compose.yaml`, `.env.example`, `.dockerignore`, `.gitignore`, `deploy/`, `desktop/`, `mobile/`. Giữ của remake: `.agents/`, `skills-pack/`, `docs/`, `scripts/`, README, `.github/` và file chỉ remake có.
+3. Xuất diff remake `3432671..<tip cũ>` cho các file bị ghi đè rồi `git apply -3`. Blob của `3432671` có sẵn trong repo vì đã fetch upstream, nên git tự merge 3 chiều. Lần này 53 file sạch, 23 file xung đột.
+4. `osa/router.py`, `osa/worker.py` merge 3 chiều bằng `git merge-file --diff3` (remake làm gốc). Giữ cấu trúc upstream (registry, dsml, botadmin, đo ms/ttft), áp lại hành vi remake (finish_reason, Heavy, quota, IncompleteAnswer, side_effects), viết prompt mới bằng tiếng Anh.
+5. Tool riêng của remake đăng ký qua `osa/builtin.py` vào registry, không thêm nhánh `if` trong Router/Worker.
+6. Catalog: `en.json` lấy upstream cộng khóa chỉ remake có, `vi.json` dịch khóa mới. `uv run python -m osa.i18n` phải ra thiếu 0, thừa 0.
+7. Test upstream chạy với `i18n.set_lang("zh")` trong `tests/conftest.py`; test VI của remake tự đặt ngôn ngữ. Test upstream nào khẳng định câu chữ tiếng Trung gửi cho model thì sửa sang câu tiếng Anh mới, không xóa assertion.
+
+Những chỗ dễ sót lần sau: chi phí USD ở bảng `llm_calls` (cột `estimated`, migration đổi tiền cho cả hai bảng), giá ảnh `pricing.images` theo USD, số lần retry 5xx (`limits.provider_transient_retries` bằng `providers.RETRIES`), tranh chấp webhook nay nằm ở `events.deliver`. Plugin trong `osa/catalog/plugins/` vẫn trả lời model bằng tiếng Trung, chưa có test chặn.
+
 ## Điểm phải review
 
 - Router/Worker, approvals, auth và ranh giới dữ liệu không tin cậy.

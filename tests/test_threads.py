@@ -33,7 +33,7 @@ async def test_thread_in_direct_chat(llm, events, make_bot):
     # Bot 看到的是主对话到那条消息为止，加上讨论串；那条消息之后的主对话看不到
     seen = _seen(llm.bodies("router", "Teller")[-1])
     assert "三条新闻：A、B、C" in seen and "B 展开说说" in seen
-    assert f"针对上面 #{root_id} 这条消息" in seen
+    assert f"message #{root_id} above" in seen
     assert "天气怎么样" not in seen and "第二个话题的回答" not in seen
 
     # 讨论串不进侧栏；主对话翻页时那条消息带着“N 条回复”
