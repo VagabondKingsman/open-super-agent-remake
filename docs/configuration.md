@@ -10,7 +10,8 @@
 | `DEEPSEEK_API_KEY` | 否 | 默认配置用的 DeepSeek 的 key。也可以不设，在 设置 → 模型 里填 |
 | `OSA_PASSWORD` | 部署到公网时必需 | 登录密码，设置后要先登录才能用；不设置则不用登录，只适合本机或内网 |
 | `INSTABOX_API_KEY` | 否 | 设置后，电脑改用 Instabox 云主机 |
-| `OSA_WEBHOOK_TOKEN` | 否 | webhook 鉴权；没设置时只接受本机发来的请求 |
+| `OSA_WEBHOOK_TOKEN` | 否 | 旧 webhook 地址（`/hooks/<名字>`）的鉴权；没设置时只接受本机发来的请求，设了 `OSA_PASSWORD` 时旧地址必须配它 |
+| `OSA_ALLOW_NO_PASSWORD` | 否 | 设成 `1` 时，监听在 `127.0.0.1` 以外又没设 `OSA_PASSWORD` 也照样启动（默认拒绝启动），只在可信的内网里用 |
 | `OSA_ALLOWED_HOSTS` | 否 | 没设 `OSA_PASSWORD` 时，额外放行的访问地址，逗号分隔，和 `server.allowed_hosts` 一样（见 [登录](#登录)） |
 | `OSA_CONFIG` | 否 | 配置文件路径，默认 `config.yaml` |
 | `OSA_DATA_DIR` | 否 | 数据目录，默认仓库里的 `data/`。数据库、密钥、自己加的应用清单、工作目录都放在这里；设了以后，相对路径的 `memory.db` 只取文件名放进这个目录（绝对路径照旧） |
@@ -318,7 +319,7 @@ uv run uvicorn osa.server:app --port 8765
 tailscale serve --bg --https=8443 8765     # 访问 https://<机器名>.<tailnet>.ts.net:8443
 ```
 
-如果改用 `--host 0.0.0.0` 直接访问，地址必须写 `http://`。浏览器自动升级成 https 时，服务端会报 `Invalid HTTP request`。
+如果改用 `--host 0.0.0.0` 直接访问，要先设 `OSA_PASSWORD`（不然服务拒绝启动），地址必须写 `http://`。浏览器自动升级成 https 时，服务端会报 `Invalid HTTP request`。
 
 ## 部署到公网服务器
 

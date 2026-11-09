@@ -135,3 +135,22 @@ async def test_index_is_revalidated(no_password):
         for path in ("/", "/library/pages/3"):
             r = await c.get(path)
             assert r.status_code == 200 and r.headers.get("cache-control") == "no-cache", path
+
+
+async def test_private_push_endpoint_is_refused(no_password):
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=server.app), base_url="http://127.0.0.1") as c:
+        res = await c.post("/api/push/subscribe", json={"subscription": {
+            "endpoint": "https://169.254.169.254/latest/", "keys": {"p256dh": "x", "auth": "y"}}})
+    assert res.status_code == 400
+    assert not push.conn.execute("select 1 from push_subs where endpoint like 'https://169.254.%'").fetchone()
+
+
+async def test_send_skips_private_endpoint(device):
+    """A subscription stored before the check (or whose host now resolves inside) gets no request."""
+    push.subscribe({"endpoint": "https://10.0.0.8/w/x", "keys": {"p256dh": "x", "auth": "y"}})
+    try:
+        out = await push.send("t", "b")
+    finally:
+        push.unsubscribe("https://10.0.0.8/w/x")
+    assert all(r.url.host != "10.0.0.8" for r in device["seen"]) and len(device["seen"]) == 1
+    assert "ok" in out

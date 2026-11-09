@@ -94,6 +94,8 @@ docker compose --profile https up -d
 
 `.env` 里的注释要单独占一行，写在值后面的注释可能被当成值的一部分。
 
+`OSA_BIND` 不是 `127.0.0.1`（服务对外）又没设 `OSA_PASSWORD` 时，服务拒绝启动。只在可信的内网里确实要这样，再设 `OSA_ALLOW_NO_PASSWORD=1`。不用 compose、直接 `docker run -p 8765:8765` 时也一样，要么设密码，要么写成 `-p 127.0.0.1:8765:8765 -e OSA_BIND=127.0.0.1`。
+
 ## 国内网络
 
 - Docker Hub 拉不下镜像时，先给 Docker 配镜像加速（`registry-mirrors`）。

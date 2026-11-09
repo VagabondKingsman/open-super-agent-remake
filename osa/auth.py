@@ -17,6 +17,7 @@ import json
 import os
 import re
 import secrets
+import sys
 import time
 from urllib.parse import parse_qs, quote, urlsplit
 from fastapi import APIRouter, HTTPException, Request
@@ -53,6 +54,36 @@ _key: bytes | None = None
 
 def enabled() -> bool:
     return bool(os.environ.get("OSA_PASSWORD"))
+
+
+def exposed_bind() -> str | None:
+    """The non-loopback address the service listens on, if any; None when only this machine can connect.
+    OSA_BIND (Docker Compose passes the host-side bind) wins over uvicorn's --host, which is 0.0.0.0 in containers."""
+    host = os.environ.get("OSA_BIND", "").strip()
+    if not host:
+        argv = sys.argv
+        for i, a in enumerate(argv):
+            if a == "--host" and i + 1 < len(argv):
+                host = argv[i + 1]
+            elif a.startswith("--host="):
+                host = a.split("=", 1)[1]
+    host = host.strip("[]")
+    if not host or host == "localhost":
+        return None
+    try:
+        return None if ipaddress.ip_address(host).is_loopback else host
+    except ValueError:
+        return host   # a hostname or interface name: treat as reachable from outside
+
+
+def startup_refusal() -> str | None:
+    """Why the service must not start: listening beyond this machine with no password (OSA_ALLOW_NO_PASSWORD=1 overrides)."""
+    if enabled() or os.environ.get("OSA_ALLOW_NO_PASSWORD", "").strip().lower() in ("1", "true", "yes"):
+        return None
+    bind = exposed_bind()
+    return i18n.t("服务监听在 {bind}，别的机器也能连进来，但没有设置 OSA_PASSWORD：谁都能不登录就用你的 Bot 和电脑。"
+                  "请设置 OSA_PASSWORD，或者只监听 127.0.0.1；确实要这样（比如只在可信的内网里）再设 OSA_ALLOW_NO_PASSWORD=1",
+                  bind=bind) if bind else None
 
 
 def _signing_key() -> bytes:

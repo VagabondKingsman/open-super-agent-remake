@@ -62,7 +62,8 @@ Chạy trực tiếp bằng uvicorn không tự nạp `.env`. Script start nạp
 | `OSA_PASSWORD` | Bật đăng nhập; phải có trước khi mở public |
 | `OSA_ALLOWED_HOSTS` | Khi chưa có mật khẩu, thêm host được phép, cách nhau bởi dấu phẩy. `localhost`, IP, `*.local`, `*.ts.net` đã được nhận |
 | `OSA_DATA_DIR` | Thư mục dữ liệu, nên là đường dẫn tuyệt đối ngoài checkout. DB, `session.key`, `vault.key`, apps tự thêm, workspace, dữ liệu Computer nằm ở đây. `memory.db` tương đối chỉ lấy tên file. Đường dẫn tuyệt đối trong YAML giữ nguyên. Log/PID của script start cũng nằm trong `$OSA_DATA_DIR/logs` |
-| `OSA_WEBHOOK_TOKEN` | Token cho header `X-OSA-Token` của webhook |
+| `OSA_WEBHOOK_TOKEN` | Token cho header `X-OSA-Token` của địa chỉ webhook cũ. Đã đặt `OSA_PASSWORD` thì địa chỉ cũ bắt buộc phải có token |
+| `OSA_ALLOW_NO_PASSWORD` | Đặt `1` để vẫn chạy khi nghe ngoài `127.0.0.1` mà chưa có `OSA_PASSWORD`. Mặc định là từ chối khởi động |
 | `INSTABOX_API_KEY` | Computer cloud khi dùng backend phù hợp |
 | `OSA_VAULT_KEY` | Master key; không tự đổi trên dữ liệu hiện có |
 | `OSA_BACKUP_PASSPHRASE` | Mật khẩu backup CLI |
@@ -106,7 +107,7 @@ Lịch thuộc từng Bot: giờ cố định theo ngày/thứ, mỗi N phút (t
 
 v0.6 so kết quả lịch với lần trước. Không có gì mới thì lưu trạng thái `quiet`, không đăng kết quả hay push. Bấm chạy thử luôn hiển thị kết quả. Marker nội bộ `[无新内容]` vẫn giữ như upstream; parser cũng hiểu `nothing new` và `Không có nội dung mới`.
 
-Webhook nhận tại `POST /hooks/<tên>`. Khi đặt `OSA_WEBHOOK_TOKEN`, header `X-OSA-Token` phải khớp; nếu không chỉ nhận request local trực tiếp. Không dùng webhook gửi tin thật làm smoke mặc định. Bộ lọc keyword chạy trước, LLM filter có thể tính phí. Remake giữ reservation trước khi chờ filter để ngăn dispatch trùng đồng thời trong một runtime, không bảo đảm exactly-once trên hệ thống phân tán.
+Webhook nhận tại `POST /hooks/<tên>`. Khi đặt `OSA_WEBHOOK_TOKEN`, header `X-OSA-Token` phải khớp. Không đặt token thì: đã bật `OSA_PASSWORD` là từ chối, chưa bật thì chỉ nhận request local trực tiếp. Địa chỉ riêng của sự kiện `/hooks/<khóa ngẫu nhiên>` không cần token. Không dùng webhook gửi tin thật làm smoke mặc định. Bộ lọc keyword chạy trước, LLM filter có thể tính phí. Remake giữ reservation trước khi chờ filter để ngăn dispatch trùng đồng thời trong một runtime, không bảo đảm exactly-once trên hệ thống phân tán.
 
 ## Computer và dạy tác vụ
 
