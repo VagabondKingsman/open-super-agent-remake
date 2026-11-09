@@ -1,19 +1,22 @@
-import { useRef, useState } from 'react'
+import { lazy, useRef, useState } from 'react'
 import { api, openChat, refreshLists, showTask, useStore } from '../store'
 import type { Avatar, Bot } from '../types'
 import { t, tc } from '../i18n'
 import BotAvatar, { SHAPE_NAMES } from './BotAvatar'
-import { ComputerPanel } from './Computer'
-import { RoutinesPanel, SkillsPanel } from './Routines'
-import { EventsPanel } from './Events'
-import { MemoryPanel } from './Memories'
 import { ShareTemplate, TemplateInstall, TemplatePicker, type TemplatePreview } from './Templates'
-import { TasksPanel } from './Tasks'
-import { BotLibraryPanel } from './BotLibrary'
+import { Lazy } from '../lazy'
 import { ask } from './Dialog'
 import { AvatarImageTools, botPrompt } from './AvatarTools'
 import { useBack } from '../swipe'
 import { isEnter } from '../keys'
+
+const ComputerPanel = lazy(() => import('./Computer').then(m => ({ default: m.ComputerPanel })))
+const TasksPanel = lazy(() => import('./Tasks').then(m => ({ default: m.TasksPanel })))
+const BotLibraryPanel = lazy(() => import('./BotLibrary').then(m => ({ default: m.BotLibraryPanel })))
+const SkillsPanel = lazy(() => import('./Routines').then(m => ({ default: m.SkillsPanel })))
+const RoutinesPanel = lazy(() => import('./Routines').then(m => ({ default: m.RoutinesPanel })))
+const EventsPanel = lazy(() => import('./Events').then(m => ({ default: m.EventsPanel })))
+const MemoryPanel = lazy(() => import('./Memories').then(m => ({ default: m.MemoryPanel })))
 
 // 新建 Bot：从模板装（带好技能和定时任务），或者空白的：只问名字和头像，职责在第一条消息里交代
 export function NewBotDialog({ onClose }: { onClose: () => void }) {
@@ -104,13 +107,13 @@ export function BotPanel({ onClose, tab, setTab }: { onClose: () => void; tab: s
         <button className="icon-btn" onClick={onClose}>✕</button>
       </div>
       {tab === 'computer'
-        ? <div className="panel-body"><ComputerPanel key={bot.id} botId={bot.id} /></div>
-        : tab === 'tasks' ? <TasksPanel key={bot.id} botId={bot.id} />
-        : tab === 'library' ? <div className="panel-body"><BotLibraryPanel key={bot.id} bot={bot} /></div>
-        : tab === 'skills' ? <div className="panel-body"><SkillsPanel key={bot.id} bot={bot} /></div>
-        : tab === 'routines' ? <div className="panel-body"><RoutinesPanel key={bot.id} bot={bot} /></div>
-        : tab === 'events' ? <div className="panel-body"><EventsPanel key={bot.id} bot={bot} /></div>
-        : tab === 'memory' ? <div className="panel-body"><MemoryPanel key={bot.id} bot={bot} /></div>
+        ? <div className="panel-body"><Lazy><ComputerPanel key={bot.id} botId={bot.id} /></Lazy></div>
+        : tab === 'tasks' ? <Lazy><TasksPanel key={bot.id} botId={bot.id} /></Lazy>
+        : tab === 'library' ? <div className="panel-body"><Lazy><BotLibraryPanel key={bot.id} bot={bot} /></Lazy></div>
+        : tab === 'skills' ? <div className="panel-body"><Lazy><SkillsPanel key={bot.id} bot={bot} /></Lazy></div>
+        : tab === 'routines' ? <div className="panel-body"><Lazy><RoutinesPanel key={bot.id} bot={bot} /></Lazy></div>
+        : tab === 'events' ? <div className="panel-body"><Lazy><EventsPanel key={bot.id} bot={bot} /></Lazy></div>
+        : tab === 'memory' ? <div className="panel-body"><Lazy><MemoryPanel key={bot.id} bot={bot} /></Lazy></div>
         : <BotPanelInner key={bot.id} bot={bot} tasks={Object.values(tasks).filter(x => x.bot_id === bot.id)} onClose={onClose} />}
     </aside>
   )

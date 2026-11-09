@@ -1,15 +1,17 @@
-import { useRef, useState } from 'react'
+import { lazy, useRef, useState } from 'react'
 import { api, openChat, refreshLists, useStore } from '../store'
 import type { Bot, Chat } from '../types'
 import { lang, t, tc } from '../i18n'
 import BotAvatar from './BotAvatar'
-import { ComputerPanel } from './Computer'
-import { TasksPanel } from './Tasks'
+import { Lazy } from '../lazy'
 import { ask } from './Dialog'
 import { GroupFace } from './Chat'
 import { AvatarImageTools, groupPrompt } from './AvatarTools'
 import { useBack } from '../swipe'
 import { isEnter } from '../keys'
+
+const ComputerPanel = lazy(() => import('./Computer').then(m => ({ default: m.ComputerPanel })))
+const TasksPanel = lazy(() => import('./Tasks').then(m => ({ default: m.TasksPanel })))
 
 const MIN = 2, MAX = 6
 const SEP = lang !== 'zh' ? ', ' : '、'
@@ -85,8 +87,8 @@ export function GroupPanel({ chat, onClose, tab, setTab }: { chat: Chat; onClose
         </div>
         <button className="icon-btn" onClick={onClose}>✕</button>
       </div>
-      {cur === 'tasks' ? <TasksPanel key={chat.id} chatId={chat.id} /> : <div className="panel-body">
-        {cur === 'computer' ? <ComputerPanel key={chat.id} botId={chat.lead ?? chat.bot_ids[0]} /> : <GroupSettings key={chat.id} chat={chat} onClose={onClose} />}
+      {cur === 'tasks' ? <Lazy><TasksPanel key={chat.id} chatId={chat.id} /></Lazy> : <div className="panel-body">
+        {cur === 'computer' ? <Lazy><ComputerPanel key={chat.id} botId={chat.lead ?? chat.bot_ids[0]} /></Lazy> : <GroupSettings key={chat.id} chat={chat} onClose={onClose} />}
       </div>}
     </aside>
   )

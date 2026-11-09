@@ -1,18 +1,20 @@
-import { useEffect, useState } from 'react'
+import { lazy, useEffect, useState } from 'react'
 import { api, bootstrap, chatById, closeThread, connect, getState, openApps, openChat, openFromUrl, openLibrary, openChatOrThread, setSettings, useStore } from './store'
 import { desktop } from './desktop'
 import Chat from './components/Chat'
 import ThreadPanel from './components/Thread'
-import Library from './components/Library'
-import Market from './components/Market'
-import Observe from './components/Observe'
 import Sidebar from './components/Sidebar'
-import Settings from './components/Settings'
-import Onboarding from './components/Onboarding'
 import { BotPanel, NewBotDialog } from './components/BotEditor'
 import { GroupPanel, NewGroupDialog } from './components/Groups'
 import { ImageViewer } from './components/Media'
 import { useDrawer } from './swipe'
+import { Lazy } from './lazy'
+
+const Library = lazy(() => import('./components/Library'))
+const Market = lazy(() => import('./components/Market'))
+const Observe = lazy(() => import('./components/Observe'))
+const Settings = lazy(() => import('./components/Settings'))
+const Onboarding = lazy(() => import('./components/Onboarding'))
 
 export default function App() {
   const ready = useStore(s => s.ready)
@@ -144,14 +146,14 @@ export default function App() {
       <button className="mobile-menu icon-btn" onClick={() => setSide(true)}>☰</button>
       <div className="side-mask" onClick={() => setSide(false)} />
       <Sidebar onNewBot={() => setNewBot(true)} onNewGroup={() => setNewGroup(true)} onSettings={() => setSettings('')} onClose={() => setSide(false)} />
-      {view === 'library' ? <Library /> : view === 'apps' ? <Market /> : view === 'observe' ? <Observe /> : <Chat onToggleDetails={() => { if (thread) { closeThread(); setDetails(true) } else setDetails(!details) }} />}
+      {view === 'library' ? <Lazy><Library /></Lazy> : view === 'apps' ? <Lazy><Market /></Lazy> : view === 'observe' ? <Lazy><Observe /></Lazy> : <Chat onToggleDetails={() => { if (thread) { closeThread(); setDetails(true) } else setDetails(!details) }} />}
       {view === 'chat' && thread ? <ThreadPanel /> : details && view === 'chat' && (chat?.kind === 'group'
         ? <GroupPanel chat={chat} onClose={() => setDetails(false)} tab={tab} setTab={setTab} />
         : <BotPanel onClose={() => setDetails(false)} tab={tab} setTab={setTab} />)}
       {newBot && <NewBotDialog onClose={() => setNewBot(false)} />}
       {newGroup && <NewGroupDialog onClose={() => setNewGroup(false)} />}
-      {settings !== false && <Settings initial={settings || undefined} onClose={() => setSettings(false)} />}
-      {onboard && <Onboarding onClose={() => setOnboard(false)} />}
+      {settings !== false && <Lazy><Settings initial={settings || undefined} onClose={() => setSettings(false)} /></Lazy>}
+      {onboard && <Lazy><Onboarding onClose={() => setOnboard(false)} /></Lazy>}
       <ImageViewer />
     </div>
   )
