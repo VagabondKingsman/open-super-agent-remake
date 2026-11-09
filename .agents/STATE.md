@@ -207,3 +207,13 @@ Append. Câu "OSA-023 đang làm" ở BOARD cũ là trạng thái lúc viết.
 [PR #19](https://github.com/VagabondKingsman/open-super-agent-remake/pull/19) (OSA-023) đã merge vào `i18n-vi` tại `1b0de69002bb37ffabe9d6ff314b94de2e04c4f5`, `merged_at` API `2026-11-09T12:29:21Z` (19:29:21 Asia/Saigon). Merge bởi Hoplite (`app/usehoplite`) qua chế độ tự merge, trước câu duyệt. Tri Tran viết "Duyệt merge" lúc 19:33 để xác nhận sau.
 
 OSA-024: Tri Tran yêu cầu thread Hoplite cài đủ vibecode-kit và bộ AI Native trước khi build tiếp. Trước phiên này Hoplite thấy bốn bridge (`osa-dev`, `ai-work-method`, `vibecode-kit`, `unslop-vi`). Phiên thêm năm bridge: `refinery`, `sot-kernel-in-a-box`, `html3d-slides`, `unslop`, `ai-native-mentor`. Cách cài và kết quả chạy thử helper ghi ở [SKILL-FLOW](SKILL-FLOW.md#cài-skill-vào-hoplite). `skills-pack/` không đổi, `verify-sources` PASS (129 file). Chi tiết ở [log OSA-024](log/2026-11-09-hoplite-osa-024.md).
+
+## Bổ sung · OSA-024, OSA-026 đã merge · OSA-025, OSA-027 đang mở · hoplite · 09/11/2026
+
+Append. Câu "OSA-024 đang làm" ở trên là trạng thái lúc viết.
+
+- [PR #20](https://github.com/VagabondKingsman/open-super-agent-remake/pull/20) (OSA-024, bridge skill) merge tại `6c02c1b`, `2026-11-09T13:25:07Z`. [PR #22](https://github.com/VagabondKingsman/open-super-agent-remake/pull/22) (OSA-019, `lang_flag` trên Quan sát) merge tại `b9b1c2a`, `2026-11-09T13:39:03Z`. Cả hai do Hoplite (`app/usehoplite`) merge qua chế độ tự merge khi CI xanh, không có câu duyệt riêng.
+- OSA-025 ([PR #23](https://github.com/VagabondKingsman/open-super-agent-remake/pull/23)): ba lỗi High của audit. Đăng nhập kiểm mật khẩu qua một hàng chung (khoảng 1 lần đoán mỗi giây trên mọi IP). Computer Docker/Instabox: task nền phải được duyệt trước `computer_shell` và `computer_write_file`, container tạo mới có `no-new-privileges`, `--pids-limit 4096`, bỏ `NET_RAW`/`MKNOD`. Compose mặc định không còn `docker.sock`. Muốn dùng computer local thì thêm `compose.computer.yaml`, ví dụ `COMPOSE_FILE=compose.yaml:compose.computer.yaml` trong `.env`.
+- OSA-027 ([PR #21](https://github.com/VagabondKingsman/open-super-agent-remake/pull/21)): cứng hóa GitHub Actions cho OSA-005.
+- Box chưa bị ảnh hưởng: box không chạy bằng compose và vẫn ở bản cũ. Khi deploy: máy có sẵn `osa-computer` phải `docker rm -f osa-computer` để lấy cờ siết. Ai đang chạy compose có computer local thì phải thêm `compose.computer.yaml`.
+- Local: pytest 767 passed, 5 skipped. i18n thiếu 0, thừa 0. Paid usage 0.
