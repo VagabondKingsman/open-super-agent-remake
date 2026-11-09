@@ -869,6 +869,8 @@
   "语音识别没能启动：{error}": "Couldn't start speech recognition: {error}",
   "语音识别连不上服务（Chrome 要能访问 Google 的语音服务，Safari 可以直接用）": "Can't reach the speech recognition service (Chrome needs access to Google's speech service; Safari works as is)",
   "语音输入": "Voice input",
+  "语言不一致": "Language mismatch",
+  "结果看起来大半是中文，和界面语言（{ui}）不一致": "The result looks mostly Chinese, which doesn't match the UI language ({ui})",
   "请把你记得的关于我的所有信息列出来，每条一行：我的基本情况、偏好、习惯、正在做的事。只列内容，不要解释。": "List everything you remember about me, one item per line: my background, preferences, habits, and what I'm working on. Just the list, no explanations.",
   "请求失败（{status}）": "Request failed ({status})",
   "请求没报错，但模型没认出测试图片的颜色": "The request worked, but the model didn't get the test image's color right",
