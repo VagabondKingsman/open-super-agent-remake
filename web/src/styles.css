@@ -110,8 +110,9 @@ a { color: var(--link); text-decoration: none; } a:hover { text-decoration: unde
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--good); flex: none; }
 .task-card.running .dot, .mini-task .dot { background: var(--warn); animation: pulse 1.2s infinite; }
 .task-card.failed .dot, .task-card.cancelled .dot { background: var(--bad); }
+.task-card.partial .dot { background: var(--warn); }
 .task-card.waiting { border-color: var(--warn); }
-.result-head { font-size: 12.5px; color: var(--good); margin-bottom: 4px; } .result-head.failed { color: var(--bad); }
+.result-head { font-size: 12.5px; color: var(--good); margin-bottom: 4px; } .result-head.failed { color: var(--bad); } .result-head.partial { color: var(--warn); }
 .clamp { max-height: 360px; overflow: hidden; -webkit-mask-image: linear-gradient(#000 70%, transparent); mask-image: linear-gradient(#000 70%, transparent); }
 .expand { color: var(--fg2); font-size: 13px; padding: 4px 0; } .expand:hover { color: var(--fg); }
 
@@ -813,6 +814,7 @@ a { color: var(--link); text-decoration: none; } a:hover { text-decoration: unde
 .task-row .task-action { margin-top: 1px; }
 .task-row.running .dot, .td-head.running .dot { background: var(--warn); animation: pulse 1.2s infinite; }
 .task-row.failed .dot, .task-row.cancelled .dot, .td-head.failed .dot, .td-head.cancelled .dot { background: var(--bad); }
+.task-row.partial .dot, .td-head.partial .dot { background: var(--warn); }
 .task-row.interrupted .dot, .td-head.interrupted .dot, .task-card.interrupted .dot { background: var(--fg3); }
 .task-detail { gap: 8px; }
 .td-nav { display: flex; justify-content: space-between; align-items: center; font-size: 13.5px; min-height: 28px; }

@@ -11,7 +11,7 @@ import { useBack } from '../swipe'
 
 const mmss = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`
 const touch = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches
-const SEP = lang === 'en' ? ', ' : '、'
+const SEP = lang !== 'zh' ? ', ' : '、'
 
 /** 演示录制中：计时、完成（生成技能草稿）、放弃。 */
 function TeachBar({ teach }: { teach: Teach }) {
@@ -56,7 +56,7 @@ function TypeBar({ botId }: { botId: number }) {
 }
 
 const STATE: Record<string, string> = {
-  none: t('还没启动'), starting: t('启动中'), running: t('运行中'), paused: t('已暂停'), stopped: t('已停止'), error: t('出错了'),
+  none: t('还没启动'), starting: t('启动中'), running: t('运行中'), paused: t('已暂停'), stopped: t('已停止'), error: t('出错了'), unavailable: t('无法使用'),
 }
 /** 用哪台电脑。App 自己独立运行时就是本机，不用选；连着服务器时只在“Bot 电脑”（服务器那边配好的）和“本机”（这台 Mac）之间选。
  *  在这台 Mac 的 App 里选“本机”就是把它借给服务器：向服务器要一个借用令牌交给 App，App 弹窗问你同意了才借；选回“Bot 电脑”就收回。
@@ -320,9 +320,10 @@ export function ComputerPanel({ botId }: { botId: number }) {
           {host ? <p className="muted small">{offline ? st.detail : t('Bot 用这台电脑做事时，画面会显示在这里。')}</p>
             : <p className="muted small">{t('所有 Bot 共用一台电脑（浏览器 + 终端）。几个任务可以同时用，每个任务一个浏览器窗口，登录状态和文件共用；')}
             {' '}{t('最多同时 {n} 个，多了排队。派出的任务需要时会自动启动，闲置 15 分钟自动暂停。', { n: st.parallel || 3 })}</p>}
+          {st.state === 'unavailable' && !host && <p className="muted small">{st.detail}</p>}
           {st.state === 'error' && st.detail && !offline && <div className="error-line">{st.detail}</div>}
           {st.backend === 'instabox' && <MachinePicker key={st.detail} botId={botId} onErr={setErr} />}
-          {!host && <button className="btn primary" disabled={!!busy} onClick={() => act('start')}>{busy === 'start' ? t('启动中…（首次需要一会儿）') : st.state === 'paused' ? t('恢复') : st.state === 'none' ? t('新建并启动电脑') : t('启动电脑')}</button>}
+          {!host && <button className="btn primary" disabled={!!busy || st.state === 'unavailable'} onClick={() => act('start')}>{busy === 'start' ? t('启动中…（首次需要一会儿）') : st.state === 'paused' ? t('恢复') : st.state === 'none' ? t('新建并启动电脑') : t('启动电脑')}</button>}
         </div>
       )}
       {teach && <TeachBar teach={teach} />}

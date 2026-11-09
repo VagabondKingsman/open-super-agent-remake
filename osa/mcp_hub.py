@@ -474,11 +474,21 @@ async def cancel_login(name: str):
 
 
 # ---------- 连接 ----------
-def _text(result) -> str:
+class ToolResultError(Exception):
+    """工具自己报告失败。text 交给模型，步骤记成 error，不当成成功。"""
+
+    def __init__(self, text: str):
+        super().__init__(text)
+        self.text = text
+
+
+def _text(result) -> tuple[str, bool]:
     parts = [getattr(c, "text", None) or str(c) for c in result.content]
     out = "\n".join(parts)
-    is_error = getattr(result, "is_error", None) or getattr(result, "isError", False)  # 兼容新旧 SDK 字段名
-    return ("工具报错：" + out) if is_error else out
+    is_error = bool(getattr(result, "is_error", None) or getattr(result, "isError", False))  # 兼容新旧 SDK 字段名
+    if is_error:
+        out = i18n.t("工具报错：{detail}", detail=out)
+    return out, is_error
 
 
 def _needs_confirm(name: str, a: dict, tool) -> bool:
@@ -568,10 +578,13 @@ async def _serve(name: str, a: dict, ready: asyncio.Future, stop: asyncio.Event,
                         await connect(name)
                         again = registry.get(_full)
                         if not again or again.owner != f"mcp:{name}":
-                            hint = "，请用户到应用市场重新登录" if name in _needs_login else ""   # 写给模型看的
-                            raise RuntimeError(f"应用 @{name} 连接断开：{status.get(name, '')}{hint}") from e
+                            hint = i18n.t("，请用户到应用市场重新登录") if name in _needs_login else ""
+                            raise RuntimeError(i18n.t("应用 @{name} 连接断开：{status}{hint}", name=name,
+                                                      status=status.get(name, ""), hint=hint)) from e
                         return await again.run(c)
-                    text = _text(result)
+                    text, is_error = _text(result)
+                    if is_error:   # MCP 回 isError：按失败处理，不当成正常结果
+                        raise ToolResultError(text)
                     # 带界面的工具：后台任务（不是 Heavy 的草稿）把结果记下来，任务结果下面用应用的界面显示
                     if _ui and c.scope == registry.WORKER and c.env.get("pages", True) and len(c.apps) < mcpapps.MAX_VIEWS:
                         if rec := mcpapps.view_record(name, _tool, _ui, c.args, result):

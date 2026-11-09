@@ -1,13 +1,13 @@
 {
   "name": "Open Super Agent",
   "short_name": "Super Agent",
-  "description": "自己部署的常驻 AI 队友",
+  "description": "Đồng đội AI tự triển khai, luôn trực",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#0d0d0e",
   "theme_color": "#0d0d0e",
-  "lang": "zh-CN",
+  "lang": "vi-VN",
   "icons": [
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
