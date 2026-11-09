@@ -7,7 +7,7 @@ import time
 import openai
 from .computer import tools as ctools
 from .config import CFG, call_kwargs, client_for
-from . import approvals, botadmin, bots, dm, dsml, i18n, local_checks, media, memories, memory, providers, registry, routines, skillpacks, skills, tasklog, verification
+from . import approvals, botadmin, bots, dm, dsml, i18n, langcheck, local_checks, media, memories, memory, providers, registry, routines, skillpacks, skills, tasklog, verification
 from . import builtin  # noqa: F401  导入即注册内置工具
 from . import worker as worker_mod
 from .worker import IncompleteAnswer, Task, TaskFailed, run_worker, run_heavy
@@ -535,8 +535,10 @@ class Router:
                 shown = i18n.t("没有给出回复")
         finally:
             await self.emit({"type": "stream_end", "sid": sid}, cid)
+        flag = langcheck.record(shown, woke["text"] if woke else (last[0] if last else ""), f"chat {cid}")
         await self.add("assistant", shown.strip(), cid, reasoning=reasoning, thinking=thinking,
                        thought_s=round(time.time() - started, 1), sid=sid, tasks=self._turn_tasks,
+                       **({"lang_flag": flag} if flag else {}),
                        **({"attachments": self._turn_files} if self._turn_files else {}))
         return shown.strip()
 
@@ -766,6 +768,9 @@ class Router:
                 task.status = "partial"
             else:
                 task.status = "done"
+                task.lang_flag = langcheck.record(task.result, task.goal, f"task {task.id}")
+                if task.lang_flag:
+                    await tasklog.Log(task).note(i18n.t("结果看起来大半是中文，和界面语言（{ui}）不一致", ui=task.lang_flag["ui"]))
                 if not task.background:   # 定时任务有自己的运行记录，不记进“做过的事”
                     memories.log_work(self.bot_id, task.id, task.goal)
         except asyncio.CancelledError:
@@ -803,7 +808,8 @@ class Router:
         memory.update_meta(task.id, status=task.status, elapsed=round(time.time() - task.started), steps=task.steps, **extra)
         await self.add("task", i18n.t("[任务 #{id} 结果]", id=task.id) + f"\n{body}", task.chat_id, kind="result", task_id=task.id,
                        status=task.status, elapsed=round(time.time() - task.started),
-                       **({"attachments": task.files} if task.files else {}), **({"apps": task.apps} if task.apps else {}))
+                       **({"attachments": task.files} if task.files else {}), **({"apps": task.apps} if task.apps else {}),
+                       **({"lang_flag": task.lang_flag} if task.lang_flag else {}))
         await self.emit({"type": "task", "task": task.public()}, task.chat_id)
         registry.fire("task_done", task=task.public(), bot=self.bot, result=task.result)   # 插件能订阅；不等它们
         if task.handoff:

@@ -1272,5 +1272,6 @@
   "发邮件": "Send email",
   "Bot 能用你的邮箱（SMTP）给别人发纯文字邮件，每封发之前都先弹卡片问你。": "Lets Bots send plain-text emails to other people from your mailbox (SMTP), asking you on a card before each one.",
   "任务完成推送到群机器人": "Task results to a group bot",
-  "任务做完推到群机器人：飞书、钉钉、企业微信、Slack、Discord 的 webhook，或者任意接收 JSON 的地址。": "Pushes finished tasks to a group bot: a Feishu, DingTalk, WeCom, Slack or Discord webhook, or any address that accepts JSON."
+  "任务做完推到群机器人：飞书、钉钉、企业微信、Slack、Discord 的 webhook，或者任意接收 JSON 的地址。": "Pushes finished tasks to a group bot: a Feishu, DingTalk, WeCom, Slack or Discord webhook, or any address that accepts JSON.",
+  "结果看起来大半是中文，和界面语言（{ui}）不一致": "The result looks mostly Chinese, which doesn't match the UI language ({ui})"
 }

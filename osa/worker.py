@@ -79,6 +79,7 @@ class Task:
     depth: int = 0                         # 派任务那一轮的私信深度，交接、回信沿用
     quiet_ok: bool = False                 # 定时任务：结果只有“无新内容”时不发结果消息（见 routines.QUIET）
     quiet: bool = False                    # 这次确实没有新内容
+    lang_flag: dict | None = None          # 结果大半是中文而界面不是中文（见 langcheck.py），只提醒
     notes: str = ""                        # 只给 Worker 看的补充说明，不显示、不存进对话（定时任务：上次的结果、“无新内容”的约定）
     side_effects: list = field(default_factory=list)  # 本地写页面等，记下来给用户看
     degraded: bool = False                 # Heavy：审过了，但有研究员没交出草稿。结束时记 partial，不记 done

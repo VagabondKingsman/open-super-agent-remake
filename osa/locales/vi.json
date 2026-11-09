@@ -1206,7 +1206,7 @@
   "推送到手机：{text}": "Đẩy tới điện thoại: {text}",
   "…还有 {n} 篇": "…và {n} bài nữa",
   "feeds 要是订阅源地址的列表（http 或 https 开头）": "feeds phải là danh sách địa chỉ nguồn cấp (bắt đầu bằng http hoặc https)",
-  "📰 **{title}** 有 {n} 篇新文章：": ["📰 **{title}** có {n} bài viết mới:", "📰 **{title}** có {n} bài viết mới:"],
+  "📰 **{title}** 有 {n} 篇新文章：": "📰 **{title}** có {n} bài viết mới:",
   "port 要是数字（465 或 587）": "port phải là một số (465 hoặc 587)",
   "host「{name}」不像服务器地址": "host “{name}” không giống địa chỉ máy chủ",
   "allowed_domains 要是域名的列表，比如 [\"mycompany.com\"]，不限制就写 []": "allowed_domains phải là danh sách tên miền, ví dụ [\"mycompany.com\"]; không giới hạn thì ghi []",
@@ -1233,5 +1233,6 @@
   "发邮件": "Gửi email",
   "Bot 能用你的邮箱（SMTP）给别人发纯文字邮件，每封发之前都先弹卡片问你。": "Cho phép Bot gửi email văn bản thuần từ hộp thư của bạn (SMTP) cho người khác, luôn hỏi bạn bằng thẻ xác nhận trước mỗi thư.",
   "任务完成推送到群机器人": "Gửi kết quả tác vụ tới bot nhóm",
-  "任务做完推到群机器人：飞书、钉钉、企业微信、Slack、Discord 的 webhook，或者任意接收 JSON 的地址。": "Đẩy kết quả tác vụ tới bot nhóm: webhook của Feishu, DingTalk, WeCom, Slack, Discord hoặc bất kỳ địa chỉ nào nhận JSON."
+  "任务做完推到群机器人：飞书、钉钉、企业微信、Slack、Discord 的 webhook，或者任意接收 JSON 的地址。": "Đẩy kết quả tác vụ tới bot nhóm: webhook của Feishu, DingTalk, WeCom, Slack, Discord hoặc bất kỳ địa chỉ nào nhận JSON.",
+  "结果看起来大半是中文，和界面语言（{ui}）不一致": "Kết quả có vẻ chủ yếu bằng tiếng Trung, không khớp với ngôn ngữ giao diện ({ui})"
 }
