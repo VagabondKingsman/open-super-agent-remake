@@ -31,7 +31,7 @@ Snapshot 07/11/2026, Asia/Saigon (UTC+7). GitHub PR + base mới là trạng th�
 
 ## In progress
 
-- OSA-021: `OSA-021 / hoplite / hoplite/megara-e725a8f4 / port upstream kadaliao v0.12.0 (d432c74) lên remake, giữ VI, prompt tiếng Anh, Heavy, USD, skill pack / claimed_at 09/11/2026 14:10 Asia/Saigon / PR vào i18n-vi`. Tách từ `i18n-vi` tại `3b02a80`. Chưa merge. Không paid LLM trong phiên hoàn tất. Việc còn mở ở [log OSA-021](log/2026-11-09-hoplite-osa-021.md).
+- OSA-021: `OSA-021 / hoplite / hoplite/megara-e725a8f4 / port upstream kadaliao v0.12.0 (d432c74) lên remake, giữ VI, prompt tiếng Anh, Heavy, USD, skill pack / claimed_at 09/11/2026 14:10 Asia/Saigon / [PR #17](https://github.com/VagabondKingsman/open-super-agent-remake/pull/17)`. Tách từ `i18n-vi` tại `3b02a80`. Chưa merge. Không paid LLM trong phiên hoàn tất. Việc còn mở ở [log OSA-021](log/2026-11-09-hoplite-osa-021.md).
 
 ## Done · đã public
 
