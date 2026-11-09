@@ -39,6 +39,7 @@ POLL_TIMEOUT = 60
 POLL_PARALLEL = 4
 CATEGORIES = (i18n.N_("开发"), i18n.N_("资讯"), i18n.N_("生活"), i18n.N_("金融"), i18n.N_("系统"), i18n.N_("通用"))
 PENDING: dict[int, list[dict]] = {}     # routine_id -> 排队的事件
+FILTERING: set[int] = set()          # remake：正在跑 LLM 过滤的 routine_id（过滤期间到的事件排队）
 TASK_ROUTINE: dict[int, int] = {}       # 任务 id -> 派它的事件（internal 来源不让一个事件被自己派的任务再触发）
 _polling: set[int] = set()
 _sem: asyncio.Semaphore | None = None
@@ -194,6 +195,8 @@ def clean(t: dict, old: dict | None = None) -> dict:
     params = clean_params(src, t.get("params") if isinstance(t.get("params"), dict) else {},
                           old.get("params") if same else None)
     words = lambda k: _split(t[k] if k in t else old.get(k))[:50]
+    if "llm_filter" in t and t["llm_filter"] is not None and not isinstance(t["llm_filter"], str):
+        raise ValueError(i18n.t("过滤规则必须是文字"))   # remake：[] 之类不能被 str() 成 "[]" 当规则用
     out = {"kind": "event", "source": sid, "params": params, "include": words("include"), "exclude": words("exclude"),
            "llm_filter": str(t["llm_filter"] if "llm_filter" in t else old.get("llm_filter") or "").strip()[:1000]}
     if src.mode == POLL:
@@ -354,7 +357,7 @@ async def deliver(r: dict, events: list, source: str = "event") -> dict:
             await routines._changed(r)
             return {"accepted": False, "stage": "rule", "reason": reason}
         events = kept
-    if rid in routines.RUNNING:
+    if rid in routines.RUNNING or rid in FILTERING:
         q = PENDING.setdefault(rid, [])
         q.extend(events)
         del q[:-MAX_PENDING]
@@ -363,13 +366,19 @@ async def deliver(r: dict, events: list, source: str = "event") -> dict:
     src = get_source(trig.get("source", ""))
     text = render(src, trig.get("params") or {}, events)
     if source != "test" and (rule := trig.get("llm_filter")):
+        # remake：LLM 过滤要 await，先占位；这期间到的同一事件排队，不会派出两份
+        FILTERING.add(rid)
         try:
             ok, reason = await routines._llm_filter(rule, text, r["bot_id"])
         except Exception as e:
             ok, reason = True, i18n.t("过滤出错，默认放行：{error}", error=str(e)[:100])
+        finally:
+            FILTERING.discard(rid)
         if not ok:
             routines._record(rid, source, "filtered", i18n.t("LLM：{reason}", reason=reason))
             await routines._changed(r)
+            if q := PENDING.pop(rid, None):   # 过滤期间排队的接着处理
+                await deliver(r, q, "event")
             return {"accepted": False, "stage": "llm", "reason": reason}
     return await routines.fire(r, source, text)
 
