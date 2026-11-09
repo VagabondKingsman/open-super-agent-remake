@@ -18,7 +18,7 @@ FROM python:3.13-slim-bookworm
 ARG NPM_REGISTRY=
 ARG PYPI_INDEX=
 ENV PYTHONUNBUFFERED=1 \
-    TZ=Asia/Shanghai \
+    TZ=Asia/Ho_Chi_Minh \
     UV_CACHE_DIR=/cache/uv \
     UV_PYTHON_INSTALL_DIR=/cache/python \
     UV_LINK_MODE=copy \

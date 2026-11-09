@@ -17,7 +17,7 @@ services:
       - path: .env
         required: false
     environment:
-      TZ: ${TZ:-Asia/Shanghai}                         # 定时任务按这个时区算
+      TZ: ${TZ:-Asia/Ho_Chi_Minh}                     # 定时任务按这个时区算
       FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-*}   # 默认只有本机能连进来，信任反向代理带的真实 IP
       OSA_BIND: ${OSA_BIND:-127.0.0.1}                 # 服务据此判断有没有对外：对外又没设 OSA_PASSWORD 时拒绝启动
       OSA_COMPUTER_DATA: osa-computer-data             # 本地电脑的 /data 用这个命名卷
