@@ -45,8 +45,8 @@ def test_image_price():
     CFG["providers"]["sf2"] = {"base_url": "https://api.siliconflow.cn/v1"}
     try:
         assert prices.image_price("sf2", "Kwai-Kolors/Kolors") == 0
-        assert prices.image_price("sf2", "Tongyi-MAI/Z-Image-Turbo") == 0.1
-        assert prices.image_price("sf2", "Tongyi-MAI/Z-Image") == 0.3   # 不会被 Z-Image-Turbo 那一行认走
+        assert prices.image_price("sf2", "Tongyi-MAI/Z-Image-Turbo") == 0.014   # remake：config 里是美元
+        assert prices.image_price("sf2", "Tongyi-MAI/Z-Image") == 0.042   # 不会被 Z-Image-Turbo 那一行认走
         assert prices.image_price("sf2", "black-forest-labs/FLUX.1-dev") is None
     finally:
         del CFG["providers"]["sf2"]
