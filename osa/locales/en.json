@@ -370,6 +370,7 @@
   "电脑镜像构建失败：{error}": "Couldn't build the computer image: {error}",
   "登录": "Log in",
   "登录后没换到令牌，检查一下客户端 ID、密钥和回调地址：{error}": "Signed in but didn't get a token. Check the client ID, secret and callback URL: {error}",
+  "登录请求太多，请稍后再试": "Too many sign-in attempts right now. Try again shortly.",
   "目录不存在": "Folder doesn't exist",
   "直接发消息就是在和「{name}」说话，和网页上是同一个对话。\n- 发文件或图片：存到电脑的 uploads 目录，Bot 能接着处理\n- /new 开始新话题\n- /stop 停下这个对话里正在做的任务\n- 需要你确认的操作会发来一张卡片，点上面的按钮，或者回复“允许 #编号”“拒绝 #编号”": "Anything you send here goes to \"{name}\", the same chat as on the web.\n- Send a file or image: it's saved to the computer's uploads folder so the bot can work with it\n- /new starts a new topic\n- /stop stops the tasks running in this chat\n- Actions that need your approval arrive as a card: tap a button, or reply \"Allow #ID\" / \"Deny #ID\"",
   "研究员 {n}": "Researcher {n}",

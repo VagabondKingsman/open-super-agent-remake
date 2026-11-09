@@ -353,6 +353,7 @@
   "电脑镜像构建失败：{error}": "Build image Computer thất bại: {error}",
   "登录": "Đăng nhập",
   "登录后没换到令牌，检查一下客户端 ID、密钥和回调地址：{error}": "Đăng nhập xong nhưng chưa nhận được token. Kiểm tra Client ID, Secret và URL callback: {error}",
+  "登录请求太多，请稍后再试": "Đang có quá nhiều lượt đăng nhập; thử lại sau ít phút",
   "目录不存在": "Thư mục không tồn tại",
   "直接发消息就是在和「{name}」说话，和网页上是同一个对话。\n- 发文件或图片：存到电脑的 uploads 目录，Bot 能接着处理\n- /new 开始新话题\n- /stop 停下这个对话里正在做的任务\n- 需要你确认的操作会发来一张卡片，点上面的按钮，或者回复“允许 #编号”“拒绝 #编号”": "Nhắn trực tiếp để trò chuyện với “{name}”, cùng hội thoại trên web.\n- Gửi tệp hoặc ảnh: lưu vào thư mục uploads để Bot xử lý\n- /new bắt đầu chủ đề mới\n- /stop dừng task hiện tại\n- Yêu cầu xác nhận có thẻ nút bấm, hoặc trả lời “Cho phép #id”, “Từ chối #id”",
   "研究员 {n}": "Nghiên cứu viên {n}",
