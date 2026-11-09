@@ -548,6 +548,7 @@
   "只能抓取 http / https 网址": "Chỉ tải được địa chỉ http / https",
   "没抓取：{host} 是本机或内网地址。要抓内网页面，在 config.yaml 里设 tools.fetch_private: true": "Không tải: {host} là địa chỉ máy nội bộ hoặc mạng riêng. Muốn tải trang nội bộ thì đặt tools.fetch_private: true trong config.yaml",
   "没抓取：跳转超过 {n} 次": "Không tải: chuyển hướng quá {n} lần",
+  "没抓取：解析不了 {host}": "Không tải: không phân giải được {host}",
   "{n} 分钟内没有确认，按拒绝处理": "Không xác nhận trong {n} phút nên bị từ chối",
   "Bot 用的 Chrome 没开": "Chrome của Bot chưa mở",
   "模型服务那边临时出了故障（{code}），一般过一会儿就好，稍后再试一次": "Dịch vụ mô hình đang gặp sự cố tạm thời ({code}). Thường sẽ tự khỏi sau ít phút, hãy thử lại sau",

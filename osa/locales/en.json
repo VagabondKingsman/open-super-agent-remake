@@ -1209,6 +1209,7 @@
   "只能抓取 http / https 网址": "Only http / https URLs can be fetched",
   "没抓取：{host} 是本机或内网地址。要抓内网页面，在 config.yaml 里设 tools.fetch_private: true": "Not fetched: {host} is a local or private address. To fetch private pages, set tools.fetch_private: true in config.yaml",
   "没抓取：跳转超过 {n} 次": "Not fetched: more than {n} redirects",
+  "没抓取：解析不了 {host}": "Not fetched: couldn't resolve {host}",
   "{n} 分钟内没有确认，按拒绝处理": "No confirmation within {n} minutes, so this was rejected",
   "没保存：app.tools 里有现在没有的工具 {tools}，只能列你这一轮能用的工具": "Not saved: app.tools lists tools you do not have now ({tools}). List only tools you can use in this turn.",
   "已保存小应用 #{id}「{title}」，链接 {link}。回复里用 Markdown 链接附上它，对话里会直接显示这个小应用，用户能在里面操作。用 page_data 能读写它的数据（page_id={id}）。": "Saved applet #{id} \"{title}\" at {link}. Attach it as a Markdown link in the reply; the chat shows the applet and the user can operate it. Use page_data to read and write its data (page_id={id}).",
