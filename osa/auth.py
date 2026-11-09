@@ -31,6 +31,10 @@ COOKIE = os.environ.get("OSA_COOKIE", "") if re.fullmatch(r"[A-Za-z0-9_-]{1,64}"
 MAX_AGE = 30 * 86400          # 登录保持 30 天
 RENEW_BELOW = 15 * 86400      # 剩不到 15 天时，下一次请求自动续期
 FAIL_WINDOW, MAX_FAILS = 600, 5   # 同一个 IP 10 分钟内输错 5 次，暂停登录到窗口结束
+# Per-IP limits can be dodged by rotating IPs (or spoofed X-Forwarded-For behind --proxy-headers), so every
+# password check also queues on one global lock and a wrong guess holds it for FAIL_DELAY: about one guess per
+# second in total. More than MAX_WAITING queued attempts are refused unchecked instead of growing the queue.
+FAIL_DELAY, MAX_WAITING = 1.0, 8
 TICKET_TTL = 30              # 桌面 App 自动登录用的票，30 秒内有效，只能用一次
 PAIR_TTL = 300               # 手机 App 扫码配对用的票，5 分钟内有效，只能用一次
 
@@ -42,6 +46,8 @@ LOCAL_SUFFIXES = (".localhost", ".local", ".ts.net")
 
 router = APIRouter()
 _fails: dict[str, list[float]] = {}
+_guess_lock: tuple[asyncio.AbstractEventLoop, asyncio.Lock] | None = None
+_waiting = 0
 _tickets: dict[str, float] = {}
 _key: bytes | None = None
 
@@ -258,6 +264,32 @@ def _blocked(ip: str) -> bool:
     return len(recent) >= MAX_FAILS
 
 
+def _lock() -> asyncio.Lock:
+    global _guess_lock
+    loop = asyncio.get_running_loop()
+    if _guess_lock is None or _guess_lock[0] is not loop:   # a Lock is tied to one event loop (tests use several)
+        _guess_lock = (loop, asyncio.Lock())
+    return _guess_lock[1]
+
+
+async def _guess(ip: str, given: str) -> bool | None:
+    """Check a password through the global queue. True: right. False: wrong (after FAIL_DELAY). None: queue full."""
+    global _waiting
+    if _waiting >= MAX_WAITING:
+        return None
+    _waiting += 1
+    try:
+        async with _lock():
+            if check_password(given):
+                _fails.pop(ip, None)
+                return True
+            _fails.setdefault(ip, []).append(time.time())
+            await asyncio.sleep(FAIL_DELAY)
+            return False
+    finally:
+        _waiting -= 1
+
+
 # ---------- 登录页 ----------
 PAGE = """<!doctype html><html lang="{lang}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
@@ -313,11 +345,11 @@ async def login(request: Request):
     ip = request.client.host if request.client else "?"
     if _blocked(ip):
         return _page(request, nxt, i18n.t("输错次数太多，请 10 分钟后再试", in_lang=_lang(request)), 429)
-    if not check_password(form.get("password", "")):
-        _fails.setdefault(ip, []).append(time.time())
-        await asyncio.sleep(1)
+    ok = await _guess(ip, form.get("password", ""))
+    if ok is None:
+        return _page(request, nxt, i18n.t("登录请求太多，请稍后再试", in_lang=_lang(request)), 429)
+    if not ok:
         return _page(request, nxt, i18n.t("密码不对", in_lang=_lang(request)), 401)
-    _fails.pop(ip, None)
     r = RedirectResponse(nxt, 303)
     r.headers.append("set-cookie", _cookie_header(new_token(), MAX_AGE, request.url.scheme == "https"))
     return r
@@ -332,11 +364,11 @@ async def login_ticket(request: Request):
     ip = request.client.host if request.client else "?"
     if _blocked(ip):
         raise HTTPException(429, i18n.t("输错次数太多，请 10 分钟后再试"))
-    if not check_password(request.headers.get("authorization", "").removeprefix("Bearer ").strip()):
-        _fails.setdefault(ip, []).append(time.time())
-        await asyncio.sleep(1)
+    ok = await _guess(ip, request.headers.get("authorization", "").removeprefix("Bearer ").strip())
+    if ok is None:
+        raise HTTPException(429, i18n.t("登录请求太多，请稍后再试"))
+    if not ok:
         raise HTTPException(401, i18n.t("密码不对"))
-    _fails.pop(ip, None)
     return {"ticket": mint_ticket(TICKET_TTL), "expires_in": TICKET_TTL}
 
 

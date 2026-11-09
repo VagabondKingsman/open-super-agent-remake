@@ -1,0 +1,20 @@
+# 本地电脑（Docker 里的桌面和浏览器）要用的部分，叠在 compose.yaml 上：
+#   docker compose -f compose.yaml -f compose.computer.yaml up -d
+# 或者在 .env 里写一行 COMPOSE_FILE=compose.yaml:compose.computer.yaml，之后照常 docker compose up -d。
+# 挂进去的 docker.sock 让服务能创建和操作宿主机上的容器，等于有宿主机的 root 权限；服务里跑着第三方应用（MCP），只添加信得过的。
+
+services:
+  osa:
+    volumes:
+      # 服务通过宿主机的 Docker 创建和操作电脑容器 osa-computer。rootless Docker 的 socket 在 $XDG_RUNTIME_DIR/docker.sock
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  # 本地电脑的镜像。这里只负责构建，不启动；容器由服务在第一次用电脑时创建
+  computer:
+    build:
+      context: osa/computer/image
+      args:
+        APT_MIRROR: ${APT_MIRROR:-}
+    image: osa-computer:1
+    pull_policy: never
+    scale: 0

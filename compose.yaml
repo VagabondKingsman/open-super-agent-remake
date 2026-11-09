@@ -28,21 +28,10 @@ services:
       - ./data:/app/data                     # 数据库、保险库密钥、本机应用清单
       - ./config.yaml:/app/config.yaml:ro    # 改完 docker compose restart 生效
       - cache:/cache                         # npx / uvx 下载的应用，重启后不用重新下载
-      # 本地电脑要用：服务通过宿主机的 Docker 创建和操作电脑容器 osa-computer。
-      # 能操作 Docker 就等于有宿主机的 root 权限；只用 Instabox 时删掉这一行
-      - /var/run/docker.sock:/var/run/docker.sock
+      # 默认不挂 docker.sock：能操作 Docker 就等于有宿主机的 root 权限。要用本地电脑（Docker 里的桌面和浏览器）时
+      # 加上 compose.computer.yaml，见 docs/docker.md；只用 Instabox 不用加
     extra_hosts:
       - host.docker.internal:host-gateway    # 连宿主机上的代理或 Ollama 用这个地址
-
-  # 本地电脑的镜像。这里只负责构建，不启动；容器由服务在第一次用电脑时创建
-  computer:
-    build:
-      context: osa/computer/image
-      args:
-        APT_MIRROR: ${APT_MIRROR:-}
-    image: osa-computer:1
-    pull_policy: never
-    scale: 0
 
   # 可选：自动申请 HTTPS 证书的反向代理。先把域名解析到这台服务器，设好 OSA_DOMAIN 和 OSA_PASSWORD，
   # 再 docker compose --profile https up -d
