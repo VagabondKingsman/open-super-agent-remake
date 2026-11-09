@@ -362,7 +362,7 @@ def is_event(r: dict) -> bool:
 
 
 def noun(r: dict) -> str:
-    return "事件" if is_event(r) else "定时任务"
+    return "event" if is_event(r) else "routine"
 
 
 def goal_for(r: dict, event: str = "") -> str:
@@ -537,62 +537,62 @@ def import_legacy(bot_id: int):
 # 每个 Bot 管自己的；主 Bot 管所有 Bot 的（按编号改、删，填 bot 看某个 Bot 的、给它建），不弹卡片
 _SCHEDULE = {
     "kind": {"type": "string", "enum": list(SCHEDULES),
-             "description": "once：某个时间点跑一次（提醒用这个）；daily：每天 / 每周几；monthly：每月几号；every：每隔几分钟"},
-    "at": {"type": "string", "description": "once 用：YYYY-MM-DD HH:MM（本地时间）"},
-    "times": {"type": "array", "items": {"type": "string"}, "description": "daily、monthly 用：HH:MM 列表"},
-    "days": {"type": "array", "items": {"type": "integer"}, "description": "daily 用：周几运行，周一=1，留空=每天"},
-    "month_days": {"type": "array", "items": {"type": "integer"}, "description": "monthly 用：每月几号（1-31，这个月没有的在月底跑）"},
-    "minutes": {"type": "integer", "description": "every 用：间隔分钟，至少 5"}}
+             "description": "once: run once at a point in time (use this for reminders); daily: every day / on certain weekdays; monthly: on certain days of the month; every: every N minutes"},
+    "at": {"type": "string", "description": "for once: YYYY-MM-DD HH:MM (local time)"},
+    "times": {"type": "array", "items": {"type": "string"}, "description": "for daily and monthly: list of HH:MM"},
+    "days": {"type": "array", "items": {"type": "integer"}, "description": "for daily: weekdays to run on, Monday=1; empty = every day"},
+    "month_days": {"type": "array", "items": {"type": "integer"}, "description": "for monthly: days of the month (1-31; days a month lacks run on its last day)"},
+    "minutes": {"type": "integer", "description": "for every: interval in minutes, at least 5"}}
 _EVENT = {
-    "source": {"type": "string", "description": "事件来源，比如 rss（订阅源有新文章）、web_change（网页变了）、github（GitHub 推送）、"
-                                                "webhook（收到任意 webhook）……不确定有哪些、要填什么参数时先不填 source 调一次，会返回清单"},
-    "params": {"type": "object", "description": "这个来源的参数，比如 rss 填 {\"url\": \"订阅源地址\"}"},
-    "every": {"type": "integer", "description": "要定时去看的来源（rss、网页……）：多少分钟看一次，不填用默认"},
-    "include": {"type": "array", "items": {"type": "string"}, "description": "只处理含这些词之一的事件（可选）"},
-    "exclude": {"type": "array", "items": {"type": "string"}, "description": "含这些词的事件不处理（可选）"},
-    "llm_filter": {"type": "string", "description": "可选：先让模型按这条规则判断要不要处理，比如“只有报告 bug 的才处理”"}}
-_BOT = {"type": "string", "description": "只有主 Bot 能填：给哪个 Bot 建（名字），它以自己的身份、用自己的技能跑。不填是给你自己"}
+    "source": {"type": "string", "description": "event source, e.g. rss (a feed has a new article), web_change (a web page changed), github (GitHub push), "
+                                                "webhook (any webhook received)... if unsure which exist or which params to give, call once without source and the list is returned"},
+    "params": {"type": "object", "description": "parameters of this source, e.g. for rss {\"url\": \"feed URL\"}"},
+    "every": {"type": "integer", "description": "for sources that are polled on a schedule (rss, web pages...): check every how many minutes; omit for the default"},
+    "include": {"type": "array", "items": {"type": "string"}, "description": "only handle events containing one of these words (optional)"},
+    "exclude": {"type": "array", "items": {"type": "string"}, "description": "do not handle events containing these words (optional)"},
+    "llm_filter": {"type": "string", "description": "optional: first have the model judge by this rule whether to handle the event, e.g. \"only handle bug reports\""}}
+_BOT = {"type": "string", "description": "only the primary Bot may fill this: which Bot to create it for (name); it runs as that Bot with its skills. Omit to create it for yourself"}
 CREATE_ROUTINE = {"type": "function", "function": {"name": "create_routine",
-    "description": "新建定时任务：按时间跑（某个时间点一次、每天、每月、每隔一段时间）。某件事发生时才做的用 create_event",
+    "description": "Create a routine that runs on a schedule (once at a point in time, daily, monthly, or at an interval). For things to do when something happens, use create_event",
     "parameters": {"type": "object", "properties": {
-        "name": {"type": "string", "description": "名字"},
-        "prompt": {"type": "string", "description": "每次运行要做的事，写完整"},
-        "skill": {"type": "string", "description": "可选：每次按哪个技能做（不带 /）"}, **_SCHEDULE, "bot": _BOT},
+        "name": {"type": "string", "description": "name"},
+        "prompt": {"type": "string", "description": "what to do on each run, written in full"},
+        "skill": {"type": "string", "description": "optional: which skill to follow on each run (without /)"}, **_SCHEDULE, "bot": _BOT},
         "required": ["name", "kind"]}}}
 CREATE_EVENT = {"type": "function", "function": {"name": "create_event",
-    "description": "新建事件：某件事发生时在后台处理一次（收到 webhook、GitHub 有新 issue、订阅源有新文章、网页内容变了、收到邮件、"
-                   "价格到了、明天要下雨……），结果发到对话里。按时间跑的用 create_routine",
+    "description": "Create an event: handle something once in the background when it happens (a webhook arrives, a new GitHub issue, a feed has a new article, a page changed, an email arrives, "
+                   "a price is reached, tomorrow will rain...); the result is posted to the chat. For things that run on a schedule, use create_routine",
     "parameters": {"type": "object", "properties": {
-        "name": {"type": "string", "description": "名字"},
-        "prompt": {"type": "string", "description": "事件来了要做什么，写完整（比如“总结这篇文章，和 AI 无关的写 [无新内容]”）"},
-        "skill": {"type": "string", "description": "可选：按哪个技能做（不带 /）"}, **_EVENT, "bot": _BOT},
+        "name": {"type": "string", "description": "name"},
+        "prompt": {"type": "string", "description": "what to do when the event arrives, written in full (e.g. \"summarize this article; if it is unrelated to AI, write [nothing new]\")"},
+        "skill": {"type": "string", "description": "optional: which skill to follow (without /)"}, **_EVENT, "bot": _BOT},
         "required": ["name"]}}}
 LIST_ROUTINES = {"type": "function", "function": {"name": "list_routines",
-    "description": "查看定时任务和事件：编号、做什么、什么时候跑 / 盯着什么、上次结果。填 id 看那一个的完整要求、地址和最近几次运行。"
-                   "主 Bot 不填 bot 看所有 Bot 的，别的 Bot 只看得到自己的",
+    "description": "List routines and events: id, what they do, when they run / what they watch, last result. Give id to see one in full: its complete instructions, address and recent runs. "
+                   "The primary Bot sees all Bots' without bot; other Bots only see their own",
     "parameters": {"type": "object", "properties": {
         "id": {"type": "integer"},
-        "bot": {"type": "string", "description": "只有主 Bot 能填：只看哪个 Bot 的（名字）"}}}}}
+        "bot": {"type": "string", "description": "only the primary Bot may fill this: only show this Bot's (name)"}}}}}
 UPDATE_ROUTINE = {"type": "function", "function": {"name": "update_routine",
-    "description": "按编号修改定时任务或事件，只填要改的。暂停填 enabled=false，恢复填 true。主 Bot 能改所有 Bot 的，别的 Bot 只能改自己的",
+    "description": "Change a routine or event by id; fill in only what changes. To pause set enabled=false, to resume true. The primary Bot can change any Bot's, other Bots only their own",
     "parameters": {"type": "object", "properties": {
         "id": {"type": "integer"},
         "ids": {"type": "array", "items": {"type": "integer"},
-                "description": "同样的改动用在多个上时填（比如全部暂停），代替 id"},
+                "description": "fill in when the same change applies to several (e.g. pause them all), instead of id"},
         "name": {"type": "string"},
-        "prompt": {"type": "string", "description": "改完后的完整要求：先用 list_routines 看原文，只改用户要改的地方，其余照抄"},
-        "skill": {"type": "string", "description": "每次按哪个技能做（不带 /）；空字符串表示不再按技能做"},
-        **_SCHEDULE, "kind": {"type": "string", "enum": list(SCHEDULES), "description": "定时任务改触发方式时才填"},
+        "prompt": {"type": "string", "description": "the complete instructions after the change: first read the original with list_routines, change only what the user wants changed, copy the rest"},
+        "skill": {"type": "string", "description": "which skill to follow on each run (without /); an empty string means stop following a skill"},
+        **_SCHEDULE, "kind": {"type": "string", "enum": list(SCHEDULES), "description": "fill in only when changing a routine's trigger type"},
         **{k: v for k, v in _EVENT.items() if k != "source"},
-        "enabled": {"type": "boolean", "description": "false 暂停，true 恢复"}}}}}
+        "enabled": {"type": "boolean", "description": "false pauses, true resumes"}}}}}
 DELETE_ROUTINE = {"type": "function", "function": {"name": "delete_routine",
-    "description": "按编号删除一个定时任务或事件，运行记录一起删、不能恢复。只在用户明确要删时用；只是先不跑就用 update_routine 暂停。"
-                   "主 Bot 能删所有 Bot 的，别的 Bot 只能删自己的",
+    "description": "Delete a routine or event by id, together with its run history; this cannot be undone. Use only when the user explicitly asks to delete; to just stop it running for now, pause it with update_routine. "
+                   "The primary Bot can delete any Bot's, other Bots only their own",
     "parameters": {"type": "object", "properties": {"id": {"type": "integer"}}, "required": ["id"]}}}
 
-_STATUS = {"running": "正在跑", "done": "完成", "quiet": "没有新内容", "failed": "失败", "cancelled": "取消了",
-           "skipped": "跳过", "filtered": "被过滤", "ignored": "不处理"}
-_SOURCE = {"schedule": "按时", "webhook": "收到推送", "event": "事件", "test": "手动测试"}
+_STATUS = {"running": "running", "done": "done", "quiet": "nothing new", "failed": "failed", "cancelled": "cancelled",
+           "skipped": "skipped", "filtered": "filtered out", "ignored": "ignored"}
+_SOURCE = {"schedule": "scheduled", "webhook": "pushed", "event": "event", "test": "manual test"}
 BRIEF_PROMPT = 200
 
 
@@ -602,44 +602,44 @@ def _hm(ts: float) -> str:
 
 def _hook(t: dict) -> str:
     url = events.hook_url(t)
-    return url if url.startswith("http") else f"{events.hook_path(t)}（前面加上用户打开 osa 的网址）"
+    return url if url.startswith("http") else f"{events.hook_path(t)} (prefix it with the URL the user opens osa at)"
 
 
 def _when(r: dict, full: bool = False) -> str:
     t = r["trigger"]
-    s = describe(t, "zh")
+    s = describe(t, "en")
     if not r["enabled"]:
-        s += "，已暂停"
+        s += ", paused"
     elif t["kind"] == "once" and not r["next_run"]:
-        s += "，已经跑过"
+        s += ", already ran"
     elif r["next_run"] and t["kind"] != "event":
-        s += "，下次 " + _hm(r["next_run"])
+        s += ", next " + _hm(r["next_run"])
     if t["kind"] == "event":
         st = r.get("event") or {}
         if st.get("missing"):
-            s += "，来源现在没有（提供它的插件停用了？）"
+            s += ", source not available now (was the plugin providing it disabled?)"
         if st.get("mode") == "poll" and st.get("checked"):
-            s += "，上次看是 " + _hm(st["checked"])
+            s += ", last checked " + _hm(st["checked"])
         if st.get("error"):
-            s += f"，出错：{st['error'][:100]}"
+            s += f", error: {st['error'][:100]}"
         if st.get("pending"):
-            s += f"，排队 {st['pending']} 条"
+            s += f", {st['pending']} queued"
         if full and t.get("key"):
-            s += f"，地址 POST {_hook(t)}"
+            s += f", address: POST {_hook(t)}"
         elif t.get("path"):
-            s += f"，旧地址 POST /hooks/{t['path']}"
+            s += f", old address: POST /hooks/{t['path']}"
     return s
 
 
 def _run_line(run: dict, full: bool = False) -> str:
     s = f"{_hm(run['ts'])} {_SOURCE.get(run['source'], run['source'])} {_STATUS.get(run['status'], run['status'])}"
     if run["detail"] and run["status"] not in ("running", "quiet") and (full or run["status"] != "done"):
-        s += "：" + run["detail"].replace("\n", " ")
-    return s + (f"（任务 #{run['task_id']}）" if run["task_id"] else "")
+        s += ": " + run["detail"].replace("\n", " ")
+    return s + (f" (task #{run['task_id']})" if run["task_id"] else "")
 
 
 def _not_mine(me: dict) -> str:
-    return "" if me.get("is_primary") else f"（只能管你自己的，别的 Bot 的归主 Bot「{bots.primary_name()}」管）"
+    return "" if me.get("is_primary") else f" (you can only manage your own; other Bots' belong to the primary Bot \"{bots.primary_name()}\")"
 
 
 def _mine(me: dict, rid) -> dict | None:
@@ -659,9 +659,9 @@ def _owner(me: dict, name) -> tuple[dict | None, str]:
     if b and b["id"] == me["id"]:
         return me, ""
     if not me.get("is_primary"):
-        return None, f"别的 Bot 的定时任务和事件归主 Bot「{bots.primary_name()}」管，你只能管自己的"
+        return None, f"Other Bots' routines and events belong to the primary Bot \"{bots.primary_name()}\"; you can only manage your own"
     if not b:
-        return None, f"没有叫 {name} 的 Bot（现有：{'、'.join(x['name'] for x in bots.list_bots())}）"
+        return None, f"No Bot named {name} (existing: {', '.join(x['name'] for x in bots.list_bots())})"
     return b, ""
 
 
@@ -670,29 +670,29 @@ def _whose(me: dict, r: dict) -> str:
     if r["bot_id"] == me["id"]:
         return ""
     b = bots.get(r["bot_id"])
-    return f" {b['name'] if b else '已删除的 Bot'} 的"
+    return f" of {b['name'] if b else 'a deleted Bot'}"
 
 
 def _summary(r: dict, full: bool = False) -> str:
-    lines = [f"#{r['id']}「{r['name']}」{_when(r, full)}"]
+    lines = [f"#{r['id']} \"{r['name']}\" {_when(r, full)}"]
     p = r["prompt"]
     if p:
-        lines.append("做什么：" + (p if full or len(p) <= BRIEF_PROMPT else
-                                  p[:BRIEF_PROMPT] + f"……（共 {len(p)} 字，看全文用 list_routines 填 id）"))
+        lines.append("What it does: " + (p if full or len(p) <= BRIEF_PROMPT else
+                                  p[:BRIEF_PROMPT] + f"… ({len(p)} characters in total; for the full text use list_routines with id)"))
     if r["skill"]:
-        lines.append(f"按技能：/{r['skill']}")
+        lines.append(f"Skill: /{r['skill']}")
     t = r["trigger"]
     if full and t["kind"] == "event":
         if t.get("params"):
-            lines.append("参数：" + json.dumps(t["params"], ensure_ascii=False))
-        lines += [f"{k}：{v}" for k, v in (("只处理含这些词的", "、".join(t.get("include") or [])),
-                                           ("含这些词的不处理", "、".join(t.get("exclude") or [])),
-                                           ("LLM 过滤规则", t.get("llm_filter") or "")) if v]
+            lines.append("Parameters: " + json.dumps(t["params"], ensure_ascii=False))
+        lines += [f"{k}: {v}" for k, v in (("Only handles events containing", ", ".join(t.get("include") or [])),
+                                           ("Ignores events containing", ", ".join(t.get("exclude") or [])),
+                                           ("LLM filter rule", t.get("llm_filter") or "")) if v]
     if full:
         rs = runs(r["id"])[:5]
-        lines.append("最近运行：" + ("\n" + "\n".join("- " + _run_line(x, True) for x in rs) if rs else "还没跑过"))
+        lines.append("Recent runs: " + ("\n" + "\n".join("- " + _run_line(x, True) for x in rs) if rs else "never ran"))
     elif r["last_run"]:
-        lines.append("上次：" + _run_line(r["last_run"]))
+        lines.append("Last: " + _run_line(r["last_run"]))
     return "\n".join(lines)
 
 
@@ -701,9 +701,9 @@ def _sections(rs: list[dict]) -> str:
     evs = [r for r in rs if is_event(r)]
     out = []
     if sch:
-        out.append("定时任务：\n" + "\n\n".join(_summary(r) for r in sch))
+        out.append("Routines:\n" + "\n\n".join(_summary(r) for r in sch))
     if evs:
-        out.append("事件：\n" + "\n\n".join(_summary(r) for r in evs))
+        out.append("Events:\n" + "\n\n".join(_summary(r) for r in evs))
     return "\n\n".join(out)
 
 
@@ -711,68 +711,68 @@ async def tool_list(me: dict, args: dict) -> str:
     if args.get("id") is not None:
         r = _mine(me, args["id"])
         if not r:
-            return f"没有 #{args['id']} 这个定时任务或事件{_not_mine(me)}"
-        return (f"（这是{w}{noun(r)}）\n" if (w := _whose(me, r)) else f"（这是{noun(r)}）\n") + _summary(r, full=True)
+            return f"No routine or event #{args['id']}{_not_mine(me)}"
+        return (f"(This is a {noun(r)}{w})\n" if (w := _whose(me, r)) else f"(This is a {noun(r)})\n") + _summary(r, full=True)
     if args.get("bot") or not me.get("is_primary"):
         b, why = _owner(me, args.get("bot"))
         if not b:
             return why
-        return _sections(list_for(b["id"])) or ("你" if b["id"] == me["id"] else b["name"]) + "还没有定时任务和事件"
+        return _sections(list_for(b["id"])) or ("You have" if b["id"] == me["id"] else b["name"] + " has") + " no routines or events yet"
     # 主 Bot 不填 bot：所有 Bot 的，按 Bot 分开，自己的在前
     parts, empty = [], []
     for b in sorted(bots.list_bots(), key=lambda x: x["id"] != me["id"]):
-        name = b["name"] + ("（你）" if b["id"] == me["id"] else "")
+        name = b["name"] + (" (you)" if b["id"] == me["id"] else "")
         if rs := list_for(b["id"]):
-            parts.append(f"「{name}」的" + _sections(rs))
+            parts.append(f"{name}:\n" + _sections(rs))
         else:
             empty.append(name)
     if not parts:
-        return "所有 Bot 都还没有定时任务和事件"
-    return "\n\n".join(parts) + ("\n\n没有定时任务和事件的 Bot：" + "、".join(empty) if empty else "")
+        return "No Bot has any routines or events yet"
+    return "\n\n".join(parts) + ("\n\nBots with no routines or events: " + ", ".join(empty) if empty else "")
 
 
 async def tool_create(me: dict, args: dict) -> str:
     b, why = _owner(me, args.get("bot"))
     if not b:
-        return f"没建成：{why}"
+        return f"Not created: {why}"
     if args.get("kind") == "event" or args.get("source"):
-        return "没建成：某件事发生时才做的用 create_event"
+        return "Not created: for things to do when something happens, use create_event"
     trig = {k: args.get(k) for k in ("kind", "at", "minutes")} | \
         {k: args.get(k) or [] for k in ("times", "days", "month_days")}
     try:
         r = save(b["id"], {"name": args.get("name", ""), "prompt": args.get("prompt", ""),
                            "skill": args.get("skill", ""), "trigger": trig})
     except (ValueError, TypeError) as e:
-        return f"没建成：{e}"
+        return f"Not created: {e}"
     await _changed(r)
-    return f"已{'' if b['id'] == me['id'] else '给 ' + b['name'] + ' '}建定时任务 #{r['id']}「{r['name']}」：{_when(r)}"
+    return f"Created routine #{r['id']} \"{r['name']}\"{'' if b['id'] == me['id'] else ' for ' + b['name']}: {_when(r)}"
 
 
 async def tool_create_event(me: dict, args: dict) -> str:
     b, why = _owner(me, args.get("bot"))
     if not b:
-        return f"没建成：{why}"
+        return f"Not created: {why}"
     src = events.get_source(str(args.get("source") or ""))
     if not src or events.unavailable(src):
-        return ("没建成：" + (f"没有 {args['source']} 这种事件来源。" if args.get("source") else "要填 source。") +
-                "能用的事件来源和参数：\n" + events.brief_sources())
+        return ("Not created: " + (f"there is no event source {args['source']}. " if args.get("source") else "source is required. ") +
+                "Available event sources and parameters:\n" + events.brief_sources())
     trig = {"kind": "event", "source": src.id, "params": args.get("params") or {}} | \
         {k: args[k] for k in ("every", "include", "exclude", "llm_filter") if args.get(k) is not None}
     try:
         r = save(b["id"], {"name": args.get("name", ""), "prompt": args.get("prompt", ""),
                            "skill": args.get("skill", ""), "trigger": trig})
     except (ValueError, TypeError) as e:
-        fs = "、".join(f"{f['key']}（{f.get('label', '')}{'，必填' if f.get('required') else ''}）" for f in src.fields)
-        return f"没建成：{e}" + (f"\n{src.id} 的参数：{fs}" if fs else "")
+        fs = ", ".join(f"{f['key']} ({i18n.t(f.get('label', ''))}{', required' if f.get('required') else ''})" for f in src.fields)
+        return f"Not created: {e}" + (f"\nParameters of {src.id}: {fs}" if fs else "")
     await _changed(r)
-    out = f"已{'' if b['id'] == me['id'] else '给 ' + b['name'] + ' '}建事件 #{r['id']}「{r['name']}」：{describe(r['trigger'], 'zh')}"
+    out = f"Created event #{r['id']} \"{r['name']}\"{'' if b['id'] == me['id'] else ' for ' + b['name']}: {describe(r['trigger'], 'en')}"
     if src.mode == "push":
         url = _hook(r["trigger"])
-        out += f"\n要让对方把事件发过来：把这个地址填到对方的 webhook 设置里（地址本身就是密钥，别公开）：{url}"
+        out += f"\nTo have the other side send events: put this address into its webhook settings (the address itself is the secret, do not make it public): {url}"
         if src.setup:
             out += "\n" + src.setup.replace("{url}", url)
     elif src.mode == "poll":
-        out += "\n会先看一次记下现状，之后有新的才处理"
+        out += "\nIt will check once now to record the current state; only new things are handled afterwards"
     return out
 
 
@@ -780,21 +780,21 @@ async def tool_update(me: dict, args: dict) -> str:
     a = {k: v for k, v in args.items() if v is not None}   # 模型常把没改的填成 null
     targets = a.get("ids") or ([a["id"]] if "id" in a else [])
     if not targets:
-        return "没改：要填 id（或者 ids）"
+        return "Not changed: fill in id (or ids)"
     data = {k: a[k] for k in ("name", "prompt", "skill", "enabled") if k in a}
     skeys = [k for k in ("kind", "at", "times", "days", "month_days", "minutes") if k in a]
     ekeys = [k for k in ("params", "every", "include", "exclude", "llm_filter") if k in a]
     if not data and not skeys and not ekeys:
-        return "没改：没说要改什么"
+        return "Not changed: nothing to change was given"
     out = []
     for rid in targets:
         r = _mine(me, rid)
         if not r:
-            out.append(f"没改 #{rid}：没有这个定时任务或事件{_not_mine(me)}")
+            out.append(f"Not changed #{rid}: no such routine or event{_not_mine(me)}")
             continue
         d = dict(data)
         if is_event(r) and skeys or not is_event(r) and ekeys:
-            out.append(f"没改 #{rid}：{'事件不能改成按时间跑' if is_event(r) else '定时任务不能改成事件'}，要换就新建一个、再删掉这个")
+            out.append(f"Not changed #{rid}: {'an event cannot be changed into a scheduled routine' if is_event(r) else 'a routine cannot be changed into an event'}; to switch, create a new one and delete this one")
             continue
         if skeys:   # 只改时间也行，没填的照旧
             d["trigger"] = r["trigger"] | {k: a[k] for k in skeys}
@@ -806,28 +806,28 @@ async def tool_update(me: dict, args: dict) -> str:
         try:
             new = save(r["bot_id"], d, r["id"])
         except (ValueError, TypeError) as e:
-            out.append(f"没改 #{rid}：{e}")
+            out.append(f"Not changed #{rid}: {e}")
             continue
         await _changed(new)
-        out.append(f"已改好{_whose(me, new)}：" + _summary(new))
+        out.append(f"Changed{_whose(me, new)}: " + _summary(new))
     return "\n\n".join(out)
 
 
 async def tool_delete(me: dict, args: dict) -> str:
     r = _mine(me, args.get("id"))
     if not r:
-        return f"没删：没有 #{args.get('id')} 这个定时任务或事件{_not_mine(me)}"
+        return f"Not deleted: no routine or event #{args.get('id')}{_not_mine(me)}"
     delete(r["id"])
     await _changed(r)
     # 删了不能恢复：把原来的设置留在对话里，用户反悔时照着重建（密钥、保险库里的值不留）
-    keep = ([f"Bot：{b['name']}"] if r["bot_id"] != me["id"] and (b := bots.get(r["bot_id"])) else []) + \
-        [f"触发：{json.dumps(events.portable(r['trigger']), ensure_ascii=False)}"] + \
-        ([f"每次做：{r['prompt']}"] if r["prompt"] else []) + ([f"技能：{r['skill']}"] if r["skill"] else [])
+    keep = ([f"Bot: {b['name']}"] if r["bot_id"] != me["id"] and (b := bots.get(r["bot_id"])) else []) + \
+        [f"Trigger: {json.dumps(events.portable(r['trigger']), ensure_ascii=False)}"] + \
+        ([f"Does on each run: {r['prompt']}"] if r["prompt"] else []) + ([f"Skill: {r['skill']}"] if r["skill"] else [])
     tool = "create_event" if is_event(r) else "create_routine"
-    out = f"已删除{_whose(me, r)}{noun(r)} #{r['id']}「{r['name']}」（{describe(r['trigger'], 'zh')}）。" \
-          f"用户反悔的话照下面的原设置用 {tool} 重建：\n" + "\n".join(keep)
+    out = f"Deleted {noun(r)}{_whose(me, r)} #{r['id']} \"{r['name']}\" ({describe(r['trigger'], 'en')}). " \
+          f"If the user changes their mind, recreate it with {tool} using the original settings below:\n" + "\n".join(keep)
     if is_event(r) and r["trigger"].get("key"):
-        out += "\n（重建后 webhook 地址会变，要在对方那里改成新地址）"
+        out += "\n(After recreating, the webhook address changes; update it on the other side)"
     if r["running"] and r["last_run"] and r["last_run"]["task_id"]:
-        out += f"\n正在跑的那次（任务 #{r['last_run']['task_id']}）会接着跑完，要停就用 cancel_task"
+        out += f"\nThe run in progress (task #{r['last_run']['task_id']}) will finish; to stop it use cancel_task"
     return out
