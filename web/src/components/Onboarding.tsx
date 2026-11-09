@@ -2,11 +2,12 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { api, openApps, openChat, refreshLists, setSettings, useStore } from '../store'
 import { Icon } from '../icons'
-import { languages, lang, syncLang, t, tc, tn } from '../i18n'
+import { lang, syncLang, t, tc, tn } from '../i18n'
 import { BRANDS } from '../brandIcons'
 import type { Bot, CatalogItem, Preset, Settings as S } from '../types'
 import BotAvatar from './BotAvatar'
 import { AvatarPicker } from './BotEditor'
+import { botPrompt } from './AvatarTools'
 import { BrandIcon } from './BrandIcon'
 import { AppIcon, howOf, Sheet, StateTag } from './Market'
 import { ListsCtx, ModelIcon, ModelPicker, ProviderBadge, ProviderForm, TestButton, useLists, useTest } from './ModelSettings'
@@ -18,7 +19,7 @@ import { TemplateInstall, TemplatePicker, type TemplatePreview } from './Templat
 const STEPS = [t('接上模型'), t('你的 Bot'), t('连一个应用')]
 const PICKS = ['notion', 'flomo', 'dida', 'tencent-docs', 'train', 'exa']   // 推荐的应用：登录就能用，或者免配置
 const CHANNELS = ['telegram', 'feishu', 'dingtalk', 'wecom', 'discord']
-const SEP = lang !== 'zh' ? ', ' : '、'
+const SEP = lang === 'en' ? ', ' : '、'
 
 export default function Onboarding({ onClose }: { onClose: () => void }) {
   const primary = useStore(s => s.bots.find(b => b.is_primary) || s.bots[0])
@@ -72,13 +73,10 @@ function Foot({ children }: { children: ReactNode }) {
 // 换界面语言：按钮上写另一种语言的名字。换完页面会重新加载，引导没走完会自己再打开（回到第一步）
 function LangSwitch() {
   const toast = useToast()
-  const change = (language: string) => api('/api/settings', { method: 'PUT', body: { language } })
+  const other = lang === 'zh' ? 'en' : 'zh'
+  const change = () => api('/api/settings', { method: 'PUT', body: { language: other } })
     .then(r => syncLang(r.language)).catch(e => toast(e.message, true))
-  return <label className="ghost-btn" title={t('界面语言')}><Icon name="globe" size={13} />
-    <select aria-label={t('界面语言')} value={lang} onChange={e => change(e.target.value)}>
-      {languages.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
-    </select>
-  </label>
+  return <button className="ghost-btn" title={t('界面语言')} onClick={change}><Icon name="globe" size={13} /> {other === 'en' ? 'English' : '中文'}</button>   // i18n-ignore：语言自己的名字
 }
 
 // ---------- 第一步：接上模型 ----------
@@ -155,8 +153,9 @@ function ModelChoose({ name, onBack, onDone }: { name: string; onBack: () => voi
   }, [l])
   const item = l?.items.find(m => m.id === model)
   const vision = test.res?.ok ? test.res.vision : item?.vision === undefined ? undefined : item.vision ? 'yes' : 'no'
+  const cur = s.prices.currency
   const price = !item || item.input === undefined ? '' : !item.input && !item.output ? t('免费')
-    : t('输入 {input} · 输出 {output} / 百万 token', { input: money(item.input), output: money(item.output) })
+    : t('输入 {input} · 输出 {output} / 百万 token', { input: money(item.input, cur), output: money(item.output, cur) })
   const save = async () => {
     setBusy(true)
     const v = { provider: name, model }
@@ -219,7 +218,7 @@ function BotStep({ bot, onBack, onNext }: { bot: Bot; onBack: () => void; onNext
         </label>
       </div>
     </div>
-    {editAvatar && <AvatarPicker avatar={avatar} onChange={setAvatar} />}
+    {editAvatar && <AvatarPicker avatar={avatar} onChange={setAvatar} prompt={botPrompt(name, instr)} />}
     <h4>{t('或者从模板装一个现成的')}</h4>
     <p className="muted small">{t('模板带好了技能和定时任务，装上就能干活。{name} 也会留着。', { name: bot.name })}</p>
     <TemplatePicker compact onPreview={setPreview} />

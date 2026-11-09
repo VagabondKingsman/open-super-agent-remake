@@ -1,6 +1,5 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { api, dropTask, fetchTask, loadTask, showTask, useStore } from '../store'
-import { formatUsd } from '../formatUsd'
 import { lang, locale, t, tc } from '../i18n'
 import type { Task, TaskInfo, TaskStep } from '../types'
 import BotAvatar from './BotAvatar'
@@ -14,7 +13,7 @@ const secs = (s: number) => {
     : t('{h} 小时 {m} 分', { h: Math.floor(s / 3600), m: Math.floor(s % 3600 / 60) })
 }
 // 英文 12 小时制不补零（9:05 AM），中文保持 09:05
-const hm = (ts: number) => new Date(ts * 1000).toLocaleTimeString(locale, { hour: lang !== 'zh' ? 'numeric' : '2-digit', minute: '2-digit' })
+const hm = (ts: number) => new Date(ts * 1000).toLocaleTimeString(locale, { hour: lang === 'en' ? 'numeric' : '2-digit', minute: '2-digit' })
 function day(ts: number) {
   const d = new Date(ts * 1000), now = new Date()
   const n = Math.round((new Date(now.toDateString()).getTime() - new Date(d.toDateString()).getTime()) / 86400000)
@@ -24,7 +23,7 @@ function day(ts: number) {
 }
 const firstLine = (s: string) => s.split('\n').find(l => l.trim())?.trim() || s
 
-const STATUS: Record<string, string> = { running: t('进行中'), done: t('已完成'), partial: t('部分完成'), failed: t('失败'), cancelled: t('已取消'), interrupted: t('已中断') }
+const STATUS: Record<string, string> = { running: t('进行中'), done: t('已完成'), failed: t('失败'), cancelled: t('已取消'), interrupted: t('已中断') }
 export const taskLabel = (tk: { status: string; waiting_approval?: number | null }) =>
   tk.status === 'running' && tk.waiting_approval ? t('等你确认') : STATUS[tk.status] || tk.status
 // Heavy 模式里是哪个研究员
@@ -163,8 +162,7 @@ function TaskDetail({ id, group }: { id: number; group: boolean }) {
       </div>
       <div className="td-meta">
         {[group && owner?.name, t('{day} {time}', { day: day(tk.ts), time: hm(tk.ts) }), duration(tk, now), tk.steps ? t('{n} 步', { n: tk.steps }) : '',
-          tk.cost ? t('花费 {cost}', { cost: formatUsd(tk.cost) }) : '',
-          tk.estimated_tokens ? t('含估算 {n} token', { n: tk.estimated_tokens }) : ''].filter(Boolean).join(' · ')}
+          tk.cost ? t('花费 {cost}', { cost: (tk.currency || '') + tk.cost.toFixed(tk.cost < 1 ? 3 : 2) }) : ''].filter(Boolean).join(' · ')}
       </div>
       <Goal text={tk.goal} />
       {!steps.length && !running ? <>

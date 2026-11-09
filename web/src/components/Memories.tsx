@@ -5,7 +5,7 @@ import type { Bot, Memory, MemoryList } from '../types'
 import { useSearch } from './Library'
 
 // 英文：Nov 6；中文保持 11/06
-const day = (ts: number) => new Date(ts * 1000).toLocaleDateString(locale, lang !== 'zh' ? { month: 'short', day: 'numeric' } : { month: '2-digit', day: '2-digit' })
+const day = (ts: number) => new Date(ts * 1000).toLocaleDateString(locale, lang === 'en' ? { month: 'short', day: 'numeric' } : { month: '2-digit', day: '2-digit' })
 const SOURCE: Record<string, string> = { chat: t('对话里记下'), manual: t('手动添加'), import: tc('source', '导入'), task: t('自动') }
 // 让用户发给别的助手的话：英文界面给英文版
 const EXPORT_PROMPT = t('请把你记得的关于我的所有信息列出来，每条一行：我的基本情况、偏好、习惯、正在做的事。只列内容，不要解释。')

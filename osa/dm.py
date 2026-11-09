@@ -14,13 +14,14 @@
 reply 的样子：{"bot": 等回信的 Bot, "chat": 它在哪个对话里等, "depth": 深度, "then": 它那一轮自己欠谁回信（没有为 None）}
 """
 import asyncio
+import logging
 import time
-from . import bots, i18n, memory
+from . import bots, i18n, memory, providers
 
 MAX_DEPTH = 5
-DM_SENT_PREFIX = "Sent a DM to"
 notify = None   # 由 server 设置：async (event) -> None
 _queued: dict[tuple, dict] = {}   # 排着队还没开始的一轮：(Bot, 对话, 来由, 欠谁回信) -> turn
+log = logging.getLogger(__name__)
 
 
 def _name(bot_id: int | None) -> str:
@@ -40,17 +41,15 @@ async def send(sender: int, to: dict, text: str, origin: int, owed: dict | None,
     """sender 在 origin 对话里私信 to。owed 是 sender 这一轮欠谁回信，depth 是这一轮的深度。返回给模型看的结果。"""
     text = (text or "").strip()
     if not text:
-        return "Not sent: the DM text is empty"
+        return "没发：私信内容是空的"
     if depth + 1 > MAX_DEPTH:
-        return (f"Not sent: bots have already forwarded this {MAX_DEPTH} times. "
-                "Stop, tell the user the current state, and wait for them.")
+        return f"没发：Bot 之间已经转了 {MAX_DEPTH} 手，先停下来，把现在的情况告诉用户，等用户决定"
     reply = {"bot": sender, "chat": origin, "depth": depth + 1, "then": owed}
     await _message(origin, text, sender, kind="dm", to=to["id"])
     await _message(to["chat_id"], text, sender, kind="dm", to=to["id"], chat=origin)   # chat：从哪个对话发来的
-    asyncio.create_task(_wake(to["id"], to["chat_id"], {"reply": reply, "depth": depth + 1,
+    asyncio.create_task(wake(to["id"], to["chat_id"], {"reply": reply, "depth": depth + 1,
                                                        "woke": {"kind": "dm", "from": sender, "text": text}}))
-    return (f"{DM_SENT_PREFIX} {to['name']}. Their reply returns to this chat automatically; "
-            "you will speak again then. Do not wait now.")
+    return f"已私信 {to['name']}。它的回信会自动回到这个对话，到时你会接着说一轮，现在不用等"
 
 
 async def answer(sender: int, reply: dict, text: str, from_chat: int, **meta):
@@ -63,7 +62,7 @@ async def answer(sender: int, reply: dict, text: str, from_chat: int, **meta):
     cid = reply["chat"] if chat and (chat["kind"] != "group" or to["id"] in chat["bot_ids"]) else to["chat_id"]
     await _message(from_chat, i18n.t("[已回复 {name}]", name=to["name"]), sender, kind="dm_reply", to=to["id"], sent=True, chat=cid)
     await _message(cid, text, sender, kind="dm_reply", to=to["id"], **meta)
-    asyncio.create_task(_wake(to["id"], cid, {"reply": reply["then"], "depth": reply["depth"],
+    asyncio.create_task(wake(to["id"], cid, {"reply": reply["then"], "depth": reply["depth"],
                                              "woke": {"kind": "reply", "from": sender, "text": text}}))
 
 
@@ -85,8 +84,9 @@ def same(a: dict | None, b: dict | None) -> bool:
     return _owed(a) == _owed(b)
 
 
-async def _wake(bot_id: int, chat_id: int, turn: dict):
-    """让 bot_id 在 chat_id 里说一轮。turn 是这一轮的来由：{"reply", "depth", "woke"}。"""
+async def wake(bot_id: int, chat_id: int, turn: dict):
+    """让 bot_id 在 chat_id 里说一轮。turn 是这一轮的来由：{"reply", "depth", "woke"}。
+    woke 的 kind：dm（收到私信）、reply（收到回信）、botadmin（它请求的新建 / 修改 / 删除 Bot 有了结果，见 botadmin.py）。"""
     from . import groups, router
     chat = bots.chat(chat_id)
     if not chat or not bots.get(bot_id):   # 等着的时候 Bot 或对话被删了
@@ -103,8 +103,9 @@ async def _wake(bot_id: int, chat_id: int, turn: dict):
         else:
             await router.runtime(bot_id).respond(chat_id, turn)
     except Exception as e:
+        log.exception("对话 %s 里 Bot %s 处理私信时出错", chat_id, bot_id)
         if notify:
-            await notify({"type": "error", "chat_id": chat_id, "message": i18n.t("{name} 出错了：{e}", name=_name(bot_id), e=e)})
+            await notify({"type": "error", "chat_id": chat_id, "message": i18n.t("{name} 出错了：{e}", name=_name(bot_id), e=providers.brief(e))})
     finally:
         if _queued.get(key) is turn:   # 群里没轮到它（比如已经不在群里）
             del _queued[key]

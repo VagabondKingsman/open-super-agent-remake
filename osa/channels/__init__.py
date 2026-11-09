@@ -17,7 +17,7 @@ import json
 import re
 import secrets
 import time
-from .. import approvals, bots, i18n, memory, vault
+from .. import approvals, bots, i18n, media, memory, vault
 from . import fmt
 
 conn = memory.conn
@@ -173,14 +173,16 @@ def delete(cid: int):
 
 def chat_removed(chat_id: int):
     """绑定的 Bot 或群聊被删了：改成和主 Bot 对话。"""
+    bound = [r for r in rows() if r["chat_id"] == chat_id]
+    if not bound:
+        return
     to = bots.primary()["chat_id"]
-    for r in rows():
-        if r["chat_id"] == chat_id:
-            conn.execute("update channels set chat_id=? where id=?", (to, r["id"]))
-            conn.commit()
-            _refresh(r["id"])
-            if (ch := RUNNING.get(r["id"])) and r["peer"]:
-                ch.say(i18n.t("原来绑定的对话被删除了，改成和「{title}」对话。", title=_chat_title(to)))
+    for r in bound:
+        conn.execute("update channels set chat_id=? where id=?", (to, r["id"]))
+        conn.commit()
+        _refresh(r["id"])
+        if (ch := RUNNING.get(r["id"])) and r["peer"]:
+            ch.say(i18n.t("原来绑定的对话被删除了，改成和「{title}」对话。", title=_chat_title(to)))
     changed()
 
 
@@ -248,21 +250,29 @@ def _absolute(md: str) -> str:
     return re.sub(r"(?<![\w\]\(/.:])(/(?:library/pages|s)/[\w-]+)", lambda m: base + m[1], md)
 
 
+def _files(atts) -> str:
+    """Bot 发来的图片和文件：聊天软件里先给链接（点开要登录网页），以后再改成直接发图片。"""
+    if not atts:
+        return ""
+    return "\n\n" + "\n".join(f"📎 [{a.get('name') or 'file'}]({media.link(a)})" for a in atts)
+
+
 def render(m: dict, group: bool) -> str | None:
     """一条界面消息在聊天软件里怎么说；不用发的返回 None。用户自己的消息不回显。"""
     meta, role = m.get("meta") or {}, m.get("role")
     content = (m.get("content") or "").strip()
     name = _bot_name(m.get("bot_id"))
+    files = _files(meta.get("attachments"))
     if role == "assistant":
-        return (f"**{name}**\n" if group else "") + content if content else None
+        return (f"**{name}**\n" if group else "") + content + files if content or files else None
     if role != "task":
         return None
     kind = meta.get("kind")
     if kind == "result":
         tid, status = meta.get("task_id"), meta.get("status")
-        body = memory.TASK_RESULT.sub("", content).lstrip()
+        body = re.sub(r"^\[任务 #\d+ 结果\]\s*", "", content)
         d = conn.execute("select content from messages where id=?", (tid,)).fetchone()
-        routine = re.match(r"\[(?:定时任务|Routine|Lịch) ([^\]]+)\]", memory.TASK_DISPATCH.sub("", d[0])) if d else None
+        routine = re.match(r"\[任务已派发\] \[定时任务 ([^\]]+)\]", d[0]) if d else None
         if routine:
             head = i18n.t("✅ 定时任务「{name}」完成", name=routine[1]) if status == "done" else \
                 i18n.t("❌ 定时任务「{name}」失败", name=routine[1]) if status == "failed" else \
@@ -272,7 +282,9 @@ def render(m: dict, group: bool) -> str | None:
                 i18n.t("❌ 任务 #{id} 失败", id=tid) if status == "failed" else i18n.t("⏹ 任务 #{id} 没做完", id=tid)
         if meta.get("elapsed"):
             head += i18n.t("（用时 {d}）", d=_duration(meta["elapsed"]))
-        return f"**{head}**" + (f" · {name}" if group else "") + f"\n\n{body}"
+        return f"**{head}**" + (f" · {name}" if group else "") + f"\n\n{body}" + files
+    if kind == "image":
+        return i18n.t("🎨 {name} 画好了一张图：{prompt}", name=name, prompt=meta.get("prompt") or "") + files
     if kind == "cancel":
         return "⏹ " + content.strip("[]")
     if kind == "handoff":
@@ -283,7 +295,44 @@ def render(m: dict, group: bool) -> str | None:
         return None if meta.get("sent") else i18n.t("**↩️ {name} 回信**", name=name) + f"\n\n{content}"
     if kind == "note":
         return "ℹ️ " + content.strip("[]")
+    if kind in ("bot_created", "bot_updated", "bot_deleted"):
+        return "🤖 " + content.strip("[]")
     return None
+
+
+def _bot_card(tool: str, d: dict, who: str, args: str) -> tuple[str, str]:
+    """新建、修改、删除 Bot 的卡片：(标题, 正文)。d 是卡片参数（见 botadmin.py）。"""
+    sep = i18n.t("、")
+    if tool == "create_bot":
+        skills = "\n".join(d.get("技能") or [])
+        return i18n.t("🤖 {name} 想新建一个 Bot", name=who), \
+            f"**{d.get('名字', '')}**\n{(d.get('职责') or args)[:600]}" + (f"\n\n{skills[:400]}" if skills else "")
+    bot = d.get("Bot", "")
+    if tool == "update_bot":
+        lines = []
+        if d.get("新名字"):
+            lines.append(i18n.t("名字改成：{name}", name=d["新名字"]))
+        if d.get("职责"):
+            lines.append(i18n.t("职责改成：") + "\n" + d["职责"][:600])
+        if d.get("头像"):
+            lines.append(i18n.t("换头像"))
+        for key, label in (("新技能", i18n.t("新技能：")), ("改技能", i18n.t("改技能：")), ("删技能", i18n.t("删技能："))):
+            if d.get(key):
+                lines.append(label + " " + " ".join(x.split("：")[0] for x in d[key]))
+        return i18n.t("✏️ {name} 想修改 Bot「{bot}」", name=who, bot=bot), "\n\n".join(lines) or args
+    n = d.get("会删掉") or {}
+    lost = [t for t in (i18n.t("私聊里的 {n} 条消息", n=n["消息"]) if n.get("消息") else "",
+                        i18n.t("{n} 个技能", n=n["技能"]) if n.get("技能") else "",
+                        i18n.t("{n} 个定时任务", n=n["定时任务"]) if n.get("定时任务") else "",
+                        i18n.t("它自己的 {n} 条记忆", n=n["记忆"]) if n.get("记忆") else "") if t]
+    lines = [d["原因"]] if d.get("原因") else []
+    lines.append(i18n.t("会一起删掉：{what}", what=sep.join(lost)) if lost else i18n.t("它还没有聊天记录、技能、定时任务和记忆"))
+    if d.get("群聊"):
+        lines.append(i18n.t("会退出群聊：{groups}", groups=sep.join(f"「{g}」" for g in d["群聊"])))
+    if d.get("在做的任务"):
+        lines.append(i18n.t("正在做的 {n} 个任务会停掉", n=d["在做的任务"]))
+    lines.append(i18n.t("删了不能恢复。"))
+    return i18n.t("🗑 {name} 想删除 Bot「{bot}」", name=who, bot=bot), "\n".join(lines)
 
 
 def card_for(ev: dict) -> dict:
@@ -309,7 +358,29 @@ def card_for(ev: dict) -> dict:
     if ev.get("expires"):
         when = "\n" + i18n.t("后台任务，{time} 前没确认按拒绝处理。", time=time.strftime("%H:%M", time.localtime(ev["expires"])))
     buttons = [(i18n.t("允许一次"), "ok", "primary"), (i18n.t("拒绝"), "no", "danger")]
+    scopes = ev.get("scopes") or ([] if ev.get("once") else ["always"])   # 旧的事件没有 scopes
+    if "task" in scopes:   # 这个任务里同一个工具不再问（approvals.resolve 的 scope=task）
+        buttons.append((i18n.t("本次任务内允许"), "task", ""))
     task_line = i18n.t("任务 #{id}：{goal}", id=ev.get("task_id"), goal=goal) + origin + when
+    if tool == "generate_image":   # 画图：写清楚画什么、用哪个模型、多少钱
+        try:
+            d = json.loads(ev.get("args") or "{}")
+        except ValueError:
+            d = {}
+        body = f"{d.get('描述') or args}\n\n" + i18n.t("模型：{model}", model=d.get("模型", "")) + " · " + \
+            i18n.t("价格：{price}", price=d.get("价格", "")) + origin
+        return {"id": ev["id"], "kind": "approval", "title": i18n.t("🎨 {name} 想画一张图", name=who), "body": body,
+                "buttons": buttons + [(i18n.t("总是允许"), "always", "")] * ("always" in scopes), "link": None, "done": ""}
+    if tool in ("create_bot", "update_bot", "delete_bot"):   # 新建、修改、删除 Bot：只能一次一次地允许
+        try:
+            d = json.loads(ev.get("args") or "{}")
+        except ValueError:
+            d = {}
+        title, body = _bot_card(tool, d, who, args)
+        if d.get("请求方"):
+            body += "\n\n" + i18n.t("（{name} 私信请它做的）", name=d["请求方"])
+        return {"id": ev["id"], "kind": "approval", "title": title, "body": body + origin,
+                "buttons": buttons, "link": None, "done": ""}
     if tool == "ask_approval":   # Worker 自己要求确认的一步：直接写要做的事；“总是允许”对它没有意义
         try:
             what = json.loads(args).get("操作") or args
@@ -320,17 +391,21 @@ def card_for(ev: dict) -> dict:
         app, _, name = tool.rpartition("__")
         head = i18n.t("应用 @{app} 的 **{tool}**", app=app, tool=name) if app else f"**{name}**"
         body = f"{head}\n{task_line}\n```\n{args}\n```"
-        buttons.append((i18n.t("总是允许"), "always", ""))
+        if "always" in scopes and ev.get("prefix"):   # 终端：按命令开头的词总是允许（网页上的卡片能改前缀）
+            buttons.append((i18n.t("总是允许 {prefix} 开头的", prefix=ev["prefix"][:20]), "always", ""))
+        elif "always" in scopes:
+            buttons.append((i18n.t("总是允许"), "always", ""))
     return {"id": ev["id"], "kind": "approval", "title": i18n.t("⚠️ {name} 需要你确认", name=who), "body": body,
             "buttons": buttons, "link": None, "done": ""}
 
 
 # 打字代替按按钮：“允许 #12”“拒绝 12”。钉钉卡片上的链接点一下就发出这样一句话。中英文都认，不分大小写
 _ALIASES = {"ok": i18n.both("允许一次") | i18n.both("允许") | i18n.both("同意"), "no": i18n.both("拒绝"),
-            "always": i18n.both("总是允许"), "done": i18n.both("处理完了"), "fail": i18n.both("处理不了")}
+            "always": i18n.both("总是允许"), "task": i18n.both("本次任务内允许") | i18n.both("本次任务"),
+            "done": i18n.both("处理完了"), "fail": i18n.both("处理不了")}
 WORDS = {w.lower(): act for act, words in _ALIASES.items() for w in words}
-ACT_WORD = {"ok": i18n.N_("允许一次"), "no": i18n.N_("拒绝"), "always": i18n.N_("总是允许"), "done": i18n.N_("处理完了"),
-            "fail": i18n.N_("处理不了")}
+ACT_WORD = {"ok": i18n.N_("允许一次"), "no": i18n.N_("拒绝"), "always": i18n.N_("总是允许"), "task": i18n.N_("本次任务内允许"),
+            "done": i18n.N_("处理完了"), "fail": i18n.N_("处理不了")}
 _WORD_CMD = re.compile(r"^(" + "|".join(re.escape(w) for w in sorted(WORDS, key=len, reverse=True)) +
                        r")\s*[#＃]?\s*(\d+)\s*[。.!！]?$", re.I)
 
@@ -340,7 +415,8 @@ def word_command(act: str, aid: int) -> str:
     return f"{i18n.t(ACT_WORD[act])} #{aid}"
 
 
-DONE_TEXT = {"approval": {"approved": i18n.N_("✓ 已允许"), "always": i18n.N_("✓ 已允许，以后自动允许"), "rejected": i18n.N_("✕ 已拒绝"),
+DONE_TEXT = {"approval": {"approved": i18n.N_("✓ 已允许"), "always": i18n.N_("✓ 已允许，以后自动允许"),
+                          "task": i18n.N_("✓ 已允许，这个任务里不再问"), "rejected": i18n.N_("✕ 已拒绝"),
                           "expired": i18n.N_("已过期，按拒绝处理"), "cancelled": i18n.N_("任务已取消")},
              "help": {"approved": i18n.N_("✓ 已处理完，Bot 继续"), "rejected": i18n.N_("✕ 没有处理"), "expired": i18n.N_("已过期"),
                       "cancelled": i18n.N_("任务已取消")}}
@@ -490,7 +566,7 @@ class Channel:
                 card = card_for(ev)
                 self.queue(lambda: self._send_card(peer, card))
             elif status != "pending" and aid in self.carding:
-                status = "always" if ev.get("always") else status
+                status = "always" if ev.get("always") else "task" if ev.get("scope") == "task" else status
                 self.queue(lambda: self._finish_card(peer, aid, status))
         elif t == "stream_start" and mine:
             self.start_typing()
@@ -549,18 +625,27 @@ class Channel:
         chat = bots.chat(r["chat_id"])
         if not chat:
             return self.say(i18n.t("绑定的对话不存在了，请在网页的 设置 → 聊天软件 里重新选择。"))
-        paths = []
+        atts = []
         for name, fref in files:
             try:
                 got = await self.download(fref)
                 data, name = (got[0], got[1] or name) if isinstance(got, tuple) else (got, name)
-                paths.append(await save_upload(name, data))
             except Exception as e:
                 self.say(i18n.t("附件「{name}」没存上：{error}", name=name, error=e))
-        if paths:
-            text = (text + "\n" if text else "") + "\n".join(f"[附件] {p}" for p in paths)
-        if text:
-            await handle(chat, text, self.kind)
+                continue
+            att = {"name": name, "size": len(data)}
+            if media.sniff(data) and len(data) <= media.MAX_BYTES:   # 图片另存一份：对话里显示缩略图，能看图的模型直接看
+                att["media"] = media.save(data, name)["id"]
+            try:
+                att["path"] = await save_upload(name, data)
+            except Exception as e:
+                if "media" not in att:   # 图片存下来了的话照样发：Bot 能看图，只是电脑里没有这个文件
+                    self.say(i18n.t("附件「{name}」没存上：{error}", name=name, error=e))
+                    continue
+            atts.append(att)
+        atts = media.clean_attachments(atts)
+        if text or atts:
+            await handle(chat, text, self.kind, atts)
 
     async def _pair(self, peer: str, who: str, text: str):
         r = self.row
@@ -600,7 +685,7 @@ class Channel:
         if act not in ACT_WORD:
             return False, i18n.t("这个按钮已经失效了")
         kind = item.get("kind")
-        if act in ("done", "fail") and kind != "help" or act in ("ok", "no", "always") and kind == "help":
+        if act in ("done", "fail") and kind != "help" or act in ("ok", "no", "always", "task") and kind == "help":
             return False, i18n.t("这个请求不能这样处理")
         if act == "done":
             await handback(item["bot_id"])
@@ -608,7 +693,7 @@ class Channel:
         if act == "fail":
             approvals.resolve(aid, False, "用户表示处理不了")
             return True, i18n.t("已告诉 Bot")
-        return True, approvals.resolve(aid, act in ("ok", "always"), "", act == "always")
+        return True, approvals.resolve(aid, act in ("ok", "always", "task"), "", scope={"always": "always", "task": "task"}.get(act))
 
 
 async def save_upload(name: str, data: bytes) -> str:
@@ -618,7 +703,7 @@ async def save_upload(name: str, data: bytes) -> str:
     if (await c.status())["state"] != "running":
         await c.start()
     name = re.sub(r"[/\\\0]", "_", name).strip() or "file"
-    return (await library.put_file(c, library.WORKSPACE + "/uploads", name[:200], data))["path"]
+    return (await library.put_file(c, "uploads", name[:200], data))["path"]
 
 
 from .telegram import Telegram   # noqa: E402  平台实现要用到上面的 Channel

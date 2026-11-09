@@ -1,18 +1,7 @@
 """冒烟测试：私聊派任务、群聊交接、Bot 之间私信、确认卡片进私聊。"""
 from conftest import find, settle, until
 from fakellm import Call
-import pytest
-from osa import approvals, bots, i18n, mcp_hub, server
-
-
-@pytest.fixture(autouse=True, params=["vi", "en", "zh"])
-def ui_language(request, monkeypatch):
-    monkeypatch.setattr(i18n, "_lang", request.param)
-    before = {b["id"] for b in bots.list_bots()}
-    yield
-    for bot in bots.list_bots():
-        if bot["id"] not in before:
-            bots.delete(bot["id"])
+from osa import approvals, bots, mcp_hub, server
 
 
 async def test_dispatch_in_direct_chat(llm, events, make_bot):
@@ -44,8 +33,7 @@ async def test_group_handoff_after_task(llm, events, make_bot):
 
     # Writer 被点名，但要等任务结果，所以只说了一次（交接之后）
     assert len(llm.bodies("router", "Writer")) == 1
-    assert any(m["meta"].get("task_id") and m["meta"].get("to") == b["id"]
-               for m in find(group["id"], kind="handoff"))
+    assert find(group["id"], kind="handoff", text="任务 #")
     seen = "\n".join(str(m.get("content")) for m in llm.bodies("router", "Writer")[0]["messages"])
     assert "资料：三条要点" in seen and "写个总结" in seen
 
@@ -64,13 +52,12 @@ async def test_dm_reply_comes_back(llm, events, make_bot):
     assert find(post["chat_id"], kind="dm_reply")[0]["meta"].get("sent")
 
 
-async def test_approval_goes_to_private_chat(llm, events, make_bot, monkeypatch):
+async def test_approval_goes_to_private_chat(llm, events, make_bot, mcp_tool):
     async def create_note(text: str = "") -> str:
         return f"已创建笔记：{text}"
     schema = {"type": "function", "function": {"name": "demo__create_note", "description": "新建笔记",
               "parameters": {"type": "object", "properties": {"text": {"type": "string"}}}}}
-    monkeypatch.setitem(mcp_hub.TOOLS, "demo__create_note", (create_note, schema))
-    monkeypatch.setattr(mcp_hub, "CONFIRM", mcp_hub.CONFIRM | {"demo__create_note"})
+    mcp_tool("demo__create_note", create_note, schema, confirm=True)
 
     a, b = make_bot("Keeper"), make_bot("Helper")
     group = bots.create_group([a["id"], b["id"]], lead=a["id"])

@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 from .. import i18n
 from ..config import CFG, DATA
-from .base import Computer, ComputerError, ExecResult
+from .base import Computer, ComputerError, ExecResult, check_enabled
 
 IMAGE = "osa-computer:1"
 IMAGE_DIR = Path(__file__).parent / "image"
@@ -46,11 +46,8 @@ while True:
 
 
 async def _run(*args, stdin: str | None = None, timeout: float = 120) -> tuple[int, str, str]:
-    try:
-        p = await asyncio.create_subprocess_exec(*args, stdin=asyncio.subprocess.PIPE if stdin is not None else None,
-                                                 stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-    except FileNotFoundError:
-        return 127, "", "docker-missing"
+    p = await asyncio.create_subprocess_exec(*args, stdin=asyncio.subprocess.PIPE if stdin is not None else None,
+                                             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     try:
         out, err = await asyncio.wait_for(p.communicate(stdin.encode() if stdin is not None else None), timeout)
     except asyncio.TimeoutError:
@@ -87,9 +84,7 @@ class LocalComputer(Computer):
         self._starting = asyncio.Lock()
 
     async def status(self) -> dict:
-        code, out, err = await _run("docker", "inspect", "-f", "{{json .State}}", self.name, timeout=15)
-        if code == 127 or err == "docker-missing":
-            return {"state": "unavailable", "detail": i18n.t("未安装 Docker，无法使用本地电脑"), "reason": "docker_missing"}
+        code, out, _ = await _run("docker", "inspect", "-f", "{{json .State}}", self.name, timeout=15)
         if code:
             return {"state": "none", "detail": i18n.t("还没有创建")}
         st = json.loads(out)
@@ -106,11 +101,9 @@ class LocalComputer(Computer):
                 raise ComputerError(i18n.t("电脑镜像构建失败：{error}", error=(err or out)[-800:]))
 
     async def start(self):
+        check_enabled()
         async with self._starting:
-            info = await self.status()
-            st = info["state"]
-            if st == "unavailable":
-                raise ComputerError(info["detail"])
+            st = (await self.status())["state"]
             if st == "running":
                 return
             if st == "paused":

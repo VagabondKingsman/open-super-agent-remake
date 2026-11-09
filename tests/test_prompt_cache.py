@@ -18,12 +18,12 @@ async def test_system_prompt_and_history_stay_identical(llm, events, make_bot):
     assert "做过的第" not in b3[0]["content"]
     assert "做过的第 2 件事" in b3[-1]["content"]          # 变的部分附在最新一条消息后面
     assert b3[-1]["content"].startswith("帮我记一下")
-    assert "system-attached current state" in b3[-1]["content"]
+    assert "以下是系统附上的当前状态" in b3[-1]["content"]
     assert b3[:len(b2) - 1] == b2[:-1]                   # 上一轮发过的历史（除了它最新那条）原样是这一轮的前缀
 
 
 def test_state_goes_after_last_user_message():
-    state = "\n\n(system-attached current state)"
+    state = "\n\n（以下是系统附上的当前状态）"
     hist = [{"role": "user", "content": "你好"}]
     assert router.with_state(hist, state) == [{"role": "user", "content": "你好" + state}]
     assert hist == [{"role": "user", "content": "你好"}]   # 不改原来的列表

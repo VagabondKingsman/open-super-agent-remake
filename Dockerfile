@@ -47,7 +47,6 @@ RUN uv export --frozen --no-dev --no-emit-project --format requirements.txt -o /
 
 COPY config.yaml LICENSE ./
 COPY osa/ osa/
-COPY skills-pack/ai-native/ skills-pack/ai-native/
 COPY --from=web /src/osa/static/dist osa/static/dist
 
 EXPOSE 8765

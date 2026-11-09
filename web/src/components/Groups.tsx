@@ -1,13 +1,18 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { api, openChat, refreshLists, useStore } from '../store'
 import type { Bot, Chat } from '../types'
 import { lang, t, tc } from '../i18n'
 import BotAvatar from './BotAvatar'
 import { ComputerPanel } from './Computer'
 import { TasksPanel } from './Tasks'
+import { ask } from './Dialog'
+import { GroupFace } from './Chat'
+import { AvatarImageTools, groupPrompt } from './AvatarTools'
+import { useBack } from '../swipe'
+import { isEnter } from '../keys'
 
 const MIN = 2, MAX = 6
-const SEP = lang !== 'zh' ? ', ' : '、'
+const SEP = lang === 'en' ? ', ' : '、'
 
 function BotPicker({ bots, picked, onChange }: { bots: Bot[]; picked: number[]; onChange: (ids: number[]) => void }) {
   return (
@@ -27,6 +32,8 @@ function BotPicker({ bots, picked, onChange }: { bots: Bot[]; picked: number[]; 
 
 export function NewGroupDialog({ onClose }: { onClose: () => void }) {
   const bots = useStore(s => s.bots)
+  const root = useRef<HTMLDivElement>(null)
+  useBack(onClose, root)
   const [picked, setPicked] = useState<number[]>([])
   const [title, setTitle] = useState('')
   const [lead, setLead] = useState<number | null>(null)
@@ -39,7 +46,7 @@ export function NewGroupDialog({ onClose }: { onClose: () => void }) {
     } catch (e: any) { setErr(e.message) }
   }
   return (
-    <div className="modal-bg" onMouseDown={onClose}>
+    <div className="modal-bg" ref={root} onMouseDown={onClose}>
       <div className="modal small" onMouseDown={e => e.stopPropagation()}>
         <h3>{t('新建群聊')}</h3>
         {bots.length < MIN ? <p className="muted">{t('至少要有 {n} 个 Bot 才能建群聊，先去新建一个 Bot。', { n: MIN })}</p> : <>
@@ -66,8 +73,10 @@ export function NewGroupDialog({ onClose }: { onClose: () => void }) {
 
 export function GroupPanel({ chat, onClose, tab, setTab }: { chat: Chat; onClose: () => void; tab: string; setTab: (tab: string) => void }) {
   const cur = tab === 'computer' || tab === 'tasks' ? tab : 'group'
+  const root = useRef<HTMLElement>(null)
+  useBack(onClose, root)
   return (
-    <aside className="panel">
+    <aside className="panel" ref={root}>
       <div className="panel-head">
         <div className="panel-tabs">
           <button className={cur === 'group' ? 'on' : ''} onClick={() => setTab('group')}>{tc('tab', '群聊')}</button>
@@ -88,6 +97,7 @@ function GroupSettings({ chat, onClose }: { chat: Chat; onClose: () => void }) {
   const tasks = useStore(s => s.tasks)
   const [title, setTitle] = useState(chat.title)
   const [adding, setAdding] = useState(false)
+  const [editAvatar, setEditAvatar] = useState(false)
   const [err, setErr] = useState('')
   const members = chat.bot_ids.map(i => bots.find(b => b.id === i)).filter((b): b is Bot => !!b)
   const others = bots.filter(b => !chat.bot_ids.includes(b.id))
@@ -96,15 +106,21 @@ function GroupSettings({ chat, onClose }: { chat: Chat; onClose: () => void }) {
     try { await api(`/api/chats/${chat.id}`, { method: 'PATCH', body }); await refreshLists() } catch (e: any) { setErr(e.message) }
   }
   const del = async () => {
-    if (!confirm(t('删除群聊「{name}」？群里的消息会一起删除，Bot 和它们的私聊不受影响。', { name: chat.title }))) return
+    if (!(await ask(t('删除群聊「{name}」？群里的消息会一起删除，Bot 和它们的私聊不受影响。', { name: chat.title }), { ok: t('删除'), danger: true }))) return
     await api(`/api/chats/${chat.id}`, { method: 'DELETE' }); await refreshLists(); onClose()
     const first = bots[0]; if (first) openChat(first.chat_id)
   }
   const running = Object.values(tasks).filter(x => x.chat_id === chat.id && x.status === 'running')
   return (
     <>
+      <button className="panel-avatar" onClick={() => setEditAvatar(!editAvatar)} title={t('修改群头像')}>
+        <GroupFace image={chat.image} bots={members} size={72} stack={48} /></button>
+      {editAvatar && <div className="avatar-picker">
+        <AvatarImageTools prompt={groupPrompt(chat.title, members.map(b => b.name))} onImage={image => { patch({ image }); setEditAvatar(false) }} />
+        {chat.image && <button className="ghost-btn" onClick={() => { patch({ image: '' }); setEditAvatar(false) }}>{t('不用图片，用成员的头像拼')}</button>}
+      </div>}
       <label className="field">{t('群名')}<input value={title} maxLength={60} onChange={e => setTitle(e.target.value)}
-        onBlur={() => title !== chat.title && patch({ title })} onKeyDown={e => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} /></label>
+        onBlur={() => title !== chat.title && patch({ title })} onKeyDown={e => isEnter(e) && (e.target as HTMLInputElement).blur()} /></label>
       <div className="section-head"><h4>{t('成员（{n}/{max}）', { n: members.length, max: MAX })}</h4>
         {members.length < MAX && others.length > 0 && <button className="btn" onClick={() => setAdding(!adding)}>{adding ? tc('add', '收起') : '＋ ' + t('添加')}</button>}
       </div>

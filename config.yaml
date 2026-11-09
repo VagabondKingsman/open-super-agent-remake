@@ -16,9 +16,7 @@ roles:
   # 每个角色还可以加：thinking: false（关闭思考模式，更快更便宜）、reasoning_effort: low/high/max
 
 heavy:
-  workers: 3                 # Heavy 模式研究员数量（类似 Grok Heavy）
-  concurrency: 1             # 同时真正调用模型的研究员上限。默认 1，避免一口气打满服务商限额
-  min_drafts: 2              # 可用草稿少于此数就不叫审稿人，任务记失败。超过 workers 时按 workers 计
+  workers: 3                 # Heavy 模式并行 Worker 数（类似 Grok Heavy）
 
 search:
   searxng_url: ""            # 例如 http://localhost:8080 ；留空则用 DuckDuckGo HTML
@@ -31,18 +29,29 @@ server:
   # 支持 *.example.com 这种写法。设了密码就不用管这一项。也可以用环境变量 OSA_ALLOWED_HOSTS，逗号分隔
   allowed_hosts: []
 
+# 网页上能做到什么程度。只能在这里改，网页上改不了（详见 SECURITY.md）
+security:
+  # 网页上能不能让这台机器执行任意命令：电脑选“本机”和本机终端、自定义启动命令的应用（以及改应用的命令、参数、环境变量）、
+  # “文件夹”应用访问工作文件夹以外的目录、应用配置引用服务的环境变量（env:名字）、插件。
+  # 自己电脑上、桌面 App 里保持 true；放到公网服务器上建议改成 false（服务器锁）：登录密码万一泄露，别人也拿不到这台服务器。
+  # 改成 false 后，应用市场里的应用、插件市场里原样的插件照常能用，下面 mcp_servers 里写的应用也不受影响
+  local_exec: true
+  # 演示服务器（登录密码公开给别人试用）：除了上面那些，还不能用在服务器上运行程序的应用（npx / uvx）和自定义应用、
+  # 不能用本机或内网的模型服务地址、不能改用量上限、不能导出或恢复备份、不能用插件
+  demo: false
+  # 想分开管就写下面三个，写了以写的为准；不写按上面两个推：local_exec: true → host / any / any，
+  # local_exec: false → sandbox / market / market，demo: true → sandbox / off / market（演示服务器上最宽到 sandbox / market / market）。
+  # 写错的值按最严的算。
+  # exec: host      # 命令在哪跑：host 能在这台机器上直接跑（电脑选“本机”、本机终端）；sandbox 只在沙箱里；off 都不行
+  # plugins: any    # 插件：any 都行；market 只认和插件市场里随版本发布的文件一模一样的（能装，改过的、自己写的不行）；off 整个关掉
+  # apps: any       # 本地进程的应用：any 都行；market 只认应用市场里原样的命令，填的值只能进模板留的位置
+
 limits:
   worker_max_steps: 30        # 电脑操作一步一个动作，步数要多一些
-  repeat_tool_limit: 3        # 同一个工具调用连续这么多次就停下，改要最终答案。0 表示不查
-  answer_continuations: 1     # 最终答案是空的，或 finish_reason=length 时，再要一次完整答案
-  save_page_approval: false   # true：Worker 的 save_page 先等确认。命中“自动允许”规则时仍直接写
   task_timeout_s: 600
   watchdog_interval_s: 15
   approval_timeout_s: 1800   # 写操作等待确认的时限，超时按拒绝
   daily_token_budget: 2000000
-  provider_rate_retries: 1   # 普通 429（rate_limit_exceeded）按 Retry-After 再试几次。额度用尽不重试
-  provider_retry_cap_s: 120  # Retry-After 最多等这么多秒
-  provider_transient_retries: 2  # 408/409/5xx 再试几次。0 表示不试
 
 memory:
   db: data/osa.db
@@ -56,21 +65,26 @@ embedding:
   provider: ""
   model: ""
 
-# 单价：美元 / 百万 tokens。不用自己填：每天自动从 models.dev 获取（那边就是美元，不再换成人民币）。
-# 下面 models 里写了的以它为准，单位也是美元。DeepSeek 分高峰、空闲两档，models.dev 没有，所以写在这里。
-# 数字来自 DeepSeek API 文档 https://api-docs.deepseek.com/quick_start/pricing/ ，2026-11-07 核对。
-# 两档的：工作日 peak_hours 内按第一个数计，其余时段按第二个。
-# 库里 OSA-013 之前的 llm_usage.cost 是人民币。第一次启动会换成美元并在 settings.cost_unit 记一笔，不会再除第二次。
-# 旧配置如果 currency 仍是人民币（CNY、RMB 或人民币符号），models 里的数仍按人民币读，除以 legacy_cny_per_usd（没有这项则看 usd_rate，再没有则 7.1）。
+# 单价：元 / 百万 tokens。不用自己填：每天自动从 models.dev 获取（美元按 usd_rate 换算）。
+# 下面 models 里写了的以它为准，用于 models.dev 没有的情况，比如 DeepSeek 的高峰、空闲两档价（2026-11-04 抄自官网）。
+# 两档的：工作日 peak_hours 内按第一个数计，其余时段按第二个
 pricing:
-  currency: "$"
-  # legacy_cny_per_usd: 7.1       # 只给第一次迁移旧库用。旧账本来就是美元时写成 1
+  currency: "¥"
+  usd_rate: 7.1                  # 1 美元换多少人民币
   # source: https://models.dev/api.json   # 单价从哪里取；连不上时可以换成镜像地址
   peak_hours: ["09:00-12:00", "14:00-18:00"]     # 北京时间，周一至周五
   models:
-    deepseek-flash:  {cache_hit: [0.006, 0.003], input: [0.3, 0.15], output: [1.2, 0.6]}     # [高峰, 空闲] USD / 百万 token
-    deepseek-v4-pro: {cache_hit: [0.044, 0.022], input: [1.32, 0.66], output: [3.96, 1.98]}
+    deepseek-flash:  {cache_hit: [0.04, 0.02], input: [2, 1],   output: [8, 4]}       # [高峰, 空闲]
+    deepseek-v4-pro: {cache_hit: [0.30, 0.15], input: [9, 4.5], output: [27, 13.5]}
   # 本机和内网的模型按 0 计
+  # 画图：元 / 张。models.dev 没有按张的价格，只能写在这里：先按服务商（接口地址里有这个词，或者就是服务的名字），
+  # 再按模型名字（不分大小写，前面的 Kwai-Kolors/ 这类前缀可以不写）。没写的显示“价格未知”，费用按 0 记，次数照记
+  images:
+    siliconflow:               # 2026-11 抄自硅基流动官网
+      Kolors: 0
+      Z-Image-Turbo: 0.1
+      Qwen-Image: 0.3
+      Z-Image: 0.3
 
 # 旧版触发器：只在首次启动时导入成主 Bot 的定时任务，之后请在界面右栏“定时”里管理
 triggers:
@@ -109,14 +123,14 @@ mcp_servers: {}
 # 电脑：所有 Bot 共用一台（浏览器 + 终端）；用户能实时观看、接手
 computer:
   enabled: true
-  backend: auto              # auto：有 INSTABOX_API_KEY 用 Instabox，否则本地 Docker；也可以写 instabox / local
+  backend: auto              # auto：桌面 App 里用 host，否则有 INSTABOX_API_KEY 用 Instabox、没有用本地 Docker；也可以写 host / local / instabox
+                             # host：用这台电脑上装的 Chrome（单独的配置目录），不用 Docker；设置里也能换
   parallel: 3                # 几个任务可以同时用电脑，每个一个浏览器窗口（登录状态共用），多了排队；电脑内存小就调小
   width: 1280
   height: 800
   idle_pause_s: 900          # 闲置 15 分钟自动暂停（暂停时保留内存，恢复很快）
   instabox_template: agent-browser
   instabox_machine: ""            # 用已有的 Instabox 机器 id（免费版只能有一台，比如 m_xxx）；留空则自动创建
-
-# Bundled methods are shared by all bots; false opts out of startup reconciliation.
-skills:
-  ai_native_defaults: true
+  chrome_path: ""            # host 用的浏览器；留空按常见位置找 Chrome（Chromium、Edge、Brave 也行）
+  host_shell: false          # host 的终端：默认关，打开后 Bot 每条命令都要你确认（电脑面板里也能开关）
+  host_desktop: true         # 本机是 Mac 时，给了“辅助功能”和“屏幕录制”权限后 Bot 还能看整个屏幕、用鼠标键盘操作别的 App；false 只用浏览器

@@ -17,7 +17,6 @@ def _db_path() -> Path:
         return db
     return DATA / db.name if os.environ.get("OSA_DATA_DIR") else ROOT / db
 
-
 DB_PATH = _db_path()
 
 

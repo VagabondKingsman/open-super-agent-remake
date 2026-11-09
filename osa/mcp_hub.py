@@ -34,12 +34,17 @@ from mcp.shared.exceptions import MCPError
 from mcp_types import CONNECTION_CLOSED
 from .config import CFG, DATA
 from .memory import conn
-from . import i18n, vault
+from . import i18n, mcpapps, registry, security, vault
 
 conn.execute("create table if not exists apps(name text primary key, config text, enabled integer, created real)")
 conn.commit()
 
-TOOLS: dict[str, tuple] = {}     # 名字 -> (异步调用函数, OpenAI 工具 schema)
+_ctx: dict[str, "registry.Context"] = {}   # 每个应用注册的工具都挂在它自己的 Context 上，断开时一起撤销
+_sessions: dict = {}                          # 连着的应用的会话：界面要读资源、调工具（见 mcpapps.py）
+
+
+def session_of(name: str):
+    return _sessions.get(name)
 status: dict[str, "str | i18n.Later"] = {}   # 应用 -> 状态说明，给前端看；到显示时才翻（i18n.later），读的时候 str()
 CONFIRM: set[str] = set()        # 默认需要用户确认的工具（规则可以覆盖）
 _running: dict[str, tuple[asyncio.Task, asyncio.Event]] = {}
@@ -80,19 +85,22 @@ _oauth2.validate_metadata_issuer = _issuer_ok
 
 
 # ---------- 存储 ----------
+def from_yaml(s: dict) -> dict:
+    """config.yaml 里 mcp_servers 的一项 → 应用配置。"""
+    if s.get("url"):
+        return {"type": "http", "url": s["url"], "headers": s.get("headers", {}), "oauth": bool(s.get("oauth")),
+                "deny": s.get("deny", []), "confirm": s.get("confirm", "auto")}
+    return {"command": s.get("command", ""), "args": s.get("args", []), "env": {k: f"env:{k}" for k in s.get("env_from", [])},
+            "deny": s.get("deny", []), "confirm": s.get("confirm", "auto")}
+
+
 def _seed():
     """把 config.yaml 里还没导入过的 mcp_servers 导入数据库。"""
     have = {r[0] for r in conn.execute("select name from apps")}
     for name, s in (CFG.get("mcp_servers") or {}).items():
         if name in have:
             continue
-        env = {k: f"env:{k}" for k in s.get("env_from", [])}
-        cfg = {"command": s.get("command", ""), "args": s.get("args", []), "env": env,
-               "deny": s.get("deny", []), "confirm": s.get("confirm", "auto")}
-        if s.get("url"):
-            cfg = {"type": "http", "url": s["url"], "headers": s.get("headers", {}), "oauth": bool(s.get("oauth")),
-                   "deny": cfg["deny"], "confirm": cfg["confirm"]}
-        conn.execute("insert into apps values(?,?,?,?)", (name, json.dumps(cfg), int(bool(s.get("enabled"))), time.time()))
+        conn.execute("insert into apps values(?,?,?,?)", (name, json.dumps(from_yaml(s)), int(bool(s.get("enabled"))), time.time()))
     conn.commit()
 
 
@@ -129,7 +137,7 @@ def state(name: str, a: dict) -> str:
 def public() -> list[dict]:
     out = []
     for n, a in all_apps().items():
-        tools = sorted(t.split("__", 1)[1] for t in TOOLS if t.startswith(n + "__"))
+        tools = tools_of(n)
         out.append({"name": n, "catalog": a.get("catalog") or "", "type": a.get("type") or "stdio",
                     "command": a.get("command", ""), "args": a.get("args", []), "env": a.get("env", {}),
                     "url": _secret_free(a.get("url", "")), "headers": list((a.get("headers") or {}).keys()),
@@ -165,6 +173,8 @@ def save(name: str, data: dict) -> dict:
         if not isinstance(cfg["args"], list) or not isinstance(cfg["env"], dict):
             raise ValueError(i18n.t("args 要是列表，env 要是对象"))
     enabled = bool(data.get("enabled", old.get("enabled", True)))
+    if enabled:      # 停用、删除不检查：已经不能用的应用也要能关掉
+        security.check_app(name, cfg)
     conn.execute("insert or replace into apps values(?,?,?,coalesce((select created from apps where name=?),?))",
                  (name, json.dumps(cfg), int(enabled), name, time.time()))
     conn.commit()
@@ -464,21 +474,11 @@ async def cancel_login(name: str):
 
 
 # ---------- 连接 ----------
-class ToolResultError(Exception):
-    """工具自己报告失败。text 交给模型，步骤记成 error，不当成成功。"""
-
-    def __init__(self, text: str):
-        super().__init__(text)
-        self.text = text
-
-
-def _text(result) -> tuple[str, bool]:
+def _text(result) -> str:
     parts = [getattr(c, "text", None) or str(c) for c in result.content]
     out = "\n".join(parts)
-    is_error = bool(getattr(result, "is_error", None) or getattr(result, "isError", False))  # 兼容新旧 SDK 字段名
-    if is_error:
-        out = i18n.t("工具报错：{detail}", detail=out)
-    return out, is_error
+    is_error = getattr(result, "is_error", None) or getattr(result, "isError", False)  # 兼容新旧 SDK 字段名
+    return ("工具报错：" + out) if is_error else out
 
 
 def _needs_confirm(name: str, a: dict, tool) -> bool:
@@ -506,6 +506,7 @@ def _first(e: BaseException) -> BaseException:
 
 def _transport(name: str, a: dict):
     """返回 (transport 上下文, 要一起关的 http client 或 None)。"""
+    security.check_app(name, a)   # 服务器锁、演示模式：不管配置是怎么进的数据库（界面、恢复备份），连之前都查一遍
     if a.get("type") in ("http", "sse"):
         missing: list = []
         url = _resolve(a["url"], missing)
@@ -538,40 +539,54 @@ async def _serve(name: str, a: dict, ready: asyncio.Future, stop: asyncio.Event,
             if client:
                 await stack.enter_async_context(client)
             read, write = await stack.enter_async_context(transport)
-            session = await stack.enter_async_context(ClientSession(read, write))
+            # 告诉应用我们能显示它自带的界面（MCP Apps）；有的应用看到这个才登记带界面的工具
+            session = await stack.enter_async_context(ClientSession(read, write, extensions=mcpapps.CAPABILITY))
             await asyncio.wait_for(session.initialize(), wait_s)
             tools = (await session.list_tools()).tools
             deny = [w.lower() for w in a.get("deny", [])]
+            _drop_tools(name)   # 重连时先撤掉上一次注册的
+            ctx = _ctx[name] = registry.Context(f"mcp:{name}")
+            _sessions[name] = session
+            ctx.effect(lambda: _sessions.pop(name, None) if _sessions.get(name) is session else None)
+            ctx.effect(lambda: mcpapps.forget(name))
             n = c = 0
             for t in tools:
                 if any(w in t.name.lower() for w in deny):
                     continue
                 full = f"{name}__{t.name}"[:64]
 
-                async def call(_tool=t.name, _full=full, **args):
+                ui, vis = mcpapps.tool_ui(getattr(t, "meta", None))
+
+                async def run(c: registry.Call, _tool=t.name, _full=full, _ui=ui):
                     try:
-                        result = await session.call_tool(_tool, args)
+                        result = await session.call_tool(_tool, c.args)
                     except Exception as e:
                         # 连接断了（远程会话过期、进程退出）：重连一次再试
                         if not _lost(e) or stop.is_set() or time.time() - _reconnected.get(name, 0) < 60:
                             raise
                         _reconnected[name] = time.time()
                         await connect(name)
-                        fn = TOOLS.get(_full)
-                        if not fn:
-                            hint = i18n.t("，请用户到应用市场重新登录") if name in _needs_login else ""
-                            raise RuntimeError(i18n.t("应用 @{name} 连接断开：{status}{hint}", name=name,
-                                                      status=status.get(name, ""), hint=hint)) from e
-                        return await fn[0](**args)
-                    text, is_error = _text(result)
-                    if is_error:
-                        raise ToolResultError(text)
+                        again = registry.get(_full)
+                        if not again or again.owner != f"mcp:{name}":
+                            hint = "，请用户到应用市场重新登录" if name in _needs_login else ""   # 写给模型看的
+                            raise RuntimeError(f"应用 @{name} 连接断开：{status.get(name, '')}{hint}") from e
+                        return await again.run(c)
+                    text = _text(result)
+                    # 带界面的工具：后台任务（不是 Heavy 的草稿）把结果记下来，任务结果下面用应用的界面显示
+                    if _ui and c.scope == registry.WORKER and c.env.get("pages", True) and len(c.apps) < mcpapps.MAX_VIEWS:
+                        if rec := mcpapps.view_record(name, _tool, _ui, c.args, result):
+                            c.apps.append(rec)
+                            text += mcpapps.MODEL_HINT
                     return text
 
-                TOOLS[full] = (call, {"type": "function", "function": {
-                    "name": full, "description": (t.description or "")[:1000],
-                    "parameters": getattr(t, "input_schema", None) or getattr(t, "inputSchema", None)
-                                  or {"type": "object", "properties": {}}}})
+                params = getattr(t, "input_schema", None) or getattr(t, "inputSchema", None) or {"type": "object", "properties": {}}
+                # visibility 里没有 model 的只给自己的界面调，不给模型、也不给小应用
+                ctx.tool(registry.Tool(full, {"type": "function", "function": {
+                    "name": full, "description": (t.description or "")[:1000], "parameters": params}}, run,
+                    where=frozenset({registry.WORKER, registry.APPLET}) if "model" in vis else frozenset(),
+                    gated=True, group=name,
+                    meta={"mcp": {"tool": t.name, "ui": ui, "visibility": vis, "description": t.description or "",
+                                  "inputSchema": params}}))
                 if _needs_confirm(name, a, t):
                     CONFIRM.add(full)
                     c += 1
@@ -612,9 +627,20 @@ async def _serve(name: str, a: dict, ready: asyncio.Future, stop: asyncio.Event,
 
 
 def _drop_tools(name: str):
-    for k in [k for k in TOOLS if k.startswith(name + "__")]:
-        TOOLS.pop(k, None)
+    """应用断开：它注册的工具全部撤销（Context.dispose 反向撤销），确认集合里的也清掉。"""
+    if c := _ctx.pop(name, None):
+        c.dispose()
+    for k in [k for k in CONFIRM if k.startswith(name + "__")]:
         CONFIRM.discard(k)
+
+
+def tools_of(name: str) -> list[str]:
+    """一个应用现在注册着的工具名（不带应用前缀）。"""
+    return sorted(t.name.split("__", 1)[1] for t in registry.by_group().get(name, []))
+
+
+def all_tool_names() -> list[str]:
+    return sorted(t.name for ts in registry.by_group().values() for t in ts)
 
 
 async def connect(name: str, timeout: float = 150) -> str:

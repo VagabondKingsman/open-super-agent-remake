@@ -13,9 +13,9 @@
 """
 import asyncio
 import json
+import re
 import time
 from .config import CFG
-from . import memory
 from .memory import conn
 
 notify = None   # 由 server 设置：async (event) -> None
@@ -53,9 +53,10 @@ class Log:
 
     async def start(self, kind: str, title: str = "", detail: str = "", status: str = "running") -> dict:
         now = time.time()
-        sid = conn.execute("insert into task_steps(task_id, ts, worker, kind, title, body, status, dur, detail) "
-                           "values(?,?,?,?,?,?,?,?,?)",
-                           (self.task.id, now, self.worker, kind, title, "", status, 0, detail)).lastrowid
+        sid = conn.execute("insert into task_steps(task_id, ts, worker, kind, title, body, status, dur, detail, name) "
+                           "values(?,?,?,?,?,?,?,?,?,?)",
+                           (self.task.id, now, self.worker, kind, title, "", status, 0, detail,
+                            title if kind == "tool" else "")).lastrowid
         conn.commit()
         s = {"id": sid, "task_id": self.task.id, "ts": now, "worker": self.worker, "kind": kind, "title": title,
              "body": "", "status": status, "dur": 0, "detail": detail, "_sent": 0, "_t": now}
@@ -114,7 +115,7 @@ def steps(task_id: int) -> list[dict]:
 def _task(row) -> dict:
     i, ts, content, meta, chat_id, bot_id = row
     m = json.loads(meta or "{}")
-    return {"id": i, "ts": ts, "goal": memory.TASK_DISPATCH.sub("", content).strip(), "mode": m.get("mode", "single"),
+    return {"id": i, "ts": ts, "goal": content.removeprefix("[任务已派发]").strip(), "mode": m.get("mode", "single"),
             "status": m.get("status", "done"), "elapsed": m.get("elapsed"), "steps": m.get("steps"),
             "chat_id": chat_id, "bot_id": bot_id, "handoff_to": m.get("handoff_to")}
 
@@ -128,9 +129,9 @@ def list_tasks(bot_id: int | None = None, chat_id: int | None = None, before: in
     if bot_id:
         where.append("bot_id=?")
         args.append(bot_id)
-    if chat_id:
-        where.append("chat_id=?")
-        args.append(chat_id)
+    if chat_id:   # 连同这个对话下面的讨论串里派的
+        where.append("chat_id in (select ? union select id from chats where kind='thread' and parent=?)")
+        args += [chat_id, chat_id]
     rows = conn.execute(f"select id, ts, content, meta, chat_id, bot_id from messages where {' and '.join(where)} "
                         "order by id desc limit ?", (*args, limit)).fetchall()
     return [_task(r) for r in rows]
@@ -146,29 +147,22 @@ def detail(task_id: int) -> dict | None:
         and json_extract(meta, '$.task_id')=? and json_extract(meta, '$.kind')='result' order by id limit 1""",
                        (t["chat_id"], task_id, task_id)).fetchone()
     if res:
-        t["result"] = memory.TASK_RESULT.sub("", res[0])
+        t["result"] = re.sub(r"^\[任务 #\d+ 结果\]\n?", "", res[0])
         t["finished"] = res[2]
         t["elapsed"] = t["elapsed"] or json.loads(res[1] or "{}").get("elapsed")
-    cost, tokens, estimated = conn.execute(
-        """select coalesce(sum(cost), 0), coalesce(sum(cache_hit+cache_miss+output), 0),
-                  coalesce(sum(case when estimated=1 then cache_hit+cache_miss+output else 0 end), 0)
-           from llm_usage where task_id=?""", (task_id,)).fetchone()
-    # usage=recorded：库里的数是已记录用量，不是服务商账单。estimated_tokens 来自取消时的估算。
-    t |= {"cost": round(cost, 6), "tokens": tokens, "estimated_tokens": estimated,
-          "usage": "recorded", "currency": memory.USAGE_CURRENCY}
+    cost, tokens = conn.execute("select coalesce(sum(cost), 0), coalesce(sum(cache_hit+cache_miss+output), 0) "
+                                "from llm_calls where task_id=?", (task_id,)).fetchone()
+    t |= {"cost": round(cost, 4), "tokens": tokens, "currency": CFG["pricing"]["currency"]}
     return t
 
 
 # ---------- 启动和清理 ----------
 def startup():
-    """服务启动时：上次没做完的任务都已经停了（任务只在内存里跑），标成“已中断”。
-    定时任务的运行记录同样只在内存里收尾，重启后还停在 running 的改成 interrupted。"""
+    """服务启动时：上次没做完的任务都已经停了（任务只在内存里跑），标成“已中断”。"""
     conn.execute("update task_steps set status='interrupted' where status in ('running', 'waiting')")
     conn.execute(f"""update messages set meta=json_set(meta, '$.status', 'interrupted')
         where {DISPATCH} and json_extract(meta, '$.status')='running'""")
     conn.commit()
-    from . import routines
-    routines.reconcile_interrupted()
     prune()
 
 

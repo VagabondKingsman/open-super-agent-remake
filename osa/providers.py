@@ -3,10 +3,8 @@
 config.yaml 的 providers 是默认值；在 设置 → 模型 里添加或改过的，存在 settings 表的 providers 一行，
 密钥存进保险库（LLM_KEY_<名字>）。用密钥时先看保险库，没有再看 config.yaml 里写的环境变量。
 """
-import asyncio
 import base64
 import copy
-import email.utils
 import ipaddress
 import json
 import os
@@ -23,6 +21,9 @@ from .memory import conn
 
 BASE = copy.deepcopy(CFG.get("providers") or {})   # config.yaml 里写的
 MODELS_TTL = 600
+# 服务那边临时出错（500、503、限流、连不上）时自动重试几次。SDK 默认只试 2 次、一共等 1.5 秒左右，
+# DeepSeek 高峰期连着报 500 时不够用；5 次按 0.5、1、2、4、8 秒退避，一共最多等 15 秒左右
+RETRIES = 5
 
 # 添加时可以选的服务商。key_url：去哪里拿密钥；embedding：推荐的 embedding 模型（没有就是这家不提供）；
 # models：推荐的对话模型，前面的优先，第一次打开的引导里默认选服务列出来的第一个（都要能看图，2026-11 抄自 models.dev）
@@ -168,129 +169,8 @@ def client(name: str, timeout: float | None = None) -> AsyncOpenAI:
         raise ValueError(i18n.t("没有这个模型服务：{name}", name=name))
     k = (p["base_url"], api_key(name) or "none", timeout)
     if k not in _clients:
-        _clients[k] = AsyncOpenAI(base_url=k[0], api_key=k[1], **({"timeout": timeout} if timeout else {}))
+        _clients[k] = AsyncOpenAI(base_url=k[0], api_key=k[1], max_retries=RETRIES, **({"timeout": timeout} if timeout else {}))
     return _clients[k]
-
-
-# 额度用尽：不重试，调用方应停掉后续步骤。普通限流（rate_limit_exceeded 等）按 Retry-After 再试。
-QUOTA_CODES = (
-    "org_token_rate_limit_day",
-    "insufficient_quota",
-    "free_limit_reached",
-    "budget_exceeded",
-)
-
-
-class ProviderLimit(Exception):
-    """供应商拒绝继续调用。kind 是 quota（停）或 rate（已按 Retry-After 试过仍失败）。"""
-
-    def __init__(self, kind: str, status: int, code: str, detail: str, retry_after: float | None = None):
-        self.kind, self.status, self.code = kind, status, code
-        self.detail, self.retry_after = detail, retry_after
-        if kind == "quota":
-            text = i18n.t("额度用尽（{status} {code}）。{detail}", status=status, code=code or "-", detail=detail)
-        else:
-            text = i18n.t("请求太频繁（{status} {code}）。{detail}", status=status, code=code or "-", detail=detail)
-        super().__init__(text)
-
-
-def _error_parts(e: openai.APIStatusError) -> tuple[str, str]:
-    body = e.body
-    err = body.get("error") if isinstance(body, dict) else None
-    src = err if isinstance(err, dict) else body if isinstance(body, dict) else {}
-    code = str(src.get("code") or src.get("type") or "").strip()
-    message = str(src.get("message") or "").strip()
-    if not message:
-        message = str(getattr(e, "message", "") or e).strip()
-    if not code:
-        for known in QUOTA_CODES + ("rate_limit_exceeded",):
-            if known in message:
-                code = known
-                break
-    return code[:80], message[:300]
-
-
-def _retry_after(e: openai.APIStatusError) -> float | None:
-    """Retry-After / Retry-After-ms，秒。没有头再看 body 里的 retry_after。"""
-    headers = getattr(getattr(e, "response", None), "headers", None)
-    if headers is not None:
-        for header, divisor in (("retry-after-ms", 1000.0), ("retry-after", 1.0)):
-            raw = headers.get(header)
-            if raw is None:
-                continue
-            try:
-                return max(0.0, float(raw) / divisor)
-            except (TypeError, ValueError):
-                if header == "retry-after":
-                    try:
-                        parsed = email.utils.parsedate_tz(str(raw))
-                        if parsed is not None:
-                            return max(0.0, float(email.utils.mktime_tz(parsed) - time.time()))
-                    except (TypeError, ValueError, OverflowError, OSError):
-                        return None
-                return None
-    src = e.body if isinstance(e.body, dict) else {}
-    err = src.get("error") if isinstance(src.get("error"), dict) else src
-    if isinstance(err, dict) and err.get("retry_after") is not None:
-        try:
-            return max(0.0, float(err["retry_after"]))
-        except (TypeError, ValueError):
-            return None
-    return None
-
-
-async def _pause(seconds: float):
-    """额度/限流的等待。测试替换这个函数，避免换掉 asyncio.sleep 把 HTTP 客户端卡住。"""
-    await asyncio.sleep(seconds)
-
-
-def classify_limit(e: Exception) -> ProviderLimit | None:
-    """402，以及 429 里的日额度/配额码，是 quota。其余 429 是 rate。别的错误返回 None。"""
-    if not isinstance(e, openai.APIStatusError):
-        return None
-    status = int(e.status_code or 0)
-    code, detail = _error_parts(e)
-    if status == 402 or (status == 429 and code != "rate_limit_exceeded" and any(c in f"{code} {detail}".lower() for c in QUOTA_CODES)):
-        return ProviderLimit("quota", status, code, detail, None)
-    if status == 429:
-        return ProviderLimit("rate", status, code, detail, _retry_after(e))
-    return None
-
-
-async def create_chat(client, **kwargs):
-    """流式或非流式补全。额度类错误立刻抛出，不重试。普通 429 按 Retry-After 等，次数有上限。
-
-    客户端自带的重试会把日额度 429 再打几遍，这里关掉，改由上面的分类决定。
-    408/409/5xx 仍按 limits.provider_transient_retries 再试，避免把短暂故障变成任务失败。
-    """
-    rate_retries = max(0, int(CFG["limits"].get("provider_rate_retries", 1) or 0))
-    transient_retries = max(0, int(CFG["limits"].get("provider_transient_retries", 2) or 0))
-    cap = max(0.0, float(CFG["limits"].get("provider_retry_cap_s", 120) or 0))
-    # 测试里的假客户端没有 with_options。真客户端关掉 SDK 自带重试，避免把额度类 429 再打一遍。
-    caller = client.with_options(max_retries=0) if hasattr(client, "with_options") else client
-    rate_attempt = transient_attempt = 0
-    while True:
-        try:
-            return await caller.chat.completions.create(**kwargs)
-        except openai.APIStatusError as e:
-            limit = classify_limit(e)
-            if limit is not None and limit.kind == "quota":
-                raise limit from e
-            if limit is not None and limit.kind == "rate":
-                if rate_attempt >= rate_retries:
-                    raise limit from e
-                delay = 1.0 if limit.retry_after is None else limit.retry_after
-                await _pause(min(max(0.0, delay), cap))
-                rate_attempt += 1
-                continue
-            status = int(e.status_code or 0)
-            if status in (408, 409) or status >= 500:
-                if transient_attempt >= transient_retries:
-                    raise
-                await _pause(min(0.5 * (2 ** transient_attempt), cap))
-                transient_attempt += 1
-                continue
-            raise
 
 
 def explain(e: Exception, base_url: str = "") -> str:
@@ -312,9 +192,19 @@ def explain(e: Exception, base_url: str = "") -> str:
         return i18n.t("连接超时：{url}", url=base_url)
     if isinstance(e, openai.APIConnectionError):
         return i18n.t("连不上 {url}", url=base_url)
+    if isinstance(e, openai.InternalServerError):
+        return i18n.t("模型服务那边临时出了故障（{code}），一般过一会儿就好，稍后再试一次", code=e.status_code)
     if isinstance(e, openai.APIStatusError):
         return i18n.t("出错了（{code}）：{detail}", code=e.status_code, detail=detail)
     return f"{type(e).__name__}: {str(e)[:200]}"
+
+
+def brief(e: Exception) -> str:
+    """对话和任务里报错时用：调模型出的错翻成人话（不带英文原文和 request_id），别的错误原样。"""
+    if not isinstance(e, openai.APIError):
+        return str(e)
+    url = getattr(getattr(e, "request", None), "url", None)
+    return explain(e, f"{url.scheme}://{url.host}" if url else "")
 
 
 # ---------- 模型列表 ----------
@@ -373,12 +263,29 @@ def _new_name(base: str) -> str:
     return name
 
 
+def same_origin(a: str, b: str) -> bool:
+    """两个接口地址是不是同一个服务（协议、主机、端口都一样）。"""
+    def origin(u: str):
+        p = urlparse(u)
+        try:
+            port = p.port
+        except ValueError:
+            return None
+        return p.scheme, (p.hostname or "").lower(), port or (443 if p.scheme == "https" else 80)
+    return origin(a) is not None and origin(a) == origin(b)
+
+
 def save(name: str | None, data: dict) -> str:
-    """name 为空是新建。api_key 留空表示不改；clear_key 删掉界面里填的密钥（回到环境变量）。"""
+    """name 为空是新建。api_key 留空表示不改；clear_key 删掉界面里填的密钥（回到环境变量）。
+    改到别的服务（主机或端口变了）时要重新填密钥：不然原来的密钥（可能是服务自己环境变量里的）会发到新地址去。"""
     d = _load()
     title = _stored_title((data.get("title") or "").strip()[:40])
     url = _clean_url(data.get("base_url", ""))
     preset = data.get("preset") if data.get("preset") in PRESET else None
+    key = (data.get("api_key") or "").strip()
+    if name is not None and name in CFG["providers"] and not key and api_key(name) \
+            and not same_origin(url, CFG["providers"][name]["base_url"]):
+        raise ValueError(i18n.t("换了接口地址要重新填 API Key（原来的密钥不会发给新地址）"))
     if name is None:
         name = _new_name(preset if preset and preset != "custom" else title or "custom")
         d[name] = {"title": title or PRESET.get(preset or "", {}).get("title") or name, "base_url": url, "preset": preset or "custom"}
@@ -386,7 +293,6 @@ def save(name: str | None, data: dict) -> str:
         if name not in CFG["providers"]:
             raise ValueError(i18n.t("没有这个模型服务：{name}", name=name))
         d.setdefault(name, {}).update({"base_url": url, **({"title": title} if title else {})})
-    key = (data.get("api_key") or "").strip()
     if key:
         vault.put(key_ref(name), key)
     elif data.get("clear_key"):
@@ -446,7 +352,7 @@ async def test(provider: str, model: str, kind: str = "chat", role: str = "") ->
     ms = lambda: int((time.time() - t0) * 1000)
     if kind == "embedding":
         try:
-            r = await c.embeddings.create(model=model, input=["connectivity check"])
+            r = await c.embeddings.create(model=model, input=["测试一下"])
             return {"ok": True, "dim": len(r.data[0].embedding), "ms": ms()}
         except Exception as e:
             return {"ok": False, "error": explain(e, base), "ms": ms()}
@@ -461,11 +367,13 @@ async def test(provider: str, model: str, kind: str = "chat", role: str = "") ->
         return ((msg.content if msg else "") or getattr(msg, "reasoning_content", "") or "").strip()
 
     try:
-        reply = await ask([{"type": "text", "text": "What color is this image? Reply with the color only."}, {"type": "image_url", "image_url": {"url": RED}}])
+        reply = await ask([{"type": "text", "text": "这张图片是什么颜色？只回答颜色。"}, {"type": "image_url", "image_url": {"url": RED}}])
         seen = "红" in reply or "red" in reply.lower()
         if not seen:   # 请求没报错，但没认出颜色：可能是服务把图片丢掉了，参考 models.dev 的记录
             from . import prices
             seen = {False: "no", True: "unsure"}.get(prices.lookup(provider, model).get("vision"), "unsure")
+        from . import media
+        media.remember_test(provider, model, "yes" if seen is True else seen)   # 以后按测出来的判断要不要给它看图
         return {"ok": True, "vision": "yes" if seen is True else seen, "reply": reply[:80], "ms": ms()}
     except (openai.AuthenticationError, openai.PermissionDeniedError, openai.APIConnectionError, openai.RateLimitError) as e:
         return {"ok": False, "error": explain(e, base), "ms": ms()}
@@ -473,7 +381,9 @@ async def test(provider: str, model: str, kind: str = "chat", role: str = "") ->
         img_err = explain(e, base)
     try:
         t0 = time.time()
-        reply = await ask("Reply with exactly: ok")
+        reply = await ask("回复“好”这一个字。")
+        from . import media
+        media.remember_test(provider, model, "no")
         return {"ok": True, "vision": "no", "vision_error": img_err, "reply": reply[:80], "ms": ms()}
     except Exception as e:
         return {"ok": False, "error": explain(e, base), "ms": ms()}

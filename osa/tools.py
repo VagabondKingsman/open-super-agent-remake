@@ -1,4 +1,4 @@
-"""Worker 可用的工具。新增工具：写一个 async 函数并加进 TOOLS。"""
+"""内置的网页工具：web_search、fetch_url。注册在 builtin.py，Router / Worker / 小应用都从 registry 找。"""
 import asyncio
 import html
 import ipaddress
@@ -6,7 +6,6 @@ import re
 import socket
 from urllib.parse import urljoin, urlsplit
 import httpx
-from . import i18n
 from .config import CFG
 
 UA = {"User-Agent": "open-super-agent/0.1"}
@@ -19,7 +18,7 @@ async def web_search(query: str) -> str:
         if url := CFG["search"].get("searxng_url"):
             r = await c.get(f"{url}/search", params={"q": query, "format": "json"})
             items = r.json().get("results", [])[:8]
-            return "\n".join(f"- {i['title']} | {i['url']}\n  {i.get('content', '')}" for i in items) or i18n.t("无结果")
+            return "\n".join(f"- {i['title']} | {i['url']}\n  {i.get('content', '')}" for i in items) or "无结果"
         r = await c.post("https://html.duckduckgo.com/html/", data={"q": query})
         links = re.findall(r'class="result__a" href="([^"]+)"[^>]*>(.*?)</a>', r.text)
         snippets = re.findall(r'class="result__snippet"[^>]*>(.*?)</a>', r.text, re.S)
@@ -27,7 +26,7 @@ async def web_search(query: str) -> str:
         for i, (u, t) in enumerate(links[:8]):
             s = re.sub("<.*?>", "", snippets[i]) if i < len(snippets) else ""
             out.append(f"- {html.unescape(re.sub('<.*?>', '', t))} | {u}\n  {html.unescape(s)}")
-        return "\n".join(out) or i18n.t("无结果")
+        return "\n".join(out) or "无结果"
 
 
 # Clash、Surge 这类代理的 TUN 模式把所有域名解析到这一段假地址再转发出去，不是真的内网
@@ -50,18 +49,24 @@ async def blocked(url: str) -> str | None:
     先解析域名再判断，解析到内网的域名也挡住。检查和真正连接之间域名还可能换地址（DNS rebinding），这里不管。"""
     u = urlsplit(url)
     if u.scheme not in ("http", "https") or not u.hostname:
-        return i18n.t("只能抓取 http / https 网址")
+        return "只能抓取 http / https 网址"
     if (CFG.get("tools") or {}).get("fetch_private"):
         return None
-    host = u.hostname
+    if await private_host(url):
+        return f"没抓取：{u.hostname} 是本机或内网地址。要抓内网页面，在 config.yaml 里设 tools.fetch_private: true"
+    return None
+
+
+async def private_host(url: str) -> bool:
+    """网址的主机是不是本机或内网地址：先解析域名，解析到内网的也算。解析不了的算不是，交给真正的请求报错。"""
+    u = urlsplit(url)
+    host = u.hostname or ""
     try:
         ips = [host] if _is_ip(host) else [i[4][0] for i in await asyncio.get_running_loop().getaddrinfo(
             host, u.port or (443 if u.scheme == "https" else 80), type=socket.SOCK_STREAM)]
-    except OSError:
-        return None   # 解析不了的交给下面的请求报错
-    if any(private_ip(ip) for ip in ips):
-        return i18n.t("没抓取：{host} 是本机或内网地址。要抓内网页面，在 config.yaml 里设 tools.fetch_private: true", host=host)
-    return None
+    except (OSError, ValueError):
+        return False
+    return any(private_ip(ip) for ip in ips)
 
 
 def _is_ip(host: str) -> bool:
@@ -82,29 +87,15 @@ async def fetch_url(url: str) -> str:
                 break
             url = urljoin(str(r.url), r.headers["location"])
         else:
-            return i18n.t("没抓取：跳转超过 {n} 次", n=MAX_REDIRECTS)
+            return f"没抓取：跳转超过 {MAX_REDIRECTS} 次"
     text = re.sub(r"<(script|style)[\s\S]*?</\1>", "", r.text)
     text = html.unescape(re.sub(r"<[^>]+>", " ", text))
     return re.sub(r"\s+", " ", text)[:8000]
 
 
-TOOLS = {
-    "web_search": (web_search, "Search the web. Returns titles, links, and snippets.", {"query": "search query"}),
-    "fetch_url": (fetch_url, "Fetch the text of a web page, truncated to 8000 characters.", {"url": "URL"}),
-}
-
-
-def lookup(name: str):
-    """内置工具或 MCP 工具，找不到返回 None。"""
-    from . import mcp_hub
-    if name in TOOLS:
-        return TOOLS[name][0]
-    return mcp_hub.TOOLS.get(name, (None,))[0]
-
-
-def schemas() -> list[dict]:
-    from . import mcp_hub
-    return [s for _, s in mcp_hub.TOOLS.values()] + [{"type": "function", "function": {
+def schema(name: str, desc: str, params: dict[str, str]) -> dict:
+    """参数都是文字的简单工具的 schema。"""
+    return {"type": "function", "function": {
         "name": name, "description": desc,
         "parameters": {"type": "object", "properties": {k: {"type": "string", "description": v} for k, v in params.items()},
-                       "required": list(params)}}} for name, (_, desc, params) in TOOLS.items()]
+                       "required": list(params)}}}

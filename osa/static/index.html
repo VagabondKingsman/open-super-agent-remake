@@ -49,10 +49,8 @@ const $=id=>document.getElementById(id),esc=t=>String(t).replace(/[&<>]/g,c=>({'
 document.querySelectorAll('nav a').forEach(a=>a.onclick=()=>{document.querySelectorAll('nav a').forEach(x=>x.classList.toggle('on',x===a));
 document.querySelectorAll('.p').forEach(p=>p.hidden=p.id!=='p-'+a.dataset.p);refresh()});
 const row=(a,b)=>`<div class="row"><span>${esc(a)}</span><span>${esc(b)}</span></div>`;
-// USD spend. Same digit rules as web/src/formatUsd.ts.
-function formatUsd(n){n=Number(n);if(!Number.isFinite(n)||n===0)return '$0';const sign=n<0?'-':'',v=Math.abs(n),digits=v>=1?2:v>=0.0001?4:6;let body=v.toFixed(digits);if(digits>2)body=body.replace(/0+$/,'').replace(/\.$/,'');return sign+'$'+body}
 async function refresh(){
- if(!$('p-cost').hidden){const u=await (await fetch('/api/usage')).json(),f=formatUsd;
+ if(!$('p-cost').hidden){const u=await (await fetch('/api/usage')).json(),c=u.currency,f=v=>c+v.toFixed(v<1?3:2);
   const mx=Math.max(...u.by_day.map(d=>d.cost),1e-9);
   $('p-cost').innerHTML=`<div class="big">${f(u.today.cost)}</div><div style="color:var(--mut)">今天 · ${u.today.calls} 次调用 · 缓存命中 ${(u.today.cache_rate*100).toFixed(0)}%</div>
   ${row('近 7 天',f(u.week.cost))}${row('近 30 天',f(u.month.cost))}
