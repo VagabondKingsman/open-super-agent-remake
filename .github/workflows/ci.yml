@@ -52,7 +52,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Check compose file
-        run: docker compose config --quiet
+        run: |
+          docker compose config --quiet
+          docker compose -f compose.yaml -f compose.computer.yaml config --quiet
       - name: Build app image
         run: docker build -t open-super-agent:ci .
       - name: Smoke test

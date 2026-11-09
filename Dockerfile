@@ -36,7 +36,7 @@ RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
  && ln -s ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx \
  && if [ -n "$NPM_REGISTRY" ]; then npm config set registry "$NPM_REGISTRY"; fi \
  && node --version && npx --version
-# Docker 命令行：本地电脑由服务通过宿主机的 Docker 创建和操作（compose 里挂了 docker.sock）
+# Docker 命令行：本地电脑由服务通过宿主机的 Docker 创建和操作（compose.computer.yaml 里挂了 docker.sock）
 COPY --from=docker-cli /usr/local/bin/docker /usr/local/bin/docker
 
 # uv：装 Python 依赖，也给 uvx 应用用
