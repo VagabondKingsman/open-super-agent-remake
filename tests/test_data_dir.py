@@ -9,13 +9,13 @@ from conftest import ROOT, TMP
 
 PROBE = """
 import json
-from osa import auth, backup, catalog, mcp_hub, memory, prices
+from osa import auth, backup, catalog, config, mcp_hub, memory, prices
 from osa.computer.local import LocalComputer
 auth._signing_key()
 print(json.dumps({"db": str(memory.db_path), "backup_db": str(backup.DB), "apps": str(backup.APPS),
                   "catalog_apps": str(catalog.LOCAL), "workspace": str(mcp_hub.WORKSPACE),
                   "catalog_workspace": str(catalog.WORKSPACE), "prices": str(prices.FILE),
-                  "computer": LocalComputer(1).data}))
+                  "computer": LocalComputer(1).data, "db_outside": config.db_outside_data_dir()}))
 """
 
 
@@ -49,7 +49,7 @@ def test_everything_goes_into_the_data_dir():
     assert p["prices"] == str(data / "model-prices.json")
     assert p["computer"] == str(data / "computers" / "shared")
     assert (data / "osa.db").exists() and (data / "session.key").exists()
-    assert not Path(p["db"]).is_relative_to(ROOT)
+    assert not Path(p["db"]).is_relative_to(ROOT) and p["db_outside"] is False
     assert _runtime_files(ROOT) == before
 
 
@@ -57,12 +57,13 @@ def test_absolute_db_path_still_wins():
     data = TMP / "desktop-data-2"
     p = _paths(OSA_DATA_DIR=str(data), OSA_CONFIG=str(TMP / "config.yaml"))     # 测试用的配置：memory.db 是绝对路径
     assert p["db"] == str(TMP / "osa.db")
+    assert p["db_outside"] is True   # OSA-015: kept, but startup and Settings → Backup warn about it
     assert p["apps"] == str(data / "apps")
 
 
 def test_default_is_unchanged():
     p = _paths(OSA_CONFIG=str(TMP / "config.yaml"))
-    assert p["db"] == str(TMP / "osa.db")
+    assert p["db"] == str(TMP / "osa.db") and p["db_outside"] is False
     assert p["apps"] == str(ROOT / "data" / "apps")
     assert p["workspace"] == str(ROOT / "data" / "workspace")
     assert p["computer"] == str(ROOT / "data" / "computers" / "shared")

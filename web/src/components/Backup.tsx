@@ -5,7 +5,8 @@ import { ask } from './Dialog'
 import { isEnter } from '../keys'
 
 // 设置 → 备份与迁移：导出一个加密的备份文件；在新机器上上传它恢复
-type Info = { counts: Record<string, number>; secrets: number; started: number; version: string; staged: Staged | null }
+type Info = { counts: Record<string, number>; secrets: number; started: number; version: string; staged: Staged | null
+  db?: string; data_dir?: string; db_outside?: boolean }
 type Staged = { created: number; version: string; counts: Record<string, number>; secrets: number; unreadable: string[]; local_apps: number; channels_off: number }
 const LABELS: [string, (n: number) => string][] = [
   ['bots', n => t('{n} 个 Bot', { n })], ['chats', n => t('{n} 个对话', { n })], ['messages', n => t('{n} 条消息', { n })],
@@ -26,6 +27,8 @@ export default function Backup() {
   return (
     <div>
       <p className="muted">{t('把这台的全部数据打成一个加密文件：换机器、从本机搬到服务器时，在新的那台上传它就能接着用。')}</p>
+      {info.db && <p className="muted small">{tn('数据库：{db}', { db: <code>{info.db}</code> })}</p>}
+      {info.db_outside && <div className="error-line small">{tn('数据库不在数据目录 {dir} 里（memory.db 写的是绝对路径）。手动备份时要把它一起带上。', { dir: <code>{info.data_dir}</code> })}</div>}
       <Export info={info} />
       <Restore info={info} onChange={load} />
     </div>

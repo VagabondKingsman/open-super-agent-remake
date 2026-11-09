@@ -1,4 +1,6 @@
 {
+  "数据库：{db}": "Cơ sở dữ liệu: {db}",
+  "数据库不在数据目录 {dir} 里（memory.db 写的是绝对路径）。手动备份时要把它一起带上。": "Cơ sở dữ liệu không nằm trong thư mục dữ liệu {dir} (memory.db là đường dẫn tuyệt đối). Khi tự sao lưu, nhớ mang nó theo.",
   "1. 把下面这句话发给 ChatGPT、Claude 等助手：": "1. Gửi câu sau cho ChatGPT, Claude…:",
   "2. 把它的回答粘贴到这里，{name} 会整理成一条条记忆：": "2. Dán câu trả lời vào đây, {name} sẽ tách thành từng mục ghi nhớ:",
   "@ 某个 Bot 让它来做，@所有人 让大家都说说；不 @ 的消息由协调者 {lead} 接，它会分给合适的 Bot。": "@ một Bot để giao việc, @everyone để tất cả cùng trả lời. Tin nhắn không @ sẽ đến Bot điều phối {lead}, rồi chuyển cho Bot phù hợp.",

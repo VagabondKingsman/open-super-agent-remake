@@ -1,4 +1,5 @@
 {
+  "注意：设置了 OSA_DATA_DIR（{data}），但 memory.db 是绝对路径 {db}，数据库不在数据目录里。备份和迁移时别漏了它。": "Lưu ý: đã đặt OSA_DATA_DIR ({data}), nhưng memory.db là đường dẫn tuyệt đối {db}, nên cơ sở dữ liệu nằm ngoài thư mục dữ liệu. Nhớ mang theo nó khi sao lưu hoặc chuyển máy.",
   " 等 {n} 个": " (cùng {n} Bot)",
   "**↩️ {name} 回信**": "**↩️ {name} đã trả lời**",
   "3 分钟没有进展": "Không có tiến triển trong 3 phút",
