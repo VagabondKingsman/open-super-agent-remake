@@ -77,7 +77,7 @@ class PluginContext(registry.Context):
     def provide(self, name: str, value, describe: str = ""):
         """提供一个服务。名字要先写进 META 的 provide：设置页不执行代码就能看出谁依赖谁。"""
         if name not in self.provides:
-            raise ValueError(f"服务 {name} 要先写进 META 的 provide")
+            raise ValueError(f"Service {name} must first be listed in META provide")
         return super().provide(name, value, describe)
 
     def secret(self, value):

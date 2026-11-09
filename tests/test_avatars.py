@@ -111,7 +111,7 @@ async def test_models_list(image_providers, monkeypatch):
 
     r = await server.avatar_models()
     assert [(m["provider"], m["model"]) for m in r["models"]] == [("sf", "Kwai-Kolors/Kolors"), ("oai", "gpt-image-1"), ("sf", "Qwen/Qwen-Image")]
-    assert [m["price"] for m in r["models"]] == [0, None, 0.3]   # 按张的价格：硅基流动写在 config.yaml 里，别家不知道
+    assert [m["price"] for m in r["models"]] == [0, None, 0.042]   # remake：美元； 按张的价格：硅基流动写在 config.yaml 里，别家不知道
     assert r["default"]["model"] == "Kwai-Kolors/Kolors"
 
     await server.generate_avatar({"prompt": "一只猫", "provider": "oai", "model": "gpt-image-1"})   # 记住上次用的
