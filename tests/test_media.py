@@ -83,7 +83,7 @@ async def test_vision_model_sees_attached_image(llm, events, make_bot, monkeypat
     last = body["messages"][-1]["content"]
     assert isinstance(last, list) and last[0]["text"].startswith("图里是什么")
     assert last[1]["type"] == "image_url" and last[1]["image_url"]["url"].startswith("data:image/png;base64,")
-    assert "以下是系统附上的当前状态" in last[-1]["text"]   # 这一轮的状态接在图片后面，不另起一条
+    assert "The text below is system-attached current state" in last[-1]["text"]   # 这一轮的状态接在图片后面，不另起一条
     assert not llm.bodies("worker")                        # 直接看图回答，没派任务
 
 
@@ -145,7 +145,7 @@ async def test_send_file_from_router_and_task(llm, events, make_bot, monkeypatch
     att = reply["meta"]["attachments"]
     assert len(att) == 1 and att[0]["name"] == "shot.png" and media.get(att[0]["media"])[1] == PNG
     tools = [m for m in llm.bodies("router", "Sender")[-1]["messages"] if m["role"] == "tool"]
-    assert "已发给用户" in tools[0]["content"] and "没有这个文件" in tools[1]["content"]
+    assert "Sent to the user" in tools[0]["content"] and "No such file on the computer" in tools[1]["content"]
 
     llm.script("router:Sender", Call("dispatch", {"goal": "导出表格发给用户"}), "派出去了")
     llm.script("worker", Call("send_file", {"path": "out/table.csv"}), "表格做好了")
@@ -215,4 +215,4 @@ async def test_model_rejecting_images_falls_back(llm, events, make_bot, monkeypa
     r = CFG["roles"]["router"]
     assert media.tested(r["provider"], r["model"]) is False
     last = llm.bodies("router", "Picky")[-1]["messages"][-1]["content"]
-    assert isinstance(last, str) and "这个模型不收图片" in last and "以下是系统附上的当前状态" in last
+    assert isinstance(last, str) and "this model does not accept images" in last and "The text below is system-attached current state" in last

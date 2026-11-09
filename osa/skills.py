@@ -211,11 +211,11 @@ def summary(bot_id: int) -> str:
 # ---------- use_skill 工具 ----------
 USE_SKILL = {"type": "function", "function": {
     "name": "use_skill",
-    "description": "取一个技能的做法和它带的文件（脚本、参考资料）。要按某个技能做事时先调用它，再照着做",
+    "description": "Get a skill's method and the files it ships with (scripts, references). Call it first when you need to do something by a skill, then follow it",
     "parameters": {"type": "object", "properties": {
-        "name": {"type": "string", "description": "技能名，不带 /"},
-        "file": {"type": "string", "description": "可选：要看全文的文件，写技能带的文件的相对路径（比如 scripts/fill.py）"},
-        "offset": {"type": "integer", "description": "可选：内容太长分段取时，从第几个字开始"}},
+        "name": {"type": "string", "description": "skill name, without the /"},
+        "file": {"type": "string", "description": "optional: a file to read in full, given as the skill file's relative path (e.g. scripts/fill.py)"},
+        "offset": {"type": "integer", "description": "optional: character offset to start from when fetching long content in pieces"}},
         "required": ["name"]}}}
 
 
@@ -227,29 +227,29 @@ def _piece(text: str, offset, label: str, again: str) -> tuple[str, bool]:
         off = 0
     part = text[off:off + CHUNK]
     more = len(text) - off - len(part)
-    where = f"，这是第 {off + 1}–{off + len(part)} 字" if off or more else ""
-    return (f"--- {label}（共 {len(text)} 字{where}）---\n{part}\n--- 结束 ---"
-            + (f"\n还有 {more} 字没给：用 {again.format(offset=off + len(part))} 取下一段。" if more > 0 else "")), more > 0
+    where = f", this is characters {off + 1}–{off + len(part)}" if off or more else ""
+    return (f"--- {label} ({len(text)} characters in total{where}) ---\n{part}\n--- end ---"
+            + (f"\n{more} more characters not shown: use {again.format(offset=off + len(part))} for the next piece." if more > 0 else "")), more > 0
 
 
 def _files_block(s: dict, scope: str) -> str:
     files, name = s["files"], s["name"]
     if not files:
         return ""
-    lines, budget = [f"\n\n这个技能带了 {len(files)} 个文件（附上每个文件开头 {PREVIEW} 字）："], 5000
+    lines, budget = [f"\n\nThis skill ships with {len(files)} files (the first {PREVIEW} characters of each are attached):"], 5000
     for p, text in files.items():
         if budget > 0:
             head = text[:PREVIEW]
             budget -= len(head)
-            lines.append(f"--- {p}（{len(text)} 字）---\n{head}{'……' if len(text) > PREVIEW else ''}")
+            lines.append(f"--- {p} ({len(text)} characters) ---\n{head}{'…' if len(text) > PREVIEW else ''}")
         else:
-            lines.append(f"--- {p}（{len(text)} 字，开头没附上）---")
-    lines.append(f"要看某个文件的全文：use_skill(name=\"{name}\", file=\"路径\")。")
+            lines.append(f"--- {p} ({len(text)} characters, beginning not attached) ---")
+    lines.append(f"To read a file in full: use_skill(name=\"{name}\", file=\"path\").")
     if scope == "router":
-        lines.append(f"要运行里面的脚本就派任务（dispatch），goal 里写明按技能 /{name} 做、跑哪个脚本，Worker 会自己取文件。")
+        lines.append(f"To run a script inside, dispatch a task and say in the goal to follow skill /{name} and which script to run; the Worker fetches the files itself.")
     else:
-        lines.append("要运行脚本，用 computer_write_file 把文件内容写进工作文件夹再用 run_code 或 computer_shell 跑；"
-                     "参考资料看全文就行，不用写进电脑。")
+        lines.append("To run a script, write the file content into the working folder with computer_write_file, then run it with run_code or computer_shell; "
+                     "for reference material just read the full text, no need to write it to the computer.")
     return "\n".join(lines)
 
 
@@ -259,15 +259,15 @@ def tool_use(bot_id: int, scope: str, args: dict) -> str:
     s = find(bot_id, name)
     if not s:
         have = " ".join("/" + x["name"] for x in list_for(bot_id))
-        return f"没有 /{name} 这个技能。能用的：{have or '无'}"
+        return f"There is no skill /{name}. Available: {have or 'none'}"
     if raw := str(args.get("file") or "").strip():
         path = clean_path(raw)
         if path not in s["files"]:
-            return f"/{name} 没有 {raw} 这个文件。它带的文件：{'、'.join(s['files']) or '无'}"
+            return f"/{name} has no file {raw}. Its files: {', '.join(s['files']) or 'none'}"
         return _piece(s["files"][path], args.get("offset"), path, f'use_skill(name="{name}", file="{path}", offset={{offset}})')[0]
     out = expand(s, by_user=False)
     if len(out) > CHUNK or args.get("offset"):   # 做法很长：分段给，文件清单跟在最后一段后面
-        out, more = _piece(s["body"], args.get("offset"), f"技能 /{name} 的做法", f'use_skill(name="{name}", offset={{offset}})')
+        out, more = _piece(s["body"], args.get("offset"), f"Method of skill /{name}", f'use_skill(name="{name}", offset={{offset}})')
         return out if more else out + _files_block(s, scope)
     return out + _files_block(s, scope)
 
@@ -276,8 +276,8 @@ def files_hint(skill: dict) -> str:
     """定时任务、事件按技能跑时附在做法后面：技能带了哪些文件，怎么取。"""
     if not skill.get("files"):
         return ""
-    return (f"\n这个技能带了文件：{'、'.join(skill['files'])}。要看全文用 use_skill(name=\"{skill['name']}\", file=\"路径\")；"
-            "要运行脚本，用 computer_write_file 把文件内容写进工作文件夹再用 run_code 或 computer_shell 跑。")
+    return (f"\nThis skill ships with files: {', '.join(skill['files'])}. To read one in full use use_skill(name=\"{skill['name']}\", file=\"path\"); "
+            "to run a script, write the file content into the working folder with computer_write_file, then run it with run_code or computer_shell.")
 
 
 # ---------- 导出、导入、分享 ----------

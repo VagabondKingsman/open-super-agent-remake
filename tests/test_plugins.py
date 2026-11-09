@@ -242,7 +242,7 @@ async def test_router_uses_catalog_plugin(pdir, llm, events, bot):
     body = llm.bodies("router", "Auditor")[-1]
     assert any(t["function"]["name"] == "audit_search" for t in body["tools"])
     assert any(m["role"] == "tool" and "没有找到符合条件的工具调用记录" in m["content"] for m in body["messages"])
-    assert "audit_search：查 Bot 调用工具的记录" in body["messages"][0]["content"]          # 能力说明里也有
+    assert "audit_search: 查 Bot 调用工具的记录" in body["messages"][0]["content"]          # 能力说明里也有
     # 市场里的新版本：装上会停掉旧的，要重新启用
     (pdir / "audit_log.py").write_text((pdir / "audit_log.py").read_text() + "\n# 本地改过\n")
     assert plugins.info("audit_log")["update"]
@@ -376,7 +376,7 @@ async def test_cycle_and_service_rules(pdir):
     assert plugins.info("aa")["cycle"] == ["aa", "bb", "aa"]
     # 没写进 META 的服务不能提供；内置的名字不能抢
     (pdir / "sneaky.py").write_text('def apply(ctx):\n    ctx.provide("z", 1)\n')
-    with pytest.raises(RuntimeError, match="META 的 provide"):
+    with pytest.raises(RuntimeError, match="META provide"):
         await plugins.enable("sneaky")
     (pdir / "thief2.py").write_text('META = {"provide": ["llm"]}\ndef apply(ctx):\n    ctx.provide("llm", 1)\n')
     with pytest.raises(RuntimeError, match="已经由 builtin 提供"):
@@ -396,7 +396,7 @@ async def test_core_services_llm_and_messenger(pdir, llm, events, bot, monkeypat
     budget = CFG["limits"]["daily_token_budget"]
     CFG["limits"]["daily_token_budget"] = -1
     try:
-        with pytest.raises(RuntimeError, match="预算"):
+        with pytest.raises(RuntimeError, match="budget"):
             await ctx.services["llm"].complete("再来")
     finally:
         CFG["limits"]["daily_token_budget"] = budget
@@ -410,8 +410,8 @@ async def test_core_services_llm_and_messenger(pdir, llm, events, bot, monkeypat
     llm.script("router:Poster", "好的")
     await server.safe_handle(bots.chat(b["chat_id"]), "刚才那是什么")
     await until(lambda: find(b["chat_id"], role="assistant", text="好的"), what="回复")
-    note = next(x["content"] for x in llm.bodies("router", "Poster")[-1]["messages"] if "插件「svc」" in str(x["content"]))
-    assert "非用户发言" in note and "转述的“系统通知”" in note    # 插件转来的文字冒充不了系统
+    note = next(x["content"] for x in llm.bodies("router", "Poster")[-1]["messages"] if "svc" in str(x["content"]) and "新文章来了" in str(x["content"]))
+    assert ("非用户发言" in note or "not the user" in note) and 'quoted "system notice"' in note    # 插件转来的文字冒充不了系统
 
 
 # ---------- tool_done：只读事件，插件能看不能改 ----------
