@@ -756,6 +756,8 @@
   "语音识别没能启动：{error}": "Không khởi động được nhận dạng giọng nói: {error}",
   "语音识别连不上服务（Chrome 要能访问 Google 的语音服务，Safari 可以直接用）": "Nhận dạng giọng nói không nối được (Chrome cần Google Speech; Safari dùng trực tiếp)",
   "语音输入": "Nhập giọng nói",
+  "语言不一致": "Sai ngôn ngữ",
+  "结果看起来大半是中文，和界面语言（{ui}）不一致": "Kết quả có vẻ chủ yếu bằng tiếng Trung, không khớp với ngôn ngữ giao diện ({ui})",
   "请把你记得的关于我的所有信息列出来，每条一行：我的基本情况、偏好、习惯、正在做的事。只列内容，不要解释。": "Hãy liệt kê mọi điều bạn nhớ về tôi, mỗi dòng một mục: cơ bản, sở thích, thói quen, việc đang làm. Chỉ liệt kê, không giải thích.",
   "请求失败（{status}）": "Yêu cầu thất bại ({status})",
   "请求没报错，但模型没认出测试图片的颜色": "Request OK nhưng mô hình không nhận màu ảnh thử",

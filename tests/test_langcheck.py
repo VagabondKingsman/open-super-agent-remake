@@ -100,6 +100,24 @@ async def test_task_result_is_flagged_with_a_task_note(monkeypatch, llm, events,
     assert any("en" in n and "Chinese" in n for n in notes)
 
 
+async def test_observe_task_rows_carry_the_flag(monkeypatch, llm, events, bot):
+    from osa import observe
+    monkeypatch.setattr(i18n, "_lang", "en")
+    zh, en = bot("Obsz"), bot("Obse")
+    llm.script("router:Obsz", Call("dispatch", {"goal": "Summarise the news"}), "On it")
+    llm.script("router:Obse", Call("dispatch", {"goal": "Summarise the news"}), "On it")
+    llm.script("worker", ZH)
+    await server.safe_handle(bots.chat(zh["chat_id"]), "Summarise the news")
+    [res] = await until(lambda: find(zh["chat_id"], kind="result"), what="flagged result")
+    llm.script("worker", "Here is the summary in English, as asked.")
+    await server.safe_handle(bots.chat(en["chat_id"]), "Summarise the news")
+    await until(lambda: find(en["chat_id"], kind="result"), what="plain result")
+    [row] = observe.stats("today", 0, zh["id"])["tasks"]
+    assert row["id"] == res["meta"]["task_id"] and row["lang_flag"]["ui"] == "en"
+    [plain] = observe.stats("today", 0, en["id"])["tasks"]
+    assert plain["lang_flag"] is None
+
+
 SERVER = Path(__file__).parent / "fixtures" / "mcp_ui_server.py"
 
 

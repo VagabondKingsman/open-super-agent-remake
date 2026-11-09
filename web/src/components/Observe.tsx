@@ -28,7 +28,8 @@ type ToolRow = { name: string; calls: number; errors: number; rejected: number; 
 type RoutineRow = { id: number; bot_id: number; name: string; enabled: boolean; trigger: Trigger; describe?: string; category?: string; next_run: number | null; running: boolean
   last_run: RoutineRun | null; runs: number; done: number; failed: number; cancelled: number; interrupted: number; quiet: number; cost: number }
 type TaskRow = { id: number; ts: number; goal: string; status: string; elapsed: number | null; steps: number | null; quiet: boolean
-  chat_id: number; bot_id: number | null; routine: string | null; cost: number; tokens: number }
+  chat_id: number; bot_id: number | null; routine: string | null; cost: number; tokens: number
+  lang_flag: { ui: string; han: number; latin: number } | null }
 type Problem = { kind: 'task' | 'model' | 'tool'; status?: string; ts: number; bot_id: number | null; task_id: number | null
   title: string; detail: string; routine?: string | null; role?: string; count: number }
 type Stats = {
@@ -492,7 +493,8 @@ function Tasks({ s, name }: { s: Stats; name: (id: number | null) => string }) {
             <span className="ob-task-main">
               <span className="ob-task-goal">{x.goal}</span>
               <span className="lib-meta">{name(x.bot_id)} · {when(x.ts)}{x.routine && <span className="tag">{t('定时任务 {name}', { name: x.routine })}</span>}
-                {x.quiet && <span className="tag">{t('没有新内容')}</span>}</span>
+                {x.quiet && <span className="tag">{t('没有新内容')}</span>}
+                {x.lang_flag && <span className="tag warn" title={t('结果看起来大半是中文，和界面语言（{ui}）不一致', { ui: x.lang_flag.ui })}>{t('语言不一致')}</span>}</span>
             </span>
             <span className="ob-task-nums">
               <span className={x.status === 'failed' || x.status === 'interrupted' ? 'bad' : ''}>{TASK_STATUS[x.status] || x.status}</span>
