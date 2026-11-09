@@ -14,7 +14,7 @@ import re
 import time
 from .config import CFG
 from .memory import conn
-from . import routines, tasklog
+from . import prices, routines, tasklog
 
 DAY, WEEK = 86400, 7 * 86400
 RANGES = {"today": 1, "7d": 7, "30d": 30, "all": None}
@@ -264,7 +264,7 @@ def stats(rng: str = "7d", tz: int = 0, bot: int | None = None, now: float | Non
     for d, h, c in g["hours"]:
         heat[int(d)][int(h)] = c
     return {
-        "currency": CFG["pricing"]["currency"], "range": w["range"], "start": a, "end": b, "size": size,
+        "currency": prices.CURRENCY, "range": w["range"], "start": a, "end": b, "size": size,
         "kpi": kpi, "prev": prev, "series": series,
         "bots": sorted(bots.values(), key=lambda r: (-r["cost"], -r["tasks"])),
         "models": models,
