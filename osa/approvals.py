@@ -256,7 +256,7 @@ async def request(task, tool: str, args: dict, kind: str = "approval", once: boo
     try:
         ok, note = await asyncio.wait_for(fut, timeout)
     except asyncio.TimeoutError:
-        ok, note = False, f"{timeout // 60} 分钟内没有确认，按拒绝处理"
+        ok, note = False, i18n.t("{n} 分钟内没有确认，按拒绝处理", n=timeout // 60)
         if notify:
             await notify({"type": "approval", "id": aid, "status": "expired", "chat_id": chat_id})
     finally:
@@ -314,7 +314,7 @@ def cancel_for_task(task_id: int):
     end_task(task_id)
     for aid, item in list(pending.items()):
         if item["task_id"] == task_id and not item["future"].done():
-            item["future"].set_result((False, "任务已取消"))
+            item["future"].set_result((False, i18n.t("任务已取消")))
             if notify:
                 asyncio.create_task(notify({"type": "approval", "id": aid, "status": "cancelled",
                                             "chat_id": item["chat_id"]}))
@@ -335,5 +335,5 @@ def public(item: dict) -> dict:
 
 
 def summary(bot_id: int | None = None) -> str:
-    return "\n".join(f"#{a['id']}（任务 #{a['task_id']}）{a['tool']} 参数：{a['args'][:200]}"
-                     for a in pending.values() if bot_id is None or a["bot_id"] == bot_id) or "无"
+    return "\n".join(f"#{a['id']} (task #{a['task_id']}) {a['tool']} args: {a['args'][:200]}"
+                     for a in pending.values() if bot_id is None or a["bot_id"] == bot_id) or "(none)"

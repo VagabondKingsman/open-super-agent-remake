@@ -7,7 +7,7 @@ import time
 import openai
 from .computer import tools as ctools
 from .config import CFG, call_kwargs, client_for
-from . import applets, approvals, botadmin, bots, dm, dsml, i18n, media, memories, memory, providers, registry, routines, skills, tasklog
+from . import applets, approvals, botadmin, bots, dm, dsml, i18n, local_checks, media, memories, memory, providers, registry, routines, skillpacks, skills, tasklog, verification
 from . import builtin  # noqa: F401  导入即注册内置工具
 from . import worker as worker_mod
 from .worker import Task, run_worker, run_heavy
@@ -75,14 +75,15 @@ ROUTER_PROMPT = """你是「{name}」，用户的 AI 队友。{instructions}
 记忆或之前的对话里提到、但这里没有的 Bot，是没建成或已经删了，不要当它存在）：
 {others}
 
-你的技能（用户用 /名字 调用）：
+Your skills. The user calls them with /name:
 {skills}
 
 你的定时任务和事件：
 {routines}
 
-你的长期记忆（每次对话都带着，按这些偏好做事；#后面是编号）：
-{memories}{group}"""
+Your long-term memory. It is carried every turn. Follow these preferences. The number after # is the id:
+{memories}{group}
+Follow the reply-language directive at the end of this prompt."""
 
 # 附件怎么处理：对话模型能看图时，用户发的图片直接附在消息里（memory.context 的 images）
 ATTACH_BLIND = "- 消息里的“[附件] 路径”是用户上传到电脑里的文件；要读或处理它就派任务，goal 里写上完整路径。"
@@ -93,8 +94,8 @@ ATTACH_SEE = ("- 消息里的“[附件] 路径”是用户上传到电脑里的
 # 系统提示词和之前的对话逐字不变，才能一直命中模型服务的缓存（命中的部分便宜得多）
 STATE_PROMPT = """
 
-（以下是系统附上的当前状态，每轮更新，不是用户说的话）
-当前任务：
+(The text below is system-attached current state. It is refreshed every turn and is not the user speaking.)
+Current tasks:
 {tasks}
 
 等待用户确认的写操作（用户在聊天里同意或拒绝时，调用 resolve_approval；意思不明确就先问清楚，不要替用户做决定）：
@@ -105,24 +106,24 @@ STATE_PROMPT = """
 
 GROUP_PROMPT = """
 
-现在你在群聊「{title}」里，不是私聊。成员：
+You are in the group chat "{title}", not a private chat. Members:
 {members}
 {lead}
-群聊规则：
-- 用户的消息没有标记；“【名字】”开头的是别的 Bot 的发言。你只代表你自己说话，不要替别的 Bot 回答，也不要模仿“【名字】”的格式。
-- 轮到你时只做和你有关的部分；别人负责的、或者用户点名给别人的，不要抢着做。
-- 要别的 Bot 接着做（比如你查完资料让擅长写作的 Bot 总结），用 handoff 交给它，说清楚要它做什么；
-  如果要等后台任务做完才能交接，在 dispatch 里填 handoff_to 和 handoff_note，任务结果会自动转给它，不用你再回来。
-- 你那部分要等别的 Bot 先做完时，简短说一句会接着做就行，不要重复别人的工作。
-- 交接给你的工作，直接做完并给出结果；需要查证就派任务。
-- 确认卡片和“接手电脑”的请求会出现在你和用户的私聊里，不在群里。
-- 群里的成员用 handoff；不在群里的 Bot 才用 message_bot 私信。"""
+Group rules:
+- User messages have no marker. A line that starts with "[bot: name]" is another bot speaking. Speak only for yourself. Do not answer for another bot, and do not copy the "[bot: name]" format.
+- On your turn, do only the part that is yours. Do not take work that belongs to someone else or that the user assigned to someone else.
+- To have another bot continue (for example you looked something up and a bot who writes well should summarize), call handoff and say exactly what they should do.
+  If you must wait for a background task before the handoff, set handoff_to and handoff_note on dispatch. The task result is forwarded automatically. You do not need to come back.
+- If your part must wait for another bot, say briefly that you will continue. Do not repeat their work.
+- Work handed to you: finish it and give the result. Dispatch if it needs a lookup.
+- Approval cards and "take over the computer" requests appear in your private chat with the user, not in the group.
+- Use handoff for members of this group. Use message_bot only for bots who are not in the group."""
 
 DM_TURN = """
 
-这一轮是因为 {name} 私信了你（见最近的消息），不是用户直接说的；用户能在你的私聊里看到。
-你这一轮的回复会自动作为回信发给 {name}，写给它看：能直接答就直接答；要查证、多步的就 dispatch，任务结果会自动发给 {name}，
-不用你再回来；做不了就说明原因。不要再用 message_bot 回复 {name}。"""
+This turn is because {name} DMed you (see the recent messages), not because the user spoke directly. The user can see it in your private chat.
+Your reply this turn is sent back to {name} automatically. Write it for them: answer directly when you can; dispatch when it needs a lookup or several steps. The task result is sent to {name} automatically.
+You do not need to come back. If you cannot do it, say why. Do not call message_bot to reply to {name}."""
 
 # 管理 Bot（见 botadmin.py）：主 Bot 能查看、新建、修改、删除所有 Bot；别的 Bot 只能改自己，其余找主 Bot。
 # 新建、修改、删除每次都弹卡片请用户确认
@@ -148,11 +149,11 @@ OTHER_RULE = ("- 管理 Bot 的事归主 Bot「{primary}」：用户要新建、
 
 REPLY_TURN = """
 
-这一轮是因为 {name} 回了你的私信（见最近的消息）。"""
-REPLY_SHOWN = ("回信已经显示在对话里了，不用整段复述：说清结论、要用户做什么，或者接下来怎么办。"
-               "回信说任务被取消或失败了，照实告诉用户就行，不要自己重派、拆开重做或换个 Bot 再做，等用户决定。")
-REPLY_OWED = ("你这一轮的回复会自动作为回信发给 {owed}，它看不到 {name} 的回信，把它要的内容写全；"
-              "还需要别人帮忙可以继续派任务或私信。")
+This turn is because {name} replied to your DM (see the recent messages)."""
+REPLY_SHOWN = ("The reply is already visible in the chat. Do not repeat the whole thing. State the conclusion, what the user should do, or what happens next. "
+               "If the reply says the task was canceled or failed, tell the user that. Do not redispatch it, split it, or ask another bot to redo it. Wait for the user.")
+REPLY_OWED = ("Your reply this turn is sent back to {owed} automatically. They cannot see {name}'s reply, so include everything they asked for. "
+              "You can still dispatch or DM someone else if you need more help.")
 
 # 用户在新建、修改、删除 Bot 的卡片上点了之后（见 botadmin.py）
 BOTADMIN_TURN = """
@@ -165,16 +166,16 @@ BOTADMIN_OWED = "\n这是 {owed} 私信请你做的：你这一轮的回复会�
 BOTADMIN_EDITED = "\n用户在卡片上改过{fields}才同意的，以改过的为准：要知道现在是怎么写的，用 get_bot 看。"
 
 MESSAGE_BOT = {"type": "function", "function": {"name": "message_bot",
-    "description": "私信另一个 Bot，请它帮忙做事。它在自己的私聊里处理，回信会自动回到当前对话，你到时再接着说",
+    "description": "DM another bot and ask it to do something. It handles that in its own private chat. The reply returns to this chat automatically, and you speak again then.",
     "parameters": {"type": "object", "properties": {
-        "to": {"type": "string", "description": "Bot 的名字"},
-        "text": {"type": "string", "description": "要它做什么，写完整、自包含（它看不到这里的对话）"}},
+        "to": {"type": "string", "description": "The bot's name"},
+        "text": {"type": "string", "description": "What it should do, complete and self-contained (it cannot see this chat)"}},
         "required": ["to", "text"]}}}
 
-HANDOFF = {"type": "function", "function": {"name": "handoff", "description": "在群聊里把工作交给另一个 Bot，它会马上接着做",
+HANDOFF = {"type": "function", "function": {"name": "handoff", "description": "In a group chat, hand the work to another bot. It continues as soon as you finish this turn.",
     "parameters": {"type": "object", "properties": {
-        "to": {"type": "string", "description": "成员的名字"},
-        "request": {"type": "string", "description": "要它做什么，写完整（它能看到群里之前的消息）"}},
+        "to": {"type": "string", "description": "The member's name"},
+        "request": {"type": "string", "description": "What it should do, written in full (it can see earlier messages in the group)"}},
         "required": ["to", "request"]}}}
 
 ROUTER_ENV = {"scope": "router"}   # Router 这一轮的环境（注册表按它挑工具）
@@ -183,31 +184,31 @@ DIRECT_PC = {"computer_screenshot", "computer_click", "computer_type",
              "browser_type", "browser_key", "browser_scroll", "browser_back", "browser_read"}
 
 ROUTER_TOOLS = [*[s for s in ctools.SCHEMAS if s["function"]["name"] in DIRECT_PC],
-    {"type": "function", "function": {"name": "dispatch", "description": "派发后台任务",
+    {"type": "function", "function": {"name": "dispatch", "description": "Dispatch a background task",
         "parameters": {"type": "object", "properties": {
-            "goal": {"type": "string", "description": "完整、自包含的任务描述"},
+            "goal": {"type": "string", "description": "A complete, self-contained task description"},
             "mode": {"type": "string", "enum": ["single", "heavy"]},
-            "handoff_to": {"type": "string", "description": "只在群聊里用：任务完成后把结果交给哪个成员接着做"},
-            "handoff_note": {"type": "string", "description": "交接时要对方做什么"}}, "required": ["goal"]}}},
-    {"type": "function", "function": {"name": "save_skill", "description": "保存或覆盖一个技能（可复用的做事方法）",
+            "handoff_to": {"type": "string", "description": "Group chats only: which member should continue from the result when the task finishes"},
+            "handoff_note": {"type": "string", "description": "What that member should do with the result"}}, "required": ["goal"]}}},
+    {"type": "function", "function": {"name": "save_skill", "description": "Save or overwrite a skill (a reusable way of doing something)",
         "parameters": {"type": "object", "properties": {
-            "name": {"type": "string", "description": "简短的名字，用于 /名字 调用，不含空格"},
-            "description": {"type": "string", "description": "一句话说明什么时候用"},
-            "body": {"type": "string", "description": "完整的做法：步骤、要用的网站或应用、输出格式"}},
+            "name": {"type": "string", "description": "A short name used as /name, with no spaces"},
+            "description": {"type": "string", "description": "One sentence saying when to use it"},
+            "body": {"type": "string", "description": "The full method: steps, sites or apps to use, and the output format"}},
             "required": ["name", "body"]}}},
     {"type": "function", "function": {"name": "remember", "description": "记下一条长期记忆（以后的对话都会带着）",
         "parameters": {"type": "object", "properties": {
-            "text": {"type": "string", "description": "独立完整的一句话，例如“用户希望回答先给结论”"},
-            "shared": {"type": "boolean", "description": "关于用户本人的基本事实（名字、时区、所在城市等）为 true，所有 Bot 共享"},
-            "replace_id": {"type": "integer", "description": "可选：用这条替换已有的那条记忆"}},
+            "text": {"type": "string", "description": "One self-contained sentence, for example that the user wants the conclusion first"},
+            "shared": {"type": "boolean", "description": "True for a basic fact about the user (name, timezone, city). All bots share it"},
+            "replace_id": {"type": "integer", "description": "Optional: replace the existing memory with this id"}},
             "required": ["text"]}}},
-    {"type": "function", "function": {"name": "forget", "description": "删除一条长期记忆",
+    {"type": "function", "function": {"name": "forget", "description": "Delete one long-term memory",
         "parameters": {"type": "object", "properties": {"id": {"type": "integer"}}, "required": ["id"]}}},
     {"type": "function", "function": {"name": "list_tasks", "description": "查看任务状态",
         "parameters": {"type": "object", "properties": {}}}},
-    {"type": "function", "function": {"name": "cancel_task", "description": "取消任务",
+    {"type": "function", "function": {"name": "cancel_task", "description": "Cancel a task",
         "parameters": {"type": "object", "properties": {"task_id": {"type": "integer"}}, "required": ["task_id"]}}},
-    {"type": "function", "function": {"name": "resolve_approval", "description": "处理一个待确认的写操作",
+    {"type": "function", "function": {"name": "resolve_approval", "description": "Resolve one write action that is waiting for confirmation",
         "parameters": {"type": "object", "properties": {
             "id": {"type": "integer"}, "approve": {"type": "boolean"},
             "note": {"type": "string", "description": "用户附带的意见，例如修改要求"},
@@ -218,8 +219,9 @@ ROUTER_TOOLS = [*[s for s in ctools.SCHEMAS if s["function"]["name"] in DIRECT_P
     {"type": "function", "function": {"name": "recall", "description": "按 id 取回早先消息原文",
         "parameters": {"type": "object", "properties": {"id": {"type": "integer"}}, "required": ["id"]}}},
     {"type": "function", "function": {"name": "look_at_screen",
-        "description": "看一眼共用电脑现在的屏幕（截图 + 当前窗口标题），就是用户在右栏看到的画面。用户问屏幕上有什么、"
-                       "或者你要判断下一步该派什么任务时用。几个任务同时在做时屏幕上只显示其中一个窗口，问任务进度用 list_tasks。只看不操作。",
+        "description": "Look at the shared computer's screen (a screenshot plus the active window title), the same picture the user sees in the sidebar. "
+                       "Use it when the user asks what is on the screen, or when you need it to choose the next task. "
+                       "When several tasks run at once the screen shows only one window. Use list_tasks for progress. Look only; do not click.",
         "parameters": {"type": "object", "properties": {}}}},
 ]
 
@@ -265,6 +267,7 @@ class Router:
         self.lock = asyncio.Lock()
         self.chat: dict = {}              # 本轮在哪个对话里说话（_think 开始时设置）
         self.turn: dict = {}              # 本轮的来由（respond 设置）：欠谁回信、私信深度
+        self._turn_heavy: Task | None = None   # 这一轮已经派过的 Heavy，避免同一条用户消息派出好几份
 
     @property
     def bot(self) -> dict:
@@ -403,11 +406,14 @@ class Router:
         for i in chat["bot_ids"]:
             m = bots.get(i)
             if m:
-                role = (m["instructions"] or "职责没写明，看群里的对话").replace("\n", " ")[:120]
-                lines.append(f"- {m['name']}{'（你）' if i == self.bot_id else ''}{'（协调者）' if i == chat['lead'] else ''}：{role}")
-        lead = ("你是这个群的协调者：用户没有 @ 任何人的消息由你接。能自己答就答；适合别人做的，用 handoff 分给对应的 Bot"
-                "（可以分给几个），再简短告诉用户谁在做什么。") if chat["lead"] == self.bot_id else \
-            "用户 @ 你、或者别的 Bot 把工作交给你时才轮到你。"
+                role = (m["instructions"] or "No written role; infer it from the group chat.").replace("\n", " ")[:120]
+                you = " (you)" if i == self.bot_id else ""
+                coord = " (coordinator)" if i == chat["lead"] else ""
+                lines.append(f"- {m['name']}{you}{coord}: {role}")
+        lead = ("You coordinate this group. You take messages where the user @-mentioned nobody. Answer when you can. "
+                "When someone else is a better fit, handoff to that bot (you can hand off to several), then briefly tell the user who is doing what.") \
+            if chat["lead"] == self.bot_id else \
+            "You speak when the user @-mentions you, or when another bot hands work to you."
         return GROUP_PROMPT.format(title=chat["title"], members="\n".join(lines), lead=lead)
 
     def _turn_block(self) -> str:
@@ -424,15 +430,15 @@ class Router:
         owed = self.turn.get("reply")
         if owed:
             o = bots.get(owed["bot"])
-            return REPLY_TURN.format(name=name) + REPLY_OWED.format(owed=o["name"] if o else "等回信的 Bot", name=name)
+            return REPLY_TURN.format(name=name) + REPLY_OWED.format(owed=o["name"] if o else "the bot waiting for a reply", name=name)
         return REPLY_TURN.format(name=name) + REPLY_SHOWN
 
     def _others(self) -> str:
         rows = [b for b in bots.list_bots() if b["id"] != self.bot_id]
-        lines = [f"- {b['name']}：{(b['instructions'] or '职责没写明').replace(chr(10), ' ')[:80]}" for b in rows[:30]]
+        lines = [f"- {b['name']}: {(b['instructions'] or 'No written role.').replace(chr(10), ' ')[:80]}" for b in rows[:30]]
         if len(rows) > 30:
-            lines.append(f"- ……还有 {len(rows) - 30} 个")
-        return "\n".join(lines) or "暂无（只有你一个 Bot）"
+            lines.append(f"- {len(rows) - 30} more")
+        return "\n".join(lines) or "(none; you are the only bot)"
 
     async def _think(self, chat: dict):
         client, model = client_for("router")
@@ -447,12 +453,13 @@ class Router:
             started()   # 下面就读对话了：这之前到的私信、回信都看得到，之后到的另起一轮（见 dm.py）
         see = media.can_see()
         system = ROUTER_PROMPT.format(
-            name=b["name"], instructions=b["instructions"] or "你的具体职责以用户在对话里交代的为准。",
+            name=b["name"], instructions=b["instructions"] or "Follow whatever the user asks in this chat.",
             date=time.strftime("%Y-%m-%d"), skills=skills.summary(self.bot_id), routines=self._routine_list(),
             capabilities=self._capabilities(), memories=memories.prompt_block(self.bot_id),
             group=self._group_block(chat), others=self._others(),
             bot_rule=PRIMARY_RULE if b["is_primary"] else OTHER_RULE.format(primary=p) if (p := bots.primary_name()) else "",
-            attach_rule=ATTACH_SEE if see else ATTACH_BLIND) + i18n.model_hint()
+            attach_rule=ATTACH_SEE if see else ATTACH_BLIND) \
+            + verification.HINT + local_checks.runtime_hint() + skillpacks.runtime_hint(self.bot_id) + i18n.model_hint()
         recent = memories.turn_block(self.bot_id, related)
         state = STATE_PROMPT.format(tasks=self._task_list(), approvals=approvals.summary(self.bot_id),
                                     tools="、".join(t["function"]["name"] for t in self._tools()),
@@ -462,6 +469,7 @@ class Router:
                            images=media.MODEL_IMAGES if see else 0), state)
         sid, started = f"s{time.time_ns()}", time.time()
         self._turn_tasks = []             # 本轮派发的任务，挂在这条回复下面显示
+        self._turn_heavy = None           # 一轮用户消息最多一个 Heavy
         self._turn_dms = 0                # 本轮发出的私信
         self._turn_waits = 0              # 本轮弹出的新建 / 修改 / 删除 Bot 的卡片：有了结果会再叫醒这个 Bot
         self._turn_files = []             # 本轮 send_file 发的文件，挂在这条回复下面显示
@@ -469,7 +477,7 @@ class Router:
         await self.emit({"type": "stream_start", "sid": sid}, cid)
         try:
             for _ in range(10):
-                content, reasoning, calls = await self._stream(client, model, msgs, sid, started)
+                content, reasoning, calls, finish = await self._stream(client, model, msgs, sid, started)
                 shown += content
                 thinking += reasoning
                 if not calls:
@@ -527,23 +535,30 @@ class Router:
     async def _call_tool(self, name: str, args: dict):
         if name == "dispatch":
             if self._over_budget():
-                return "今日 token 预算已用完，没有派发。请告诉用户。"
+                return i18n.t("今日 token 预算已用完，没有派发。请告诉用户。")
+            mode = (args.get("mode") or "single").strip().lower()
+            if mode not in ("single", "heavy"):
+                mode = "single"
+            if mode == "heavy" and self._turn_heavy is not None:
+                return i18n.t("这一轮已经派过 Heavy 任务 #{id}，不再另派。沿用这一份。", id=self._turn_heavy.id)
             handoff = None
             if args.get("handoff_to") and self.chat["kind"] == "group":
                 to = self._member(args["handoff_to"])
                 if not to or to["id"] == self.bot_id:
-                    return f"没派发：群里没有叫 {args['handoff_to']} 的其他成员"
+                    return i18n.t("没派发：群里没有叫 {name} 的其他成员", name=args["handoff_to"])
                 handoff = {"to": to["id"], "note": args.get("handoff_note") or ""}
                 from . import groups
                 groups.expect(self.chat["id"], to["id"])
-            task = await self.dispatch(args["goal"], args.get("mode", "single"), chat_id=self.chat["id"], handoff=handoff,
+            task = await self.dispatch(args["goal"], mode, chat_id=self.chat["id"], handoff=handoff,
                                        reply=self.turn.get("reply"), depth=self.turn.get("depth", 0))
             self._turn_tasks.append(task.id)
+            if mode == "heavy":
+                self._turn_heavy = task
             if handoff:
-                return f"已派发任务 #{task.id}，做完后结果会自动交给 {to['name']}"
+                return i18n.t("已派发任务 #{id}，做完后结果会自动交给 {name}", id=task.id, name=to["name"])
             if task.reply:
-                return f"已派发任务 #{task.id}，做完后结果会自动发给 {dm._name(task.reply['bot'])}"
-            return f"已派发任务 #{task.id}"
+                return i18n.t("已派发任务 #{id}，做完后结果会自动发给 {name}", id=task.id, name=dm._name(task.reply["bot"]))
+            return i18n.t("已派发任务 #{id}", id=task.id)
         if name == "message_bot":
             to = bots.by_name(args.get("to", ""))
             if to and to["id"] == self.bot_id:
@@ -555,26 +570,26 @@ class Router:
                     else f"需要这样一个 Bot 的话，私信主 Bot「{bots.primary_name()}」请它新建"
                 return f"没发：没有叫 {args.get('to')} 的其他 Bot（没建成或已删除，记忆里说有也不算）。现有：{others or '无'}。{fix}"
             if self.chat["kind"] == "group" and to["id"] in self.chat["bot_ids"]:
-                return f"没发：{to['name']} 就在这个群里，用 handoff 交给它"
+                return f"Not sent: {to['name']} is in this group. Use handoff."
             out = await dm.send(self.bot_id, to, args.get("text", ""), self.chat["id"],
                                 self.turn.get("reply"), self.turn.get("depth", 0))
-            if out.startswith("已私信"):
+            if out.startswith(dm.DM_SENT_PREFIX):
                 self._turn_dms += 1
             return out
         if name == "handoff":
             if self.chat["kind"] != "group":
-                return "handoff 只能在群聊里用"
+                return "handoff only works in a group chat"
             to = self._member(args.get("to", ""))
             if not to or to["id"] == self.bot_id:
-                return f"群里没有叫 {args.get('to')} 的其他成员"
+                return f"No other member named {args.get('to')}"
             from . import groups
             await groups.handoff(self.chat["id"], self.bot_id, to["id"], args.get("request", ""))
-            return f"已交给 {to['name']}，你这轮说完它就接着做"
+            return f"Handed to {to['name']}. They continue after you finish this turn."
         if name == "save_skill":
             try:
                 s = skills.save(self.bot_id, args.get("name", ""), args.get("body", ""), args.get("description", ""), "chat")
             except ValueError as e:
-                return f"没保存：{e}"
+                return f"Not saved: {e}"
             await self.emit({"type": "skills_changed"})
             return f"已保存技能 /{s['name']}"
         if name == "remember":
@@ -582,7 +597,7 @@ class Router:
         if name == "forget":
             mid = args.get("id")
             if not isinstance(mid, int) or not memories.visible(mid, self.bot_id):
-                return f"没有 #{mid} 这条记忆"
+                return f"No memory #{mid}"
             memories.delete(mid)
             await self.emit({"type": "memories_changed"})
             return f"已删除记忆 #{mid}"
@@ -627,9 +642,10 @@ class Router:
             else:
                 m = memories.add(owner, args.get("text", ""), "chat")
         except ValueError as e:
-            return f"没记住：{e}"
+            return f"Not remembered: {e}"
         await self.emit({"type": "memories_changed"})
-        return f"已记住 #{m['id']}（{'所有 Bot 共享' if m['shared'] else '只有你知道'}）：{m['text']}"
+        scope = "shared by all bots" if m["shared"] else "only you"
+        return f"Remembered #{m['id']} ({scope}): {m['text']}"
 
     async def _direct(self, name: str, args: dict):
         """Router 自己动手做简单的电脑操作：在屏幕上看到的那个窗口里做，不占任务的位置。
@@ -638,7 +654,7 @@ class Router:
         from . import computer
         c = computer.get()
         if c.exclusive:
-            return f"电脑正在{c.exclusive_label}，先别操作。"
+            return f"The computer is busy with {c.exclusive_label}. Do not operate it yet."
         if c.controller == "human":
             return "用户正在接手电脑，先别操作。"
         if name not in ctools.DESKTOP and (await c.status())["state"] != "running":   # 整个屏幕不用开 Chrome
@@ -658,12 +674,12 @@ class Router:
                 return "电脑现在没开（已暂停或还没创建）。需要的话派任务，任务会自动开机。"
             png, title = await c.look()
         except Exception as e:
-            return f"看不了屏幕：{e}"
-        who = f"正在{c.exclusive_label}" if c.exclusive else f"有 {len(c.users)} 个任务在用（{c.busy()}），屏幕上只显示其中一个窗口" \
-            if c.users else "空闲"
+            return f"Cannot see the screen: {e}"
+        who = f"in use for {c.exclusive_label}" if c.exclusive else (
+            f"used by {len(c.users)} task(s) ({c.busy()}); the screen shows only one window" if c.users else "idle")
         if c.controller == "human":
-            who = "用户正在接手操作"
-        return (f"截图见下一条消息。当前窗口：{title or '无'}；电脑{who}。", png)
+            who = "taken over by the user"
+        return (f"The screenshot is in the next message. Active window: {title or 'none'}. The computer is {who}.", png)
 
     def _capabilities(self) -> str:
         from . import catalog, mcp_hub
@@ -685,7 +701,8 @@ class Router:
         lines += [f"- 应用 {label(srv)}：{', '.join(ts)}" for srv, ts in groups.items() if ts]
         off = [n for n in mcp_hub.all_apps() if n not in groups]
         if off:
-            lines.append(f"- 未连接的应用（现在用不了，请用户到「应用」页面重新连接）：{', '.join(label(n) for n in off)}")
+            lines.append("- Apps not connected (unusable until the user reconnects them on the Apps page): "
+                         + ", ".join(label(n) for n in off))
         return "\n".join(lines)
 
     async def dispatch(self, goal: str, mode: str = "single", background: bool = False,
@@ -697,7 +714,7 @@ class Router:
         quiet_ok：定时任务用，结果只有“无新内容”时不发结果消息、对话里也不显示这个任务（见 routines.QUIET）。
         notes：只给 Worker 看的补充说明，接在 goal 后面，不显示也不存进对话。"""
         cid = chat_id or self.chat_id
-        tid = await self.add("task", f"[任务已派发] {label + ' ' if label else ''}{goal}", cid, kind="dispatch",
+        tid = await self.add("task", f"{i18n.t('[任务已派发]')} {label + ' ' if label else ''}{goal}", cid, kind="dispatch",
                              mode=mode, status="running", **({"handoff_to": handoff["to"]} if handoff else {}),
                              **({"reply_to": reply["bot"]} if reply else {}))
         task = Task(id=tid, goal=goal, mode=mode, bot_id=self.bot_id, chat_id=cid, approval_chat_id=self.chat_id,
@@ -712,15 +729,22 @@ class Router:
                          f"{'' if r['enabled'] else '，已暂停'}）" for r in routines.list_for(self.bot_id)) or "暂无"
 
     def _task_list(self) -> str:
-        return "\n".join(f"#{t.id} [{'等待确认' if t.waiting_approval else t.status}] {t.mode} 步数={t.steps} {t.goal[:50]}"
-                         for t in self.tasks.values()) or "暂无任务"
+        return "\n".join(
+            f"#{t.id} [{'waiting for approval' if t.waiting_approval else t.status}] {t.mode} steps={t.steps} {t.goal[:50]}"
+            for t in self.tasks.values()) or "(no tasks)"
 
     async def _run(self, task: Task):
+        from .worker import IncompleteAnswer
         try:
             task.result = await (run_heavy(task) if task.mode == "heavy" else run_worker(task, task.goal + task.notes))
-            task.status = "done"
-            if not task.background:   # 定时任务有自己的运行记录，不记进“做过的事”
-                memories.log_work(self.bot_id, task.id, task.goal)
+            if not (task.result or "").strip():
+                task.status, task.result = "failed", i18n.t("任务没有给出答案")
+            elif task.degraded:
+                task.status = "partial"
+            else:
+                task.status = "done"
+                if not task.background:   # 定时任务有自己的运行记录，不记进“做过的事”
+                    memories.log_work(self.bot_id, task.id, task.goal)
         except asyncio.CancelledError:
             asked = task.status == "cancelled"   # cancel() 先标了状态；服务关闭时被取消的不算
             task.status = "cancelled"
@@ -731,15 +755,22 @@ class Router:
                 asyncio.create_task(dm.after_task(task))
             await self._done(task)
             return
+        except (IncompleteAnswer, TaskFailed) as e:
+            task.status, task.result = "failed", str(e)
         except Exception as e:
             task.status, task.result = "failed", i18n.t("任务失败：{error}", error=providers.brief(e))
         await tasklog.close(task, task.status, task.result if task.status == "failed" else "")
-        if task.status == "done" and task.quiet_ok and routines.is_quiet(task.result):
+        # 等本轮对话把 ack 写进记录再发结果，避免“将会去做”出现在结果后面。
+        async with self.lock:
+            await self._publish(task)
+        await self._done(task)
+
+    async def _publish(self, task: Task):
+        if task.status == "done" and task.quiet_ok and routines.is_quiet(task.result) and not task.side_effects:
             # 定时任务这次没有新内容：不发结果（也就不推送、不发到聊天软件），派发的那条在对话里和上下文里都不再出现
             task.quiet = True
             memory.update_meta(task.id, status="done", quiet=True, elapsed=round(time.time() - task.started), steps=task.steps)
             await self.emit({"type": "task", "task": task.public()}, task.chat_id)
-            await self._done(task)
             return
         memory.update_meta(task.id, status=task.status, elapsed=round(time.time() - task.started), steps=task.steps)
         await self.add("task", f"[任务 #{task.id} 结果]\n{task.result}", task.chat_id, kind="result", task_id=task.id,
@@ -752,7 +783,6 @@ class Router:
             asyncio.create_task(groups.after_task(task))
         if task.reply:
             asyncio.create_task(dm.after_task(task))
-        await self._done(task)
 
     async def _done(self, task: Task):
         approvals.end_task(task.id)   # “本次任务内允许”到这里为止

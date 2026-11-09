@@ -22,15 +22,17 @@ WINDOW = BROWSER | {"computer_screenshot", "computer_click", "computer_type", "c
 
 
 def page_text(d: dict) -> str:
-    """把浏览器返回的页面信息排成给模型看的文字。"""
+    """把浏览器返回的页面信息排成给模型和任务过程看的文字。句子走 i18n，随界面语言变。"""
     if "elements" not in d:   # browser_read
-        more = f"\n…（共 {d['total']} 字，用 offset={d['offset'] + len(d['text'])} 继续读）" \
+        more = i18n.t("\n…（共 {total} 字，用 offset={offset} 继续读）",
+                      total=d["total"], offset=d["offset"] + len(d["text"])) \
             if d["offset"] + len(d["text"]) < d["total"] else ""
         return f"{d['title']} | {d['url']}\n{d['text']}{more}"
-    els = "\n".join(d["elements"]) or "（没有可操作元素）"
+    els = "\n".join(d["elements"]) or i18n.t("（没有可操作元素）")
     if d.get("dialog"):
-        els = "（页面上有弹窗，下面只列弹窗里的元素；是登录、扫码或验证码就调用 ask_human）\n" + els
-    return (f"当前页面：{d['title']} | {d['url']}（滚动 {d['scroll']}）\n可操作元素：\n{els}\n\n正文开头：{d['text'][:1200]}")
+        els = i18n.t("（页面上有弹窗，下面只列弹窗里的元素；是登录、扫码或验证码就调用 ask_human）") + "\n" + els
+    return i18n.t("当前页面：{title} | {url}（滚动 {scroll}）\n可操作元素：\n{els}\n\n正文开头：{text}",
+                  title=d["title"], url=d["url"], scroll=d["scroll"], els=els, text=d["text"][:1200])
 
 
 def _fn(name, desc, props: dict, required: list[str] | None = None):
@@ -40,16 +42,16 @@ def _fn(name, desc, props: dict, required: list[str] | None = None):
 
 S, I, B = {"type": "string"}, {"type": "integer"}, {"type": "boolean"}
 SCHEMAS = [
-    _fn("browser_open", "在电脑的浏览器里打开网址（当前标签页），返回页面上可操作元素的编号列表和正文开头", {"url": S}),
-    _fn("browser_snapshot", "查看浏览器当前页面：可操作元素（带编号 [n]）、正文开头、滚动位置。页面变了或不确定时用。", {}),
-    _fn("browser_click", "点击页面元素，ref 是 browser_snapshot 里的编号", {"ref": I}),
-    _fn("browser_type", "在输入框里输入文字（先清空原内容）。ref 是输入框编号；submit=true 时输入完按回车。",
+    _fn("browser_open", "Open a URL in the computer's browser (current tab). Returns numbered actionable elements and the start of the page text.", {"url": S}),
+    _fn("browser_snapshot", "Read the current browser page: actionable elements numbered [n], the start of the text, and the scroll position. Use it when the page changed or you are unsure.", {}),
+    _fn("browser_click", "Click a page element. ref is the number from browser_snapshot.", {"ref": I}),
+    _fn("browser_type", "Type into a field after clearing it. ref is the field number. submit=true presses Enter after typing.",
         {"ref": I, "text": S, "submit": B}, ["ref", "text"]),
-    _fn("browser_key", "在页面上按一个键：Enter、Tab、Escape、Backspace、ArrowDown、ArrowUp、PageDown 等", {"key": S}),
-    _fn("browser_scroll", "页面滚动一屏", {"direction": {"type": "string", "enum": ["up", "down"]}}, ["direction"]),
-    _fn("browser_back", "浏览器后退", {}),
-    _fn("browser_read", "读取当前页面的完整正文（每次最多 12000 字，用 offset 往后翻）", {"offset": I}, []),
-    _fn("browser_upload", "把电脑里的文件传到网页上：ref 是“上传 / 选择文件”按钮或文件输入框的编号，paths 是文件的完整路径",
+    _fn("browser_key", "Press one key on the page: Enter, Tab, Escape, Backspace, ArrowDown, ArrowUp, PageDown, and similar.", {"key": S}),
+    _fn("browser_scroll", "Scroll the page by one screen.", {"direction": {"type": "string", "enum": ["up", "down"]}}, ["direction"]),
+    _fn("browser_back", "Go back in the browser.", {}),
+    _fn("browser_read", "Read the full text of the current page. Each call returns at most 12000 characters; pass offset to continue.", {"offset": I}, []),
+    _fn("browser_upload", "Upload files from the computer into the page. ref is the number of an upload or file input. paths are absolute file paths.",
         {"ref": I, "paths": {"type": "array", "items": S}}),
     _fn("computer_screenshot", "截取浏览器里当前页面的画面，返回图片。要看页面长什么样（图片、图表、布局、验证码、操作是否成功）时用；"
         "网页内容和元素用 browser_snapshot。save=true 时把截图存进电脑的工作文件夹（screenshots 子文件夹）并返回路径，"
@@ -57,18 +59,16 @@ SCHEMAS = [
     _fn("computer_click", "【备用】按截图上的坐标 (x, y) 点击页面。只在 browser_click 做不到时用（画布、没有编号的元素），"
         "坐标以 computer_screenshot 的截图为准。",
         {"x": I, "y": I, "button": {"type": "string", "enum": ["left", "right", "middle"]}, "double": B}, ["x", "y"]),
-    _fn("computer_type", "【备用】在页面当前焦点处输入文字。网页输入框用 browser_type", {"text": S}),
-    _fn("computer_key", "在页面上按键或组合键，例如 Enter、Tab、ctrl+a、shift+Tab、Escape（浏览器自己的快捷键如新标签页不起作用）", {"keys": S}),
-    _fn("computer_scroll", "【备用】在页面中间滚动鼠标滚轮。网页用 browser_scroll",
+    _fn("computer_type", "Fallback: type at the current focus on the page. Use browser_type for web fields.", {"text": S}),
+    _fn("computer_key", "Press a key or chord on the page, for example Enter, Tab, ctrl+a, shift+Tab, or Escape. The browser's own shortcuts, such as a new tab, do not work.", {"keys": S}),
+    _fn("computer_scroll", "Fallback: scroll the mouse wheel at the middle of the page. Use browser_scroll for web pages.",
         {"direction": {"type": "string", "enum": ["up", "down", "left", "right"]}, "amount": I}, ["direction"]),
-    _fn("computer_shell", "在电脑的终端执行 bash 命令（工作目录 /data/workspace，文件会保留）。适合下载、处理数据、运行脚本。",
+    _fn("computer_shell", "Run a bash command in the computer terminal. The working directory is /data/workspace and files persist. Use it to download, process data, or run scripts.",
         {"cmd": S, "timeout": I}, ["cmd"]),
-    _fn("computer_read_file", "读取电脑里的文本文件", {"path": S}),
-    _fn("computer_write_file", "在电脑里写入文本文件（会覆盖）", {"path": S, "content": S}),
-    _fn("ask_human", "遇到只有人能完成的步骤（登录、验证码、扫码、支付验证、需要用户本人决定的选择）时调用："
-        "用户会接手电脑处理，处理完交还给你后再继续。说明清楚需要用户做什么。", {"reason": S}),
-    _fn("ask_approval", "在执行有后果的操作之前调用，例如提交表单、下单付款、发送消息或邮件、删除数据、发布内容。"
-        "说明要做什么、影响是什么。用户同意后才能继续。", {"action": S}),
+    _fn("computer_read_file", "Read a text file on the computer.", {"path": S}),
+    _fn("computer_write_file", "Write a text file on the computer. This overwrites.", {"path": S, "content": S}),
+    _fn("ask_human", "Call this when only a person can finish the step: login, captcha, QR code, payment check, or a choice the user must make. The user takes over the computer and hands it back, then you continue. Say clearly what they should do.", {"reason": S}),
+    _fn("ask_approval", "Call this before a consequential action such as submitting a form, paying, sending a message or email, deleting data, or publishing. Say what you will do and the effect. Continue only after the user agrees.", {"action": S}),
 ]
 DESK_SCHEMAS = [
     _fn("desktop_screenshot", "截取用户这台 Mac 的整个屏幕（主显示器），返回图片，以及前台 App、屏幕上的窗口、鼠标位置。"
@@ -313,12 +313,12 @@ async def call(task, name: str, args: dict, notify_progress, key: str = "") -> t
         if refused := await _confirm(task, c, name, args, key):
             return refused, None
         if name == "browser_upload":
-            await c.browser("upload", key=key, ref=args.get("ref"), files=paths)
+            await c.browser("upload", key=key, ref=args.get("ref"), files=[str(x) for x in paths][:10])
             return page_text(await c.browser("snapshot", key=key)), None
         if name in BROWSER:
             op = name.removeprefix("browser_")
             if op == "open" and not str(args.get("url", "")).startswith(("http://", "https://")):
-                return "只能打开 http / https 网址", None
+                return i18n.t("只能打开 http / https 网址"), None
             kw = {k: v for k, v in args.items() if v is not None}
             if "key" in kw:   # browser_key 的按键名：key 这个名字 c.browser 自己要用（谁在操作）
                 kw["name"] = kw.pop("key")
@@ -333,20 +333,20 @@ async def call(task, name: str, args: dict, notify_progress, key: str = "") -> t
         if name == "computer_click":
             button = args.get("button") or "left"
             if button not in ("left", "right", "middle"):
-                return "button 只能是 left / right / middle", None
+                return i18n.t("button 只能是 left / right / middle"), None
             await c.browser("click_xy", key=key, x=int(args["x"]), y=int(args["y"]), button=button, double=bool(args.get("double")))
-            text = "已点击。"
+            text = i18n.t("已点击。")
         elif name == "computer_type":
             if not args.get("text"):
-                return "没有要输入的文字", None
+                return i18n.t("没有要输入的文字"), None
             await c.browser("type", key=key, text=str(args["text"]))
-            text = "已输入。"
+            text = i18n.t("已输入。")
         elif name == "computer_key":
             await c.browser("press", key=key, keys=str(args.get("keys") or ""))
-            text = "已按键。"
+            text = i18n.t("已按键。")
         elif name == "computer_scroll":
             await c.browser("wheel", key=key, direction=args.get("direction") or "down", amount=args.get("amount") or 3)
-            text = "已滚动。"
+            text = i18n.t("已滚动。")
         elif name == "computer_shell":
             return (await c.shell(args["cmd"], int(args.get("timeout") or 120))).text(), None
         elif name == "computer_read_file":
@@ -354,7 +354,7 @@ async def call(task, name: str, args: dict, notify_progress, key: str = "") -> t
             return data.decode(errors="replace")[:20000], None
         elif name == "computer_write_file":
             await c.write_bytes(args["path"], args["content"].encode())
-            return f"已写入 {args['path']}（{len(args['content'])} 字）", None
+            return i18n.t("已写入 {path}（{n} 字）", path=args["path"], n=len(args["content"])), None
         elif name == "ask_human":
             await c.start()
             # 把这个任务的窗口放到最前面，用户一接手就看到；用户正在帮别的任务时不打扰，等他点这张卡片的“接手”。
@@ -370,14 +370,15 @@ async def call(task, name: str, args: dict, notify_progress, key: str = "") -> t
             finally:
                 if c.asking.get(task.id) == key:
                     c.asking.pop(task.id, None)
-            return (f"用户已处理完并交还电脑。{note}".strip() if ok else f"用户没有处理：{note}".strip()), None
+            done = i18n.t("用户已处理完并交还电脑。{note}", note=note) if ok else i18n.t("用户没有处理：{note}", note=note)
+            return done.strip(), None
         elif name == "ask_approval":
             ok, note = await approvals.request(task, "ask_approval", {"操作": args["action"]}, once=True)   # 每一步都是它自己判断要问的
             return (f"用户同意了。{note}".strip() if ok else f"用户拒绝了，不要执行这个操作。{note}".strip()), None
         else:
-            return "未知的电脑工具", None
+            return i18n.t("未知的电脑工具"), None
     except ComputerError as e:
-        return f"电脑操作失败：{e}", None
+        return i18n.t("电脑操作失败：{error}", error=e), None
     shot = await c.page_shot(key) if name in AUTO_SHOT else None
     return text, shot
 
@@ -482,9 +483,9 @@ async def _desktop(task, c, name: str, args: dict, key: str, notify_progress) ->
 def image_message(png: bytes, caption: str | None = None, coords: bool = True) -> dict:
     caption = caption or getattr(png, "caption", "当前页面截图")
     w, h = int.from_bytes(png[16:20], "big"), int.from_bytes(png[20:24], "big")   # PNG 头里的宽高
-    tail = "点击坐标按这个尺寸" if coords else "只用来看，不能按这张图的坐标点击"
+    tail = "click coordinates use this size" if coords else "for looking only; do not click coordinates on this image"
     return {"role": "user", "content": [
-        {"type": "text", "text": f"（系统附图：{caption}，{w}×{h}，{tail}）"},
+        {"type": "text", "text": f"(system image: {caption}, {w}x{h}, {tail})"},
         {"type": "image_url", "image_url": {"url": "data:image/png;base64," + base64.b64encode(png).decode()}}]}
 
 
@@ -495,4 +496,4 @@ def prune_images(msgs: list[dict], keep: int = 2):
         if isinstance(m.get("content"), list) and any(p.get("type") == "image_url" for p in m["content"]):
             seen += 1
             if seen > keep:
-                m["content"] = "（更早的截图已省略）"
+                m["content"] = "(an earlier screenshot was omitted)"

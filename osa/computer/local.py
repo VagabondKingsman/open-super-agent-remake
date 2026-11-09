@@ -46,8 +46,11 @@ while True:
 
 
 async def _run(*args, stdin: str | None = None, timeout: float = 120) -> tuple[int, str, str]:
-    p = await asyncio.create_subprocess_exec(*args, stdin=asyncio.subprocess.PIPE if stdin is not None else None,
-                                             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+    try:
+        p = await asyncio.create_subprocess_exec(*args, stdin=asyncio.subprocess.PIPE if stdin is not None else None,
+                                                 stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+    except FileNotFoundError:
+        return 127, "", "docker-missing"
     try:
         out, err = await asyncio.wait_for(p.communicate(stdin.encode() if stdin is not None else None), timeout)
     except asyncio.TimeoutError:
@@ -84,7 +87,9 @@ class LocalComputer(Computer):
         self._starting = asyncio.Lock()
 
     async def status(self) -> dict:
-        code, out, _ = await _run("docker", "inspect", "-f", "{{json .State}}", self.name, timeout=15)
+        code, out, err = await _run("docker", "inspect", "-f", "{{json .State}}", self.name, timeout=15)
+        if code == 127 or err == "docker-missing":
+            return {"state": "unavailable", "detail": i18n.t("未安装 Docker，无法使用本地电脑"), "reason": "docker_missing"}
         if code:
             return {"state": "none", "detail": i18n.t("还没有创建")}
         st = json.loads(out)
@@ -103,7 +108,10 @@ class LocalComputer(Computer):
     async def start(self):
         check_enabled()
         async with self._starting:
-            st = (await self.status())["state"]
+            info = await self.status()
+            st = info["state"]
+            if st == "unavailable":
+                raise ComputerError(info["detail"])
             if st == "running":
                 return
             if st == "paused":

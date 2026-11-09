@@ -4,7 +4,7 @@ import json
 import time
 from dataclasses import dataclass, field
 from .config import CFG, call_kwargs, client_for
-from . import applets, approvals, dsml, i18n, library, memories, memory, providers, registry, tasklog
+from . import applets, approvals, dsml, i18n, library, local_checks, memories, memory, providers, registry, skillpacks, tasklog, verification
 from . import builtin  # noqa: F401  导入即注册内置工具
 from .computer import tools as ctools
 
@@ -34,7 +34,8 @@ class Task:
     started: float = field(default_factory=time.time)
     last_progress: float = field(default_factory=time.time)
     steps: int = 0
-    recent_calls: list = field(default_factory=list)
+    recent_calls: list = field(default_factory=list)  # 单 Worker 的最近调用，给 Watchdog 看
+    repeat_history: dict = field(default_factory=dict)  # label -> 该 Worker 自己的重复检测历史
     waiting_approval: int | None = None    # 正在等用户确认的请求 id
     background: bool = False               # 定时 / webhook 触发的任务：确认卡片会过期
     paused_s: float = 0                    # 等用户确认花掉的时间，不算进超时
@@ -72,6 +73,11 @@ async def run_worker(task: Task, goal: str, label: str = "") -> str:
         await ctools.release()   # 任务结束（含取消、失败）就把电脑让给排队的任务
 
 
+def _outbound(msg: dict) -> dict:
+    """送回模型的 assistant 消息。finish_reason 只给本进程看，不能原样传给接口。"""
+    return {k: v for k, v in msg.items() if k != "finish_reason"}
+
+
 async def _reply(task: Task, log: tasklog.Log, role: str, client, model: str, msgs: list, tools_: list | None = None) -> dict:
     """流式调用一次模型，思考和正文边收边写进任务过程。返回这一轮的 assistant 消息，可以直接接到 msgs 后面。"""
     t0, first = time.monotonic(), None
@@ -84,6 +90,7 @@ async def _reply(task: Task, log: tasklog.Log, role: str, client, model: str, ms
                             ms=(time.monotonic() - t0) * 1000)
         raise
     content, reasoning, calls, usage = "", "", {}, None
+    finish = None
     think = text = None
     sent = 0   # 正文写进任务过程到哪了：DeepSeek 写进正文的工具调用（见 dsml.py）不写
 
@@ -136,7 +143,7 @@ async def _reply(task: Task, log: tasklog.Log, role: str, client, model: str, ms
         await log.finish(think)
     if text:
         await log.finish(text, kind="say" if calls else "answer")
-    msg = {"role": "assistant"}
+    msg = {"role": "assistant", "finish_reason": finish}
     if content:
         msg["content"] = content
     if reasoning:   # DeepSeek 思考模式：带工具的请求要把 reasoning_content 原样传回
@@ -182,7 +189,7 @@ async def _call_tool(task: Task, log: tasklog.Log, step: dict, name: str, raw: s
             await log.update(step, status="waiting")
             ok, note = await approvals.request(task, name, args)
             if not ok:
-                return f"用户拒绝了这个操作，没有执行。{note}".strip(), "rejected"
+                return i18n.t("用户拒绝了这个操作，没有执行。{note}", note=note).strip(), "rejected"
             await log.update(step, status="running")
         from . import bots
         out = await tool.run(registry.Call(registry.WORKER, bots.get(task.bot_id) or {"id": task.bot_id}, task.chat_id,
@@ -193,7 +200,30 @@ async def _call_tool(task: Task, log: tasklog.Log, step: dict, name: str, raw: s
             out = out[0]
         return out, "done"
     except Exception as e:
-        return f"工具出错：{e}", "error"
+        return i18n.t("工具出错：{error}", error=e), "error"
+
+
+def worker_system(task: Task, pages: bool) -> str:
+    use_pc = (CFG.get("computer") or {}).get("enabled", True)
+    system = WORKER_PROMPT.format(date=time.strftime("%Y-%m-%d")) + ("\n" + PAGE_HINT if pages else "") \
+        + ("\n\n" + ctools.SYSTEM_HINT if use_pc else "")
+    system += verification.HINT + local_checks.runtime_hint() + skillpacks.runtime_hint(task.bot_id)
+    if known := memories.worker_block(task.bot_id):
+        system += f"\n\nAbout the user (long-term memory; follow these preferences):\n{known}"
+    return system + i18n.model_hint()
+
+
+def _history(task: Task, label: str) -> list:
+    """每个 Worker 一份历史。Heavy 里 h0/h1/h2 并行，不能共用一份，否则别人的第一次调用会被当成重复。"""
+    return task.repeat_history.setdefault(label or "", [])
+
+
+def _looping(history: list, sig: str) -> bool:
+    """同一个工具调用在这份历史里连续出现 repeat_tool_limit 次就停。0 表示不查。"""
+    limit = int(CFG["limits"].get("repeat_tool_limit", 3) or 0)
+    history.append(sig)
+    del history[:-8]
+    return limit > 1 and len(history) >= limit and len(set(history[-limit:])) == 1
 
 
 async def _run_worker(task: Task, goal: str, label: str = "") -> str:
@@ -208,6 +238,8 @@ async def _run_worker(task: Task, goal: str, label: str = "") -> str:
     env = {"scope": registry.WORKER, "pages": pages, "use_pc": use_pc}
     schemas = registry.schemas(registry.WORKER, env) + (ctools.schemas() if use_pc else [])
     log = tasklog.Log(task, label)
+    continuations = 0
+    extra = int(CFG["limits"].get("answer_continuations", 1) or 0)
 
     async def progress(text: str):
         task.last_action = text
@@ -216,49 +248,145 @@ async def _run_worker(task: Task, goal: str, label: str = "") -> str:
         if PROGRESS:
             await PROGRESS(task, text)
 
+    stopped = False
     for _ in range(CFG["limits"]["worker_max_steps"]):
         ctools.prune_images(msgs)
         m = await _reply(task, log, "worker", client, model, msgs, schemas)
         task.steps += 1
         task.last_progress = time.time()
         if not m.get("tool_calls"):
-            return m.get("content") or ""
-        msgs.append(m)
+            content = (m.get("content") or "").strip()
+            if content and m.get("finish_reason") != "length":
+                return m.get("content") or ""
+            if continuations < extra:
+                continuations += 1
+                outbound = _outbound(m)
+                if outbound.get("content") or outbound.get("reasoning_content"):
+                    msgs.append(outbound)
+                msgs.append({"role": "user", "content": CONTINUE_PROMPT})
+                continue
+            return _accept_answer(m)   # 空答案或仍被截断：抛 IncompleteAnswer，不当完成
+        msgs.append(_outbound(m))
         shots = []   # 截图要等这一轮的工具结果都追加完再附上
+        history = _history(task, label)
+        skipped = i18n.t("这次调用被跳过，没有执行。同一个工具连续重复，请根据已有信息给出最终答案。")
+        blocked = False
         for call in m["tool_calls"]:
             name, raw = call["function"]["name"], call["function"]["arguments"]
-            task.recent_calls = (task.recent_calls + [f"{name}:{raw}"])[-6:]
             step = log.current = await log.start("tool", name, detail=raw[:2000])
             out, status = await _tool(task, log, step, name, raw, progress, env, shots)
             msgs.append({"role": "tool", "tool_call_id": call["id"], "content": out[:8000]})
             await log.finish(step, status, out)
             task.last_progress = time.time()
+        if not label:
+            task.recent_calls = list(history)
         if shots:
             msgs.append(ctools.image_message(shots[-1]))
-    await log.note(i18n.t("步数用完了，根据已有信息写结果"))
-    msgs.append({"role": "user", "content": "步数用完了，请根据已有信息给出最终答案。"})
+        if blocked:
+            stopped = True
+            break
+    if not stopped:
+        await log.note(i18n.t("步数用完了，根据已有信息写结果"))
+        msgs.append({"role": "user", "content": STEP_EXHAUSTED})
     m = await _reply(task, log, "worker", client, model, msgs)
-    return m.get("content") or ""
+    task.steps += 1
+    return _accept_answer(m)
+
+
+def heavy_plan() -> tuple[int, int, int]:
+    """(研究员人数, 同时调用模型的上限, 交给审稿人所需的最少草稿)。"""
+    n = max(1, int(CFG["heavy"]["workers"]))
+    concurrency = max(1, int(CFG["heavy"].get("concurrency") or 1))
+    raw = CFG["heavy"].get("min_drafts")
+    if raw is None:
+        need = max(1, (n + 1) // 2)
+    else:
+        need = max(1, min(n, int(raw)))
+    return n, min(concurrency, n), need
 
 
 async def run_heavy(task: Task) -> str:
-    """Heavy 模式：N 个 Worker 独立并行解题，Reviewer 互审后汇总。"""
-    n = CFG["heavy"]["workers"]
-    angles = ["从最直接的角度", "从反面/质疑的角度核查", "从数据和一手来源角度", "从实践/落地角度"]
+    """Heavy 模式：N 个 Worker 各自做一遍，草稿够数才交给 Reviewer。
+
+    同时在跑的人数是 heavy.concurrency（默认 1）。有人撞上额度用尽就停掉还没跑的，
+    并且不叫审稿人。草稿少于 heavy.min_drafts 同样不叫审稿人，任务失败。
+    有人失败但草稿够数时仍汇总，调用方把结果记成 partial。
+    """
+    n, concurrency, need = heavy_plan()
     await tasklog.Log(task).note(i18n.t("{n} 个研究员分头做，做完汇总", n=n))
     goal = task.goal + task.notes
-    drafts = await asyncio.gather(*[
-        run_worker(task, f"{goal}\n\n（你是第 {i+1} 个独立研究员，请{angles[i % len(angles)]}回答）", f"h{i}")
-        for i in range(n)], return_exceptions=True)
+    sem = asyncio.Semaphore(concurrency)
+    stop = asyncio.Event()
+    pending: list[asyncio.Task] = []
+
+    async def one(i: int):
+        try:
+            async with sem:
+                if stop.is_set():
+                    raise _NotStarted()
+                return await run_worker(
+                    task, f"{goal}\n\n(You are independent researcher {i+1}. {HEAVY_ANGLES[i % len(HEAVY_ANGLES)]})", f"h{i}")
+        except ProviderLimit as e:
+            if e.kind == "quota":
+                stop.set()
+                current = asyncio.current_task()
+                for other in pending:
+                    if other is not current and not other.done():
+                        other.cancel()
+            raise
+
+    pending = [asyncio.create_task(one(i)) for i in range(n)]
+    drafts = await asyncio.gather(*pending, return_exceptions=True)
+    quota = next((d for d in drafts if isinstance(d, ProviderLimit) and d.kind == "quota"), None)
     for i, d in enumerate(drafts):
+        if isinstance(d, (_NotStarted, asyncio.CancelledError)):
+            continue
         if isinstance(d, Exception):
             await tasklog.Log(task, f"h{i}").note(i18n.t("出错：{error}", error=d), "error")
-    drafts = [d for d in drafts if isinstance(d, str)]
+    if quota is not None:
+        raise TaskFailed(i18n.t(
+            "额度用尽（{status} {code}），已停止这个 Heavy 任务，没有交给审稿人。{detail}",
+            status=quota.status, code=quota.code or "-", detail=quota.detail))
+    ok = [d for d in drafts if isinstance(d, str) and d.strip()]
+    if len(ok) < need:
+        raise TaskFailed(i18n.t(
+            "草稿不够：{got}/{n} 份可用，至少要 {need} 份才交给审稿人。这次没有汇总。",
+            got=len(ok), n=n, need=need))
+    text = await _review(task, goal, ok)
+    if len(ok) < n:
+        task.degraded = True
+    return text
+
+
+def reviewer_system() -> str:
+    return REVIEWER_PROMPT + i18n.model_hint()
+
+
+async def _review(task: Task, goal: str, drafts: list[str]) -> str:
     client, model = client_for("reviewer")
-    joined = "\n\n".join(f"=== 方案 {i+1} ===\n{d}" for i, d in enumerate(drafts))
+    joined = "\n\n".join(f"=== Draft {i+1} ===\n{d}" for i, d in enumerate(drafts))
     await tasklog.Log(task).note(i18n.t("{n} 份草稿交给审稿人汇总", n=len(drafts)))
-    m = await _reply(task, tasklog.Log(task, "review"), "reviewer", client, model, [
-        {"role": "system", "content": "你是审稿人。比较几份独立答案，找出矛盾和错误，合成一份最可靠的最终答案，保留来源链接。"
-                                      + i18n.model_hint()},
-        {"role": "user", "content": f"问题：{goal}\n\n{joined}"}])
-    return m.get("content") or ""
+    log = tasklog.Log(task, "review")
+    msgs = [
+        {"role": "system", "content": reviewer_system()},
+        {"role": "user", "content": f"Question:\n{goal}\n\n{joined}\n\nWrite the final answer only. Do not include the Draft markers."}]
+    try:
+        extra = int(CFG["limits"].get("answer_continuations", 1) or 0)
+        m = await _reply(task, log, "reviewer", client, model, msgs)
+        task.steps += 1
+        for _ in range(extra):
+            if (m.get("content") or "").strip() and m.get("finish_reason") != "length":
+                return m.get("content") or ""
+            outbound = _outbound(m)
+            if outbound.get("content") or outbound.get("reasoning_content"):
+                msgs.append(outbound)
+            msgs.append({"role": "user", "content": CONTINUE_PROMPT})
+            m = await _reply(task, log, "reviewer", client, model, msgs)
+            task.steps += 1
+        return _accept_answer(m)
+    except ProviderLimit as e:
+        if e.kind == "quota":
+            raise TaskFailed(i18n.t(
+                "额度用尽（{status} {code}），审稿没有完成。{detail}",
+                status=e.status, code=e.code or "-", detail=e.detail)) from e
+        raise

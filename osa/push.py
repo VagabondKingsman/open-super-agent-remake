@@ -180,10 +180,15 @@ def message_for(event: dict) -> tuple[str, str, str, str] | None:
         if m.get("role") == "task" and kind == "image":
             return i18n.t("{who} 画好了一张图", who=_bot_name(m.get("bot_id"))), (m.get("meta") or {}).get("prompt", "")[:120], url, f"chat-{cid}"
         if m.get("role") == "task" and kind == "result":
-            ok = (m.get("meta") or {}).get("status") == "done"
+            status = (m.get("meta") or {}).get("status")
             who = _bot_name(m.get("bot_id"))
-            return (i18n.t("{who} 做完了任务", who=who) if ok else i18n.t("{who} 的任务失败了", who=who)), \
-                _plain(m["content"])[:120], url, f"chat-{cid}"
+            if status == "done":
+                title = i18n.t("{who} 做完了任务", who=who)
+            elif status == "partial":
+                title = i18n.t("{who} 的任务只完成了一部分", who=who)
+            else:
+                title = i18n.t("{who} 的任务失败了", who=who)
+            return title, _plain(m["content"])[:120], url, f"chat-{cid}"
     if t == "teach" and event.get("draft"):
         return i18n.t("演示录制已结束"), i18n.t("技能草稿「{name}」等你审核", name=event["draft"]["name"]), "/", "teach"
     return None
