@@ -10,7 +10,6 @@ import asyncio
 import re
 from types import SimpleNamespace
 from . import approvals, avatars, i18n, media, prices
-from .config import CFG
 
 TOOL = "generate_image"
 GENERATE_IMAGE = {"type": "function", "function": {
@@ -31,7 +30,7 @@ def price_text(price: float | None) -> str:
         return i18n.t("价格未知")
     if price == 0:
         return i18n.t("免费")
-    return i18n.t("{price} / 张", price=f"{CFG['pricing']['currency']}{price:g}")
+    return i18n.t("{price} / 张", price=f"{prices.CURRENCY}{price:g}")   # pricing.images is USD
 
 
 def _name(prompt: str) -> str:

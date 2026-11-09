@@ -6,6 +6,7 @@ import pytest
 from conftest import find, settle, until
 from fakellm import Call
 from osa import bots, memory, observe, routines, server
+from osa.config import CFG
 
 TZ = -480   # 东八区
 
@@ -85,7 +86,8 @@ def _tool(task_id: int, name: str, status: str, dur: float = 1.0):
     memory.conn.commit()
 
 
-def test_stats_split_by_time_bot_model_tool_and_routine(make_bot):
+def test_stats_split_by_time_bot_model_tool_and_routine(make_bot, monkeypatch):
+    monkeypatch.setitem(CFG["pricing"], "currency", "¥")   # legacy box config: costs are still USD
     a = make_bot()
     routines.save(a["id"], {"name": "早报", "prompt": "整理新闻", "trigger": {"kind": "every", "minutes": 60}})
     memory.add_usage("router", "m1", provider="p", bot_id=a["id"], chat_id=a["chat_id"], hit=60, miss=40, out=12,
@@ -101,6 +103,7 @@ def test_stats_split_by_time_bot_model_tool_and_routine(make_bot):
 
     s = observe.stats("7d", TZ, a["id"])
     k = s["kpi"]
+    assert s["currency"] == "$"
     assert len(s["series"]) == 7 and s["size"] == 86400
     assert (k["cost"], k["calls"], k["errors"], k["tokens"]) == (0.5, 1, 2, 112)
     assert k["cache_rate"] == 0.6 and k["ttft"] == 500

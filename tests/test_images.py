@@ -97,7 +97,7 @@ async def test_ask_then_draw_then_always(llm, events, make_bot, sf):
     await server.safe_handle(bots.chat(cid), "刚才画了什么")
     await until(lambda: len(find(cid, role="assistant")) == 3, what="第三轮")
     ctx = [m["content"] for m in llm.bodies("router", "Painter")[-1]["messages"] if isinstance(m["content"], str)]
-    assert any("画好了一张图" in c and "再来一只" in c for c in ctx)
+    assert any("drew an image" in c and "再来一只" in c for c in ctx)   # remake: system notice is English
 
 
 async def test_reject_draws_nothing(llm, events, make_bot, sf):
