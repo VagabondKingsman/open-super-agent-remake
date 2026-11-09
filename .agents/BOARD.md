@@ -15,25 +15,27 @@ Snapshot 07/11/2026, Asia/Saigon (UTC+7). GitHub PR + base mới là trạng th�
 
 | ID | Việc | AC khởi điểm / điều kiện | Owner / branch |
 |---|---|---|---|
-| OSA-015 | P0. `memory.db` tuyệt đối bỏ qua `OSA_DATA_DIR` | DB của process nằm trong data dir, hoặc khởi động từ chối và nói rõ. Sửa `tests/test_data_dir.py::test_absolute_db_path_still_wins`. Backup fd đang mở trước khi đổi. Box chạy `c16e6bb` mở `/workspace/osa-run/osa.db`. Thư mục `/workspace/osa-run/data` không có. | In progress · hoplite / `hoplite/osa-022-port-followups` · Tin Tin chọn cảnh báo, không đổi đường DB |
+| OSA-015 | P0. `memory.db` tuyệt đối bỏ qua `OSA_DATA_DIR` | Tin Tin chọn cảnh báo, không đổi đường DB: cảnh báo lúc khởi động, Cài đặt → Sao lưu hiện đường DB. Dòng cảnh báo trên box thật `NOT_CHECKED`. | Done · hoplite / `hoplite/osa-022-port-followups` · [PR #18](https://github.com/VagabondKingsman/open-super-agent-remake/pull/18) |
 | OSA-020 | P1. Dọn config Experiential trên box sang USD | File operator, không commit. `pricing.currency` là `$`. Bảng tay là số USD hoặc bỏ. Restart không chia `llm_usage` lần hai vì cờ đã USD. File hiện còn ¥, `usd_rate` 7.1, bảng tay CNY. Code đang chia lúc đọc. | Chưa nhận |
-| OSA-019 | P1. Phần ngôn ngữ OSA-011 còn lại | Persona tiếng Việt cho template. Mô tả tool MCP do server trả. Validator đầu ra sai ngôn ngữ. Giữ `[附件]`, `需要你做的事`, regex `无新内容`. Không dịch nội dung user. UI `zh` giữ nguồn Trung. | In progress · hoplite / `hoplite/osa-022-port-followups` |
+| OSA-019 | P1. Phần ngôn ngữ OSA-011 còn lại | Đã vào [PR #18](https://github.com/VagabondKingsman/open-super-agent-remake/pull/18): template `vi:`, plugin theo ngôn ngữ UI, `langcheck` gắn `lang_flag`. Còn: hiện `lang_flag` trên trang Quan sát, người bản ngữ đọc lại khối `vi:`. Giữ `[附件]`, `需要你做的事`, regex `无新内容`. Không dịch nội dung user. | Chưa nhận (phần còn lại) |
 | OSA-016 | P1. Live routine | Một lịch trên data được phép. Quiet không gửi channel. Có lệnh và kết quả. Hiện `NOT_CHECKED`. | Chưa nhận |
 | OSA-001 | P2. Live Router→Worker skill chaining | Xác minh dispatch thật, Worker tự nạp source/reference, TIP/AC đủ, verifier dùng đúng. Trace WS tới task, cleanup/restore. Cần Tin Tin duyệt model và cap trước lượt trả phí. | Chưa nhận |
 | OSA-002 | P2. Docker Computer E2E trên máy có Docker | App build, desktop/VNC/CDP, cửa sổ song song, takeover, upload. HTTP 200 không đủ. Không dùng credential của máy khác. | Chưa nhận |
 | OSA-017 | P1. Chạy ổn ngoài box Grok Bot | Docker trên máy Tin Tin hoặc VPS. Hết phụ thuộc watchdog và mạng box cắt Tailscale. Chọn máy với Tin Tin trước. | Chưa nhận |
 | OSA-018 | P2. Mẫu A/B Zro và DeepSeek còn lại | Bài, cap, điều kiện dừng được duyệt cho đúng đợt. Không tự chạy. | Chưa nhận |
-| OSA-003 | P2. Code-split bundle frontend | Đo trước sau, lazy route phù hợp, build và test, giữ VI/EN/ZH. Cảnh báo chunk >500 kB còn, JS khoảng 1,15 MB. Chốt ngưỡng với Tin Tin. | In progress · hoplite / `hoplite/osa-022-port-followups` · ngưỡng: entry < 500 kB |
+| OSA-003 | P2. Code-split bundle frontend | Ngưỡng entry < 500 kB. Entry JS 1.364 kB → 69 kB, hết cảnh báo chunk. | Done · hoplite / `hoplite/osa-022-port-followups` · [PR #18](https://github.com/VagabondKingsman/open-super-agent-remake/pull/18) |
 | OSA-004 | Kiểm release mới kadaliao | Read-only release/tag/diff sau v0.6.0. Chỉ port lên remake khi được giao. Không PR upstream. | Done · grok-bot / `grok-bot/port-upstream-v0.6.1` · xem mục Done |
 | OSA-005 | P2. Rà GitHub Actions | CI đã có backend, frontend, Docker. Đề xuất lỗ hổng rồi mới sửa. Không coi là tạo CI lần đầu. | Chưa nhận |
-| OSA-007 | P1. UI sau login và responsive | Data tách, VI/EN/ZH còn sau reload, empty state, 375/768/1440. Ảnh đã xóa dữ liệu riêng. Khoảng 390px sau login trên điện thoại của Tin Tin là `NOT_CHECKED`: bot không vào tailnet sau mật khẩu. Build xanh không phải PASS. | In progress · hoplite / `hoplite/osa-022-port-followups` · preview sandbox, chưa kiểm điện thoại thật |
-| OSA-008 | P2. Reconcile crash giữa file và SQLite | Bơm lỗi trên data tạm. Giữ sửa tay và tombstone. Không tự cài lại. | In progress · hoplite / `hoplite/osa-022-port-followups` |
+| OSA-007 | P1. UI sau login và responsive | Preview sandbox vi/en/zh × 375/768/1440 PASS và sửa Quan sát ở 375px trong [PR #18](https://github.com/VagabondKingsman/open-super-agent-remake/pull/18). Còn: khoảng 390px sau login trên điện thoại của Tin Tin, `NOT_CHECKED` vì bot không vào tailnet sau mật khẩu. | Chờ Tin Tin kiểm trên điện thoại |
+| OSA-008 | P2. Reconcile crash giữa file và SQLite | Bơm lỗi trên data tạm, 19 ca. Giữ sửa tay và tombstone. Không tự cài lại. | Done · hoplite / `hoplite/osa-022-port-followups` · [PR #18](https://github.com/VagabondKingsman/open-super-agent-remake/pull/18) |
 
 ## In progress
 
-- OSA-022: `OSA-022 / hoplite / hoplite/osa-022-port-followups / việc còn mở sau port v0.12 + OSA-015, OSA-007, OSA-003, OSA-008, OSA-019 / claimed_at 09/11/2026 14:25 Asia/Saigon / PR vào i18n-vi`. Tách từ `i18n-vi` tại `d3a838e`. Không paid LLM. Chi tiết ở [log OSA-022](log/2026-11-09-hoplite-osa-022.md).
+- OSA-023: `OSA-023 / hoplite / hoplite/osa-023-docs-sync / đồng bộ HANDOFF, STATE, BOARD sau khi PR #18 merge / claimed_at 09/11/2026 19:05 Asia/Saigon / [PR #19](https://github.com/VagabondKingsman/open-super-agent-remake/pull/19)`. Tách từ `i18n-vi` tại `b628fe4`. Chỉ sửa docs. Chi tiết ở [log OSA-023](log/2026-11-09-hoplite-osa-023.md).
 
 ## Done · đã public
+
+- OSA-022: `OSA-022 / hoplite / hoplite/osa-022-port-followups / việc còn mở sau port v0.12 + OSA-015, OSA-007, OSA-003, OSA-008, OSA-019 / claimed_at 09/11/2026 14:25 Asia/Saigon / [PR #18](https://github.com/VagabondKingsman/open-super-agent-remake/pull/18)`. Đã merge vào `i18n-vi` tại `b628fe4e91e557217f8f41abfc92463151e57fa6` (head `79e31ff`) lúc 18:16:57 09/11/2026 Asia/Saigon. `merged_at` API `2026-11-09T11:16:57Z`. `merged_by` là VagabondKingsman. CI backend, frontend, docker SUCCESS trên PR và trên push `b628fe4`. Câu "Chưa merge" trong log OSA-022 là trạng thái lúc viết log đó. OSA-007 và OSA-019 còn phần mở, xem Backlog.
 
 - OSA-021: `OSA-021 / hoplite / hoplite/megara-e725a8f4 / port upstream kadaliao v0.12.0 (d432c74) lên remake, giữ VI, prompt tiếng Anh, Heavy, USD, skill pack / claimed_at 09/11/2026 14:10 Asia/Saigon / [PR #17](https://github.com/VagabondKingsman/open-super-agent-remake/pull/17)`. Đã merge vào `i18n-vi` tại `d3a838ee1bcdcfac3962f84229fbd10f2e3728a8` (head `12ea216`) lúc 14:25:33 09/11/2026 Asia/Saigon. `merged_at` API `2026-11-09T07:25:33Z`. Merge bởi Hoplite (`app/usehoplite`) theo câu duyệt của Thi Vo. CI backend, frontend, docker SUCCESS.
 

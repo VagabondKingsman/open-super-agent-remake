@@ -17,19 +17,19 @@ Repo: `VagabondKingsman/open-super-agent-remake`. Base: `i18n-vi`. Upstream `kad
 
 ## Head hiện tại
 
-Đối chiếu trong phiên OSA-014, 07/11/2026:
+Đối chiếu trong phiên OSA-023, 09/11/2026:
 
-`origin/i18n-vi = c16e6bb0e42de25ddd0ac12f58e179bbd23f1ed3`
+`origin/i18n-vi = b628fe4e91e557217f8f41abfc92463151e57fa6`
 
-Đó là merge [PR #15](https://github.com/VagabondKingsman/open-super-agent-remake/pull/15). `merged_at` API `2026-11-07T13:47:09Z` (20:47:09 Asia/Saigon). `merged_by` là VagabondKingsman. Head của PR là `87980892e3a6141035516ee0b43d3d9136c1b3f5`. Không có PR mở vào `i18n-vi` lúc đối chiếu.
+Đó là merge [PR #18](https://github.com/VagabondKingsman/open-super-agent-remake/pull/18) (OSA-022). `merged_at` API `2026-11-09T11:16:57Z` (18:16:57 Asia/Saigon). `merged_by` là VagabondKingsman. Head của PR là `79e31ff7b4ee04efb1152d868dd6828b2a4a4efc`. CI push trên `b628fe4` SUCCESS. Không có PR mở vào `i18n-vi` lúc đối chiếu. Bản OSA trên base là 0.12.0.
 
-Phiên sau chạy `git fetch` và `git rev-parse origin/i18n-vi`. SHA mới hơn thì đọc log mới. Đừng coi `c16e6bb` là latest mãi. `main` không được khẳng định cùng tip.
+Phiên sau chạy `git fetch` và `git rev-parse origin/i18n-vi`. SHA mới hơn thì đọc log mới. Đừng coi `b628fe4` là latest mãi.
 
-File này vào repo bằng [PR #16](https://github.com/VagabondKingsman/open-super-agent-remake/pull/16), branch `grok-bot/osa-014-handoff`. Lúc viết thì PR chưa merge. Nếu `origin/i18n-vi` vẫn là `c16e6bb`, bàn giao này chưa nằm trên base.
+`main` là default branch trên GitHub nhưng đứng ở `a30e3cc`, tổ tiên cũ của `i18n-vi`, không có `.agents/` hay `tests/`. Cloud agent hay checkout `main` theo mặc định. Phải chuyển sang `i18n-vi` trước khi làm.
 
 ## Đã merge
 
-Giờ là `merged_at` đổi sang Asia/Saigon. `merged_by` của cả 15 PR trên API là VagabondKingsman. Chi tiết và các câu "Chưa merge" cũ nằm trong STATE. Những câu đó là trạng thái lúc viết mục, bảng này mới hơn.
+Giờ là `merged_at` đổi sang Asia/Saigon. `merged_by` trên API là VagabondKingsman, trừ PR #17 do Hoplite (`app/usehoplite`) merge theo câu duyệt của Thi Vo. Chi tiết và các câu "Chưa merge" cũ nằm trong STATE. Những câu đó là trạng thái lúc viết mục, bảng này mới hơn.
 
 | PR | Giờ merge | SHA | Việc |
 |---|---|---|---|
@@ -48,20 +48,24 @@ Giờ là `merged_at` đổi sang Asia/Saigon. `merged_by` của cả 15 PR trê
 | [#13](https://github.com/VagabondKingsman/open-super-agent-remake/pull/13) | 18:25:37 | `fcc2d89` | OSA-011 prompt gửi model sang tiếng Anh, trả lời theo `i18n.lang()`. |
 | [#14](https://github.com/VagabondKingsman/open-super-agent-remake/pull/14) | 19:08:18 | `653f866` | OSA-012 trang offline vi trước, en sau. |
 | [#15](https://github.com/VagabondKingsman/open-super-agent-remake/pull/15) | 20:47:09 | `c16e6bb` | OSA-013 chi phí lưu và hiện bằng USD. |
+| [#16](https://github.com/VagabondKingsman/open-super-agent-remake/pull/16) | 21:14:45 | `3b02a80` | OSA-014 bàn giao `.agents/` cho bot mới. |
+| [#17](https://github.com/VagabondKingsman/open-super-agent-remake/pull/17) | 14:25:33 09/11 | `d3a838e` | OSA-021 port upstream v0.12.0 (`d432c74`) lên remake. |
+| [#18](https://github.com/VagabondKingsman/open-super-agent-remake/pull/18) | 18:16:57 09/11 | `b628fe4` | OSA-022: việc còn mở sau port, OSA-015, 007, 003, 008, 019. |
 
-PR #1 đến #5 rơi vào đêm 06/11 UTC, tức sáng 07/11 giờ Sài Gòn. Bản OSA đang chạy là v0.6.1. Không gồm desktop/Tauri/`v0.7.0-preview`.
+PR #1 đến #5 rơi vào đêm 06/11 UTC, tức sáng 07/11 giờ Sài Gòn. Từ PR #17, code trên `i18n-vi` là v0.12.0, có `desktop/` và `mobile/` trong cây nhưng không có workflow build. Box vẫn chạy bản cũ cho tới khi deploy theo OPS.
 
-Việc đã vào code, rút từ log và từ code ở `c16e6bb`:
+Việc đã vào code, rút từ log và từ code ở `c16e6bb`. Thay đổi của PR #17 và #18 ghi ở cuối danh sách:
 
 - VI mặc định, EN/ZH, Chinese-as-key. Chat cũ không tự dịch.
 - Bảy skill AI Native cộng `ai-native-mentor` cài shared lúc startup. Opt-out bằng `skills.ai_native_defaults: false` hoặc `OSA_AI_NATIVE_DEFAULTS=false`.
 - Heavy: một lượt một task, `min_drafts` 2, `concurrency` 1. 402 và 429 hết hạn mức thì dừng, không gọi reviewer. 429 rate limit thì chờ `Retry-After`.
 - Prompt hệ thống và mô tả tool của OSA là tiếng Anh. `model_hint()` luôn gắn chỉ thị trả lời theo ngôn ngữ UI, mặc định vi. Nhãn draft là `=== Draft N ===`.
 - Marker code còn đọc: `[附件]`, khóa `需要你做的事`, và regex quiet vẫn nhận `无新内容` / `没有新内容` cạnh `[nothing new]`. Đừng xóa các chuỗi này khi "dọn tiếng Trung".
-- Template có khối `en:` thì UI khác `zh` dùng bản tiếng Anh. UI `zh` giữ nguồn Trung. Không có khối `vi:`.
+- Template chọn khối theo thứ tự vi → en → zh từ PR #18. UI `zh` giữ nguồn Trung.
 - Trang offline của service worker nằm trong `web/public/sw.js`, ngôn ngữ lấy từ Cache Storage `osa-lang`, thiếu thì tiếng Việt.
 - Chi phí là USD. `settings.cost_unit` chặn lần chia thứ hai. Tab giới hạn vẫn là token, bước, giây.
-- `OSA_DATA_DIR` chuyển DB, apps, workspace, log của `scripts/osa-start.sh` khi `memory.db` là đường tương đối. Đường tuyệt đối thì không. Xem OSA-015.
+- `OSA_DATA_DIR` chuyển DB, apps, workspace, log của `scripts/osa-start.sh` khi `memory.db` là đường tương đối. Đường tuyệt đối thì không. Từ PR #18, trường hợp này in cảnh báo lúc khởi động và hiện ở Cài đặt → Sao lưu (OSA-015, Tin Tin chọn cảnh báo, không đổi đường DB).
+- PR #18: lời gọi model trực tiếp (filter routine, import memory, teach, plugin `llm.complete`) đi qua `providers.create_chat`, 402 và 429 hết hạn mức không retry. Frontend lazy-load, entry JS 69 kB. Reconcile skill pack chịu crash giữa chừng. `osa/langcheck.py` gắn cờ `lang_flag` khi trả lời phần lớn là chữ Hán mà UI là vi hoặc en, không chặn.
 
 Live OSA-011 đã có trong repo: [bằng chứng](evidence/osa-011-live-test/LIVE-TEST.md), head lúc chạy `f83e3cb`, Experiential, mọi model đuôi `:free`, cost ghi 0. Bốn lượt chat (vi, en, single, heavy) đều CJK 0. Báo cáo để trạng thái PARTIAL. 14 dòng usage, 116.236 token (`cache_hit` + `cache_miss` + `output`), vượt mục tiêu khoảng 100.000 nên không chạy routine. Guard harness cộng cột `input` thay vì `cache_hit` + `cache_miss`, phải sửa trước đợt sau. Harness dừng websocket vì regex 402 khớp offset 14025. Log server không có 402. `results.json` còn heavy `running` ở 60,38 giây. `summary.json` ghi heavy PASS 124 giây. Thư mục `raw/` không đưa vào git. Câu `NOT_CHECKED` trong log OSA-011 là lời lúc mở PR #13.
 
@@ -71,18 +75,18 @@ Live OSA-011 đã có trong repo: [bằng chứng](evidence/osa-011-live-test/LI
 
 | ID | Ưu tiên | Việc | AC gợi ý | Chưa kiểm |
 |---|---|---|---|---|
-| OSA-015 | P0 | DB không đi theo `OSA_DATA_DIR` khi `memory.db` là đường tuyệt đối | DB của process nằm trong data dir, hoặc process từ chối khởi động và nói rõ. Sửa `test_absolute_db_path_still_wins`. Backup file DB đang mở trước khi đổi. | Box đã thấy file mở lệch. Chưa sửa code. |
+| OSA-015 | Xong | DB không đi theo `OSA_DATA_DIR` khi `memory.db` là đường tuyệt đối | Tin Tin chọn cảnh báo, không đổi đường DB. Đã vào PR #18. | Chưa thấy dòng cảnh báo trên box thật. |
 | OSA-020 | P1 | Dọn `config.experiential.yaml` trên box sang USD | `pricing.currency` là `$`. Bảng tay là số USD hoặc bỏ hẳn. Khởi động lại không chia `llm_usage` lần hai. Không commit file config. | File trên box vẫn để ¥. Code đọc và chia đúng. |
-| OSA-019 | P1 | Phần ngôn ngữ OSA-011 để lại | Persona tiếng Việt cho template. Mô tả tool MCP do server trả về. Validator đầu ra sai ngôn ngữ. Giữ marker code đang parse. Không dịch nội dung user. | Chưa có validator. |
+| OSA-019 | P1 | Phần ngôn ngữ còn lại sau PR #18 | Hiện `lang_flag` trên UI (Quan sát). Người bản ngữ đọc lại khối `vi:` của template. Template `vi:`, plugin theo UI, `langcheck` đã vào PR #18. | `lang_flag` chưa hiện trên UI. |
 | OSA-016 | P1 | Chạy thử routine trên data được phép | Một lịch, filter quiet, không gửi channel thật, có log lệnh. | `NOT_CHECKED` |
-| OSA-007 | P1 | UI sau đăng nhập, khoảng 390px, và các mốc 768/1440 | Ảnh đã xóa dữ liệu riêng. Ba ngôn ngữ còn đúng sau reload. | Bot không mở được tailnet sau login. Tin Tin thử trên điện thoại. |
+| OSA-007 | P1 | UI khoảng 390px sau đăng nhập trên điện thoại thật | Ma trận vi/en/zh × 375/768/1440 trên preview sandbox đã PASS ở PR #18. | Bot không mở được tailnet sau login. Tin Tin thử trên điện thoại. |
 | OSA-017 | P1 | Chạy OSA bằng Docker trên máy Tin Tin hoặc VPS | Hết phụ thuộc watchdog và mạng box. Computer E2E nằm ở OSA-002, không gộp vào task này. | Chưa chọn máy. |
 | OSA-001 | P2 | Router giao việc thật cho Worker, Worker tự nạp skill | Trace đủ, cleanup. Cần duyệt model và cap trước lượt trả phí. | Worker live chưa nghiệm thu. |
 | OSA-002 | P2 | Computer E2E trên máy có Docker | Build app, VNC/CDP, cửa sổ song song, takeover, upload. HTTP 200 không tính. | Box thường thiếu Docker. |
 | OSA-018 | P2 | Mẫu A/B Zro và DeepSeek còn lại | Đủ bài đã chốt, cap, điều kiện dừng. | Cần duyệt từng đợt. |
-| OSA-003 | P2 | Tách bundle frontend | Đo trước sau. Cảnh báo chunk >500 kB còn từ các bản build cũ (JS khoảng 1,15 MB). Chốt ngưỡng với Tin Tin. | Chưa đụng. |
+| OSA-003 | Xong | Tách bundle frontend | Entry JS 1.364 kB → 69 kB, hết cảnh báo chunk. Đã vào PR #18. | Không. |
 | OSA-005 | P2 | Rà GitHub Actions | CI đã có backend, frontend, Docker. Đề xuất lỗ hổng rồi mới sửa. | Chưa nhận. |
-| OSA-008 | P2 | Reconcile khi crash giữa file và SQLite | Bơm lỗi trên data tạm. Không tự cài lại đè sửa tay. | Chưa nhận. |
+| OSA-008 | Xong | Reconcile khi crash giữa file và SQLite | 19 ca bơm lỗi. Đã vào PR #18. | Không. |
 
 Deploy `c16e6bb` trên box, Tin Tin báo, phiên docs không mở DB:
 
