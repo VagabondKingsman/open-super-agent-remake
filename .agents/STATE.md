@@ -199,3 +199,11 @@ Sau PR #18: OSA-015, OSA-003, OSA-008 Done. OSA-007 còn kiểm 390px trên đi�
 `main` là default branch nhưng đứng ở `a30e3cc`, tổ tiên cũ của `i18n-vi`. Cloud agent mở theo mặc định sẽ thấy `main` không có `.agents/`. Chuyển sang `i18n-vi` trước khi làm.
 
 OSA-023 chỉ sửa docs: HANDOFF (head, bảng merge, còn lại), BOARD, STATE này và [log OSA-023](log/2026-11-09-hoplite-osa-023.md). Không đổi code, không gọi model trả phí.
+
+## Bổ sung · PR #19 đã merge · OSA-024 bridge skill cho Hoplite · hoplite · 09/11/2026
+
+Append. Câu "OSA-023 đang làm" ở BOARD cũ là trạng thái lúc viết.
+
+[PR #19](https://github.com/VagabondKingsman/open-super-agent-remake/pull/19) (OSA-023) đã merge vào `i18n-vi` tại `1b0de69002bb37ffabe9d6ff314b94de2e04c4f5`, `merged_at` API `2026-11-09T12:29:21Z` (19:29:21 Asia/Saigon). Merge bởi Hoplite (`app/usehoplite`) qua chế độ tự merge, trước câu duyệt. Tri Tran viết "Duyệt merge" lúc 19:33 để xác nhận sau.
+
+OSA-024: Tri Tran yêu cầu thread Hoplite cài đủ vibecode-kit và bộ AI Native trước khi build tiếp. Trước phiên này Hoplite thấy bốn bridge (`osa-dev`, `ai-work-method`, `vibecode-kit`, `unslop-vi`). Phiên thêm năm bridge: `refinery`, `sot-kernel-in-a-box`, `html3d-slides`, `unslop`, `ai-native-mentor`. Cách cài và kết quả chạy thử helper ghi ở [SKILL-FLOW](SKILL-FLOW.md#cài-skill-vào-hoplite). `skills-pack/` không đổi, `verify-sources` PASS (129 file). Chi tiết ở [log OSA-024](log/2026-11-09-hoplite-osa-024.md).
