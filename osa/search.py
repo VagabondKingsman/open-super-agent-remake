@@ -10,6 +10,7 @@
 所以从备份恢复、删除 Bot 这类绕开 memories / library 的改动也不会漏。页面按段切成约 600 字一块，最多索引前 200 块。
 """
 import asyncio
+import logging
 import math
 import operator
 import re
@@ -166,8 +167,14 @@ async def embed_loop():
             pass
         _wake.clear()
         while (e := embed_config()):
-            rows = conn.execute("select id, title, text from search_docs where model != ? or vec is null limit ?",
-                                (e["model"], BATCH)).fetchall()
+            try:
+                rows = conn.execute("select id, title, text from search_docs where model != ? or vec is null limit ?",
+                                    (e["model"], BATCH)).fetchall()
+            except Exception as err:
+                logging.getLogger(__name__).exception("embed_loop: reading pending docs failed")
+                status.update(error=f"{type(err).__name__}: {str(err)[:200]}", failed=time.time())
+                await asyncio.sleep(60)
+                break
             if not rows:
                 break
             try:
@@ -176,9 +183,15 @@ async def embed_loop():
                 status.update(error=f"{type(err).__name__}: {str(err)[:200]}", failed=time.time())
                 await asyncio.sleep(60)
                 break
-            for (did, _, _), v in zip(rows, vecs):
-                conn.execute("update search_docs set vec=?, model=? where id=?", (_pack(v), e["model"], did))
-            conn.commit()
+            try:
+                for (did, _, _), v in zip(rows, vecs):
+                    conn.execute("update search_docs set vec=?, model=? where id=?", (_pack(v), e["model"], did))
+                conn.commit()
+            except Exception as err:
+                logging.getLogger(__name__).exception("embed_loop: saving vectors failed")
+                status.update(error=f"{type(err).__name__}: {str(err)[:200]}", failed=time.time())
+                await asyncio.sleep(60)
+                break
             status.update(error="", last=time.time(), failed=0.0)
             await asyncio.sleep(0.2)
 

@@ -13,6 +13,7 @@
 """
 import asyncio
 import json
+import logging
 import time
 from .config import CFG
 from . import memory
@@ -184,4 +185,7 @@ def prune():
 async def prune_loop():
     while True:
         await asyncio.sleep(86400)
-        prune()
+        try:
+            prune()
+        except Exception:
+            logging.getLogger(__name__).exception("task log prune failed")
