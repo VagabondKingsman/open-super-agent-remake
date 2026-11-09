@@ -179,3 +179,11 @@ Append. Không sửa các mục phía trên. Câu "PR #16 chưa merge" ở trên
 [PR #16](https://github.com/VagabondKingsman/open-super-agent-remake/pull/16) đã merge vào `i18n-vi` tại `3b02a80f1b4b04e311c48f3283719f4798d7befd`. Head của PR là `c876608701a942b7a24d3d9857c0aed127c48493`. `merged_at` API `2026-11-07T14:14:45Z`, tức 21:14:45 Asia/Saigon. `merged_by` là VagabondKingsman.
 
 OSA-021 port upstream `kadaliao/open-super-agent` v0.12.0 (`d432c74`) lên remake. Branch `hoplite/megara-e725a8f4`, [PR #17](https://github.com/VagabondKingsman/open-super-agent-remake/pull/17) vào `i18n-vi`, chưa merge. Cách làm: dựng nền v0.12.0 rồi port lại phần riêng của remake, giữ VI mặc định, prompt tiếng Anh, Heavy, chi phí USD, skill pack AI Native. `desktop/` và `mobile/` có trong cây, không có workflow build. Local: pytest 690 passed, 5 skipped. i18n backend 1175, frontend 1244, thiếu/thừa 0. Web 27/27, build OK. Docker build và smoke OK. Chi tiết và việc còn mở ở [log OSA-021](log/2026-11-09-hoplite-osa-021.md). Không gọi model trả phí trong phiên hoàn tất.
+
+## Bổ sung · PR #17 đã merge · OSA-022 đang làm · hoplite · 09/11/2026
+
+Append. Câu "PR #17 chưa merge" ở trên là trạng thái lúc viết OSA-021.
+
+[PR #17](https://github.com/VagabondKingsman/open-super-agent-remake/pull/17) đã merge vào `i18n-vi` tại `d3a838ee1bcdcfac3962f84229fbd10f2e3728a8`, `merged_at` API `2026-11-09T07:25:33Z` (14:25:33 Asia/Saigon). Hoplite merge theo câu duyệt của Thi Vo. Bản trên `i18n-vi` giờ là OSA 0.12.0. Box vẫn chạy bản cũ cho tới khi deploy theo OPS.
+
+OSA-022, branch `hoplite/osa-022-port-followups`, gồm: các việc còn mở sau port, OSA-015 (cảnh báo, không đổi DB), OSA-007 (sửa Quan sát ở 375px và hai bản dịch dính chữ), OSA-003 (entry JS 69 kB), OSA-008 (reconcile chịu crash), OSA-019 (template `vi:`, plugin theo ngôn ngữ UI, cờ `lang_flag`). Local: pytest 752 passed, 5 skipped. i18n thiếu/thừa 0. Web 27/27, build OK. Chi tiết ở [log OSA-022](log/2026-11-09-hoplite-osa-022.md). Không gọi model trả phí.
