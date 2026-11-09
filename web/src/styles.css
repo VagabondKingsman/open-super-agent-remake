@@ -1149,9 +1149,9 @@ textarea.newbot-role.edit { display: block; width: 100%; max-height: 360px; resi
 @media (max-width: 760px) {
   .observe .chat-head { height: auto; min-height: 54px; padding-top: 8px; padding-bottom: 8px; flex-wrap: wrap; row-gap: 6px; }
   .ob-refresh { order: 0; margin-left: auto; }
-  .ob-filters { order: 4; width: 100%; margin-left: 0; }
+  .ob-filters { order: 4; width: 100%; margin-left: 0; flex-wrap: wrap; row-gap: 6px; }
   .ob-filters .seg { flex: none; } .ob-filters .seg button { padding: 3px 8px; }
-  .ob-bot { flex: 1; max-width: none; }
+  .ob-bot { flex: 1 1 120px; min-width: 0; max-width: none; }   /* longer VI/EN range labels push it to its own row */
   .ob-body { padding: 12px 12px 30px; gap: 12px; }
   .ob-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .ob-value { font-size: 19px; }
