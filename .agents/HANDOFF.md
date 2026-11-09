@@ -17,13 +17,13 @@ Repo: `VagabondKingsman/open-super-agent-remake`. Base: `i18n-vi`. Upstream `kad
 
 ## Head hiện tại
 
-Đối chiếu trong phiên OSA-023, 09/11/2026:
+Đối chiếu trong phiên OSA-030, 09/11/2026:
 
-`origin/i18n-vi = b628fe4e91e557217f8f41abfc92463151e57fa6`
+`origin/i18n-vi = 254673ce4989725050121abda75f2f2986672f00`
 
-Đó là merge [PR #18](https://github.com/VagabondKingsman/open-super-agent-remake/pull/18) (OSA-022). `merged_at` API `2026-11-09T11:16:57Z` (18:16:57 Asia/Saigon). `merged_by` là VagabondKingsman. Head của PR là `79e31ff7b4ee04efb1152d868dd6828b2a4a4efc`. CI push trên `b628fe4` SUCCESS. Không có PR mở vào `i18n-vi` lúc đối chiếu. Bản OSA trên base là 0.12.0.
+Đó là merge [PR #25](https://github.com/VagabondKingsman/open-super-agent-remake/pull/25) (OSA-029). `merged_at` API `2026-11-09T15:26:20Z` (22:26:20 Asia/Saigon). Merge bởi Hoplite (`app/usehoplite`) theo câu duyệt của Tri Tran. CI push trên `254673c` SUCCESS. Không có PR code nào mở vào `i18n-vi` lúc đối chiếu. Bản OSA trên base là 0.12.0.
 
-Phiên sau chạy `git fetch` và `git rev-parse origin/i18n-vi`. SHA mới hơn thì đọc log mới. Đừng coi `b628fe4` là latest mãi.
+Phiên sau chạy `git fetch` và `git rev-parse origin/i18n-vi`. SHA mới hơn thì đọc log mới. Đừng coi `254673c` là latest mãi.
 
 `main` là default branch trên GitHub nhưng đứng ở `a30e3cc`, tổ tiên cũ của `i18n-vi`, không có `.agents/` hay `tests/`. Cloud agent hay checkout `main` theo mặc định. Phải chuyển sang `i18n-vi` trước khi làm.
 
@@ -51,10 +51,17 @@ Giờ là `merged_at` đổi sang Asia/Saigon. `merged_by` trên API là Vagabon
 | [#16](https://github.com/VagabondKingsman/open-super-agent-remake/pull/16) | 21:14:45 | `3b02a80` | OSA-014 bàn giao `.agents/` cho bot mới. |
 | [#17](https://github.com/VagabondKingsman/open-super-agent-remake/pull/17) | 14:25:33 09/11 | `d3a838e` | OSA-021 port upstream v0.12.0 (`d432c74`) lên remake. |
 | [#18](https://github.com/VagabondKingsman/open-super-agent-remake/pull/18) | 18:16:57 09/11 | `b628fe4` | OSA-022: việc còn mở sau port, OSA-015, 007, 003, 008, 019. |
+| [#19](https://github.com/VagabondKingsman/open-super-agent-remake/pull/19) | 19:29:21 09/11 | `1b0de69` | OSA-023 đồng bộ `.agents/` sau PR #18. |
+| [#20](https://github.com/VagabondKingsman/open-super-agent-remake/pull/20) | 20:25:07 09/11 | `6c02c1b` | OSA-024 bridge Hoplite cho đủ bộ AI Native. |
+| [#22](https://github.com/VagabondKingsman/open-super-agent-remake/pull/22) | 20:39:03 09/11 | `b9b1c2a` | OSA-019 `lang_flag` hiện trên trang Quan sát. |
+| [#21](https://github.com/VagabondKingsman/open-super-agent-remake/pull/21) | 22:19:01 09/11 | `42475fd` | OSA-005 cứng hóa GitHub Actions, workflow build image computer. |
+| [#23](https://github.com/VagabondKingsman/open-super-agent-remake/pull/23) | 22:19:16 09/11 | `bbf0ed5` | OSA-025 ba lỗi bảo mật High. |
+| [#24](https://github.com/VagabondKingsman/open-super-agent-remake/pull/24) | 22:22:52 09/11 | `b3e5b65` | OSA-028 bảo mật Medium và L1. |
+| [#25](https://github.com/VagabondKingsman/open-super-agent-remake/pull/25) | 22:26:20 09/11 | `254673c` | OSA-029 độ tin cậy: vòng nền, WebSocket backoff, TZ. |
 
 PR #1 đến #5 rơi vào đêm 06/11 UTC, tức sáng 07/11 giờ Sài Gòn. Từ PR #17, code trên `i18n-vi` là v0.12.0, có `desktop/` và `mobile/` trong cây nhưng không có workflow build. Box vẫn chạy bản cũ cho tới khi deploy theo OPS.
 
-Việc đã vào code, rút từ log và từ code ở `c16e6bb`. Thay đổi của PR #17 và #18 ghi ở cuối danh sách:
+Việc đã vào code, rút từ log và từ code ở `c16e6bb`. Thay đổi từ PR #17 trở đi ghi ở cuối danh sách:
 
 - VI mặc định, EN/ZH, Chinese-as-key. Chat cũ không tự dịch.
 - Bảy skill AI Native cộng `ai-native-mentor` cài shared lúc startup. Opt-out bằng `skills.ai_native_defaults: false` hoặc `OSA_AI_NATIVE_DEFAULTS=false`.
@@ -66,6 +73,15 @@ Việc đã vào code, rút từ log và từ code ở `c16e6bb`. Thay đổi c�
 - Chi phí là USD. `settings.cost_unit` chặn lần chia thứ hai. Tab giới hạn vẫn là token, bước, giây.
 - `OSA_DATA_DIR` chuyển DB, apps, workspace, log của `scripts/osa-start.sh` khi `memory.db` là đường tương đối. Đường tuyệt đối thì không. Từ PR #18, trường hợp này in cảnh báo lúc khởi động và hiện ở Cài đặt → Sao lưu (OSA-015, Tin Tin chọn cảnh báo, không đổi đường DB).
 - PR #18: lời gọi model trực tiếp (filter routine, import memory, teach, plugin `llm.complete`) đi qua `providers.create_chat`, 402 và 429 hết hạn mức không retry. Frontend lazy-load, entry JS 69 kB. Reconcile skill pack chịu crash giữa chừng. `osa/langcheck.py` gắn cờ `lang_flag` khi trả lời phần lớn là chữ Hán mà UI là vi hoặc en, không chặn.
+- PR #23–#25, áp dụng khi deploy:
+  - Đăng nhập: mọi lần kiểm mật khẩu xếp một hàng chung.
+  - Task nền trên computer Docker/Instabox phải được duyệt trước `computer_shell` và `computer_write_file`.
+  - Container computer tạo mới có `no-new-privileges`, giới hạn pids, bỏ `NET_RAW`/`MKNOD`. Container `osa-computer` cũ phải `docker rm -f` để tạo lại.
+  - `compose.yaml` không gắn `docker.sock`. Muốn dùng computer local thì thêm `compose.computer.yaml` (`COMPOSE_FILE` trong `.env`).
+  - Nghe ngoài loopback mà không có `OSA_PASSWORD` thì từ chối khởi động (`OSA_ALLOW_NO_PASSWORD=1` để bỏ qua).
+  - Webhook cũ `/hooks/<tên>` cần `OSA_WEBHOOK_TOKEN` khi đã có mật khẩu.
+  - `fetch_url` ghim IP đã kiểm, tối đa 2 MB. Push chặn IP nội bộ.
+  - TZ Docker mặc định là `Asia/Ho_Chi_Minh`.
 
 Live OSA-011 đã có trong repo: [bằng chứng](evidence/osa-011-live-test/LIVE-TEST.md), head lúc chạy `f83e3cb`, Experiential, mọi model đuôi `:free`, cost ghi 0. Bốn lượt chat (vi, en, single, heavy) đều CJK 0. Báo cáo để trạng thái PARTIAL. 14 dòng usage, 116.236 token (`cache_hit` + `cache_miss` + `output`), vượt mục tiêu khoảng 100.000 nên không chạy routine. Guard harness cộng cột `input` thay vì `cache_hit` + `cache_miss`, phải sửa trước đợt sau. Harness dừng websocket vì regex 402 khớp offset 14025. Log server không có 402. `results.json` còn heavy `running` ở 60,38 giây. `summary.json` ghi heavy PASS 124 giây. Thư mục `raw/` không đưa vào git. Câu `NOT_CHECKED` trong log OSA-011 là lời lúc mở PR #13.
 
@@ -77,7 +93,7 @@ Live OSA-011 đã có trong repo: [bằng chứng](evidence/osa-011-live-test/LI
 |---|---|---|---|---|
 | OSA-015 | Xong | DB không đi theo `OSA_DATA_DIR` khi `memory.db` là đường tuyệt đối | Tin Tin chọn cảnh báo, không đổi đường DB. Đã vào PR #18. | Chưa thấy dòng cảnh báo trên box thật. |
 | OSA-020 | P1 | Dọn `config.experiential.yaml` trên box sang USD | `pricing.currency` là `$`. Bảng tay là số USD hoặc bỏ hẳn. Khởi động lại không chia `llm_usage` lần hai. Không commit file config. | File trên box vẫn để ¥. Code đọc và chia đúng. |
-| OSA-019 | P1 | Phần ngôn ngữ còn lại sau PR #18 | Hiện `lang_flag` trên UI (Quan sát). Người bản ngữ đọc lại khối `vi:` của template. Template `vi:`, plugin theo UI, `langcheck` đã vào PR #18. | `lang_flag` chưa hiện trên UI. |
+| OSA-019 | P1 | Phần ngôn ngữ còn lại | Người bản ngữ đọc lại khối `vi:` của template. `lang_flag` đã hiện trên Quan sát (PR #22). | Bản `vi:` chưa có người đọc. |
 | OSA-016 | P1 | Chạy thử routine trên data được phép | Một lịch, filter quiet, không gửi channel thật, có log lệnh. | `NOT_CHECKED` |
 | OSA-007 | P1 | UI khoảng 390px sau đăng nhập trên điện thoại thật | Ma trận vi/en/zh × 375/768/1440 trên preview sandbox đã PASS ở PR #18. | Bot không mở được tailnet sau login. Tin Tin thử trên điện thoại. |
 | OSA-017 | P1 | Chạy OSA bằng Docker trên máy Tin Tin hoặc VPS | Hết phụ thuộc watchdog và mạng box. Computer E2E nằm ở OSA-002, không gộp vào task này. | Chưa chọn máy. |
@@ -85,7 +101,7 @@ Live OSA-011 đã có trong repo: [bằng chứng](evidence/osa-011-live-test/LI
 | OSA-002 | P2 | Computer E2E trên máy có Docker | Build app, VNC/CDP, cửa sổ song song, takeover, upload. HTTP 200 không tính. | Box thường thiếu Docker. |
 | OSA-018 | P2 | Mẫu A/B Zro và DeepSeek còn lại | Đủ bài đã chốt, cap, điều kiện dừng. | Cần duyệt từng đợt. |
 | OSA-003 | Xong | Tách bundle frontend | Entry JS 1.364 kB → 69 kB, hết cảnh báo chunk. Đã vào PR #18. | Không. |
-| OSA-005 | P2 | Rà GitHub Actions | CI đã có backend, frontend, Docker. Đề xuất lỗ hổng rồi mới sửa. | Chưa nhận. |
+| OSA-005 | Xong | Rà GitHub Actions | Đã cứng hóa ở PR #21. | Không. |
 | OSA-008 | Xong | Reconcile khi crash giữa file và SQLite | 19 ca bơm lỗi. Đã vào PR #18. | Không. |
 
 Deploy `c16e6bb` trên box, Tin Tin báo, phiên docs không mở DB:
@@ -96,6 +112,8 @@ Deploy `c16e6bb` trên box, Tin Tin báo, phiên docs không mở DB:
 - File operator `config.experiential.yaml` vẫn khai `currency` ¥, `usd_rate` 7.1, và bảng tay CNY. `manual_table_is_cny()` chia bảng đó lúc đọc. Việc dọn file là OSA-020.
 
 `legacy_cny_per_usd: 1` chỉ khi số cũ đã là USD. DB box này đã chia một lần. Lần sau cờ USD giữ nguyên số.
+
+Audit 09/11, phần còn lại chưa giao (nhóm C): L2 vault key từ passphrase dùng scrypt (cần migrate), L3 thu hồi session, L5 lọc IP nội bộ cho app MCP HTTP/SSE, R2 bật WAL cho SQLite. Ngoài ra `sources/_util.get` và `unfurl` vẫn kiểm IP rồi mới kết nối, có thể chuyển sang `tools.pin()`.
 
 ## Bước đầu phiên sau
 
