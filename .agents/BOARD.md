@@ -31,7 +31,7 @@ Snapshot 07/11/2026, Asia/Saigon (UTC+7). GitHub PR + base mới là trạng th�
 
 ## In progress
 
-- OSA-024: `OSA-024 / hoplite / hoplite/osa-024-skill-bridges / bridge Hoplite cho đủ bộ AI Native (refinery, sot-kernel-in-a-box, html3d-slides, unslop, ai-native-mentor), ghi cách cài vào SKILL-FLOW / claimed_at 09/11/2026 19:56 Asia/Saigon / PR vào i18n-vi`. Tách từ `i18n-vi` tại `1b0de69`. Chỉ sửa `.agents/`. Chi tiết ở [log OSA-024](log/2026-11-09-hoplite-osa-024.md).
+- OSA-024: `OSA-024 / hoplite / hoplite/osa-024-skill-bridges / bridge Hoplite cho đủ bộ AI Native (refinery, sot-kernel-in-a-box, html3d-slides, unslop, ai-native-mentor), ghi cách cài vào SKILL-FLOW / claimed_at 09/11/2026 19:56 Asia/Saigon / [PR #20](https://github.com/VagabondKingsman/open-super-agent-remake/pull/20)`. Tách từ `i18n-vi` tại `1b0de69`. Chỉ sửa `.agents/`. Chi tiết ở [log OSA-024](log/2026-11-09-hoplite-osa-024.md).
 
 ## Done · đã public
 
