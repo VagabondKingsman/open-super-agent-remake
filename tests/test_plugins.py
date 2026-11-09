@@ -241,8 +241,8 @@ async def test_router_uses_catalog_plugin(pdir, llm, events, bot):
     await until(lambda: find(b["chat_id"], role="assistant", text="没有记录"), what="回复")
     body = llm.bodies("router", "Auditor")[-1]
     assert any(t["function"]["name"] == "audit_search" for t in body["tools"])
-    assert any(m["role"] == "tool" and "没有找到符合条件的工具调用记录" in m["content"] for m in body["messages"])
-    assert "audit_search: 查 Bot 调用工具的记录" in body["messages"][0]["content"]          # 能力说明里也有
+    assert any(m["role"] == "tool" and "No matching tool calls found" in m["content"] for m in body["messages"])
+    assert "audit_search: Search the log of Bot tool calls" in body["messages"][0]["content"]          # 能力说明里也有
     # 市场里的新版本：装上会停掉旧的，要重新启用
     (pdir / "audit_log.py").write_text((pdir / "audit_log.py").read_text() + "\n# 本地改过\n")
     assert plugins.info("audit_log")["update"]

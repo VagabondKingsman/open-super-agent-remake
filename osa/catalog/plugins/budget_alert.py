@@ -8,7 +8,7 @@ daily_cost（每天花多少钱算多，比如 5，0 是不看钱）。每个线
 import asyncio
 import json
 import time
-from osa import memory
+from osa import i18n, memory
 from osa.config import CFG
 from osa.prices import CURRENCY
 
@@ -32,27 +32,31 @@ def crossed(value: float, limit: float, percents: list, sent: set, kind: str) ->
 
 
 def _tokens(n: float) -> str:
-    return f"{n / 10000:.1f} 万" if n >= 10000 else f"{n:.0f}"
+    if i18n.lang() == "zh":
+        return f"{n / 10000:.1f} 万" if n >= 10000 else f"{n:.0f}"
+    return f"{n / 1_000_000:.2f}M" if n >= 1_000_000 else f"{n / 1000:.1f}K" if n >= 1000 else f"{n:.0f}"
 
 
 def token_message(p: int, tokens: int, budget: int, cost: float, cur: str) -> str:
-    used = f"{_tokens(tokens)} / {_tokens(budget)}"
+    used, spent = f"{_tokens(tokens)} / {_tokens(budget)}", f"{cur}{cost:.2f}"
     if p >= 100:
-        return (f"⛔ 今天的 token 预算用完了（{used}，今天花了 {cur}{cost:.2f}）：Bot 们现在不接新活、后台任务会停下，"
-                "等最近 24 小时的用量降下来自动恢复。急用的话去设置里调高“每日 token 预算”。")
-    return (f"⚠️ 今天的 token 已经用了 {tokens / budget * 100:.0f}%（{used}，今天花了 {cur}{cost:.2f}）。"
-            "用到 100% Bot 们就会停下，要么省着点用，要么去设置里调高“每日 token 预算”。")
+        return i18n.t("⛔ 今天的 token 预算用完了（{used}，今天花了 {cost}）：Bot 们现在不接新活、后台任务会停下，"
+                      "等最近 24 小时的用量降下来自动恢复。急用的话去设置里调高“每日 token 预算”。", used=used, cost=spent)
+    return i18n.t("⚠️ 今天的 token 已经用了 {pct}%（{used}，今天花了 {cost}）。"
+                  "用到 100% Bot 们就会停下，要么省着点用，要么去设置里调高“每日 token 预算”。",
+                  pct=f"{tokens / budget * 100:.0f}", used=used, cost=spent)
 
 
 def cost_message(p: int, cost: float, limit: float, cur: str) -> str:
+    spent, cap = f"{cur}{cost:.2f}", f"{cur}{limit:g}"
     if p >= 100:
-        return f"💸 今天已经花了 {cur}{cost:.2f}，超过了你定的每天 {cur}{limit:g}。只是提醒，Bot 不会因此停下。"
-    return f"💸 今天已经花了 {cur}{cost:.2f}，到了你定的每天 {cur}{limit:g} 的 {cost / limit * 100:.0f}%。"
+        return i18n.t("💸 今天已经花了 {cost}，超过了你定的每天 {limit}。只是提醒，Bot 不会因此停下。", cost=spent, limit=cap)
+    return i18n.t("💸 今天已经花了 {cost}，到了你定的每天 {limit} 的 {pct}%。", cost=spent, limit=cap, pct=f"{cost / limit * 100:.0f}")
 
 
 def _percents(v) -> list[int]:
     if not isinstance(v, list) or not v or not all(isinstance(x, (int, float)) and 0 < x <= 1000 for x in v):
-        raise ValueError("warn_at_percent 要是百分比的列表，比如 [80, 100]")
+        raise ValueError(i18n.t("warn_at_percent 要是百分比的列表，比如 [80, 100]"))
     return sorted({int(x) for x in v})
 
 
@@ -93,7 +97,7 @@ def apply(ctx):
         if float(ctx.config.get("daily_cost") or 0) < 0:
             raise ValueError
     except (TypeError, ValueError):
-        raise ValueError("daily_cost 要是一个数（每天花多少钱算多，0 是不看钱）") from None
+        raise ValueError(i18n.t("daily_cost 要是一个数（每天花多少钱算多，0 是不看钱）")) from None
 
     async def loop():
         await asyncio.sleep(30)   # 服务刚启动、刚启用时先等一会儿

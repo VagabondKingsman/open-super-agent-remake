@@ -16,6 +16,7 @@ import ssl
 import time
 from email.message import EmailMessage
 from email.utils import formataddr, formatdate, make_msgid
+from osa import i18n
 from osa.registry import WORKER, Tool
 
 META = {"title": "发邮件", "version": "1.0", "author": "open-super-agent",
@@ -41,13 +42,14 @@ TIMEOUT = 10
 
 SCHEMA = {"type": "function", "function": {
     "name": "send_email",
-    "description": "用用户自己的邮箱给别人发一封纯文字邮件（不带附件）。只在用户明确要发邮件、给了收件人时用；"
-                   "发之前会弹卡片让用户确认。收件人写邮箱地址，几个用逗号分开。",
+    "description": "Send a plain-text email (no attachments) to other people from the user's own mailbox. Use it only when the user "
+                   "explicitly asks to send an email and gives the recipients; the user is asked to confirm before it goes out. "
+                   "Write recipients as email addresses, separated by commas.",
     "parameters": {"type": "object", "properties": {
-        "to": {"type": "string", "description": "收件人邮箱，几个用逗号分开"},
-        "subject": {"type": "string", "description": "主题"},
-        "body": {"type": "string", "description": "正文（纯文字）"},
-        "cc": {"type": "string", "description": "抄送，可选，几个用逗号分开"}},
+        "to": {"type": "string", "description": "Recipient email addresses, separated by commas"},
+        "subject": {"type": "string", "description": "Subject"},
+        "body": {"type": "string", "description": "Body (plain text)"},
+        "cc": {"type": "string", "description": "Optional cc, separated by commas"}},
         "required": ["to", "subject", "body"]}}}
 
 
@@ -58,19 +60,19 @@ def server_of(cfg: dict) -> tuple[str, int, str]:
         domain = str(cfg.get("user") or "").rsplit("@", 1)[-1].lower()
         host = DOMAINS.get(domain, "")
         if not host:
-            raise ValueError(f"猜不出 {domain or '这个邮箱'} 的发信服务器：先填 host（比如 smtp.example.com），"
-                             f"或者写简称 {' / '.join(PRESETS)}")
+            raise ValueError(i18n.t("猜不出 {domain} 的发信服务器：先填 host（比如 smtp.example.com），或者写简称 {presets}",
+                                    domain=domain or i18n.t("这个邮箱"), presets=" / ".join(PRESETS)))
     preset = PRESETS.get(host)
     name, port = preset if preset else (host, 465)
     if cfg.get("port"):
         try:
             port = int(cfg["port"])
         except (TypeError, ValueError):
-            raise ValueError("port 要是数字（465 或 587）") from None
+            raise ValueError(i18n.t("port 要是数字（465 或 587）")) from None
     if not 0 < port < 65536:
-        raise ValueError("port 要是数字（465 或 587）")
+        raise ValueError(i18n.t("port 要是数字（465 或 587）"))
     if not re.fullmatch(r"[a-z0-9.-]+", name):
-        raise ValueError(f"host「{name}」不像服务器地址")
+        raise ValueError(i18n.t("host「{name}」不像服务器地址", name=name))
     return name, port, "ssl" if port == 465 else "starttls"
 
 
@@ -78,7 +80,7 @@ def domains_of(v) -> list[str]:
     if not v:
         return []
     if not isinstance(v, list) or not all(isinstance(d, str) for d in v):
-        raise ValueError('allowed_domains 要是域名的列表，比如 ["mycompany.com"]，不限制就写 []')
+        raise ValueError(i18n.t('allowed_domains 要是域名的列表，比如 ["mycompany.com"]，不限制就写 []'))
     return [d.strip().lstrip("@").lower() for d in v if d.strip()]
 
 
@@ -91,7 +93,7 @@ def addresses(v) -> list[str]:
         if not x:
             continue
         if not EMAIL.fullmatch(x):
-            raise ValueError(f"「{x}」不是邮箱地址")
+            raise ValueError(f"\"{x}\" is not an email address")
         if x.lower() not in (o.lower() for o in out):
             out.append(x)
     return out
@@ -99,27 +101,27 @@ def addresses(v) -> list[str]:
 
 def check_recipients(to: list[str], cc: list[str], allowed: list[str]):
     if not to:
-        raise ValueError("没有收件人")
+        raise ValueError("No recipients")
     if len(to) + len(cc) > MAX_RCPT:
-        raise ValueError(f"收件人加抄送最多 {MAX_RCPT} 个")
+        raise ValueError(f"At most {MAX_RCPT} recipients including cc")
     if allowed:
         bad = [a for a in to + cc
                if not any((d := a.rsplit("@", 1)[1].lower()) == x or d.endswith("." + x) for x in allowed)]
         if bad:
-            raise ValueError(f"设置里只允许发给 {'、'.join(allowed)} 的邮箱，{'、'.join(bad)} 不在里面")
+            raise ValueError(f"The settings only allow sending to {', '.join(allowed)} addresses; {', '.join(bad)} not allowed")
 
 
 def build_message(user: str, from_name: str, to: list[str], cc: list[str], subject: str, body: str) -> EmailMessage:
     subject = re.sub(r"[\r\n]+", " ", str(subject or "")).strip()   # 换行会变成新的邮件头
     body = str(body or "")
     if not subject:
-        raise ValueError("没有主题")
+        raise ValueError("No subject")
     if len(subject) > MAX_SUBJECT:
-        raise ValueError(f"主题太长（最多 {MAX_SUBJECT} 字）")
+        raise ValueError(f"Subject too long (at most {MAX_SUBJECT} characters)")
     if not body.strip():
-        raise ValueError("正文是空的")
+        raise ValueError("The body is empty")
     if len(body) > MAX_BODY:
-        raise ValueError(f"正文太长（最多 {MAX_BODY} 字），删短一点或者分几封")
+        raise ValueError(f"Body too long (at most {MAX_BODY} characters): shorten it or split it into several emails")
     msg = EmailMessage()
     msg["From"] = formataddr((re.sub(r"[\r\n]+", " ", from_name).strip(), user)) if from_name else user
     msg["To"] = ", ".join(to)
@@ -148,17 +150,17 @@ def deliver(server: tuple[str, int, str], user: str, password: str, msg: EmailMe
 
 def explain(e: Exception, server: tuple[str, int, str]) -> str:
     if isinstance(e, smtplib.SMTPAuthenticationError):
-        return "邮箱登录失败，检查 user 和 password（QQ、163、Gmail 要用授权码或应用专用密码，不是登录密码）"
+        return "Mailbox login failed: check user and password (QQ, 163 and Gmail need an authorization code or app password, not the login password)"
     if isinstance(e, smtplib.SMTPNotSupportedError):
-        return "服务器不支持加密连接（STARTTLS），密码会明文传过去，没发。换成 465 端口试试"
+        return "The server does not support an encrypted connection (STARTTLS), so the password would go in clear text. Nothing was sent. Try port 465"
     if isinstance(e, smtplib.SMTPRecipientsRefused):
-        return f"收件人都被服务器拒收了：{'、'.join(e.recipients)}"
+        return f"The server refused every recipient: {', '.join(e.recipients)}"
     if isinstance(e, smtplib.SMTPSenderRefused):
-        return f"服务器不让用 {e.sender} 发信：{e.smtp_error.decode(errors='replace')[:200]}"
+        return f"The server does not allow sending as {e.sender}: {e.smtp_error.decode(errors='replace')[:200]}"
     if isinstance(e, smtplib.SMTPResponseException):
-        return f"服务器拒绝了（{e.smtp_code}）：{e.smtp_error.decode(errors='replace')[:200]}"
+        return f"The server rejected it ({e.smtp_code}): {e.smtp_error.decode(errors='replace')[:200]}"
     if isinstance(e, (smtplib.SMTPException, OSError)):
-        return f"连不上 {server[0]}:{server[1]}（{type(e).__name__}），检查 host 和 port"
+        return f"Cannot connect to {server[0]}:{server[1]} ({type(e).__name__}): check host and port"
     return f"{type(e).__name__}: {e}"
 
 
@@ -166,14 +168,14 @@ def apply(ctx):
     cfg = ctx.config
     user = str(cfg.get("user") or "").strip()
     if not EMAIL.fullmatch(user):
-        raise ValueError("先在设置里填 user（你的邮箱地址，比如 me@qq.com）")
+        raise ValueError(i18n.t("先在设置里填 user（你的邮箱地址，比如 me@qq.com）"))
     password = ctx.secret(cfg.get("password"))
     if not password:
-        raise ValueError("先在设置里填 password（授权码，建议写 vault:名字 从保险库取；写的是 vault: 的话看看保险库里有没有这一项）")
+        raise ValueError(i18n.t("先在设置里填 password（授权码，建议写 vault:名字 从保险库取；写的是 vault: 的话看看保险库里有没有这一项）"))
     server = server_of(cfg)
     from_name = cfg.get("from_name") or ""
     if not isinstance(from_name, str) or len(from_name) > 64:
-        raise ValueError("from_name 要是不超过 64 个字的名字")
+        raise ValueError(i18n.t("from_name 要是不超过 64 个字的名字"))
     allowed = domains_of(cfg.get("allowed_domains"))
     sent: list[float] = []   # 最近一小时发的时间
 
@@ -186,21 +188,21 @@ def apply(ctx):
             check_recipients(to, cc, allowed)
             msg = build_message(user, from_name, to, cc, a.get("subject"), a.get("body"))
         except ValueError as e:
-            return f"没发：{e}"
+            return f"Not sent: {e}"
         now = time.time()
         sent[:] = [t for t in sent if now - t < 3600]
         if len(sent) >= PER_HOUR:
-            return f"没发：一小时内已经发了 {PER_HOUR} 封，先停一下，过一会儿再发"
+            return f"Not sent: {PER_HOUR} emails already went out in the past hour. Pause and try again later"
         try:
             refused = await asyncio.to_thread(deliver, server, user, password, msg, to + cc)
         except Exception as e:
-            return f"没发出去：{explain(e, server)}"
+            return f"Not sent: {explain(e, server)}"
         sent.append(now)
-        out = f"发出去了：收件人 {', '.join(to)}" + (f"，抄送 {', '.join(cc)}" if cc else "") + f"，主题「{msg['Subject']}」。"
+        out = f"Sent. To: {', '.join(to)}" + (f"; cc: {', '.join(cc)}" if cc else "") + f"; subject: \"{msg['Subject']}\"."
         if refused:
-            out += f"其中 {'、'.join(refused)} 被服务器拒收了。"
+            out += f" The server refused: {', '.join(refused)}."
         return out
 
     ctx.tool(Tool("send_email", SCHEMA, run, where=frozenset({WORKER}), gated=True,
-                  describe="用用户的邮箱发邮件（SMTP，每封先问用户）",
-                  progress=lambda a: f"发邮件给 {str(a.get('to') or '')[:60]}：{str(a.get('subject') or '')[:30]}"))
+                  describe="Send email from the user's mailbox (SMTP; the user is asked before each one)",
+                  progress=lambda a: i18n.t("发邮件给 {to}：{subject}", to=str(a.get("to") or "")[:60], subject=str(a.get("subject") or "")[:30])))
