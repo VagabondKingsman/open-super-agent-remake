@@ -7,6 +7,7 @@ import asyncio
 import json
 import xml.etree.ElementTree as ET
 import httpx
+from osa import i18n
 
 META = {"title": "订阅 RSS", "version": "1.0", "author": "open-super-agent", "inject": ["messenger"],
         "config": {"feeds": [], "bot": "", "every_minutes": 60}}
@@ -45,8 +46,8 @@ async def fetch(url: str) -> bytes:
 
 def message(title: str, url: str, new: list[dict]) -> str:
     lines = [f"- [{i['title'] or i['link']}]({i['link']})" if i["link"] else f"- {i['title']}" for i in new[:MAX_POST]]
-    more = f"\n…还有 {len(new) - MAX_POST} 篇" if len(new) > MAX_POST else ""
-    return f"📰 **{title or url}** 有 {len(new)} 篇新文章：\n" + "\n".join(lines) + more
+    more = "\n" + i18n.t("…还有 {n} 篇", n=len(new) - MAX_POST) if len(new) > MAX_POST else ""
+    return i18n.t("📰 **{title}** 有 {n} 篇新文章：", title=title or url, n=len(new)) + "\n" + "\n".join(lines) + more
 
 
 async def poll(ctx) -> int:
@@ -78,7 +79,7 @@ async def poll(ctx) -> int:
 def apply(ctx):
     feeds = ctx.config.get("feeds")
     if not isinstance(feeds, list) or not all(isinstance(u, str) and u.startswith(("https://", "http://")) for u in feeds):
-        raise ValueError("feeds 要是订阅源地址的列表（http 或 https 开头）")
+        raise ValueError(i18n.t("feeds 要是订阅源地址的列表（http 或 https 开头）"))
     every = max(10, int(ctx.config.get("every_minutes") or 60)) * 60
 
     async def loop():

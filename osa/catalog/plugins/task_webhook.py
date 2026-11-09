@@ -5,6 +5,7 @@
 only_failed 为 true 时只推失败的。钉钉机器人开了“加签”的不支持，用“自定义关键词”就行。
 """
 import httpx
+from osa import i18n
 
 META = {"title": "任务完成推送到群机器人", "version": "1.0", "author": "open-super-agent",
         "config": {"url": "", "kind": "feishu", "only_failed": False}}
@@ -26,7 +27,8 @@ def body(kind: str, text: str, task: dict) -> dict:
 
 def message(task: dict, bot: dict, result: str) -> str:
     ok = task.get("status") == "done"
-    head = f"{'✅' if ok else '❌'} {bot.get('name', 'Bot')} 的任务 #{task.get('id')} {'完成' if ok else '没完成'}：{task.get('goal', '')[:80]}"
+    head = (i18n.t("✅ {bot} 的任务 #{id} 完成：{goal}", bot=bot.get("name", "Bot"), id=task.get("id"), goal=task.get("goal", "")[:80]) if ok else
+            i18n.t("❌ {bot} 的任务 #{id} 没完成：{goal}", bot=bot.get("name", "Bot"), id=task.get("id"), goal=task.get("goal", "")[:80]))
     result = (result or "").strip()
     return head + ("\n\n" + (result[:MAX_TEXT] + ("…" if len(result) > MAX_TEXT else "")) if result else "")
 
@@ -35,9 +37,9 @@ def apply(ctx):
     url = ctx.secret(ctx.config.get("url"))
     kind = ctx.config.get("kind") or "json"
     if not url or not str(url).startswith(("https://", "http://")):
-        raise ValueError("先在设置里填 url（webhook 地址，可以写 vault:名字 从保险库取）")
+        raise ValueError(i18n.t("先在设置里填 url（webhook 地址，可以写 vault:名字 从保险库取）"))
     if kind not in KINDS:
-        raise ValueError(f"kind 只能是 {' / '.join(KINDS)}")
+        raise ValueError(i18n.t("kind 只能是 {kinds}", kinds=" / ".join(KINDS)))
 
     async def on_done(task: dict, bot: dict, result: str, **_):
         if ctx.config.get("only_failed") and task.get("status") == "done":

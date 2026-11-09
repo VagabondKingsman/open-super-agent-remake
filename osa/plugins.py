@@ -202,6 +202,12 @@ def config_of(name: str, entry: Path | None = None) -> dict:
     return dict(describe(entry)["config"]) if entry else {}
 
 
+def _shown(meta: dict) -> dict:
+    """给界面显示的标题、说明：随版本发布的插件按界面语言翻（键是 META 里的中文），别的原样。"""
+    return {k: i18n.t(meta[k]) if k in ("title", "description") and meta.get(k) else meta.get(k)
+            for k in ("title", "description", "version", "author")}
+
+
 def info(name: str) -> dict:
     entry = _entry(DIR, name)
     row = _row(name)
@@ -214,7 +220,7 @@ def info(name: str) -> dict:
     providers = _providers(graph)
     waiting = [{"service": s, "by": providers.get(s, [])} for s in _waiting.get(name, [])] if name in _waiting else []
     dependents = sorted(n for n, (_, inj) in graph.items() if n != name and set(inj) & set(meta.get("provide") or []))
-    return {"name": name, **{k: meta.get(k) for k in ("title", "description", "version", "author")},
+    return {"name": name, **_shown(meta),
             "provide": meta.get("provide") or [], "inject": meta.get("inject") or [], "waiting": waiting,
             "dependents": [{"name": d, "loaded": d in _loaded} for d in dependents], "cycle": _cycle(name, graph, providers),
 
@@ -271,7 +277,7 @@ def listing() -> dict:
     catalog = []
     for n in _names(CATALOG):
         meta = describe(_entry(CATALOG, n))
-        catalog.append({"name": n, **{k: meta[k] for k in ("title", "description", "version", "author", "provide", "inject")},
+        catalog.append({"name": n, **_shown(meta), **{k: meta[k] for k in ("provide", "inject")},
                         "installed": n in installed})
     return {"locked": locked(), "policy": security.plugins_mode(), "dir": str(DIR), "plugins": [info(n) for n in installed],
             "catalog": catalog, "services": core_services()}

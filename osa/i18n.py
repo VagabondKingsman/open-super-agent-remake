@@ -177,9 +177,28 @@ CJK = re.compile(r"[㐀-鿿＀-￯　-〿]")
 PH = re.compile(r"\{(\w+)\}")
 
 
-def _py_keys() -> dict[str, list[str]]:
+def _plugin_keys() -> dict[str, list[str]]:
+    """随版本发布的插件：META 的 title 和文档第一段（plugins.describe 取的 description）在显示时才翻，这里按同样的规则取出来当键。"""
     import ast
     keys: dict[str, list[str]] = {}
+    for f in sorted((ROOT / "osa" / "catalog" / "plugins").glob("*.py")):
+        tree = ast.parse(f.read_text(), str(f))
+        desc = (ast.get_docstring(tree) or "").strip().split("\n\n")[0].replace("\n", " ")[:300]
+        title = ""
+        for node in tree.body:
+            if isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "META" for t in node.targets):
+                title = ast.literal_eval(node.value).get("title") or ""
+        if title and desc.startswith((title + "：", title + ":")):
+            desc = desc[len(title) + 1:].strip()
+        for k in (title, desc):
+            if k:
+                keys.setdefault(k, []).append(str(f.relative_to(ROOT)))
+    return keys
+
+
+def _py_keys() -> dict[str, list[str]]:
+    import ast
+    keys: dict[str, list[str]] = _plugin_keys()
     for f in sorted((ROOT / "osa").rglob("*.py")):
         tree = ast.parse(f.read_text(), str(f))
         for node in ast.walk(tree):

@@ -97,7 +97,7 @@ def test_push_failure_codes():
     assert pp.failure("bark", 200, {"code": 200, "message": "success"}) == ""
     assert pp.failure("bark", 200, {"code": 400, "message": "failed to get device token"}) == "failed to get device token"
     assert pp.failure("serverchan", 200, {"code": 0}) == "" and pp.failure("serverchan", 200, {"code": 40001, "message": "bad pushkey"})
-    assert pp.failure("telegram", 400, {"ok": False, "description": "chat not found"}) == "HTTP 400：chat not found"
+    assert pp.failure("telegram", 400, {"ok": False, "description": "chat not found"}) == "HTTP 400: chat not found"
     assert pp.failure("wecom", 200, {"errcode": 93000, "errmsg": "invalid webhook url"}) == "invalid webhook url"
     assert pp.failure("feishu", 200, {"StatusCode": 0, "code": 0}) == "" and pp.failure("feishu", 200, {"code": 19021, "msg": "sign"})
     assert pp.failure("ntfy", 200, None) == "" and pp.failure("bark", 200, None)   # 该回 JSON 的回了别的，算没成功
@@ -126,10 +126,10 @@ async def test_push_phone_plugin(pdir, monkeypatch):
         assert tool.where == frozenset({registry.ROUTER, registry.WORKER}) and not tool.gated
         _mock_httpx(sys.modules["osa_plugin_push_phone"], monkeypatch, handle)
 
-        assert await tool.run(_call({"text": "该出门了", "title": "提醒"})) == "推送好了（ntfy）。"
+        assert await tool.run(_call({"text": "该出门了", "title": "提醒"})) == "Pushed (ntfy)."
         url, auth, body = sent[-1]
         assert url == "https://ntfy.example" and auth == "Bearer tk_secret" and '"title":"提醒"' in body.replace(" ", "")
-        assert "url 要 http" in await tool.run(_call({"text": "x", "url": "javascript:alert(1)"}))
+        assert "url must start with http" in await tool.run(_call({"text": "x", "url": "javascript:alert(1)"}))
 
         # 后台任务做完：推一条；任务里自己推过的不重复推
         await registry.emit("task_done", task={"id": 41, "status": "done", "goal": "整理周报"}, bot={"name": "Ann"}, result="好了")
@@ -142,7 +142,7 @@ async def test_push_phone_plugin(pdir, monkeypatch):
         await registry.service("notify").send("别的插件发的", title="服务")   # notify 服务
         assert "别的插件发的" in sent[-1][2]
         _mock_httpx(sys.modules["osa_plugin_push_phone"], monkeypatch, lambda req: httpx.Response(403, json={"error": "forbidden"}))
-        assert await tool.run(_call({"text": "x"})) == "没推送：ntfy没收下：HTTP 403：forbidden"
+        assert await tool.run(_call({"text": "x"})) == "Not pushed: ntfy rejected it: HTTP 403: forbidden"
 
         await plugins.set_config("push_phone", conf | {"on_task_done": "sometimes"})
         assert "on_task_done" in plugins.info("push_phone")["error"] and "notify" not in registry.SERVICES
@@ -204,9 +204,9 @@ def test_smtp_config_and_recipients():
         sm.server_of({"user": "me@qq.com", "port": "abc"})
     assert sm.addresses("a@x.com, B@y.com；a@X.com <c@z.org>") == ["a@x.com", "B@y.com", "c@z.org"]
     assert sm.addresses(["a@x.com"]) == ["a@x.com"] and sm.addresses(None) == []
-    with pytest.raises(ValueError, match="「张三」不是邮箱地址"):
+    with pytest.raises(ValueError, match="not an email address"):
         sm.addresses("张三 a@x.com")
-    with pytest.raises(ValueError, match="最多 10"):
+    with pytest.raises(ValueError, match="At most 10"):
         sm.check_recipients([f"u{i}@x.com" for i in range(8)], ["a@x.com", "b@x.com", "c@x.com"], [])
     sm.check_recipients(["boss@mycompany.com", "ops@cn.mycompany.com"], [], ["mycompany.com"])
     with pytest.raises(ValueError, match="evil@notmycompany.com"):
@@ -222,7 +222,7 @@ def test_smtp_message_and_deliver(monkeypatch):
     assert msg["Subject"] == "周报 Bcc: evil@z.com" and msg["To"] == "a@x.com" and msg["Cc"] == "b@y.com"
     assert "me@qq.com" in msg["From"] and "小助手" in str(msg["From"]) and msg["Bcc"] is None
     assert msg.get_content().strip() == "第一行\n第二行" and msg["Message-ID"].endswith("@qq.com>")
-    for subject, body, why in (("", "x", "没有主题"), ("s", " ", "正文是空的"), ("s", "x" * 20_001, "正文太长")):
+    for subject, body, why in (("", "x", "No subject"), ("s", " ", "body is empty"), ("s", "x" * 20_001, "Body too long")):
         with pytest.raises(ValueError, match=why):
             sm.build_message("me@qq.com", "", ["a@x.com"], [], subject, body)
 
@@ -233,9 +233,9 @@ def test_smtp_message_and_deliver(monkeypatch):
     fake.log.clear()
     sm.deliver(("smtp-mail.outlook.com", 587, "starttls"), "me@hotmail.com", "pw", msg, ["a@x.com"])
     assert [x[0] for x in fake.log] == ["connect", "starttls", "login", "send", "quit"]   # 先加密再登录
-    assert "授权码" in sm.explain(smtplib.SMTPAuthenticationError(535, b"x"), ("h", 465, "ssl"))
-    assert "明文" in sm.explain(smtplib.SMTPNotSupportedError(), ("h", 587, "starttls"))
-    assert "连不上 h:465" in sm.explain(TimeoutError(), ("h", 465, "ssl"))
+    assert "authorization code" in sm.explain(smtplib.SMTPAuthenticationError(535, b"x"), ("h", 465, "ssl"))
+    assert "clear text" in sm.explain(smtplib.SMTPNotSupportedError(), ("h", 587, "starttls"))
+    assert "Cannot connect to h:465" in sm.explain(TimeoutError(), ("h", 465, "ssl"))
 
 
 async def test_smtp_mail_plugin(pdir, monkeypatch):
@@ -253,11 +253,11 @@ async def test_smtp_mail_plugin(pdir, monkeypatch):
         assert not registry.available("send_email", registry.ROUTER)
         fake = _fake_smtplib(monkeypatch, sys.modules["osa_plugin_smtp_mail"])
         out = await tool.run(_call({"to": "a@x.com", "cc": "b@x.com", "subject": "你好", "body": "测试"}, registry.WORKER))
-        assert out == "发出去了：收件人 a@x.com，抄送 b@x.com，主题「你好」。"
+        assert out == 'Sent. To: a@x.com; cc: b@x.com; subject: "你好".'
         assert ("login", "me@qq.com", "auth-code") in fake.log
-        assert "只允许发给 x.com" in await tool.run(_call({"to": "a@y.com", "subject": "s", "body": "b"}, registry.WORKER))
+        assert "only allow sending to x.com" in await tool.run(_call({"to": "a@y.com", "subject": "s", "body": "b"}, registry.WORKER))
         fake.fail_login = True
-        assert "邮箱登录失败" in await tool.run(_call({"to": "a@x.com", "subject": "s", "body": "b"}, registry.WORKER))
+        assert "Mailbox login failed" in await tool.run(_call({"to": "a@x.com", "subject": "s", "body": "b"}, registry.WORKER))
     finally:
         vault.delete("TEST_SMTP")
         await plugins.remove("smtp_mail")

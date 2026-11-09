@@ -84,7 +84,7 @@ def test_audit_files_prune_and_search(tmp_path):
     assert al.search(tmp_path, status="rejected", today=today)[0]["task_id"] == 6
     assert len(al.search(tmp_path, today=today, limit=2)) == 2
     assert al.search(tmp_path, days=1, tool="fetch", today=today) == []
-    assert "Nova（后台任务 #6）send_email 被拒绝" in al.line(got[0])
+    assert "Nova (background task #6) send_email rejected" in al.line(got[0])
     with pytest.raises(ValueError):
         al.search(tmp_path, day="昨天", today=today)
 
@@ -110,8 +110,8 @@ async def test_audit_log_plugin(pdir):
     assert "hunter2" not in today.read_text() and "send_email" in today.read_text()
     tool = registry.get("audit_search")
     out = await tool.run(registry.Call(registry.ROUTER, bot, 2, 2, {"tool": "send_email"}))
-    assert out.startswith("找到 1 条") and "Nova（后台任务 #41）send_email 成功" in out and "boss@x.com" in out
-    assert "没有找到" in await tool.run(registry.Call(registry.ROUTER, bot, 2, 2, {"bot": "没有这个"}))
+    assert out.startswith("Found 1") and "Nova (background task #41) send_email ok" in out and "boss@x.com" in out
+    assert "No matching tool calls" in await tool.run(registry.Call(registry.ROUTER, bot, 2, 2, {"bot": "没有这个"}))
     assert "YYYY-MM-DD" in await tool.run(registry.Call(registry.ROUTER, bot, 2, 2, {"date": "昨天"}))
     await registry.emit("tool_done", scope="router", bot=bot, chat_id=2, task=None, name="audit_search",
                         args={}, result="找到…", status="done")         # 自己的查询不记
