@@ -12,7 +12,7 @@ const LABELS: [string, (n: number) => string][] = [
   ['memories', n => t('{n} 条记忆', { n })], ['skills', n => t('{n} 个技能', { n })], ['routines', n => t('{n} 个定时任务', { n })],
   ['pages', n => t('{n} 个页面', { n })], ['apps', n => t('{n} 个应用', { n })], ['channels', n => t('{n} 个聊天软件连接', { n })]]
 const summary = (c: Record<string, number>, secrets: number) =>
-  LABELS.filter(([k]) => c[k]).map(([k, label]) => label(c[k])).concat(secrets ? [t('{n} 个密钥', { n: secrets })] : []).join(lang === 'en' ? ', ' : '、')
+  LABELS.filter(([k]) => c[k]).map(([k, label]) => label(c[k])).concat(secrets ? [t('{n} 个密钥', { n: secrets })] : []).join(lang !== 'zh' ? ', ' : '、')
 const when = (ts: number) => new Date(ts * 1000).toLocaleString(locale, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 const b64 = (s: string) => btoa(String.fromCharCode(...new TextEncoder().encode(s)))
 

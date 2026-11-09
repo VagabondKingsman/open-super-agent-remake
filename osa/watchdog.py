@@ -5,6 +5,12 @@ from .config import CFG
 from . import i18n, memory
 
 
+def _stuck_loop(task) -> bool:
+    """按每个 Worker 自己的历史看。Heavy 并行时不能把三个人的第一次调用拼成一次死循环。"""
+    histories = list((getattr(task, "repeat_history", None) or {}).values()) or [getattr(task, "recent_calls", [])]
+    return any(len(h) >= 4 and len(set(h[-4:])) == 1 for h in histories)
+
+
 async def watchdog():
     from .router import TASKS, cancel
     lim = CFG["limits"]
@@ -22,7 +28,7 @@ async def watchdog():
                 reason = i18n.t("运行超过 {n} 秒", n=lim["task_timeout_s"])
             elif now - t.last_progress > 180:
                 reason = i18n.t("3 分钟没有进展")
-            elif len(t.recent_calls) >= 4 and len(set(t.recent_calls[-4:])) == 1:
+            elif _stuck_loop(t):
                 reason = i18n.t("连续重复同一个工具调用，疑似死循环")
             elif memory.tokens_today() > lim["daily_token_budget"]:
                 reason = i18n.t("今日 token 预算用完")

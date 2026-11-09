@@ -253,14 +253,14 @@ button:hover{opacity:.88}.err{color:var(--bad);font-size:13px;margin:0;text-alig
 
 def _lang(request: Request) -> str:
     """登录前也要知道用哪种语言：设过就用设置里的，没设过按浏览器的。"""
-    return i18n.chosen() or i18n.from_header(request.headers.get("accept-language"))
+    return i18n.lang()
 
 
 def _page(request: Request, nxt: str, error: str = "", status: int = 200) -> HTMLResponse:
     lang = _lang(request)
     err = f'<p class="err">{html.escape(error)}</p>' if error else ""
     body = PAGE.replace("{next}", html.escape(nxt, quote=True)).replace("{error}", err)
-    body = body.replace("{lang}", "en" if lang == "en" else "zh-CN").replace("{login}", i18n.t("登录", in_lang=lang)) \
+    body = body.replace("{lang}", lang).replace("{login}", i18n.t("登录", in_lang=lang)) \
         .replace("{password}", i18n.t("密码", in_lang=lang))
     return HTMLResponse(body, status, headers={"cache-control": "no-store"})
 

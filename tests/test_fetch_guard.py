@@ -2,8 +2,13 @@
 import httpx
 import pytest
 
-from osa import tools
+from osa import i18n, tools
 from osa.config import CFG
+
+
+def _blocked_prefix() -> str:
+    sample = i18n.t("没抓取：{host} 是本机或内网地址。要抓内网页面，在 config.yaml 里设 tools.fetch_private: true", host="HOST")
+    return sample.split("HOST", 1)[0]
 
 
 @pytest.mark.parametrize("ip", ["127.0.0.1", "10.1.2.3", "192.168.1.1", "172.17.0.1", "169.254.169.254",
@@ -20,11 +25,11 @@ def test_public_addresses(ip):
 @pytest.mark.parametrize("url", ["http://127.0.0.1:8765/api/bootstrap", "http://localhost:8765/", "http://[::1]/",
                                  "http://169.254.169.254/latest/meta-data/", "http://2130706433/", "http://127.1/"])
 async def test_blocked_urls(url):
-    assert (await tools.fetch_url(url)).startswith("没抓取")
+    assert (await tools.fetch_url(url)).startswith(_blocked_prefix())
 
 
 async def test_only_http():
-    assert await tools.blocked("file:///etc/passwd") == "只能抓取 http / https 网址"
+    assert await tools.blocked("file:///etc/passwd") == i18n.t("只能抓取 http / https 网址")
 
 
 async def test_redirect_to_private_is_blocked(monkeypatch):
@@ -35,7 +40,7 @@ async def test_redirect_to_private_is_blocked(monkeypatch):
         return httpx.Response(302, headers={"location": "http://127.0.0.1:8765/api/bootstrap"})
     monkeypatch.setattr(tools, "_TRANSPORT", httpx.MockTransport(handler))
     out = await tools.fetch_url("https://public.example.invalid/start")
-    assert out.startswith("没抓取") and seen == ["https://public.example.invalid/start"]   # 内网那一跳没发出去
+    assert out.startswith(_blocked_prefix()) and seen == ["https://public.example.invalid/start"]   # 内网那一跳没发出去
 
 
 async def test_redirects_are_followed(monkeypatch):
