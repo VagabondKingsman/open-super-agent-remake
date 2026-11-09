@@ -52,6 +52,24 @@ Dùng [TIP](templates/TIP.md): REQ → AC → artifact → test/evidence. Ví d�
 
 Bridge trong folder này được port từ skill osa-dev của Build Bot, bỏ đường dẫn riêng, dùng source trong repo và không đoán main cùng tip. Không chứa persona riêng.
 
+## Cài skill vào Hoplite
+
+Hoplite không có `UpdateSkill`. Nó tự đọc mọi `.agents/skills/<name>/SKILL.md` trong checkout và liệt kê thành repository skill. Mỗi file ở đó là bridge mỏng trỏ về `skills-pack/ai-native/<name>/`, không chép phương pháp. Bản gốc khóa SHA-256, không sửa.
+
+| Bridge | Nguồn | Helper đã chạy thử (OSA-024) |
+|---|---|---|
+| `osa-dev` | bridge riêng của remake | không có helper |
+| `ai-work-method` | `ai-work-method/` | không có helper |
+| `vibecode-kit` | `vibecode-kit/` | `retro_rubric.py selftest` PASS |
+| `unslop-vi` | `unslop-vi/` | `scan_vi.py -` bắt được V2 |
+| `unslop` | `unslop/` | `scan_en.py -` bắt được B1 |
+| `refinery` | `refinery/` | `bites.py` (domain `training-demo`) TẤT CẢ RĂNG CẮN ✓ |
+| `sot-kernel-in-a-box` | `sot-kernel-in-a-box/` | `sot_check.py` PASS, `sot_bites.py` 6/6 trên bản chép `examples/demo_org` |
+| `html3d-slides` | `html3d-slides/` | `node --check scripts/measure-ui.js` OK. Chưa đo trên trình duyệt. |
+| `ai-native-mentor` | `ai-native-mentor/` | không có helper |
+
+Phiên Hoplite mới kiểm nhanh: danh sách repository skill có đủ chín tên trên, `uv run python -m osa.skillpacks verify-sources` PASS. Helper chạy bằng `.venv/bin/python` của repo (có PyYAML). Script ghi dữ liệu (refinery, sot) chạy trên bản chép ở thư mục tạm hoặc `data/<skill>/<TASK-ID>/`, không chạy trong `skills-pack/`.
+
 ## Skill trong runtime OSA
 
 OSA startup mặc định có bảy skill + `ai-native-mentor` dưới dạng shared DB records. `load_skill` trả `method_source`; theo `next_offset` tới null/COMPLETE, không dừng tại CONTINUE_REQUIRED. `read_skill_resource` liệt kê/đọc, không chạy helper. Worker phải nạp lại skill: tool results riêng của Router không tự đi cùng dispatch. Dispatch goal phải chứa TIP/AC, Skill Flow, input/output và constraints.
