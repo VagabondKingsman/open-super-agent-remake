@@ -144,7 +144,8 @@ def test_login_and_oauth_language(monkeypatch):
     {"kind": "daily", "times": ["09:00"], "days": [True]},
     {"kind": "daily", "times": ["09:00"], "days": False},
     {"kind": "every", "minutes": True}, {"kind": "every", "minutes": 5.5},
-    {"kind": "webhook", "include": "bug"}, {"kind": "webhook", "llm_filter": []},
+    # v0.12：旧 webhook 会转成事件，include 写成一个字符串时 events.clean 会拆成列表（upstream 的设计），不再算错
+    {"kind": "webhook", "llm_filter": []},
 ])
 def test_schedule_validation(trigger):
     with pytest.raises(ValueError):

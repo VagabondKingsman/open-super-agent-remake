@@ -88,14 +88,15 @@ pricing:
     deepseek-flash:  {cache_hit: [0.006, 0.003], input: [0.3, 0.15], output: [1.2, 0.6]}     # [高峰, 空闲] USD / 百万 token
     deepseek-v4-pro: {cache_hit: [0.044, 0.022], input: [1.32, 0.66], output: [3.96, 1.98]}
   # 本机和内网的模型按 0 计
-  # 画图：元 / 张。models.dev 没有按张的价格，只能写在这里：先按服务商（接口地址里有这个词，或者就是服务的名字），
+  # 画图：美元 / 张。models.dev 没有按张的价格，只能写在这里：先按服务商（接口地址里有这个词，或者就是服务的名字），
   # 再按模型名字（不分大小写，前面的 Kwai-Kolors/ 这类前缀可以不写）。没写的显示“价格未知”，费用按 0 记，次数照记
+  # remake：硅基流动官网标的是人民币（0.1 / 0.3 元一张），这里按 7.1 换成美元
   images:
     siliconflow:               # 2026-11 抄自硅基流动官网
       Kolors: 0
-      Z-Image-Turbo: 0.1
-      Qwen-Image: 0.3
-      Z-Image: 0.3
+      Z-Image-Turbo: 0.014
+      Qwen-Image: 0.042
+      Z-Image: 0.042
 
 # 旧版触发器：只在首次启动时导入成主 Bot 的定时任务，之后请在界面右栏“定时”里管理
 triggers:

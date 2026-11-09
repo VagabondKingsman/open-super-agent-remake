@@ -203,7 +203,7 @@ function BotMessage({ bot, m, children, showName, reply }: { bot?: Bot; m: Messa
 
 // generate_image 画好的图（kind=image）：图片、描述、模型和价格；可以下载、设为头像
 function ImageMessage({ bot, m, chat, showName, reply }: { bot?: Bot; m: Message; chat: ChatT; showName?: boolean; reply?: Reply }) {
-  const cur = useStore(s => s.settings?.prices.currency) || '¥'
+  const cur = useStore(s => s.settings?.prices.currency) || '$'
   const [done, setDone] = useState('')
   const att = (m.meta.attachments || [])[0]
   const avatar = async (target: Parameters<typeof setAsAvatar>[1], label: string) => {
