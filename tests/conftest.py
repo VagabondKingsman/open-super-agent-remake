@@ -32,8 +32,12 @@ for k in ("OSA_VAULT_KEY", "INSTABOX_API_KEY", "OSA_PASSWORD", "OSA_WEBHOOK_TOKE
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).parent))
 
-from osa import bots, memory, mcp_hub, providers, registry, server  # noqa: E402
+from osa import bots, i18n, memory, mcp_hub, providers, registry, server  # noqa: E402
 from fakellm import FakeLLM  # noqa: E402
+
+# remake 默认界面语言是 vi。upstream 的测试按源语言（中文）断言提示文字，所以整个测试会话设成 zh；
+# 测越南语的用例（test_i18n_vi、test_locale_fallback 等）自己 monkeypatch i18n._lang。
+i18n.set_lang("zh")
 
 
 def pytest_sessionfinish(session, exitstatus):
