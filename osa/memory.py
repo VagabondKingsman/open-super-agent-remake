@@ -233,11 +233,11 @@ def context(chat_id: int, viewer: int | None = None, me: int | None = None, imag
                 text = f"(system notice: {name(b)} handed the work to {name(to)}){defang(meta.get('note') or c)}"
             msgs.append({"role": "user", "content": text})
         elif r == "task" and meta.get("kind") == "image":   # generate_image 画好的图
-            whose = name(b) if others and b else "你"
-            msgs.append({"role": "user", "content": f"（系统通知：{whose}画好了一张图，已经显示给用户。描述：{defang(meta.get('prompt') or c)}）"})
+            whose = name(b) if others and b else "you"
+            msgs.append({"role": "user", "content": f"(system notice: {whose} drew an image, already shown to the user. Description: {defang(meta.get('prompt') or c)})"})
         elif r == "task" and meta.get("kind") == "plugin":   # 插件以 Bot 的名义发进对话的（services.Messenger）
-            msgs.append({"role": "user", "content": f"（系统通知，非用户发言；插件「{meta.get('plugin', '')}」发到对话里的消息，"
-                                                    f"用户已经看到）{defang(c)}"})
+            msgs.append({"role": "user", "content": f"(system notice, not the user speaking; a message plugin \"{meta.get('plugin', '')}\" posted "
+                                                    f"to the chat, the user has seen it) {defang(c)}"})
         elif r == "task" and meta.get("kind") in ("dm", "dm_reply"):
             msgs.append({"role": "user", "content": _dm_line(meta, defang(c), b, me, name)})
         elif r == "task":  # task rows are system notices so the router does not copy their format
@@ -284,7 +284,7 @@ def _no_leak(c: str) -> str:
     text, calls = dsml.split(c)
     if not calls:
         return text
-    return text or f"（这里想调用 {'、'.join(x['name'] for x in calls)}，但写成了文字，没有执行）"
+    return text or f"(tried to call {', '.join(x['name'] for x in calls)} but wrote it as text; nothing ran)"
 
 
 def _dm_line(meta: dict, c: str, sender: int | None, me: int | None, name) -> str:

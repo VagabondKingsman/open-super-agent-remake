@@ -76,4 +76,4 @@ def test_history_drops_old_leaks(make_bot):
     memory.add("assistant", "好的。\n" + LEAK.format(to="Quark"), cid, a["id"], reasoning="")
     ctx = [m for m in memory.context(cid, me=a["id"]) if m["role"] == "assistant"]
     assert "DSML" not in str(ctx)
-    assert "message_bot" in ctx[0]["content"] and "没有执行" in ctx[0]["content"] and ctx[1]["content"] == "好的。"
+    assert "message_bot" in ctx[0]["content"] and "nothing ran" in ctx[0]["content"] and ctx[1]["content"] == "好的。"
