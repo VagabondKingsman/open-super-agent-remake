@@ -93,7 +93,7 @@ def test_record_usage_stores_usd(monkeypatch):
     memory.record_usage("cost-usd-probe", "deepseek-flash", _Usage(1_000_000, 2_000_000), provider="deepseek")
     try:
         cost = memory.conn.execute(
-            "select cost from llm_usage where role=? and model=?", ("cost-usd-probe", "deepseek-flash")).fetchone()[0]
+            "select cost from llm_calls where role=? and model=?", ("cost-usd-probe", "deepseek-flash")).fetchone()[0]
         # Peak: 1e6 miss * $0.3 + 2e6 output * $1.2.
         assert cost == pytest.approx(2.7)
         stats = memory.usage_stats()
@@ -102,7 +102,7 @@ def test_record_usage_stores_usd(monkeypatch):
         assert row["cost"] == pytest.approx(2.7)
         assert row["tokens"] == 3_000_000
     finally:
-        memory.conn.execute("delete from llm_usage where role=?", ("cost-usd-probe",))
+        memory.conn.execute("delete from llm_calls where role=?", ("cost-usd-probe",))
         memory.conn.commit()
 
 
@@ -119,7 +119,7 @@ def test_usage_sums_and_task_detail_are_usd():
         (now - 3 * 86400, "cost-usd-sum", "b", task_id, 0, 0, 0, 0.1000, 0),
     ]
     memory.conn.executemany(
-        "insert into llm_usage(ts, role, model, task_id, cache_hit, cache_miss, output, cost, estimated) values(?,?,?,?,?,?,?,?,?)",
+        "insert into llm_calls(ts, role, model, task_id, cache_hit, cache_miss, output, cost, estimated) values(?,?,?,?,?,?,?,?,?)",
         rows)
     memory.conn.commit()
     try:
@@ -136,7 +136,7 @@ def test_usage_sums_and_task_detail_are_usd():
         assert detail["cost"] == pytest.approx(0.1323)
         assert detail["usage"] == "recorded"
     finally:
-        memory.conn.execute("delete from llm_usage where task_id=?", (task_id,))
+        memory.conn.execute("delete from llm_calls where task_id=?", (task_id,))
         memory.conn.execute("delete from messages where id=?", (task_id,))
         memory.conn.commit()
 
@@ -144,7 +144,7 @@ def test_usage_sums_and_task_detail_are_usd():
 def test_token_budget_ignores_usd_cost():
     before = memory.tokens_today()
     memory.conn.execute(
-        """insert into llm_usage(ts, role, model, task_id, cache_hit, cache_miss, output, cost, estimated)
+        """insert into llm_calls(ts, role, model, task_id, cache_hit, cache_miss, output, cost, estimated)
            values(?,?,?,?,?,?,?,?,?)""",
         (time.time(), "cost-usd-budget", "m", None, 0, 1, 0, 999, 0))
     memory.conn.commit()
@@ -153,7 +153,7 @@ def test_token_budget_ignores_usd_cost():
         # Watchdog and the router compare tokens_today() with this cap, not the USD cost on the row.
         assert CFG["limits"]["daily_token_budget"] == 2_000_000
     finally:
-        memory.conn.execute("delete from llm_usage where role=?", ("cost-usd-budget",))
+        memory.conn.execute("delete from llm_calls where role=?", ("cost-usd-budget",))
         memory.conn.commit()
 
 
@@ -185,6 +185,22 @@ def test_migration_reprices_manual_models_and_divides_the_rest(monkeypatch):
     assert db.execute("select cost from llm_usage where model='deepseek-flash'").fetchone()[0] == pytest.approx(0.3)
     assert db.execute("select cost from llm_usage where model='glm-5.3-flash'").fetchone()[0] == pytest.approx(1)
     assert second["legacy_cny_per_usd"] == 7.1
+
+
+def test_migration_converts_rows_already_moved_into_llm_calls():
+    # v0.12 copies llm_usage rows into llm_calls at startup, before prices runs the currency
+    # migration. Both copies are CNY then and must be converted exactly once.
+    db = _legacy_db()
+    db.execute("""create table llm_calls(id integer primary key, ts real, role text, model text, task_id integer,
+        cache_hit integer, cache_miss integer, output integer, cost real, estimated integer default 0)""")
+    db.execute("insert into llm_usage values(1,'r','glm-5.3-flash',2,0,0,0,7.1,0)")
+    db.execute("insert into llm_calls(ts, role, model, task_id, cache_hit, cache_miss, output, cost) "
+               "values(1,'r','glm-5.3-flash',2,0,0,0,7.1)")
+    done = memory.migrate_usage_currency(db, divisor=7.1)
+    assert done["divided_rows"] == 2
+    assert db.execute("select cost from llm_calls").fetchone()[0] == pytest.approx(1)
+    memory.migrate_usage_currency(db, divisor=7.1)
+    assert db.execute("select cost from llm_calls").fetchone()[0] == pytest.approx(1)
 
 
 def test_migration_can_skip_when_rows_were_already_usd():
