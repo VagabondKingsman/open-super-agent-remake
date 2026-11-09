@@ -217,3 +217,22 @@ Append. Câu "OSA-024 đang làm" ở trên là trạng thái lúc viết.
 - OSA-027 ([PR #21](https://github.com/VagabondKingsman/open-super-agent-remake/pull/21)): cứng hóa GitHub Actions cho OSA-005.
 - Box chưa bị ảnh hưởng: box không chạy bằng compose và vẫn ở bản cũ. Khi deploy: máy có sẵn `osa-computer` phải `docker rm -f osa-computer` để lấy cờ siết. Ai đang chạy compose có computer local thì phải thêm `compose.computer.yaml`.
 - Local: pytest 767 passed, 5 skipped. i18n thiếu 0, thừa 0. Paid usage 0.
+
+## Bổ sung · PR #21, #23, #24, #25 đã merge · hoplite · 09/11/2026
+
+Append. Câu "OSA-025, OSA-027 đang mở" ở trên là trạng thái lúc viết mục đó.
+
+Tri Tran viết "Duyệt merge theo thứ tự". Hoplite merge lần lượt, mỗi lần ghim head SHA đã qua CI:
+
+| PR | Task | Merge commit | `merged_at` |
+|---|---|---|---|
+| [#21](https://github.com/VagabondKingsman/open-super-agent-remake/pull/21) | OSA-027 (OSA-005) cứng hóa CI | `42475fd` | `2026-11-09T15:19:01Z` |
+| [#23](https://github.com/VagabondKingsman/open-super-agent-remake/pull/23) | OSA-025 bảo mật High | `bbf0ed5` | `2026-11-09T15:19:16Z` |
+| [#24](https://github.com/VagabondKingsman/open-super-agent-remake/pull/24) | OSA-028 bảo mật Medium + L1 | `b3e5b65` | `2026-11-09T15:22:52Z` |
+| [#25](https://github.com/VagabondKingsman/open-super-agent-remake/pull/25) | OSA-029 độ tin cậy | `254673c` | `2026-11-09T15:26:20Z` |
+
+- #24 conflict với base ở `ci.yml` (dòng `docker run` của smoke). Đã gộp: giữ `-p 127.0.0.1:8765:8765 -e OSA_BIND=127.0.0.1` của #24, cùng vòng chờ 60 giây có fail rõ của #21. actionlint exit 0, pytest 791 passed, CI PR xanh rồi mới merge.
+- #25 merge base không conflict. Local: pytest 798 passed, 5 skipped. `npm test` 33/33. CI PR xanh.
+- CI push trên `254673c` SUCCESS. Lần chạy CI cho push #21 bị `cancelled` vì `concurrency` mới (push #23 đến ngay sau). Đây là hành vi mong muốn.
+- Box vẫn chạy bản cũ. Các mục cần chú ý khi deploy nằm trong [HANDOFF](HANDOFF.md#đã-merge), mục "PR #23–#25".
+- OSA-030 chỉ sửa docs: BOARD, STATE, HANDOFF.
