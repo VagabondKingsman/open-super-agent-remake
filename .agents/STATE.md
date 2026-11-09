@@ -187,3 +187,15 @@ Append. Câu "PR #17 chưa merge" ở trên là trạng thái lúc viết OSA-02
 [PR #17](https://github.com/VagabondKingsman/open-super-agent-remake/pull/17) đã merge vào `i18n-vi` tại `d3a838ee1bcdcfac3962f84229fbd10f2e3728a8`, `merged_at` API `2026-11-09T07:25:33Z` (14:25:33 Asia/Saigon). Hoplite merge theo câu duyệt của Thi Vo. Bản trên `i18n-vi` giờ là OSA 0.12.0. Box vẫn chạy bản cũ cho tới khi deploy theo OPS.
 
 OSA-022, branch `hoplite/osa-022-port-followups`, gồm: các việc còn mở sau port, OSA-015 (cảnh báo, không đổi DB), OSA-007 (sửa Quan sát ở 375px và hai bản dịch dính chữ), OSA-003 (entry JS 69 kB), OSA-008 (reconcile chịu crash), OSA-019 (template `vi:`, plugin theo ngôn ngữ UI, cờ `lang_flag`). Local: pytest 752 passed, 5 skipped. i18n thiếu/thừa 0. Web 27/27, build OK. Chi tiết ở [log OSA-022](log/2026-11-09-hoplite-osa-022.md). Không gọi model trả phí.
+
+## Bổ sung · PR #18 đã merge · OSA-023 đồng bộ docs · hoplite · 09/11/2026
+
+Append. Câu "OSA-022 đang làm" ở trên là trạng thái lúc viết mục đó.
+
+[PR #18](https://github.com/VagabondKingsman/open-super-agent-remake/pull/18) (OSA-022) đã merge vào `i18n-vi` tại `b628fe4e91e557217f8f41abfc92463151e57fa6`, `merged_at` API `2026-11-09T11:16:57Z` (18:16:57 Asia/Saigon). `merged_by` là VagabondKingsman. Cây của merge commit trùng head `79e31ff` (`git diff` rỗng). CI push trên `b628fe4` SUCCESS cả backend, frontend, docker. Phiên viết log OSA-022 dừng ngay sau khi mở PR vì nền tảng hết credit, nên docs lúc đó còn ghi "chưa merge".
+
+Sau PR #18: OSA-015, OSA-003, OSA-008 Done. OSA-007 còn kiểm 390px trên điện thoại thật. OSA-019 còn hiện `lang_flag` trên UI và người bản ngữ đọc lại khối `vi:`. Box vẫn chạy bản cũ, chưa deploy 0.12.
+
+`main` là default branch nhưng đứng ở `a30e3cc`, tổ tiên cũ của `i18n-vi`. Cloud agent mở theo mặc định sẽ thấy `main` không có `.agents/`. Chuyển sang `i18n-vi` trước khi làm.
+
+OSA-023 chỉ sửa docs: HANDOFF (head, bảng merge, còn lại), BOARD, STATE này và [log OSA-023](log/2026-11-09-hoplite-osa-023.md). Không đổi code, không gọi model trả phí.
