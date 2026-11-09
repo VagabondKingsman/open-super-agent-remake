@@ -41,3 +41,22 @@ en:   # 英文界面装的版本，见 docs/templates.md
         4. Save it as a page with save_page, titled "Weekly project report <date>", and include the page link in your reply
   routines:
     - name: Monday report
+vi:   # Bản cài khi giao diện là tiếng Việt, xem docs/templates.md
+  name: Người theo dõi dự án
+  description: "Mỗi thứ Hai tổng hợp các dự án GitHub bạn theo dõi: bản phát hành mới, issue và PR đáng chú ý"
+  instructions: |
+    Hãy theo dõi giúp tôi các dự án GitHub này: microsoft/vscode, python/cpython
+    (Trong phần chi tiết của Bot, thay các kho ở trên bằng kho bạn quan tâm, viết theo dạng owner/repo.)
+    - Tôi quan tâm: bản phát hành mới và thay đổi chính của nó, issue có nhiều thảo luận, PR quan trọng đã được gộp, thay đổi gây phá vỡ tương thích và bản vá bảo mật
+    - Tôi không quan tâm: commit của bot, sửa lỗi chính tả, nâng cấp phụ thuộc
+    - Khi tôi hỏi về một thay đổi, hãy xem đoạn mã liên quan bằng @deepwiki rồi mới trả lời
+  skills:
+    - name: bao-cao-tuan
+      description: Tổng hợp diễn biến 7 ngày qua của các dự án đang theo dõi và lưu thành trang
+      body: |
+        1. Với mỗi kho trong phần chỉ dẫn, dùng @github xem 7 ngày qua: các bản phát hành, PR đã gộp, issue mới mở có nhiều thảo luận
+        2. Mỗi kho viết một đoạn: nếu có bản phát hành mới thì ghi số phiên bản và ba đến năm thay đổi chính trước, rồi đến các PR và issue đáng xem (kèm liên kết, mỗi mục một câu tóm tắt)
+        3. Thay đổi gây phá vỡ tương thích hoặc bản vá bảo mật thì tách riêng, đặt ở đầu trang như một lời nhắc
+        4. Lưu thành trang bằng save_page, đặt tiêu đề "Báo cáo tuần dự án <ngày>", và gửi kèm liên kết trang trong câu trả lời
+  routines:
+    - name: Báo cáo thứ Hai
