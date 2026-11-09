@@ -14,6 +14,9 @@ from .base import Computer, ComputerError, ExecResult, check_enabled
 
 IMAGE = "osa-computer:1"
 IMAGE_DIR = Path(__file__).parent / "image"
+# Bots run arbitrary shell here, possibly steered by injected web or webhook text: no privilege gain via setuid,
+# a process cap against fork bombs, no raw sockets or device nodes. Applies to containers created from now on.
+HARDEN = ["--security-opt", "no-new-privileges", "--pids-limit", "4096", "--cap-drop", "NET_RAW", "--cap-drop", "MKNOD"]
 
 # 在电脑里把 stdin / stdout 接到 x11vnc。网页关掉画面时 stdin 读到结尾，半关连接，x11vnc 随即断开，进程退出。
 # 电脑刚创建时桌面先就绪、x11vnc 稍后才监听，所以连不上时等一会儿再试
@@ -90,6 +93,10 @@ class LocalComputer(Computer):
         code, out, err = await _run("docker", "inspect", "-f", "{{json .State}}", self.name, timeout=15)
         if code == 127 or err == "docker-missing":
             return {"state": "unavailable", "detail": i18n.t("未安装 Docker，无法使用本地电脑"), "reason": "docker_missing"}
+        # Compose without compose.computer.yaml lands here. Wording differs by CLI version (29.x: "failed to connect to the docker API")
+        if code and ("Cannot connect to the Docker daemon" in err or "failed to connect to the docker API" in err):
+            return {"state": "unavailable", "reason": "docker_unreachable",
+                    "detail": i18n.t("连不上 Docker，无法使用本地电脑。用 Docker Compose 部署的，要加上 compose.computer.yaml（见 docs/docker.md）")}
         if code:
             return {"state": "none", "detail": i18n.t("还没有创建")}
         st = json.loads(out)
@@ -124,7 +131,7 @@ class LocalComputer(Computer):
                     Path(self.data).mkdir(parents=True, exist_ok=True)
                 code, out, err = await _run(
                     "docker", "run", "-d", "--platform", await platform(), "--name", self.name, "--hostname", "osa",
-                    "--shm-size=1g", "-v", f"{self.data}:/data",
+                    "--shm-size=1g", *HARDEN, "-v", f"{self.data}:/data",
                     "-e", f"SCREEN_W={self.width}", "-e", f"SCREEN_H={self.height}",
                     "--label", "osa=computer", IMAGE, timeout=120)
                 if code:

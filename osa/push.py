@@ -114,6 +114,9 @@ def topic(tag: str) -> str:
 
 
 async def _send_one(c: httpx.AsyncClient, ep: str, p256dh: str, auth: str, data: bytes, urgency: str, tag: str) -> str:
+    from . import tools
+    if await tools.private_host(ep):   # push services are public; a private endpoint would make us probe the LAN
+        return i18n.t("推送地址不能是本机或内网地址")
     headers = {"Authorization": vapid_header(ep), "Content-Encoding": "aes128gcm", "Content-Type": "application/octet-stream",
                "TTL": "86400", "Urgency": urgency}
     if tag:

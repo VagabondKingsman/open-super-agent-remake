@@ -14,7 +14,15 @@ docker compose up -d     # 第一次要构建镜像，大约 5–10 分钟
 
 打开 http://127.0.0.1:8765 。
 
-`up` 会构建两个镜像：服务（`open-super-agent:local`）和本地电脑（`osa-computer:1`）。电脑不会马上启动，Bot 第一次用电脑时才创建容器 `osa-computer`，闲置 15 分钟后自动暂停。
+默认的 `compose.yaml` 只有服务，不挂 `docker.sock`，Bot 用不了本地电脑（Docker 里的桌面和浏览器），电脑面板会提示“连不上 Docker”。
+要用本地电脑，在 `.env` 里加一行，再 `docker compose up -d`：
+
+```bash
+COMPOSE_FILE=compose.yaml:compose.computer.yaml
+```
+
+`compose.computer.yaml` 把宿主机的 `docker.sock` 挂给服务，并构建本地电脑的镜像（`osa-computer:1`）。挂了 `docker.sock` 就等于给了服务宿主机的 root 权限，见下面的 [安全](#安全)。
+电脑不会马上启动，Bot 第一次用电脑时才创建容器 `osa-computer`，闲置 15 分钟后自动暂停。
 
 | 做什么 | 命令 |
 |---|---|
@@ -69,8 +77,7 @@ docker compose --profile https up -d
 服务器内存小、不想在上面跑桌面和浏览器时，电脑改用 Instabox 云主机：
 
 1. `.env` 里设 `INSTABOX_API_KEY`（`computer.backend` 保持 `auto` 就会用它，也可以在 `config.yaml` 里写成 `instabox`）。
-2. 用 `docker compose up -d osa` 启动，只构建服务的镜像，不构建本地电脑的。
-3. 服务用不到 Docker 了，可以删掉 `compose.yaml` 里挂 `/var/run/docker.sock` 的那一行。
+2. 用默认的 `compose.yaml` 启动（不要加 `compose.computer.yaml`），服务不挂 `docker.sock`，也不构建本地电脑的镜像。
 
 ## 选项
 
@@ -86,6 +93,8 @@ docker compose --profile https up -d
 | `APT_MIRROR`、`NPM_REGISTRY`、`PYPI_INDEX` | | 构建镜像用的软件源，见下面 |
 
 `.env` 里的注释要单独占一行，写在值后面的注释可能被当成值的一部分。
+
+`OSA_BIND` 不是 `127.0.0.1`（服务对外）又没设 `OSA_PASSWORD` 时，服务拒绝启动。只在可信的内网里确实要这样，再设 `OSA_ALLOW_NO_PASSWORD=1`。不用 compose、直接 `docker run -p 8765:8765` 时也一样，要么设密码，要么写成 `-p 127.0.0.1:8765:8765 -e OSA_BIND=127.0.0.1`。
 
 ## 国内网络
 
@@ -105,7 +114,8 @@ docker compose --profile https up -d
 
 | 现象 | 原因和处理 |
 |---|---|
-| 用电脑时报 `Cannot connect to the Docker daemon` | 没挂 `/var/run/docker.sock`，或者 Docker 的 socket 不在这里（rootless Docker 在 `$XDG_RUNTIME_DIR/docker.sock`），改 `compose.yaml` 里那一行 |
+| 电脑面板提示“连不上 Docker”，或用电脑时报 `Cannot connect to the Docker daemon` | 没加 `compose.computer.yaml`（见快速开始）；或者 Docker 的 socket 不在 `/var/run/docker.sock`（rootless Docker 在 `$XDG_RUNTIME_DIR/docker.sock`），改 `compose.computer.yaml` 里那一行 |
+| 从旧版本升级后电脑用不了 | 以前 `compose.yaml` 自带 `docker.sock`，现在挪到了 `compose.computer.yaml`：在 `.env` 里加 `COMPOSE_FILE=compose.yaml:compose.computer.yaml` 再 `docker compose up -d` |
 | 改了电脑镜像没生效 | 旧容器还在：`docker compose build computer && docker rm -f osa-computer`，下次用电脑时按新镜像创建 |
 | 镜像构建成了 amd64，或者电脑启动报平台不匹配 | 环境里设了 `DOCKER_DEFAULT_PLATFORM`，`unset` 之后重新构建 |
 | 文件夹应用要访问宿主机上的目录 | 应用跑在服务的容器里，只看得到容器里的路径。在 `compose.yaml` 的 `volumes` 里把目录挂进去（比如 `- ~/Documents:/mnt/docs`），添加应用时填 `/mnt/docs` |
@@ -114,6 +124,6 @@ docker compose --profile https up -d
 
 ## 安全
 
-- 挂进去的 `docker.sock` 让服务能创建和操作宿主机上的容器，等于有宿主机的 root 权限。服务里跑着第三方的应用（MCP），只添加信得过的；用 Instabox 时把这一行删掉。
+- 加了 `compose.computer.yaml` 才会挂 `docker.sock`。它让服务能创建和操作宿主机上的容器，等于有宿主机的 root 权限。服务里跑着第三方的应用（MCP），只添加信得过的；不用本地电脑就别加。
 - 电脑的 VNC 没有密码，所以只监听电脑容器里的 127.0.0.1，不映射到宿主机端口，由服务经 `docker exec` 转发给网页。
 - 其余见 [SECURITY.md](../SECURITY.md)。
