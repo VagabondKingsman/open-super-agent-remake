@@ -83,5 +83,5 @@ async def generate(bot: dict, chat_id: int, private_chat_id: int, prompt: str, p
     t = asyncio.create_task(wait_and_draw())
     _running.add(t)
     t.add_done_callback(_running.discard)
-    return (f"已弹出 (approval card shown: model {m['model']}, {price_text(price)}). Once the user approves, the image is drawn automatically and shown in the chat; you do not need to come back. "
+    return (f"Approval card shown (model {m['model']}, {price_text(price)}). Once the user approves, the image is drawn automatically and shown in the chat; you do not need to come back. "
             "Briefly ask the user to confirm; do not say it is already drawn.")

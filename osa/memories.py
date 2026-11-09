@@ -11,7 +11,7 @@ import json
 import time
 from .config import call_kwargs, client_for
 from .memory import conn
-from . import i18n, memory
+from . import i18n, memory, providers
 
 conn.execute("""create table if not exists memories(
   id integer primary key, bot_id integer, kind text default 'note', text text, source text default 'chat',
@@ -210,7 +210,7 @@ async def parse_import(text: str, existing: list[str] | None = None) -> list[dic
     have = "\n".join(f"- {t}" for t in existing or []) or "(none)"
     try:
         client, model = client_for("filter")
-        resp = await client.chat.completions.create(model=model, messages=[
+        resp = await providers.create_chat(client, model=model, messages=[
             {"role": "system", "content": _import_prompt()},
             {"role": "user", "content": f"Existing memories:\n{have}\n\nExported text:\n{text}"}],
             response_format={"type": "json_object"}, **call_kwargs("filter"))

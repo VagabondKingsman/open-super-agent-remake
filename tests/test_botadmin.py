@@ -251,7 +251,7 @@ async def test_other_bot_updates_only_itself(llm, events, boss, make_bot):
                Call("update_bot", {"name": "Self9", "instructions": "新职责"}), "请确认", "改好了")
     await server.safe_handle(bots.chat(me["chat_id"]), "把你的职责改成新职责")
     out = tool_outputs(llm.bodies("router", "Self9")[-1])
-    assert "You can only change yourself" in out[0] and "Boss" in out[0] and out[1].startswith("已弹出")
+    assert "You can only change yourself" in out[0] and "Boss" in out[0] and out[1].startswith(botadmin.CARD_SHOWN)
     c = await until(lambda: card("update_bot"), what="确认卡片")
     assert c["chat_id"] == me["chat_id"] and c["bot_id"] == me["id"]
     approvals.resolve(c["id"], True)

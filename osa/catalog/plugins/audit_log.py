@@ -12,6 +12,7 @@ import re
 import threading
 import time
 from datetime import date, timedelta
+from osa import i18n
 from osa.registry import ROUTER, WORKER, Tool
 
 META = {"title": "工具调用记录", "version": "1.0", "author": "open-super-agent", "config": {"keep_days": 30}}
@@ -19,8 +20,8 @@ MAX_ARGS = 500          # 参数存多少字
 MAX_RESULT = 300        # 结果存多少字
 MAX_QUEUE = 5000        # 写得太慢时最多攒多少条，再多就丢
 MAX_HITS = 50
-STATUS = {"done": "成功", "error": "出错", "rejected": "被拒绝"}
-SCOPE = {"router": "对话里", "worker": "后台任务", "applet": "小应用"}
+STATUS = {"done": "ok", "error": "error", "rejected": "rejected"}   # read by the model, so English
+SCOPE = {"router": "chat", "worker": "background task", "applet": "mini app"}
 HIDDEN = "***"
 
 # ---------- 抹掉密钥 ----------
@@ -164,30 +165,32 @@ def line(e: dict) -> str:
     where = SCOPE.get(e.get("scope"), e.get("scope") or "")
     if e.get("task_id"):
         where += f" #{e['task_id']}"
-    return (f"{e.get('ts', '')} {e.get('bot') or '?'}（{where}）{e.get('tool', '')} "
-            f"{STATUS.get(e.get('status'), e.get('status') or '')}　参数 {_cut(e.get('args', ''), 160)}"
-            f"　结果 {_cut(e.get('result', ''), 120)}")
+    return (f"{e.get('ts', '')} {e.get('bot') or '?'} ({where}) {e.get('tool', '')} "
+            f"{STATUS.get(e.get('status'), e.get('status') or '')}  args: {_cut(e.get('args', ''), 160)}"
+            f"  result: {_cut(e.get('result', ''), 120)}")
 
 
 SCHEMA = {"type": "function", "function": {
     "name": "audit_search",
-    "description": "查 Bot 们调用工具的记录（工具调用记录插件记的）：哪天几点、哪个 Bot、调了什么工具、参数和结果的开头、成没成功。"
-                   "用户问“昨天谁调了 send_email”“这周有没有删过文件”时用。新的在前，最多 50 条。"
-                   "date 写 YYYY-MM-DD（“昨天”就填昨天的日期），不写就看最近 days 天。",
+    "description": "Search the log of tool calls made by the Bots (kept by the tool-call log plugin): which day and time, which Bot, "
+                   "which tool, the start of the arguments and result, and whether it succeeded. "
+                   "Use it when the user asks things like \"who called send_email yesterday\" or \"was any file deleted this week\". "
+                   "Newest first, at most 50 entries. "
+                   "Write date as YYYY-MM-DD (for \"yesterday\" use yesterday's date); without date it looks at the last `days` days.",
     "parameters": {"type": "object", "properties": {
-        "tool": {"type": "string", "description": "工具名，包含这段就算，比如 send_email"},
-        "bot": {"type": "string", "description": "Bot 的名字"},
-        "keyword": {"type": "string", "description": "参数或结果里包含的文字"},
-        "date": {"type": "string", "description": "只看这一天，YYYY-MM-DD"},
-        "days": {"type": "integer", "description": "不写 date 时往前看几天，默认 7"},
+        "tool": {"type": "string", "description": "Tool name; any name containing this text matches, e.g. send_email"},
+        "bot": {"type": "string", "description": "Bot name"},
+        "keyword": {"type": "string", "description": "Text contained in the arguments or result"},
+        "date": {"type": "string", "description": "Only this day, YYYY-MM-DD"},
+        "days": {"type": "integer", "description": "How many days back to look when date is not given, default 7"},
         "status": {"type": "string", "enum": ["done", "error", "rejected"]},
-        "limit": {"type": "integer", "description": "最多几条，默认 20，最多 50"}}}}}
+        "limit": {"type": "integer", "description": "Maximum number of entries, default 20, at most 50"}}}}}
 
 
 def apply(ctx):
     keep = int(ctx.config.get("keep_days") or 30)
     if keep < 1:
-        raise ValueError("keep_days 至少是 1")
+        raise ValueError(i18n.t("keep_days 至少是 1"))
     folder = ctx.data_dir
     queue: asyncio.Queue = asyncio.Queue(MAX_QUEUE)
     dropped = [0]
@@ -242,14 +245,14 @@ def apply(ctx):
                 str(a.get("date") or "").strip(), int(a.get("days") or 7), str(a.get("status") or ""),
                 max(1, min(int(a.get("limit") or 20), MAX_HITS)))
         except ValueError:
-            return "没查：date 要写成 YYYY-MM-DD，days、limit 要是数字"
+            return "Not searched: date must be YYYY-MM-DD, and days and limit must be numbers"
         if not hits:
-            return "没有找到符合条件的工具调用记录（只记了装上这个插件以后的，最多留 %d 天）。" % keep
-        return f"找到 {len(hits)} 条（新的在前）：\n" + "\n".join(line(e) for e in hits)
+            return "No matching tool calls found (only calls since this plugin was installed are logged, kept for at most %d days)." % keep
+        return f"Found {len(hits)} (newest first):\n" + "\n".join(line(e) for e in hits)
 
     ctx.effect(drain)                 # 先登记：撤销时反着来，后台写入先停，再把剩下的写掉
     ctx.on("tool_done", on_tool)
     ctx.task(writer())
     ctx.tool(Tool("audit_search", SCHEMA, run, where=frozenset({ROUTER, WORKER}),
-                  describe="查 Bot 调用工具的记录：哪天、哪个 Bot、调了什么、成没成功",
-                  progress=lambda a: "查工具调用记录"))
+                  describe="Search the log of Bot tool calls: which day, which Bot, which tool, whether it succeeded",
+                  progress=lambda a: i18n.t("查工具调用记录")))

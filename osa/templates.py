@@ -11,6 +11,7 @@
     routines: [{name, prompt, skill, trigger}]   trigger 和定时任务、事件的一样（once / daily / monthly / every / event）
     en: {name, description, instructions, apps, skills: [{name, description, body}], routines: [{name, prompt}]}
                                             可选：英文界面装的版本，只写要换的字段；skills、routines 按顺序和上面一一对应
+    vi: {写法和 en 一样}                    可选：越南语界面装的版本
 
 - 内置模板在 osa/templates/*.yaml；也可以从文件、链接装（别人分享的 /template/<token>、GitHub 上的文件）。
 - 导出、分享的是 Bot 现在的样子：它自己的技能，加上定时任务用到的共用技能。对话、记忆、资料库不带。
@@ -18,6 +19,7 @@
 - 模板里的人设、技能、定时任务都是给 Bot 的指令，来路不明的装之前要看一遍（预览里全列出来了）。
 - 用哪种语言在解析时定（parse 按当前界面语言）：英文界面把 en: 盖上去，预览和装的都是英文的；
   定时任务的 skill 跟着换成同一位置的英文技能名。导出、分享的模板没有 en:，原样装。
+  越南语界面用 vi:，vi: 里没写的字段退到 en:，再退到中文原文。
 """
 import re
 import secrets
@@ -32,10 +34,11 @@ MAX_SKILLS, MAX_ROUTINES, MAX_APPS = 30, 20, 20
 APP_ID = re.compile(r"^[a-z][a-z0-9_-]{0,23}$")
 COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
 EN_KEYS = ("name", "description", "instructions", "apps")
+BLOCKS = ("en", "vi")
 EN_LISTS = {"skills": (("name", "description", "body"),
-                       i18n.N_("en.skills 要和 skills 一一对应：个数、顺序都一样，每一项只能写 name、description、body")),
+                       i18n.N_("{key}.skills 要和 skills 一一对应：个数、顺序都一样，每一项只能写 name、description、body")),
             "routines": (("name", "prompt"),
-                         i18n.N_("en.routines 要和 routines 一一对应：个数、顺序都一样，每一项只能写 name、prompt"))}
+                         i18n.N_("{key}.routines 要和 routines 一一对应：个数、顺序都一样，每一项只能写 name、prompt"))}
 
 if "template_token" not in {r[1] for r in conn.execute("pragma table_info(bots)")}:
     conn.execute("alter table bots add column template_token text")
@@ -44,40 +47,60 @@ conn.commit()
 
 
 # ---------- 检查 ----------
-def _check_en(t: dict):
-    """en: 的结构：只能写认识的字段，skills、routines 和原来的一样多。内容在盖上去以后和中文的一样检查。"""
-    en = t["en"]
-    if not isinstance(en, dict) or set(en) - set(EN_KEYS) - set(EN_LISTS):
-        raise ValueError(i18n.t("en 里只能写 name、description、instructions、apps、skills、routines"))
-    for key, (fields, msg) in EN_LISTS.items():
-        xs, base = en.get(key), t.get(key) or []
+def _check_block(t: dict, key: str):
+    """en:、vi: 的结构：只能写认识的字段，skills、routines 和原来的一样多。内容在盖上去以后和中文的一样检查。"""
+    block = t[key]
+    if not isinstance(block, dict) or set(block) - set(EN_KEYS) - set(EN_LISTS):
+        raise ValueError(i18n.t("{key} 里只能写 name、description、instructions、apps、skills、routines", key=key))
+    for lkey, (fields, msg) in EN_LISTS.items():
+        xs, base = block.get(lkey), t.get(lkey) or []
         if xs is not None and not (isinstance(xs, list) and isinstance(base, list) and len(xs) == len(base) and
                                    all(x is None or isinstance(x, dict) and set(x) <= set(fields) for x in xs)):
-            raise ValueError(i18n.t(msg))
+            raise ValueError(i18n.t(msg, key=key))
 
 
-def _english(t: dict) -> dict:
-    """把 en: 里写了的字段盖到原来的上面（没写、写空的保持原样）。定时任务的 skill 换成同一位置的英文技能名。"""
-    en = t["en"]
+def _merge_blocks(blocks: list[dict]) -> dict:
+    """后面的盖在前面的上面（只盖有内容的字段），合成一个版本。"""
+    out: dict = {}
+    for b in blocks:
+        for k in EN_KEYS:
+            if b.get(k):
+                out[k] = b[k]
+        for k in EN_LISTS:
+            xs = b.get(k)
+            if isinstance(xs, list):
+                prev = out.get(k) or [None] * len(xs)
+                out[k] = [(p or {}) | {f: v for f, v in (x or {}).items() if v} or None for p, x in zip(prev, xs)]
+    return out
 
+
+def _localized(t: dict, block: dict) -> dict:
+    """把一个语言版本里写了的字段盖到原来的上面（没写、写空的保持原样）。定时任务的 skill 换成同一位置的新技能名。"""
     def over(base, e):
         return base | {k: v for k, v in (e or {}).items() if v} if isinstance(base, dict) else base
-    out = t | {k: en[k] for k in EN_KEYS if en.get(k)}
+    out = t | {k: block[k] for k in EN_KEYS if block.get(k)}
     rename = {}
-    if isinstance(t.get("skills"), list) and en.get("skills"):
-        out["skills"] = [over(s, e) for s, e in zip(t["skills"], en["skills"])]
+    if isinstance(t.get("skills"), list) and block.get("skills"):
+        out["skills"] = [over(s, e) for s, e in zip(t["skills"], block["skills"])]
         rename = {skills._clean_name(s.get("name") or ""): skills._clean_name(e["name"])
-                  for s, e in zip(t["skills"], en["skills"]) if isinstance(s, dict) and e and e.get("name")}
+                  for s, e in zip(t["skills"], block["skills"]) if isinstance(s, dict) and e and e.get("name")}
     if isinstance(t.get("routines"), list):
-        rs = [over(r, e) for r, e in zip(t["routines"], en.get("routines") or [None] * len(t["routines"]))]
+        rs = [over(r, e) for r, e in zip(t["routines"], block.get("routines") or [None] * len(t["routines"]))]
         out["routines"] = [r | {"skill": rename.get(str(r["skill"]).strip().lstrip("/"), r["skill"])}
                            if isinstance(r, dict) and r.get("skill") else r for r in rs]
     return out
 
 
+def _localize(t: dict, language: str) -> dict:
+    """按界面语言选版本：vi 用 vi:（没写的字段退到 en:），en 用 en:，zh 不动。"""
+    chain = {"vi": ("en", "vi"), "en": ("en",)}.get(language, ())
+    blocks = [t[k] for k in chain if t.get(k) is not None]
+    return _localized(t, _merge_blocks(blocks)) if blocks else t
+
+
 def parse(text: str, lang: str | None = None) -> dict:
     """解析并检查一份模板，返回干净的字典；有问题抛 ValueError（一次说一个）。
-    lang 是装哪种语言的版本，不给就按现在的界面语言：英文的用 en: 里的字段（有的话）。返回的字典里没有 en。"""
+    lang 是装哪种语言的版本，不给就按现在的界面语言：英文的用 en: 里的字段（有的话），越南语的用 vi:（没写的字段退到 en:）。返回的字典里没有 en、vi。"""
     if len(text or "") > 400_000:
         raise ValueError(i18n.t("文件太大了，不像是一个 Bot 模板"))
     try:
@@ -88,10 +111,10 @@ def parse(text: str, lang: str | None = None) -> dict:
         raise ValueError(i18n.t("这不是 open-super-agent 的 Bot 模板（开头要有 osa_template: 1）"))
     if t["osa_template"] != FORMAT:
         raise ValueError(i18n.t("这个模板是更新版本的 open-super-agent 做的，先升级再装"))
-    if t.get("en") is not None:
-        _check_en(t)
-        if (lang or i18n.lang()) != "zh":
-            t = _english(t)
+    for key in BLOCKS:
+        if t.get(key) is not None:
+            _check_block(t, key)
+    t = _localize(t, lang or i18n.lang())
     name = str(t.get("name") or "").strip()[:40]
     if not name:
         raise ValueError(i18n.t("模板缺少 name（Bot 的名字）"))
@@ -303,7 +326,40 @@ def install(t: dict, enable_routines: bool = True, name: str = "") -> dict:
     return bots.get(b["id"])
 
 
-if __name__ == "__main__":   # python -m osa.templates：检查内置模板（CI 里也跑），中英文两个版本都检查
+_TOKENS = re.compile(r"@[a-z][a-z0-9_-]*|\b[a-z]+(?:_[a-z]+)+\b|\b[\w.-]+/[\w.-]+\b|<>")
+
+
+def _tokens(text: str) -> list[str]:
+    return _TOKENS.findall(re.sub(r"<[^<>\n]+>", "<>", text))
+
+
+def vi_problems(text: str) -> list[str]:
+    """vi: 版本要和 en: 版本对得上：字段一个不少、@应用、工具名（save_page 这类）、owner/repo、<占位符> 的个数一样，且不留中文。
+    没写 vi: 的模板返回空（越南语界面退到 en:）。"""
+    t = yaml.safe_load(text)
+    if not isinstance(t, dict) or not isinstance(t.get("vi"), dict):
+        return []
+    en, vi = parse(text, "en"), parse(text, "vi")
+
+    def fields(x):
+        return {"name": x["name"], "description": x["description"], "instructions": x["instructions"],
+                **{f"skills[{i}].{k}": s[k] for i, s in enumerate(x["skills"]) for k in ("name", "description", "body")},
+                **{f"routines[{i}].name": r["name"] for i, r in enumerate(x["routines"])}}
+    out = []
+    ef, vf = fields(en), fields(vi)
+    for k in ef:
+        if vf[k] == ef[k] and not (k.startswith("routines") or k.endswith(".name") or k == "name") and ef[k]:
+            out.append(f"vi.{k} 和 en 一样，没有翻")
+        if i18n.CJK.search(vf[k]):
+            out.append(f"vi.{k} 里还有中文")
+        if sorted(_tokens(ef[k])) != sorted(_tokens(vf[k])):
+            out.append(f"vi.{k} 的 @应用、工具名或 <占位符> 和 en 对不上")
+    if en["apps"] != vi["apps"]:
+        out.append("vi.apps 和 en.apps 不一样")
+    return out
+
+
+if __name__ == "__main__":   # python -m osa.templates：检查内置模板（CI 里也跑），三种语言的版本都检查
     import sys
     bad = 0
     market = catalog.items()
@@ -322,9 +378,13 @@ if __name__ == "__main__":   # python -m osa.templates：检查内置模板（CI
             text = " ".join([t["instructions"]] + [s["body"] for s in t["skills"]] + [r["prompt"] for r in t["routines"]])
             extra = sorted(set(skills._APP_REF.findall(text)) & set(market) - set(t["apps"]))
             notes = [f"提到了 @{'、@'.join(extra)}，但没写进 apps"] if extra else []
-            if lang == "en" and i18n.CJK.search(" ".join([t["name"], t["description"], text]
+            if lang == "vi" and (found := vi_problems(p.read_text())):
+                print("✗", p.name, lang, "；".join(found))
+                bad += 1
+                continue
+            if lang in ("en", "vi") and i18n.CJK.search(" ".join([t["name"], t["description"], text]
                                                           + [s["name"] + s["description"] for s in t["skills"]]
                                                           + [r["name"] for r in t["routines"]])):
-                notes.append("英文版里还有中文：没写 en:，或者 en: 里漏了字段")
+                notes.append("英文、越南语版里还有中文：没写 en:，或者 en: 里漏了字段")
             print("✓", p.name, lang, t["name"], f"（{'；'.join(notes)}）" if notes else "")
     sys.exit(1 if bad else 0)

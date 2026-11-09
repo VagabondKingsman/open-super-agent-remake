@@ -21,6 +21,13 @@ def _db_path() -> Path:
 DB_PATH = _db_path()
 
 
+def db_outside_data_dir() -> bool:
+    """OSA_DATA_DIR is set but an absolute memory.db points elsewhere (OSA-015). Kept as-is; startup warns."""
+    if not os.environ.get("OSA_DATA_DIR"):
+        return False
+    return not DB_PATH.resolve().is_relative_to(DATA.resolve())
+
+
 def client_for(role: str) -> tuple[AsyncOpenAI, str]:
     """返回某个角色（router/worker/reviewer/filter）对应的客户端和模型名。"""
     from . import providers

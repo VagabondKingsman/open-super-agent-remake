@@ -175,7 +175,7 @@ def _write_resources(name, resources):
     target = root / name
     if target.is_symlink():
         raise ValueError("Runtime skill directory is a symlink")
-    with tempfile.TemporaryDirectory(prefix=".stage-", dir=root) as tmp:
+    with tempfile.TemporaryDirectory(prefix=f".stage-{name}-", dir=root) as tmp:
         staged = Path(tmp) / "new"
         staged.mkdir()
         for relative, data in resources.items():
@@ -191,6 +191,21 @@ def _write_resources(name, resources):
             if old.exists():
                 old.rename(target)
             raise
+
+
+def _recover_stages():
+    """After a hard kill mid-swap, put the previous tree back and drop orphan stage dirs."""
+    root = resource_root()
+    if not root.is_dir():
+        return
+    for stage in root.glob(".stage-*"):
+        if stage.is_symlink() or not stage.is_dir():
+            continue
+        name = stage.name[len(".stage-"):].rsplit("-", 1)[0]
+        old = stage / "old"
+        if skills.NAME_RE.fullmatch(name) and old.is_dir() and not (root / name).exists():
+            old.rename(root / name)
+        shutil.rmtree(stage, ignore_errors=True)
 
 
 def install(pack: Path = PACK, bot_id: int | None = None) -> list[dict]:
@@ -230,6 +245,7 @@ def ensure_defaults(pack: Path = PACK) -> list[dict]:
     results = []
     with conn:
         conn.execute("BEGIN IMMEDIATE")  # Serialize first startup across server processes.
+        _recover_stages()
         conn.execute("""create table if not exists bundled_skill_state(
             name text primary key, skill_id integer, version text, bundle_hash text,
             record_hash text, resources_hash text)""")
@@ -255,7 +271,8 @@ def ensure_defaults(pack: Path = PACK) -> list[dict]:
                 except (OSError, ValueError):
                     actual_resources = "unreadable-or-symlink"
                 if prior:
-                    if sid != prior[0] or _record_hash(current) != prior[3] or actual_resources != prior[4]:
+                    # actual == new hash: an interrupted upgrade swapped files but rolled back SQLite.
+                    if sid != prior[0] or _record_hash(current) != prior[3] or actual_resources not in (prior[4], resource_hash):
                         results.append({"name": name, "status": "preserved-user-edit", "id": sid})
                         continue
                     if bundle_hash == prior[2]:

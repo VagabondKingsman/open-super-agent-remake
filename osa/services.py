@@ -35,8 +35,8 @@ class LLM:
         tag = f"plugin:{self.plugin}" if self.plugin else "plugin"
         t0, text, usage = time.monotonic(), "", None
         try:
-            stream = await client.chat.completions.create(model=model, messages=msgs, stream=True,
-                                                          stream_options={"include_usage": True}, **call_kwargs(role))
+            stream = await providers.create_chat(client, model=model, messages=msgs, stream=True,
+                                                 stream_options={"include_usage": True}, **call_kwargs(role))
             async for chunk in stream:
                 if chunk.usage:
                     usage = chunk.usage

@@ -7,11 +7,11 @@ cooldown_minutes（同一个对话里同一个词，多久之内只提醒一次�
 """
 import re
 import time
-from osa import bots
+from osa import bots, i18n
 
 META = {"title": "关键词提醒", "version": "1.0", "author": "open-super-agent", "inject": ["messenger"],
         "config": {"keywords": [], "bot": "", "cooldown_minutes": 30}}
-VIA = {"telegram": "Telegram", "feishu": "飞书", "dingtalk": "钉钉", "wecom": "企业微信", "discord": "Discord"}
+VIA = {"telegram": "Telegram", "feishu": i18n.N_("飞书"), "dingtalk": i18n.N_("钉钉"), "wecom": i18n.N_("企业微信"), "discord": "Discord"}
 SNIPPET = 80
 
 
@@ -31,11 +31,11 @@ def snippet(text: str, word: str, n: int = SNIPPET) -> str:
 
 def where(chat: dict, via: str) -> str:
     title = chat.get("title") or f"#{chat.get('id')}"
-    s = f"群「{title}」" if chat.get("kind") == "group" else f"和「{title}」的私聊"
+    s = i18n.t("群「{title}」", title=title) if chat.get("kind") == "group" else i18n.t("和「{title}」的私聊", title=title)
     if chat.get("parent"):
-        s += "的讨论串"
+        s = i18n.t("{where}的讨论串", where=s)
     if via:
-        s += f"（{VIA.get(via, via)}）"
+        s = i18n.t("{where}（{via}）", where=s, via=i18n.t(VIA[via]) if via in VIA else via)
     return s
 
 
@@ -58,8 +58,8 @@ class Cooldown:
 
 
 def notice(chat: dict, via: str, text: str, words: list[str]) -> str:
-    quoted = "」「".join(words)
-    return f"🔔 {where(chat, via)}里有人提到了「{quoted}」：{snippet(text, words[0])}"
+    quoted = i18n.t("、").join(i18n.t("「{word}」", word=w) for w in words)
+    return i18n.t("🔔 {where}里有人提到了{words}：{snippet}", where=where(chat, via), words=quoted, snippet=snippet(text, words[0]))
 
 
 def apply(ctx):
@@ -68,11 +68,11 @@ def apply(ctx):
         kws = re.split(r"[\n,，]+", kws)
     kws = list(dict.fromkeys(str(k).strip() for k in kws or [] if str(k).strip()))
     if not kws:
-        raise ValueError("先在设置里填 keywords（要盯的词的列表，比如 [\"紧急\", \"urgent\"]）")
+        raise ValueError(i18n.t("先在设置里填 keywords（要盯的词的列表，比如 [\"紧急\", \"urgent\"]）"))
     try:
         cool = Cooldown(max(0.0, float(ctx.config.get("cooldown_minutes", 30) or 0)) * 60)
     except (TypeError, ValueError):
-        raise ValueError("cooldown_minutes 要是分钟数") from None
+        raise ValueError(i18n.t("cooldown_minutes 要是分钟数")) from None
     name = ctx.config.get("bot") or None
     messenger = ctx.services["messenger"]
 

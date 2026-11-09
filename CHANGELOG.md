@@ -6,6 +6,7 @@
 ### remake
 - 以 upstream v0.12.0（`d432c74`）为新基础，按 OSA-021 重新移植 remake 自己的改动：越南语界面和 Chinese-as-key 词表、写给模型的英文提示词、Heavy 的可靠性修复、费用按美元记（含 `llm_calls` 和画图价格）、AI Native 技能包、`verify_facts` / `inspect_repo` / `check_patch`（现在经工具注册表提供）。下面 0.7.0–0.12.0 是 upstream 的原文。
 - 桌面 App（`desktop/`）和 iPhone App（`mobile/`）的代码随 upstream 留在仓库里，remake 不构建、不发布。
+- OSA-022：直接调模型的地方（事件过滤、导入记忆、演示转技能、插件 llm 服务）也走额度规则，额度用尽不再重试；`memory.db` 写成绝对路径、不在 `OSA_DATA_DIR` 里时启动和“备份与迁移”页会提醒；观测页窄屏下 Bot 筛选不再被挤出屏幕；前端按页面拆包，首屏 JS 从 1.36 MB 降到 69 kB；技能包对账在中途崩溃后能接着完成；Bot 模板有越南语版，自带插件的消息跟界面语言走，回复大半是中文而界面不是中文时记一个 `lang_flag`。
 
 ### 变更
 - 费用改为美元。models.dev 的单价本来就是美元 / 百万 token，不再乘 `usd_rate` 换成人民币。`config.yaml` 里 DeepSeek 的高峰、空闲价改成官网美元价。界面显示 `$0.0123` 这种格式。`/api/usage` 的 `currency` 仍在，值是 `$`。

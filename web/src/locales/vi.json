@@ -1,4 +1,6 @@
 {
+  "数据库：{db}": "Cơ sở dữ liệu: {db}",
+  "数据库不在数据目录 {dir} 里（memory.db 写的是绝对路径）。手动备份时要把它一起带上。": "Cơ sở dữ liệu không nằm trong thư mục dữ liệu {dir} (memory.db là đường dẫn tuyệt đối). Khi tự sao lưu, nhớ mang nó theo.",
   "1. 把下面这句话发给 ChatGPT、Claude 等助手：": "1. Gửi câu sau cho ChatGPT, Claude…:",
   "2. 把它的回答粘贴到这里，{name} 会整理成一条条记忆：": "2. Dán câu trả lời vào đây, {name} sẽ tách thành từng mục ghi nhớ:",
   "@ 某个 Bot 让它来做，@所有人 让大家都说说；不 @ 的消息由协调者 {lead} 接，它会分给合适的 Bot。": "@ một Bot để giao việc, @everyone để tất cả cùng trả lời. Tin nhắn không @ sẽ đến Bot điều phối {lead}, rồi chuyển cho Bot phù hợp.",
@@ -172,8 +174,8 @@
   "任务 #{id}": "Tác vụ #{id}",
   "任务 #{id} 已暂停{origin}。接手电脑处理完后点“交还”，Bot 会接着做。": "Tác vụ #{id} đã tạm dừng{origin}. Tiếp quản Computer, xử lý xong bấm \"Xong, trả quyền\" để Bot tiếp tục.",
   "任务 #{id} 的结果": "Kết quả tác vụ #{id}",
-  "任务失败": "TaskThất bại",
-  "任务完成": "TaskHoàn thành",
+  "任务失败": "Tác vụ thất bại",
+  "任务完成": "Tác vụ hoàn thành",
   "任务部分完成": "Tác vụ hoàn thành một phần",
   "部分完成": "Một phần",
   "任务已取消": "Task đã hủy",

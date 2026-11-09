@@ -19,6 +19,7 @@ import asyncio
 import re
 import time
 import httpx
+from osa import i18n
 from osa.registry import ROUTER, WORKER, Tool
 
 META = {"title": "推送到手机", "version": "1.0", "author": "open-super-agent", "provide": ["notify"],
@@ -36,9 +37,9 @@ META = {"title": "推送到手机", "version": "1.0", "author": "open-super-agen
             "feishu": {"webhook": ""},
             "dingtalk": {"webhook": ""},
         }}
-CHANNELS = {"bark": "Bark", "serverchan": "Server酱", "pushplus": "PushPlus", "ntfy": "ntfy", "telegram": "Telegram",
-            "gotify": "Gotify", "wecom": "企业微信群机器人", "wecom_app": "企业微信应用", "feishu": "飞书群机器人",
-            "dingtalk": "钉钉群机器人"}
+CHANNELS = {"bark": "Bark", "serverchan": "ServerChan", "pushplus": "PushPlus", "ntfy": "ntfy", "telegram": "Telegram",
+            "gotify": "Gotify", "wecom": "WeCom group bot", "wecom_app": "WeCom app", "feishu": "Feishu group bot",
+            "dingtalk": "DingTalk group bot"}
 REQUIRED = {"bark": ["device_key"], "serverchan": ["sendkey"], "pushplus": ["token"], "ntfy": ["topic"],
             "telegram": ["bot_token", "chat_id"], "gotify": ["server", "app_token"], "wecom": ["webhook"],
             "wecom_app": ["corp_id", "agent_id", "secret"], "feishu": ["webhook"], "dingtalk": ["webhook"]}
@@ -51,18 +52,23 @@ WECOM_API = "https://qyapi.weixin.qq.com/cgi-bin/"
 
 SCHEMA = {"type": "function", "function": {
     "name": "push_to_phone",
-    "description": "推送一条通知到用户自己的手机（用设置里配好的 Bark / Server酱 / ntfy / Telegram 等）。"
-                   "用户说“提醒我”“做完告诉我”“发到我手机上”，或者后台任务（包括定时任务）里有要用户马上知道的事时用它。"
-                   "只发给用户自己，不能用来给别人发消息。",
+    "description": "Push a notification to the user's own phone (through the Bark / ServerChan / ntfy / Telegram etc. channel set up "
+                   "in the plugin settings). Use it when the user says \"remind me\", \"tell me when it's done\" or \"send it to my phone\", "
+                   "or when a background task (including a scheduled one) has something the user must know right away. "
+                   "It only reaches the user themself and cannot message anyone else.",
     "parameters": {"type": "object", "properties": {
-        "text": {"type": "string", "description": "通知正文，简短说清楚是什么事"},
-        "title": {"type": "string", "description": "标题，可选，十来个字"},
-        "url": {"type": "string", "description": "点开通知要打开的链接，可选，http 或 https 开头"}},
+        "text": {"type": "string", "description": "Notification body: say briefly what happened"},
+        "title": {"type": "string", "description": "Optional title, about ten words"},
+        "url": {"type": "string", "description": "Optional link to open when the notification is tapped, starting with http or https"}},
         "required": ["text"]}}}
 
 
 def _cut(text: str, n: int) -> str:
     return text if len(text) <= n else text[:n - 1] + "…"
+
+
+def link(url: str) -> str:
+    return i18n.t("[打开链接]({url})", url=url)
 
 
 def _plain(title: str, text: str, url: str) -> str:
@@ -72,23 +78,24 @@ def _plain(title: str, text: str, url: str) -> str:
 def check(channel: str, conf: dict) -> dict:
     """检查某个渠道的设置，返回整理好的一份（补上默认服务器、去掉结尾的 /）；不对就抛 ValueError，原因显示在设置页上。"""
     if channel not in CHANNELS:
-        raise ValueError(f"先在设置里选 channel：{' / '.join(CHANNELS)}，再填它下面那一组")
+        raise ValueError(i18n.t("先在设置里选 channel：{channels}，再填它下面那一组", channels=" / ".join(CHANNELS)))
     conf = {k: (v.strip() if isinstance(v, str) else v) for k, v in (conf or {}).items()}
     if channel in DEFAULT_SERVER and not conf.get("server"):
         conf["server"] = DEFAULT_SERVER[channel]
     for k in REQUIRED[channel]:
         if conf.get(k) in (None, ""):
-            raise ValueError(f"channel 选的是 {channel}：先填 {channel}.{k}（写的是 vault:名字 的话，看看保险库里有没有这一项）")
+            raise ValueError(i18n.t("channel 选的是 {channel}：先填 {channel}.{key}（写的是 vault:名字 的话，看看保险库里有没有这一项）",
+                                    channel=channel, key=k))
     if (k := URLS.get(channel)) and not str(conf[k]).startswith(("https://", "http://")):
-        raise ValueError(f"{channel}.{k} 要是 http 或 https 开头的地址")
+        raise ValueError(i18n.t("{channel}.{key} 要是 http 或 https 开头的地址", channel=channel, key=k))
     if k:
         conf[k] = str(conf[k]).rstrip("/") if k == "server" else str(conf[k])
     if channel == "ntfy" and not re.fullmatch(r"[-_A-Za-z0-9]{1,64}", str(conf["topic"])):
-        raise ValueError("ntfy.topic 只能用字母、数字、- 和 _，最多 64 个字")
+        raise ValueError(i18n.t("ntfy.topic 只能用字母、数字、- 和 _，最多 64 个字"))
     if channel == "telegram" and not re.fullmatch(r"-?\d+|@\w+", str(conf["chat_id"])):
-        raise ValueError("telegram.chat_id 是一串数字（群是负数），或者 @频道名")
+        raise ValueError(i18n.t("telegram.chat_id 是一串数字（群是负数），或者 @频道名"))
     if channel == "wecom_app" and not str(conf["agent_id"]).isdigit():
-        raise ValueError("wecom_app.agent_id 是应用详情页上的 AgentId（一串数字）")
+        raise ValueError(i18n.t("wecom_app.agent_id 是应用详情页上的 AgentId（一串数字）"))
     return conf
 
 
@@ -104,11 +111,11 @@ def build(channel: str, conf: dict, text: str, title: str = "", url: str = "", t
         m = re.match(r"sctp(\d+)t", key)   # Server酱³ 的 key 里带着用户 id，地址不一样
         api = f"https://{m[1]}.push.ft07.com/send/{key}.send" if m else f"https://sctapi.ftqq.com/{key}.send"
         return {"url": api, "json": {"title": _cut(title or text.split("\n")[0], 32),
-                                     "desp": text + (f"\n\n[打开链接]({url})" if url else "")}}
+                                     "desp": text + (f"\n\n{link(url)}" if url else "")}}
     if channel == "pushplus":
         return {"url": "https://www.pushplus.plus/send", "json": {
             "token": conf["token"], "title": title or _cut(text.split("\n")[0], 50),
-            "content": text + (f"\n\n[打开链接]({url})" if url else ""), "template": "markdown"}}
+            "content": text + (f"\n\n{link(url)}" if url else ""), "template": "markdown"}}
     if channel == "ntfy":   # 用 JSON 发到根地址：标题里有中文也不用管请求头的编码
         body = {"topic": conf["topic"], "message": text} | ({"title": title} if title else {}) | ({"click": url} if url else {})
         return {"url": conf["server"], "json": body,
@@ -128,7 +135,7 @@ def build(channel: str, conf: dict, text: str, title: str = "", url: str = "", t
         return {"url": conf["webhook"], "json": {"msg_type": "text", "content": {"text": plain}}}
     if channel in ("wecom", "dingtalk"):
         return {"url": conf["webhook"], "json": {"msgtype": "text", "text": {"content": plain}}}
-    raise ValueError(f"不认识的渠道 {channel}")
+    raise ValueError(f"Unknown channel {channel}")
 
 
 def failure(channel: str, status: int, data) -> str:
@@ -136,14 +143,14 @@ def failure(channel: str, status: int, data) -> str:
     data = data if isinstance(data, dict) else {}
     msg = data.get("message") or data.get("msg") or data.get("errmsg") or data.get("description") or data.get("error") or ""
     if status >= 400:
-        return f"HTTP {status}" + (f"：{msg}" if msg else "")
+        return f"HTTP {status}" + (f": {msg}" if msg else "")
     ok = {"bark": lambda d: d.get("code") == 200, "serverchan": lambda d: d.get("code") == 0,
           "pushplus": lambda d: d.get("code") == 200, "telegram": lambda d: d.get("ok") is True,
           "wecom": lambda d: d.get("errcode") == 0, "wecom_app": lambda d: d.get("errcode") == 0,
           "dingtalk": lambda d: d.get("errcode") == 0,
           "feishu": lambda d: d.get("code", d.get("StatusCode")) == 0}.get(channel)
     if ok and not ok(data):
-        return str(msg or data)[:300] or "对方没说成功"
+        return str(msg or data)[:300] or "no success reported"
     return ""
 
 
@@ -165,25 +172,25 @@ class Notifier:
         except ValueError:
             d = {"errmsg": f"HTTP {r.status_code}"}
         if d.get("errcode") != 0 or not d.get("access_token"):
-            raise RuntimeError(f"企业微信拿不到 access_token：{d.get('errmsg') or d}")
+            raise RuntimeError(f"WeCom did not return an access_token: {d.get('errmsg') or d}")
         self._token, self._token_until = d["access_token"], time.time() + int(d.get("expires_in", 7200)) - 300
         return self._token
 
     async def send(self, text: str, title: str = "", url: str = ""):
         text, title, url = str(text or "").strip(), str(title or "").strip()[:100], str(url or "").strip()
         if not text:
-            raise RuntimeError("通知正文是空的")
+            raise RuntimeError("The notification text is empty")
         if url and not url.startswith(("https://", "http://")):
-            raise RuntimeError("url 要 http 或 https 开头")
+            raise RuntimeError("url must start with http or https")
         try:
             async with asyncio.timeout(10), httpx.AsyncClient(timeout=8) as client:   # 一次推一条，不常用，不留着连接
                 token = await self._wecom_token(client) if self.channel == "wecom_app" else ""
                 req = build(self.channel, self._conf, text, title, url, token)
                 r = await client.post(req["url"], json=req["json"], headers=req.get("headers") or {})
         except TimeoutError:
-            raise RuntimeError(f"{self.name} 10 秒内没回话") from None
+            raise RuntimeError(f"{self.name} did not answer within 10 seconds") from None
         except httpx.HTTPError as e:
-            raise RuntimeError(f"连不上{self.name}（{type(e).__name__}）") from None
+            raise RuntimeError(f"Could not reach {self.name} ({type(e).__name__})") from None
         try:
             data = r.json()
         except ValueError:
@@ -191,14 +198,15 @@ class Notifier:
         if why := failure(self.channel, r.status_code, data):
             if self.channel == "wecom_app" and isinstance(data, dict) and data.get("errcode") in (40014, 42001):
                 self._token = ""   # token 失效了，下次重新拿
-            raise RuntimeError(f"{self.name}没收下：{why}")
+            raise RuntimeError(f"{self.name} rejected it: {why}")
 
 
 def task_message(task: dict, bot: dict, result: str) -> tuple[str, str]:
     ok = task.get("status") == "done"
-    title = f"{'✅' if ok else '❌'} {bot.get('name', 'Bot')} 的任务{'完成了' if ok else '没完成'}"
+    name = bot.get("name", "Bot")
+    title = i18n.t("✅ {bot} 的任务完成了", bot=name) if ok else i18n.t("❌ {bot} 的任务没完成", bot=name)
     result = (result or "").strip()
-    goal = _cut(task.get("goal") or f"任务 #{task.get('id')}", 80)
+    goal = _cut(task.get("goal") or i18n.t("任务 #{id}", id=task.get("id")), 80)
     return title, goal + ("\n\n" + _cut(result, 800) if result else "")
 
 
@@ -206,27 +214,27 @@ def apply(ctx):
     channel = ctx.config.get("channel") or ""
     mode = ctx.config.get("on_task_done") or "off"
     if mode not in ("off", "failed", "all"):
-        raise ValueError("on_task_done 只能是 off（不推）/ failed（只推失败的）/ all（都推）")
+        raise ValueError(i18n.t("on_task_done 只能是 off（不推）/ failed（只推失败的）/ all（都推）"))
     raw = ctx.config.get(channel) if channel in CHANNELS else {}
     conf = check(channel, {k: ctx.secret(v) for k, v in (raw if isinstance(raw, dict) else {}).items()})
     notifier = Notifier(channel, conf)
-    ctx.provide("notify", notifier, f"推送到用户的手机（{notifier.name}）")
+    ctx.provide("notify", notifier, f"push a notification to the user's phone ({notifier.name})")
     pushed: set = set()   # 自己调过 push_to_phone 的任务：做完时不再推一次
 
     async def run(call):
         try:
             await notifier.send(call.args.get("text"), call.args.get("title") or "", call.args.get("url") or "")
         except RuntimeError as e:
-            return f"没推送：{e}"
+            return f"Not pushed: {e}"
         if call.task is not None:
             if len(pushed) > 1000:
                 pushed.clear()
             pushed.add(getattr(call.task, "id", None))
-        return f"推送好了（{notifier.name}）。"
+        return f"Pushed ({notifier.name})."
 
     ctx.tool(Tool("push_to_phone", SCHEMA, run, where=frozenset({ROUTER, WORKER}),
-                  describe=f"推送通知到用户的手机（{notifier.name}）",
-                  progress=lambda a: f"推送到手机：{str(a.get('title') or a.get('text') or '')[:40]}"))
+                  describe=f"Push a notification to the user's phone ({notifier.name})",
+                  progress=lambda a: i18n.t("推送到手机：{text}", text=str(a.get("title") or a.get("text") or "")[:40])))
 
     async def on_done(task: dict, bot: dict, result: str, **_):
         if task.get("id") in pushed:
