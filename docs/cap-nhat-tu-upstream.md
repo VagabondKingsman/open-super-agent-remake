@@ -75,7 +75,7 @@ Lịch sử remake và upstream không có merge-base. Ba commit `0897360`, `ec7
 
 Upstream đi từ v0.6.1 lên v0.12.0 trong ba ngày: 84 commit, khoảng 27.000 dòng ở `osa/`, `web/`, `tests/`. Phần riêng của remake chỉ khoảng 5.000 dòng. Vì vậy lần này dựng nền mới rồi port remake lên, giống lần v0.6.0, không áp từng commit upstream.
 
-1. Safety branch tại tip cũ (`safety/i18n-vi-before-v0.12-20261109`).
+1. Ghi SHA tip cũ (`3b02a80`). Lần này safety branch `safety/i18n-vi-before-v0.12-20261109` chỉ tạo ở local, không push. `i18n-vi` không bị force-push nên SHA này vẫn còn trên remote.
 2. Một commit forward lấy cây v0.12.0 cho `osa/`, `web/` (trừ `web/tests/`), `tests/`, `pyproject.toml`, `uv.lock`, `config.yaml`, `Dockerfile`, `compose.yaml`, `.env.example`, `.dockerignore`, `.gitignore`, `deploy/`, `desktop/`, `mobile/`. Giữ của remake: `.agents/`, `skills-pack/`, `docs/`, `scripts/`, README, `.github/` và file chỉ remake có.
 3. Xuất diff remake `3432671..<tip cũ>` cho các file bị ghi đè rồi `git apply -3`. Blob của `3432671` có sẵn trong repo vì đã fetch upstream, nên git tự merge 3 chiều. Lần này 53 file sạch, 23 file xung đột.
 4. `osa/router.py`, `osa/worker.py` merge 3 chiều bằng `git merge-file --diff3` (remake làm gốc). Giữ cấu trúc upstream (registry, dsml, botadmin, đo ms/ttft), áp lại hành vi remake (finish_reason, Heavy, quota, IncompleteAnswer, side_effects), viết prompt mới bằng tiếng Anh.
