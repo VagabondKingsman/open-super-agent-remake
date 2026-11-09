@@ -52,8 +52,14 @@ async def test_calls_are_recorded_against_bot_chat_and_task(llm, events, make_bo
 
 async def test_failed_model_call_is_recorded(llm, events, make_bot, monkeypatch):
     monkeypatch.setattr(openai._base_client.BaseClient, "_calculate_retry_timeout", lambda self, *a, **kw: 0)
+    # remake：5xx 由 providers.create_chat 重试 providers.RETRIES 次（不靠 SDK）；全失败才记成一次出错，退避不真的等
+    from osa import providers
+
+    async def no_wait(_s):
+        return None
+    monkeypatch.setattr(providers, "_pause", no_wait)
     b = make_bot("Broken")
-    llm.fail(500, 500, 500)   # 假模型客户端默认重试两次：三次都失败
+    llm.fail(*[500] * (providers.RETRIES + 1))   # 第一次加上每次重试，都失败
     await server.safe_handle(bots.chat(b["chat_id"]), "你好")
     await settle()
 

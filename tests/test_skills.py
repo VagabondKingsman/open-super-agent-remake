@@ -214,16 +214,16 @@ def test_use_skill_tool(bot):
     skills.save(b["id"], "填表", "1. 打开表单\n2. 跑脚本", "填表单", files={"scripts/fill.py": "A" * 500, "references/long.md": long})
     out = skills.tool_use(b["id"], registry.WORKER, {"name": "/填表"})
     assert "1. 打开表单" in out and "用户调用了" not in out            # 是 Bot 自己取的，不是用户调用
-    assert "scripts/fill.py（500 字）" in out and "A" * 400 + "……" in out and "A" * 401 not in out   # 每个文件开头 400 字
+    assert "scripts/fill.py (500 characters)" in out and "A" * 400 + "…" in out and "A" * 401 not in out   # 每个文件开头 400 字
     assert "computer_write_file" in out and "run_code" in out and "computer_shell" in out
     assert "dispatch" in skills.tool_use(b["id"], registry.ROUTER, {"name": "填表"})   # Router 跑不了脚本：派任务
     assert skills.tool_use(b["id"], registry.WORKER, {"name": "填表", "file": "scripts/fill.py"}).count("A") == 500
     part = skills.tool_use(b["id"], registry.WORKER, {"name": "填表", "file": "references/long.md"})
-    assert f"共 {len(long)} 字" in part and "offset=7000" in part and len(part) < 7500    # 太长的分段给
+    assert f"{len(long)} characters in total" in part and "offset=7000" in part and len(part) < 7500    # 太长的分段给
     rest = skills.tool_use(b["id"], registry.WORKER, {"name": "填表", "file": "references/long.md", "offset": 7000})
     assert rest.split("---\n", 1)[1].startswith(long[7000:7010])
-    assert "没有 nope.py" in skills.tool_use(b["id"], registry.WORKER, {"name": "填表", "file": "nope.py"})
-    assert "没有 /不存在" in skills.tool_use(b["id"], registry.WORKER, {"name": "不存在"}) and "/填表" in \
+    assert "has no file nope.py" in skills.tool_use(b["id"], registry.WORKER, {"name": "填表", "file": "nope.py"})
+    assert "There is no skill /不存在" in skills.tool_use(b["id"], registry.WORKER, {"name": "不存在"}) and "/填表" in \
         skills.tool_use(b["id"], registry.WORKER, {"name": "不存在"})
 
 
@@ -236,7 +236,7 @@ async def test_router_uses_skill(llm, events, bot):
     await until(lambda: len(llm.bodies("router", "Skilly")) == 2, what="第二次请求")
     first, second = llm.bodies("router", "Skilly")
     system = first["messages"][0]["content"]
-    assert "use_skill" in system and "- /日报：写日报" in system and "看今天的任务" not in system
+    assert "use_skill" in system and "- /日报: 写日报" in system and "看今天的任务" not in system
     assert "use_skill" in {t["function"]["name"] for t in first["tools"]}
     tool_msg = next(m for m in second["messages"] if m["role"] == "tool")
     assert "2. 写三条要点" in tool_msg["content"] and "print('统计')" in tool_msg["content"]
@@ -248,7 +248,7 @@ async def test_slash_call_mentions_files(llm, events, bot):
     await server.safe_handle(bots.chat(b["chat_id"]), "/日报 今天的")
     await until(lambda: llm.bodies("router", "Slashy"), what="请求")
     last = llm.bodies("router", "Slashy")[0]["messages"][-1]["content"]
-    assert "用户调用了技能 /日报" in last and "scripts/stat.py" in last and "use_skill" in last
+    assert "The user invoked skill /日报" in last and "scripts/stat.py" in last and "use_skill" in last
 
 
 def test_routine_goal_mentions_files(bot):
