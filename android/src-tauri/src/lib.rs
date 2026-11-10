@@ -183,15 +183,18 @@ fn android_switch_server(app: AppHandle) {
 
 /// Same-origin pages open in a second Android activity. A second wry window
 /// would share the 8-message queue that crashes the process.
-#[tauri::command]
-fn android_open_sheet(app: AppHandle, url: String) -> Result<(), String> {
+#[tauri::command(async)]
+async fn android_open_sheet(app: AppHandle, url: String) -> Result<(), String> {
     let origin = state(&app).origin.lock().unwrap().clone().ok_or("no server")?;
     let u = origin.join(&url).map_err(|e| e.to_string())?;
     if u.origin() != origin.origin() {
         let _ = app.opener().open_url(u.as_str(), None::<&str>);
         return Ok(());
     }
-    start_sheet(&u, &origin.origin().ascii_serialization())
+    let origin = origin.origin().ascii_serialization();
+    tauri::async_runtime::spawn_blocking(move || start_sheet(&u, &origin))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[cfg(target_os = "android")]
@@ -201,27 +204,15 @@ fn start_sheet(url: &Url, origin: &str) -> Result<(), String> {
     let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) }.map_err(|e| e.to_string())?;
     let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
     let activity = unsafe { JObject::from_raw(ctx.context().cast()) };
-    let sheet = env.find_class("com/kadaliao/opensuperagent/SheetActivity").map_err(|e| e.to_string())?;
-    let intent_class = env.find_class("android/content/Intent").map_err(|e| e.to_string())?;
-    let sheet_obj = JObject::from(sheet);
-    let intent = env
-        .new_object(&intent_class, "(Landroid/content/Context;Ljava/lang/Class;)V", &[
-            JValue::Object(&activity),
-            JValue::Object(&sheet_obj),
-        ])
-        .map_err(|e| e.to_string())?;
+    let class = env.find_class("com/kadaliao/opensuperagent/SheetActivity").map_err(|e| e.to_string())?;
     let url_s = env.new_string(url.as_str()).map_err(|e| e.to_string())?;
     let origin_s = env.new_string(origin).map_err(|e| e.to_string())?;
-    let k_url = env.new_string("url").map_err(|e| e.to_string())?;
-    let k_origin = env.new_string("origin").map_err(|e| e.to_string())?;
-    env.call_method(&intent, "putExtra", "(Ljava/lang/String;Ljava/lang/String;)Landroid/content/Intent;", &[
-        JValue::Object(&k_url), JValue::Object(&url_s),
-    ]).map_err(|e| e.to_string())?;
-    env.call_method(&intent, "putExtra", "(Ljava/lang/String;Ljava/lang/String;)Landroid/content/Intent;", &[
-        JValue::Object(&k_origin), JValue::Object(&origin_s),
-    ]).map_err(|e| e.to_string())?;
-    env.call_method(&activity, "startActivity", "(Landroid/content/Intent;)V", &[JValue::Object(&intent)])
-        .map_err(|e| e.to_string())?;
+    env.call_static_method(
+        class,
+        "openAndWait",
+        "(Landroid/app/Activity;Ljava/lang/String;Ljava/lang/String;)V",
+        &[JValue::Object(&activity), JValue::Object(&url_s), JValue::Object(&origin_s)],
+    ).map_err(|e| e.to_string())?;
     Ok(())
 }
 

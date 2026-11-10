@@ -13,6 +13,7 @@ import android.content.pm.ShortcutManager
 import android.graphics.drawable.Icon
 import android.os.Build
 import java.net.URI
+import java.util.concurrent.CountDownLatch
 
 class SheetActivity : Activity() {
   private lateinit var web: WebView
@@ -53,12 +54,15 @@ class SheetActivity : Activity() {
       web.stopLoading()
       web.destroy()
     }
+    open?.countDown()
+    open = null
     super.onDestroy()
   }
 
-    companion object {
+  companion object {
     const val EXTRA_URL = "url"
     const val EXTRA_ORIGIN = "origin"
+    private var open: CountDownLatch? = null
 
     fun sameOrigin(url: String, origin: String): Boolean {
       return try {
@@ -93,6 +97,16 @@ class SheetActivity : Activity() {
         .setIntent(Intent(activity, MainActivity::class.java).setAction(Intent.ACTION_MAIN))
         .build()
       manager.dynamicShortcuts = listOf(info)
+    }
+
+    fun openAndWait(activity: Activity, url: String, origin: String) {
+      val gate = CountDownLatch(1)
+      open = gate
+      val intent = Intent(activity, SheetActivity::class.java)
+        .putExtra(EXTRA_URL, url)
+        .putExtra(EXTRA_ORIGIN, origin)
+      activity.startActivity(intent)
+      gate.await()
     }
   }
 }
