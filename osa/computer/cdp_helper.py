@@ -509,6 +509,8 @@ class Ctx:
             if t is None:
                 t, self.window = self.new_window(front)
                 created = True
+        if w.get("size") and not HOST:
+            self.fit(self.window, w["size"])
         self.ws = WS(t["webSocketDebuggerUrl"])
         if HOST:
             pass   # 本机模式不把窗口提到前面：你可能正在用别的程序（要看就点“显示窗口”，即 op front）
@@ -547,6 +549,27 @@ class Ctx:
                 return t, w
             time.sleep(0.1)
         raise RuntimeError("新窗口没有打开")
+
+    def fit(self, window: int, size) -> bool:
+        """任务窗口太小（比如被拖成 510x267，页面截图只剩 500x136）：放大到电脑设置的大小。
+        新开的窗口会照着最前面的窗口的大小开，已经开着的小窗口也在这里放大。只改普通状态的窗口，最大化、全屏的不动。"""
+        try:
+            want_w, want_h = int(size[0]), int(size[1])
+            bd = self.b.call("Browser.getWindowBounds", {"windowId": window})["bounds"]
+            if bd.get("windowState") == "minimized":
+                self.b.call("Browser.setWindowBounds", {"windowId": window, "bounds": {"windowState": "normal"}})
+                bd = self.b.call("Browser.getWindowBounds", {"windowId": window})["bounds"]
+            if bd.get("windowState", "normal") != "normal":
+                return False
+            if bd["width"] >= want_w * 0.9 and bd["height"] >= want_h * 0.9:
+                return False
+            self.b.call("Browser.setWindowBounds", {"windowId": window, "bounds": {
+                "left": max(0, bd.get("left", 0)), "top": max(0, bd.get("top", 0)),
+                "width": max(bd["width"], want_w), "height": max(bd["height"], want_h)}})
+            time.sleep(0.3)   # 等页面按新大小重新排版，紧接着的截图才是新尺寸
+            return True
+        except Exception:
+            return False   # 改不了大小不影响这次动作
 
     def to_front(self, window: int):
         t = next((t for t, x in self.windows(_targets()) if x == window), None)

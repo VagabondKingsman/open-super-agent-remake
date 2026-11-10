@@ -127,3 +127,62 @@ async def test_host_ignores_screen_flag(monkeypatch):
     monkeypatch.setattr(ctools, "get", lambda: c)
     text, _ = await ctools.call(_Task(), "computer_screenshot", {"screen": True}, _noop, key="1")
     assert c.calls == ["page_shot"] and "current page" in text
+
+
+# ---------- TIP-04b：任务窗口太小（510x267，页面截图只剩 500x136）就放大到 computer.width / height ----------
+class FakeBrowserWS:
+    def __init__(self, bounds: dict):
+        self.bounds = dict(bounds)
+        self.calls: list[tuple[str, dict]] = []
+
+    def call(self, method: str, params: dict | None = None):
+        self.calls.append((method, params or {}))
+        if method == "Browser.getWindowBounds":
+            return {"bounds": dict(self.bounds)}
+        if method == "Browser.setWindowBounds":
+            self.bounds.update(params["bounds"])
+            return {}
+        raise AssertionError(method)
+
+
+def _ctx(bounds: dict):
+    from osa.computer import cdp_helper
+    ctx = object.__new__(cdp_helper.Ctx)
+    ctx.b = FakeBrowserWS(bounds)
+    return ctx
+
+
+def test_small_task_window_is_enlarged(monkeypatch):
+    from osa.computer import cdp_helper
+    monkeypatch.setattr(cdp_helper.time, "sleep", lambda s: None)
+    ctx = _ctx({"left": -5, "top": 10, "width": 510, "height": 267, "windowState": "normal"})
+    assert ctx.fit(7, [1280, 800]) is True
+    assert ctx.b.bounds == {"left": 0, "top": 10, "width": 1280, "height": 800, "windowState": "normal"}
+    sets = [p for m, p in ctx.b.calls if m == "Browser.setWindowBounds"]
+    assert sets == [{"windowId": 7, "bounds": {"left": 0, "top": 10, "width": 1280, "height": 800}}]
+
+
+def test_big_or_maximized_window_left_alone(monkeypatch):
+    from osa.computer import cdp_helper
+    monkeypatch.setattr(cdp_helper.time, "sleep", lambda s: None)
+    ok = _ctx({"left": 0, "top": 0, "width": 1920, "height": 1032, "windowState": "normal"})
+    assert ok.fit(1, [1280, 800]) is False and not [c for c in ok.b.calls if c[0] == "Browser.setWindowBounds"]
+    maxed = _ctx({"left": 0, "top": 0, "width": 400, "height": 300, "windowState": "maximized"})
+    assert maxed.fit(1, [1280, 800]) is False and not [c for c in maxed.b.calls if c[0] == "Browser.setWindowBounds"]
+    mini = _ctx({"left": 0, "top": 0, "width": 400, "height": 300, "windowState": "minimized"})
+    assert mini.fit(1, [1280, 800]) is True and mini.b.bounds["width"] == 1280 and mini.b.bounds["windowState"] == "normal"
+
+
+def test_window_size_sent_off_host_only(monkeypatch):
+    from osa.config import CFG
+    monkeypatch.setitem(CFG, "computer", {**CFG["computer"], "width": 1280, "height": 800})
+    c = FakeComputer()
+    c.backend = "instabox"
+    c.width, c.height = 1920, 1080
+    c.users["t1"] = {"label": "t", "window": None}
+    assert c._win("t1")["size"] == [1280, 800]
+    assert c._win("chat-1", "open")["size"] == [1280, 800]
+    c.width, c.height = 1024, 600   # 屏幕比设置的小：不超过屏幕
+    assert c._win("t1")["size"] == [1024, 600]
+    c.backend = "host"
+    assert "size" not in c._win("t1")
