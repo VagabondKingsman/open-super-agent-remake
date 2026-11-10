@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::Duration;
 use tauri::ipc::CapabilityBuilder;
-use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_opener::OpenerExt;
 use url::Url;
 
@@ -38,25 +38,18 @@ pub struct State {
     granted: Mutex<Vec<String>>,
     pair: Mutex<Option<Pair>>,
     error: Mutex<String>,
+    next: Mutex<Option<String>>,
 }
 
 fn state(app: &AppHandle) -> tauri::State<'_, State> {
     app.state::<State>()
 }
 
-fn main_window(app: &AppHandle) -> Option<WebviewWindow> {
-    app.get_webview_window("main")
-}
-
-fn setup_url(query: &str) -> Url {
-    Url::parse(&format!("http://tauri.localhost/index.html{query}")).unwrap()
-}
-
 fn show_setup(app: &AppHandle, query: &str) {
     *state(app).origin.lock().unwrap() = None;
-    if let Some(w) = main_window(app) {
-        let _ = w.navigate(setup_url(query));
-    }
+    let _ = query;
+    // The setup page reads setup_state and moves itself. navigate() goes
+    // through wry's Android queue, which holds 8 messages and then panics.
 }
 
 fn server_pattern(origin: &Url) -> String {
@@ -92,10 +85,8 @@ fn grant(app: &AppHandle, origin: &Url) {
 fn open_server(app: &AppHandle, origin: Url, first: Option<Url>) {
     *state(app).origin.lock().unwrap() = Some(origin.clone());
     state(app).error.lock().unwrap().clear();
+    *state(app).next.lock().unwrap() = Some(first.unwrap_or(origin.clone()).to_string());
     grant(app, &origin);
-    if let Some(w) = main_window(app) {
-        let _ = w.navigate(first.unwrap_or(origin));
-    }
 }
 
 fn connect(app: &AppHandle, origin: Url, ticket: &str) -> Result<(), String> {
@@ -115,7 +106,7 @@ fn on_pair(app: &AppHandle, pair: Pair) {
     let configured = state(app).cfg.lock().unwrap().url.clone().and_then(|u| connect::normalize(&u));
     if configured.as_ref().is_some_and(|c| c.origin() != pair.server.origin()) {
         *state(app).pair.lock().unwrap() = Some(pair);
-        show_setup(app, "?pair=1");
+        *state(app).next.lock().unwrap() = None;
         return;
     }
     let app = app.clone();
@@ -136,6 +127,7 @@ fn setup_state(app: AppHandle) -> Value {
         "url": url,
         "error": st.error.lock().unwrap().clone(),
         "pair": pair.map(|p| p.server.origin().ascii_serialization()),
+        "next": st.next.lock().unwrap().clone(),
     })
 }
 
@@ -174,10 +166,11 @@ fn android_switch_server(app: AppHandle) {
     show_setup(&app, "?switch=1");
 }
 
-fn build_main(app: &AppHandle) -> tauri::Result<WebviewWindow> {
+fn build_main(app: &AppHandle) -> tauri::Result<()> {
     WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
         .initialization_script(BRIDGE)
-        .build()
+        .build()?;
+    Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -199,6 +192,7 @@ pub fn run() {
                 granted: Mutex::new(vec![]),
                 pair: Mutex::new(None),
                 error: Mutex::new(String::new()),
+                next: Mutex::new(None),
             });
             let handle = app.handle().clone();
             build_main(&handle)?;
