@@ -22,9 +22,10 @@ const BRIDGE: &str = r#"(function () {
   window.osaDesktop = {
     platform: 'android',
     notify: function () {},
-    setBadge: function () {},
+    setBadge: function (count) { quiet('android_set_badge', { count: count | 0 }); },
     openExternal: function (url) { quiet('android_open_external', { url: String(url) }); },
     speech: false,
+    openSheet: function (url) { return call('android_open_sheet', { url: String(url) }); },
     switchServer: function () {
       call('android_switch_server').then(function () {
         location.replace('http://tauri.localhost/');
@@ -80,7 +81,9 @@ fn grant(app: &AppHandle, origin: &Url) {
         .local(false)
         .window("main")
         .permission("allow-android-open-external")
-        .permission("allow-android-switch-server");
+        .permission("allow-android-switch-server")
+        .permission("allow-android-open-sheet")
+        .permission("allow-android-set-badge");
     if app.add_capability(cap).is_ok() {
         granted.push(key);
     }
@@ -178,6 +181,70 @@ fn android_switch_server(app: AppHandle) {
     // The page reloads itself. navigate() fills wry's 8-message Android queue.
 }
 
+/// Same-origin pages open in a second Android activity. A second wry window
+/// would share the 8-message queue that crashes the process.
+#[tauri::command(async)]
+async fn android_open_sheet(app: AppHandle, url: String) -> Result<(), String> {
+    let origin = state(&app).origin.lock().unwrap().clone().ok_or("no server")?;
+    let u = origin.join(&url).map_err(|e| e.to_string())?;
+    if u.origin() != origin.origin() {
+        let _ = app.opener().open_url(u.as_str(), None::<&str>);
+        return Ok(());
+    }
+    let origin = origin.origin().ascii_serialization();
+    tauri::async_runtime::spawn_blocking(move || start_sheet(&u, &origin))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[cfg(target_os = "android")]
+fn start_sheet(url: &Url, origin: &str) -> Result<(), String> {
+    use jni::objects::{JObject, JValue};
+    let ctx = ndk_context::android_context();
+    let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) }.map_err(|e| e.to_string())?;
+    let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
+    let activity = unsafe { JObject::from_raw(ctx.context().cast()) };
+    let class = env.find_class("com/kadaliao/opensuperagent/SheetActivity").map_err(|e| e.to_string())?;
+    let url_s = env.new_string(url.as_str()).map_err(|e| e.to_string())?;
+    let origin_s = env.new_string(origin).map_err(|e| e.to_string())?;
+    env.call_static_method(
+        class,
+        "openAndWait",
+        "(Landroid/app/Activity;Ljava/lang/String;Ljava/lang/String;)V",
+        &[JValue::Object(&activity), JValue::Object(&url_s), JValue::Object(&origin_s)],
+    ).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[cfg(not(target_os = "android"))]
+fn start_sheet(_url: &Url, _origin: &str) -> Result<(), String> {
+    Err("android only".into())
+}
+
+#[tauri::command]
+fn android_set_badge(count: i64) {
+    set_badge(count.max(0));
+}
+
+#[cfg(target_os = "android")]
+fn set_badge(count: i64) {
+    use jni::objects::{JObject, JValue};
+    let ctx = ndk_context::android_context();
+    let Ok(vm) = (unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) }) else { return };
+    let Ok(mut env) = vm.attach_current_thread() else { return };
+    let activity = unsafe { JObject::from_raw(ctx.context().cast()) };
+    let Ok(class) = env.find_class("com/kadaliao/opensuperagent/SheetActivity") else { return };
+    let _ = env.call_static_method(
+        class,
+        "setCount",
+        "(Landroid/app/Activity;I)V",
+        &[JValue::Object(&activity), JValue::Int(count as i32)],
+    );
+}
+
+#[cfg(not(target_os = "android"))]
+fn set_badge(_count: i64) {}
+
 fn build_main(app: &AppHandle) -> tauri::Result<()> {
     WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
         .initialization_script(BRIDGE)
@@ -191,7 +258,8 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             setup_state, choose_remote, confirm_pair, cancel_pair,
-            android_open_external, android_switch_server
+            android_open_external, android_switch_server, android_open_sheet,
+            android_set_badge
         ])
         .setup(|app| {
             let dir = app.path().app_data_dir().unwrap_or_else(|_| std::env::temp_dir());
