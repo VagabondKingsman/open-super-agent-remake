@@ -244,3 +244,11 @@ Append. Câu "OSA-034 chưa push" trên BOARD cũ là trạng thái lúc viết.
 [PR #31](https://github.com/VagabondKingsman/open-super-agent-remake/pull/31) merge vào `i18n-vi` tại `c7c5321`, `merged_at` `2026-11-10T07:47:27Z`. [PR #32](https://github.com/VagabondKingsman/open-super-agent-remake/pull/32) merge tại `26752c9`, `merged_at` `2026-11-10T08:40:21Z`. Head #32 là `6bca8fd`. CI backend, frontend, docker SUCCESS.
 
 OSA-036 (`hoplite/osa-036-android-switch`, head `08d7f76`): nút Đổi server xóa địa chỉ đã lưu. Trang web tự tải `http://tauri.localhost/`. Không gọi `navigate`. APK debug arm64 SHA-256 `230ef2d3a124c62430b545bea3aab518981e259c1c37b1162e31ad5196e1f4bd`. Chưa cài trên điện thoại thật. Máy này không có `/dev/kvm`.
+
+## Bổ sung · PR #33 đã merge · OSA-037 đang làm · hoplite · 10/11/2026
+
+Append. Câu "OSA-036 đang làm" ở trên là trạng thái lúc viết mục đó.
+
+[PR #33](https://github.com/VagabondKingsman/open-super-agent-remake/pull/33) merge vào `i18n-vi` tại `4e146df`, `merged_at` `2026-11-10T08:49:28Z`. Head `8eaac9b`.
+
+OSA-037 (`hoplite/osa-037-android-sheet`): link cùng site và OAuth mở `SheetActivity`. Rust gọi `startActivity` qua JNI. Không tạo webview wry thứ hai. Push và badge vẫn chưa có. Chưa cài trên điện thoại thật.

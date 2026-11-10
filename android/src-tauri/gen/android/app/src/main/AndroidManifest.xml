@@ -29,6 +29,10 @@
                 <data android:scheme="opensuperagent" android:host="pair" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".SheetActivity"
+            android:exported="false"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode" />
 
         <provider
           android:name="androidx.core.content.FileProvider"
