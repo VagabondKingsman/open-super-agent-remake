@@ -17,6 +17,8 @@ Repo: `VagabondKingsman/open-super-agent-remake`. Base: `i18n-vi`. Upstream `kad
 
 ## Head hiện tại
 
+Đối chiếu 10/11/2026 16:52, sau PR #35: `origin/i18n-vi = 90d820c`, merge [PR #35](https://github.com/VagabondKingsman/open-super-agent-remake/pull/35) (E2E-B1-B6). TIP-04b (cửa sổ task Computer) nằm ở branch `fix/tip-04b-window-handoff`, chưa merge. Đọc [log TIP-04b](log/2026-11-10-tip-04b-window-and-handoff.md) trước. Đoạn dưới là mốc cũ.
+
 Đối chiếu 10/11/2026, sau OSA-033:
 
 `origin/i18n-vi = c7c53219e7d6fdb2cc12d1926bf8b23e28883f0f`
@@ -62,6 +64,12 @@ Giờ là `merged_at` đổi sang Asia/Saigon. `merged_by` trên API là Vagabon
 | [#27](https://github.com/VagabondKingsman/open-super-agent-remake/pull/27) | 12:59:36 10/11 | `4512138` | OSA-031 port upstream v0.13.0–v0.17.0. Head `d97ad3c`. |
 | [#28](https://github.com/VagabondKingsman/open-super-agent-remake/pull/28) | 13:09:02 10/11 | `aa1ab7e` | OSA-031 ghi `.agents/` sau khi #27 merge. Head `c9efd89`. |
 | [#29](https://github.com/VagabondKingsman/open-super-agent-remake/pull/29) | 13:39:04 10/11 | `d9ae1d8` | OSA-032 README và docs người dùng cho v0.17.0. Head `e1d4399`. |
+| [#30](https://github.com/VagabondKingsman/open-super-agent-remake/pull/30) | 13:52:29 10/11 | `c7c5321` | OSA-033 bàn giao `.agents/`. Giờ commit merge. |
+| [#31](https://github.com/VagabondKingsman/open-super-agent-remake/pull/31) | 15:01:58 10/11 | `f8d48f3` | OSA-034 vỏ Android. Giờ commit merge. |
+| [#32](https://github.com/VagabondKingsman/open-super-agent-remake/pull/32) | 15:40:21 10/11 | `26752c9` | OSA-035 Android crash. |
+| [#33](https://github.com/VagabondKingsman/open-super-agent-remake/pull/33) | 15:49:27 10/11 | `4e146df` | OSA-036 nút Đổi server. |
+| [#34](https://github.com/VagabondKingsman/open-super-agent-remake/pull/34) | 16:18:45 10/11 | `ac85f73` | OSA-037 trang nổi Android. |
+| [#35](https://github.com/VagabondKingsman/open-super-agent-remake/pull/35) | 16:23:51 10/11 | `90d820c` | E2E-B1-B6: effort fallback, chặn dispatch bịa, reviewer, tự handoff, ảnh cả màn hình. Head `e5d9f5a`. Giờ commit merge. |
 
 PR #1 đến #5 rơi vào đêm 06/11 UTC, tức sáng 07/11 giờ Sài Gòn. Từ PR #17, code trên `i18n-vi` là v0.12.0, có `desktop/` và `mobile/` trong cây nhưng không có workflow build. Box vẫn chạy bản cũ cho tới khi deploy theo OPS.
 
@@ -122,6 +130,14 @@ Deploy `c16e6bb` trên box, Tin Tin báo, phiên docs không mở DB:
 `legacy_cny_per_usd: 1` chỉ khi số cũ đã là USD. DB box này đã chia một lần. Lần sau cờ USD giữ nguyên số.
 
 Audit 09/11, phần còn lại chưa giao (nhóm C): L2 vault key từ passphrase dùng scrypt (cần migrate), L3 thu hồi session, L5 lọc IP nội bộ cho app MCP HTTP/SSE, R2 bật WAL cho SQLite. Ngoài ra `sources/_util.get` và `unfurl` vẫn kiểm IP rồi mới kết nối, có thể chuyển sang `tools.pin()`.
+
+## Computer Instabox trên box vận hành
+
+- `computer.backend: auto` chọn Instabox khi có khóa Instabox: nhập trên panel (mã hóa vào vault) hoặc `INSTABOX_API_KEY` trong môi trường. Không có khóa thì dùng Docker. Trong app desktop thì dùng host.
+- Màn hình VM đọc bằng `xdpyinfo`. Ngày 10/11 VM là 1920 × 1080. Cửa sổ task theo `computer.width` × `computer.height` (1280 × 800) sau TIP-04b.
+- `GET /shot` trả 409 trên Instabox vì panel dùng live view. Đây không phải lỗi mới.
+- VM tự tạm dừng sau `computer.idle_pause_s` giây không dùng. Box vận hành đặt số lớn trong `config.yaml` local và chạy script giữ VM thức. Đừng commit giá trị đó. Script và đường dẫn là của box đó, máy khác tự cấu hình.
+- Không ghi khóa, mật khẩu đăng nhập OSA, link VNC hay link remote của VM vào repo hoặc log.
 
 ## Bước đầu phiên sau
 

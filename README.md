@@ -4,7 +4,7 @@
 
 Bản tiếng Việt của [kadaliao/open-super-agent](https://github.com/kadaliao/open-super-agent) v0.17.0 (`ec02547`), chạy trên máy của bạn. Bạn chọn model, nối ứng dụng qua MCP, giao việc nền cho Bot và xem Computer khi Bot làm. Tiền API do nhà cung cấp tính. Dự án không cấp credit.
 
-Repo: <https://github.com/VagabondKingsman/open-super-agent-remake>. Giấy phép [MIT](LICENSE). Tác giả upstream: Kada Liao. Nhánh làm việc: `i18n-vi`, tip `aa1ab7e` (10/11/2026).
+Repo: <https://github.com/VagabondKingsman/open-super-agent-remake>. Giấy phép [MIT](LICENSE). Tác giả upstream: Kada Liao. Nhánh làm việc: `i18n-vi`, tip `90d820c` (merge PR #35, 10/11/2026).
 
 ## Bản này giữ gì so với upstream
 
@@ -22,6 +22,18 @@ Repo: <https://github.com/VagabondKingsman/open-super-agent-remake>. Giấy phé
 - Tool chỉ đọc đứng cạnh nhau chạy cùng lúc. Lệnh ghi, thao tác Computer và bước cần xác nhận vẫn lần lượt.
 - Giao diện theo hệ thống, sáng, hoặc tối. Lựa chọn nằm ở máy này (`localStorage` `osa.theme`), không ghi lên server.
 - Mac đang cho server mượn có terminal khi bật `computer.linked_shell`. Mặc định tắt. Mỗi lệnh vẫn phải xác nhận. App Mac cũ không chạy được lệnh và báo cần cập nhật.
+
+## Sửa sau đợt E2E Computer ngày 10/11/2026
+
+Các mục dưới đây có trong code remake, không có ở upstream. Bằng chứng live nằm trong `.agents/log/`.
+
+- `reasoning_effort` của từng role chỉ nhận rỗng, `low`, `medium`, `high`, `xhigh`, `max`. Giá trị khác bị từ chối với lỗi 400. Khi provider trả 400 cho một mức effort, OSA gọi lại một lần không kèm effort và ghi model đó vào khóa `effort_rejects` trong bảng `settings`. Lần sau OSA không gửi lại mức đó. Nút Thử ở Cài đặt → Mô hình báo mức bị từ chối.
+- Router nói đã giao task #N mà lượt đó không gọi `dispatch` và #N không tồn tại thì OSA cho thêm một lượt có tool để giao thật. Lượt đó vẫn không giao thì câu trả lời có thêm dòng đính chính. Tin này mang `fabricated_task_ids` và được đưa lại vào ngữ cảnh như một thông báo hệ thống.
+- Reviewer của Heavy không có tool. Câu hỏi gửi reviewer bỏ các dòng yêu cầu `load_skill`, `verify_facts`, Skill Flow. Bản gộp dưới 400 ký tự và ngắn hơn một phần tư bản nháp ngắn nhất (bản nháp từ 200 ký tự) thì OSA hỏi lại một lần. Vẫn ngắn thì OSA trả bản nháp dài nhất, task ở trạng thái `partial`.
+- Trong nhóm, Bot có thể đặt `handoff_to` là chính mình khi `dispatch`. Task xong thì Bot đó được gọi lại để tổng hợp. Chuỗi bàn giao theo kết quả task dừng ở `MAX_TURNS` (8) và hiện thông báo.
+- Trên Docker và Instabox, `computer_screenshot` có `screen: true` để chụp cả màn hình. Ảnh này chỉ để nhìn. Tọa độ click vẫn theo ảnh trang. Chrome trên máy này không có tham số đó.
+- Cửa sổ trình duyệt của task nhỏ hơn 90% kích thước `computer.width` × `computer.height` (mặc định 1280 × 800, không vượt màn hình) thì được phóng lên kích thước đó mỗi lần task dùng cửa sổ. Cửa sổ phóng to hết cỡ hoặc toàn màn hình giữ nguyên. Trên Instabox, ảnh trang trước khi sửa chỉ 500 × 136, sau khi sửa là 1270 × 669.
+- `backend: auto` chọn Instabox khi có `INSTABOX_API_KEY` trong vault hoặc môi trường và server không chạy trong app desktop.
 
 Code `desktop/` và `mobile/` có trong cây vì đi theo upstream. Remake không build và không phát hành hai app này. Workflow đóng gói app Mac của upstream không có trong repo.
 

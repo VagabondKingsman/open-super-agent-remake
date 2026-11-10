@@ -91,11 +91,11 @@ Giao diện sáng, tối, hoặc theo hệ thống chọn trong Cài đặt. Gi�
 
 ## Bot, công việc và công cụ
 
-Bot có chat, vai trò và bộ nhớ riêng. Nhóm gồm 2–6 Bot; `@TênBot` gọi đích danh, `@everyone` gọi mọi thành viên. Bot điều phối nhận tin không @. Thẻ phê duyệt vẫn nằm trong chat riêng của Bot thực hiện, không ở nhóm.
+Bot có chat, vai trò và bộ nhớ riêng. Nhóm gồm 2–6 Bot; `@TênBot` gọi đích danh, `@everyone` gọi mọi thành viên. Bot điều phối nhận tin không @. Khi `dispatch` trong nhóm, Bot có thể đặt `handoff_to` là tên mình để được gọi lại lúc task xong. Chuỗi bàn giao theo kết quả task dừng sau 8 lượt (`MAX_TURNS`). Thẻ phê duyệt vẫn nằm trong chat riêng của Bot thực hiện, không ở nhóm.
 
-Worker chạy tác vụ dài ở nền. Heavy cho nhiều Worker làm riêng rồi reviewer tổng hợp, có thể tốn nhiều token hơn. Watchdog hủy việc quá hạn/lặp/vượt ngân sách. Bắt đầu chủ đề mới chỉ bỏ ngữ cảnh cũ, không xóa lịch sử hay bộ nhớ dài hạn.
+Worker chạy tác vụ dài ở nền. Heavy cho nhiều Worker làm riêng rồi reviewer tổng hợp, có thể tốn nhiều token hơn. Reviewer không có tool, nên câu hỏi gửi reviewer bỏ các dòng yêu cầu `load_skill`, `verify_facts`, Skill Flow. Bản gộp quá ngắn so với bản nháp thì OSA hỏi lại một lần, vẫn ngắn thì trả bản nháp dài nhất với trạng thái `partial`. Watchdog hủy việc quá hạn/lặp/vượt ngân sách. Bắt đầu chủ đề mới chỉ bỏ ngữ cảnh cũ, không xóa lịch sử hay bộ nhớ dài hạn.
 
-Thêm model ở Cài đặt → Mô hình, chọn riêng cho Router, Worker, reviewer, filter và embedding. Muốn dùng Computer phải chọn model đọc được ảnh và tool calling. Kiểm tra model là API call thật, có thể tính phí. xAI có thể đi qua mục Khác với endpoint tương thích OpenAI; không đồng nghĩa có toàn bộ hosted tools của dịch vụ ngoài.
+Thêm model ở Cài đặt → Mô hình, chọn riêng cho Router, Worker, reviewer, filter và embedding. Muốn dùng Computer phải chọn model đọc được ảnh và tool calling. Kiểm tra model là API call thật, có thể tính phí. Mức suy nghĩ có thể là mặc định, `low`, `medium`, `high`, `xhigh`, `max`, hoặc tắt. Provider trả 400 cho một mức thì OSA gọi lại không kèm mức đó, nhớ theo model trong `settings.effort_rejects`, và nút Thử báo mức bị từ chối. Ngày 10/11/2026, xAI `grok-4.7` không nhận `max`, `grok-4.20-0309-reasoning` không nhận mức nào. xAI có thể đi qua mục Khác với endpoint tương thích OpenAI; không đồng nghĩa có toàn bộ hosted tools của dịch vụ ngoài.
 
 Đơn giá là USD trên một triệu token, lấy từ models.dev. Không nhân tỷ giá, không đổi sang VND. Không còn trang Chi phí. Đơn giá ở Cài đặt → Mô hình. Số token và USD đã ghi nhận ở trang Quan sát. Model thiếu đơn giá có thể tính 0. Đó không phải cam kết miễn phí. Database cũ được đổi từ CNY sang USD một lần, đánh dấu `settings.cost_unit`.
 
@@ -118,6 +118,8 @@ Các Bot dùng chung một Computer. Nhiều tác vụ mở cửa sổ trình du
 Panel chọn Docker trên máy này, Chrome trên máy này, hoặc Instabox. `computer.choices` giới hạn danh sách. Khóa Instabox nhập trên panel, được thử rồi mã hóa vào vault. `INSTABOX_API_KEY` trong môi trường vẫn dùng được.
 
 Terminal trên Chrome của máy này là `computer.host_shell`, mặc định tắt. Terminal trên Mac đang cho server mượn là `computer.linked_shell`, cũng mặc định tắt, bật được từ panel của thiết bị khác. Mỗi lệnh phải xác nhận. App Mac cũ không chạy lệnh và báo cần cập nhật. Khóa server không chặn công tắc `linked_shell`. Chế độ demo thì không bật được.
+
+Trên Docker và Instabox, Worker gọi `computer_screenshot` với `screen: true` để chụp cả màn hình. Ảnh đó chỉ để nhìn, tọa độ click vẫn theo ảnh trang. Cửa sổ trình duyệt của task nhỏ hơn 90% `computer.width` × `computer.height` (mặc định 1280 × 800, không vượt màn hình) được phóng lên kích thước đó. Cửa sổ phóng to hết cỡ giữ nguyên.
 
 Bạn xem màn hình, tiếp quản, rồi trả quyền. Bot không phát lại cú bấm hoặc cú gõ đã chờ trước lúc tiếp quản. Dạy thao tác ghi lại việc trong trình duyệt, tối đa 10 phút, thành bản nháp kỹ năng. Không ghi mọi app desktop.
 

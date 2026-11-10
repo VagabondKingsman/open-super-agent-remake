@@ -252,3 +252,25 @@ Append. Câu "OSA-036 đang làm" ở trên là trạng thái lúc viết mục 
 `git fetch origin i18n-vi` rồi `git rev-parse origin/i18n-vi` là `ac85f7321c8f0b1b52fa8990b98021d40f0338cc` (merge [PR #34](https://github.com/VagabondKingsman/open-super-agent-remake/pull/34), `merged_at` `2026-11-10T09:18:46Z`). [PR #33](https://github.com/VagabondKingsman/open-super-agent-remake/pull/33) đã merge trước đó tại `4e146df`.
 
 E2E-B1-B6: năm commit `git am` từ mailbox đã test, branch `fix/e2e-audit-b1-b6`. Head code `1d54c79`. Nhánh đã gộp `i18n-vi` sau PR #34. Không sửa `config.yaml`. Không commit `.env`, DB, hay file bằng chứng. Suite liên quan lúc mở PR: 95 passed. Docker Computer E2E live `NOT_CHECKED`. Paid usage 0. PR: [#35](https://github.com/VagabondKingsman/open-super-agent-remake/pull/35) vào `i18n-vi`. Chưa merge. Log: [2026-11-10-cursor-e2e-audit-b1-b6](log/2026-11-10-cursor-e2e-audit-b1-b6.md).
+
+## Bổ sung · PR #35 đã merge · TIP-04b chờ PR · cursor · 10/11/2026
+
+Append. Câu "PR #35 chưa merge" ở mục trên là trạng thái lúc viết mục đó.
+
+`git fetch origin` lúc 16:52 Asia/Saigon: `origin/i18n-vi` = `90d820c`, merge [PR #35](https://github.com/VagabondKingsman/open-super-agent-remake/pull/35) (E2E-B1-B6), giờ commit merge 16:23:51. Head PR là `e5d9f5a`, tree trùng `90d820c`.
+
+Bản fix trên `i18n-vi`, theo code:
+
+| Bug | Sửa | File chính |
+|---|---|---|
+| B2, B6 | `reasoning_effort` chỉ nhận rỗng, `low`, `medium`, `high`, `xhigh`, `max`, giá trị khác trả 400. Provider trả 400 cho một mức thì `create_chat` gọi lại một lần không kèm mức đó và nhớ cặp (base_url, model, effort) trong `settings.effort_rejects`. `models/test` trả `effort_rejected` và `effort_warning`. | `osa/settings.py`, `osa/providers.py`, `web/src/components/ModelSettings.tsx` |
+| B1 | Router nói đã giao #N mà không gọi `dispatch` và #N không có trong DB thì có thêm một lượt có tool. Vẫn không giao thì nối dòng đính chính, ghi `fabricated_task_ids` vào meta. `memory.context` đưa tin đó lại như thông báo hệ thống. Chỉ xét trong cùng câu để "PR #42" không bị bắt nhầm. | `osa/router.py`, `osa/memory.py` |
+| B3 | Reviewer không có tool. Câu hỏi bỏ các dòng `load_skill`, `verify_facts`, Skill Flow. Bản gộp dưới 400 ký tự và dưới 25% bản nháp ngắn nhất (bản nháp từ 200 ký tự) thì hỏi lại một lần, vẫn ngắn thì dùng bản nháp dài nhất, task `partial`. | `osa/worker.py` |
+| B5 | Trong nhóm, `handoff_to` có thể là chính Bot đó. `groups.after_task` đếm `depth`, tới `MAX_TURNS` (8) thì dừng và đăng thông báo. | `osa/router.py`, `osa/groups.py`, `osa/memory.py` |
+| B4 | `computer_screenshot` có `screen: true` trên Docker/Instabox, gọi `Computer.look()`, ảnh chỉ để nhìn. Host bỏ qua tham số này. | `osa/computer/tools.py` |
+
+TIP-04b chưa vào `i18n-vi`. Commit `5e20f83` trên branch local `fix/tip-04b-window-handoff` (cherry-pick `b9fdaa7`): cửa sổ task trên Docker/Instabox nhỏ hơn 90% `computer.width` × `computer.height` thì được phóng lên kích thước đó. Patch ở `/workspace/osa-pr35-update/` trên box vận hành. Cloud agent đẩy và mở PR vào `i18n-vi`.
+
+- Test trên box: pytest `819 passed, 1 skipped`. Skip còn lại là `tests/test_host_desktop.py::test_real_desktop`, chỉ chạy trên macOS. `test_real_chrome` tự chạy trên máy local khi có Chrome, và bị bỏ trên CI trừ khi `OSA_TEST_CHROME=1`. Frontend `tsc` exit 0, `npm test` 34/34.
+- Live trên Instabox 16:25–16:46: B2, B3, B4, B5, B6 và TIP-04b PASS. B1 PASS đường dispatch thật, đường bịa chỉ có unit test. Chi phí OSA ghi $0,399.
+- Việc còn mở và cách chạy Computer Instabox: [log TIP-04b](log/2026-11-10-tip-04b-window-and-handoff.md), [HANDOFF](HANDOFF.md#computer-instabox-trên-box-vận-hành).

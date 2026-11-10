@@ -342,11 +342,19 @@ class Computer:
             watched = (self.users.get(self.watch) or {}).get("window") if self.watch != key else None
             return {"id": u.get("window"), "browser": u.get("browser"), "avoid": avoid, "keep_front": watched,
                     "front": first and not watched and self.controller == "bot",
-                    "restart_ok": first and alone and len(self.users) == 1}
+                    "restart_ok": first and alone and len(self.users) == 1, **self._size()}
         c = self.chat_windows.get(key) or {}
         mine = c.get("window") if c.get("window") not in tasks.values() else None
         return {"id": mine, "browser": c.get("browser") if mine else None, "avoid": avoid, "front": True, "router": True,
-                "op": op, "restart_ok": alone and op == "open" and not self.users}
+                "op": op, "restart_ok": alone and op == "open" and not self.users, **self._size()}
+
+    def _size(self) -> dict:
+        """任务窗口该有多大：config.yaml 的 computer.width / height，不超过屏幕。本机电脑（用户自己的 Chrome）不改。"""
+        if self.backend in HOSTS:
+            return {}
+        cfg = CFG.get("computer") or {}
+        w, h = int(cfg.get("width") or 1280), int(cfg.get("height") or 800)
+        return {"size": [min(w, self.width or w), min(h, self.height or h)]}
 
     def _set_window(self, key: str, window, browser: str | None = None):
         if key in self.users:

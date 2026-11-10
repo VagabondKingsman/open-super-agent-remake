@@ -21,7 +21,16 @@ An open-source alternative to [Grok Bot](https://x.ai/bot). Bring your own model
 
 ## v0.17.0 remake
 
-This edition tracks upstream v0.17.0 (`ec02547`) on branch `i18n-vi` (`aa1ab7e`). Vietnamese is the default. English and Chinese stay available. Prompts sent to the model are English and ask for a reply in the UI language. Costs are USD. There is no Costs page: prices are on Models, recorded spend is on Observe. Developer plugins are gone. A missing Docker daemon still reports `unavailable` / `docker_missing`. The working branch does not build or publish the Mac or iPhone apps.
+This edition tracks upstream v0.17.0 (`ec02547`) on branch `i18n-vi` (`90d820c`). Vietnamese is the default. English and Chinese stay available. Prompts sent to the model are English and ask for a reply in the UI language. Costs are USD. There is no Costs page: prices are on Models, recorded spend is on Observe. Developer plugins are gone. A missing Docker daemon still reports `unavailable` / `docker_missing`. The working branch does not build or publish the Mac or iPhone apps.
+
+Fixes from the 10 Nov 2026 Computer E2E audit (remake only):
+
+- `reasoning_effort` accepts only empty, `low`, `medium`, `high`, `xhigh` or `max`. If a provider returns 400 for an effort, OSA retries once without it and remembers the rejection per model in the `effort_rejects` setting. The model Test button reports it.
+- If the Router claims it dispatched task #N without calling `dispatch` and #N does not exist, OSA gives it one more round with tools. If it still dispatches nothing, a correction line is appended and the message is flagged with `fabricated_task_ids`.
+- The Heavy reviewer no longer sees `load_skill` / `verify_facts` / Skill Flow lines. A merge far shorter than the drafts is retried once, then the longest draft is returned with status `partial`.
+- In a group, a Bot can set `handoff_to` to its own name to be woken when its task finishes. Result handoff chains stop at 8 turns (`MAX_TURNS`).
+- On Docker and Instabox, `computer_screenshot` takes `screen: true` for a look-only whole-screen image.
+- Task browser windows smaller than 90% of `computer.width` × `computer.height` (default 1280 × 800, capped to the screen) are resized to that size. Maximized windows are left alone.
 
 [Vietnamese guide](docs/huong-dan-vi.md) · [Updating from upstream](docs/cap-nhat-tu-upstream.md) · [Translation guide](docs/i18n.md)
 
