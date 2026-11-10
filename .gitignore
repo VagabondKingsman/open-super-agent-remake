@@ -13,3 +13,4 @@ logs/
 
 # Generated pack archives are not source payloads.
 /skills-pack/ai-native/*.zip
+evals-out/
