@@ -55,7 +55,9 @@ SCHEMAS = [
         {"ref": I, "paths": {"type": "array", "items": S}}),
     _fn("computer_screenshot", "Take a picture of the current page in the browser and return the image. Use it to see what the page looks like (images, charts, layout, captchas, whether an action worked); "
         "for page content and elements use browser_snapshot. With save=true the screenshot is saved in the computer's working folder (screenshots subfolder) and the path is returned; "
-        "to send a page screenshot to the user, send that file with send_file.", {"save": B}, []),
+        "to send a page screenshot to the user, send that file with send_file. "
+        "With screen=true it captures the whole screen instead (every window, the desktop and panels) for looking only: "
+        "click coordinates still follow the page screenshot, not this image.", {"save": B, "screen": B}, []),
     _fn("computer_click", "[Fallback] Click the page at screenshot coordinates (x, y). Use only when browser_click cannot do it (canvas, elements without a number); "
         "coordinates follow the computer_screenshot image.",
         {"x": I, "y": I, "button": {"type": "string", "enum": ["left", "right", "middle"]}, "double": B}, ["x", "y"]),
@@ -118,6 +120,8 @@ def schemas(c=None) -> list[dict]:
                     {"cmd": S, "timeout": I}, ["cmd"])
         elif f["name"] in _HOST_FILES:
             s = {"type": "function", "function": {**f, "description": _HOST_FILES[f["name"]]}}
+        elif f["name"] == "computer_screenshot":   # 本机电脑看整个屏幕走 desktop_screenshot（要权限），这里不给 screen
+            s = _fn("computer_screenshot", f["description"].split(" With screen=true")[0], {"save": B}, [])
         out.append(s)
     return out + desk_schemas(c)
 
@@ -325,12 +329,19 @@ async def call(task, name: str, args: dict, notify_progress, key: str = "") -> t
                 kw["name"] = kw.pop("key")
             return page_text(await c.browser(op, key=key, **kw)), None
         if name == "computer_screenshot":
-            png = await c.page_shot(key)
+            whole = bool(args.get("screen")) and c.backend not in HOSTS   # B4：Worker 也能看整个屏幕（和 look_at_screen 一样）
+            if whole:
+                png, title = await c.look()
+                png = shot(png, "the whole screen", coords=False)
+                what = f"This is a screenshot of the whole screen (active window: {title or 'unknown'}); it is for looking only"
+            else:
+                png = await c.page_shot(key)
+                what = "This is a screenshot of the current page in the browser"
             if not args.get("save"):
-                return "This is a screenshot of the current page in the browser.", png
-            path = f"screenshots/page {time.strftime('%Y-%m-%d %H.%M.%S')}.png"
+                return what + ".", png
+            path = f"screenshots/{'screen' if whole else 'page'} {time.strftime('%Y-%m-%d %H.%M.%S')}.png"
             await c.write_bytes(path if c.backend in HOSTS else f"{c.workspace}/{path}", png)
-            return f"This is a screenshot of the current page in the browser, saved to {c.workspace}/{path} (use send_file to send it to the user).", png
+            return f"{what}, saved to {c.workspace}/{path} (use send_file to send it to the user).", png
         if name == "computer_click":
             button = args.get("button") or "left"
             if button not in ("left", "right", "middle"):
@@ -380,18 +391,20 @@ async def call(task, name: str, args: dict, notify_progress, key: str = "") -> t
             return i18n.t("未知的电脑工具"), None
     except ComputerError as e:
         return i18n.t("电脑操作失败：{error}", error=e), None
-    shot = await c.page_shot(key) if name in AUTO_SHOT else None
-    return text, shot
+    snap = await c.page_shot(key) if name in AUTO_SHOT else None
+    return text, snap
 
 
 class Shot(bytes):
-    """带说明的截图（整个屏幕的截图和浏览器页面的截图，给模型的说明不一样）。"""
+    """带说明的截图（整个屏幕的截图和浏览器页面的截图，给模型的说明不一样）。coords：能不能按它的坐标点击。"""
     caption = "screenshot of the current page"
+    coords = True
 
 
-def shot(png: bytes, caption: str) -> Shot:
+def shot(png: bytes, caption: str, coords: bool = True) -> Shot:
     s = Shot(png)
     s.caption = caption
+    s.coords = coords
     return s
 
 
@@ -481,8 +494,9 @@ async def _desktop(task, c, name: str, args: dict, key: str, notify_progress) ->
     return done + _desk_text(d), shot(d["png"], "screenshot of the whole screen")
 
 
-def image_message(png: bytes, caption: str | None = None, coords: bool = True) -> dict:
+def image_message(png: bytes, caption: str | None = None, coords: bool | None = None) -> dict:
     caption = caption or getattr(png, "caption", "screenshot of the current page")
+    coords = getattr(png, "coords", True) if coords is None else coords
     w, h = int.from_bytes(png[16:20], "big"), int.from_bytes(png[20:24], "big")   # PNG 头里的宽高
     tail = "click coordinates use this size" if coords else "for looking only; do not click coordinates on this image"
     return {"role": "user", "content": [

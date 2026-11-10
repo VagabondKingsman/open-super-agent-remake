@@ -59,3 +59,71 @@ async def test_human_actions_go_through_while_holding_control():
     await asyncio.wait_for(c.browser("front", key="chat-1", as_human=True), 1)   # 你自己点的“看这个”不用等
     assert c.ops[-1] == "front"
     c.handback()
+
+
+# ---------- B4：Worker 在 Instabox / Docker 上也能看整个屏幕 ----------
+class ShotComputer(FakeComputer):
+    backend = "instabox"
+
+    def __init__(self):
+        super().__init__()
+        self.calls: list[str] = []
+
+    async def page_shot(self, key: str) -> bytes:
+        self.calls.append("page_shot")
+        return _png(500, 136)
+
+    async def look(self):
+        self.calls.append("look")
+        return _png(1280, 800), "Example Domain - Chromium"
+
+    async def claim(self, *a, **kw):
+        pass
+
+
+def _png(w: int, h: int) -> bytes:
+    return b"\x89PNG\r\n\x1a\n" + b"\x00\x00\x00\rIHDR" + w.to_bytes(4, "big") + h.to_bytes(4, "big") + b"\x08\x02\x00\x00\x00"
+
+
+async def _noop(_):
+    pass
+
+
+class _Task:
+    id, bot_id, background = 1, 1, False
+
+
+async def test_worker_screenshot_screen_flag_uses_whole_screen(monkeypatch):
+    from osa.computer import tools as ctools
+    c = ShotComputer()
+    monkeypatch.setattr(ctools, "get", lambda: c)
+    text, png = await ctools.call(_Task(), "computer_screenshot", {"screen": True}, _noop, key="1")
+    assert c.calls == ["look"] and "whole screen" in text and "Example Domain" in text
+    msg = ctools.image_message(png)
+    assert "1280x800" in msg["content"][0]["text"] and "do not click" in msg["content"][0]["text"]
+
+    text, png = await ctools.call(_Task(), "computer_screenshot", {}, _noop, key="1")
+    assert c.calls == ["look", "page_shot"] and "current page" in text
+    assert "click coordinates use this size" in ctools.image_message(png)["content"][0]["text"]
+
+
+def test_screen_flag_only_offered_off_host():
+    from osa.computer import tools as ctools
+    c = ShotComputer()
+    s = next(x for x in ctools.schemas(c) if x["function"]["name"] == "computer_screenshot")
+    assert "screen" in s["function"]["parameters"]["properties"]
+    host = ShotComputer()
+    host.backend = "host"
+    host.shell_enabled = lambda: False
+    host.desktop_enabled = lambda: False
+    s = next(x for x in ctools.schemas(host) if x["function"]["name"] == "computer_screenshot")
+    assert "screen" not in s["function"]["parameters"]["properties"] and "screen=true" not in s["function"]["description"]
+
+
+async def test_host_ignores_screen_flag(monkeypatch):
+    from osa.computer import tools as ctools
+    c = ShotComputer()
+    c.backend = "host"
+    monkeypatch.setattr(ctools, "get", lambda: c)
+    text, _ = await ctools.call(_Task(), "computer_screenshot", {"screen": True}, _noop, key="1")
+    assert c.calls == ["page_shot"] and "current page" in text
