@@ -19,11 +19,11 @@ Repo: `VagabondKingsman/open-super-agent-remake`. Base: `i18n-vi`. Upstream `kad
 
 Đối chiếu trong phiên OSA-030, 09/11/2026:
 
-`origin/i18n-vi = 146667056cb99e83c09651bedacc6942b3a6687a`
+`origin/i18n-vi = 45121389631562ee1dba53ef6e558c2a0794aef3`
 
-Đó là merge [PR #26](https://github.com/VagabondKingsman/open-super-agent-remake/pull/26) (OSA-030), `merged_at` API `2026-11-09T16:22:08Z`. OSA-031 đang ở branch `hoplite/osa-031-port-v0.17`, chưa merge: port upstream v0.13.0–v0.17.0, version ghi 0.17.0. Base công khai trước PR này vẫn là 0.12.0.
+Đó là merge [PR #27](https://github.com/VagabondKingsman/open-super-agent-remake/pull/27) (OSA-031), `merged_at` API `2026-11-10T05:59:36Z` (12:59:36 Asia/Saigon). Head `d97ad3c`. Port upstream v0.13.0–v0.17.0, version ghi 0.17.0. CI push run `42765538964` SUCCESS trên SHA này.
 
-Phiên sau chạy `git fetch` và `git rev-parse origin/i18n-vi`. SHA mới hơn thì đọc log mới. Đừng coi `1466670` là latest mãi.
+Phiên sau chạy `git fetch` và `git rev-parse origin/i18n-vi`. SHA mới hơn thì đọc log mới. Đừng coi `4512138` là latest mãi.
 
 `main` là default branch trên GitHub nhưng đứng ở `a30e3cc`, tổ tiên cũ của `i18n-vi`, không có `.agents/` hay `tests/`. Cloud agent hay checkout `main` theo mặc định. Phải chuyển sang `i18n-vi` trước khi làm.
 
@@ -59,6 +59,7 @@ Giờ là `merged_at` đổi sang Asia/Saigon. `merged_by` trên API là Vagabon
 | [#24](https://github.com/VagabondKingsman/open-super-agent-remake/pull/24) | 22:22:52 09/11 | `b3e5b65` | OSA-028 bảo mật Medium và L1. |
 | [#25](https://github.com/VagabondKingsman/open-super-agent-remake/pull/25) | 22:26:20 09/11 | `254673c` | OSA-029 độ tin cậy: vòng nền, WebSocket backoff, TZ. |
 | [#26](https://github.com/VagabondKingsman/open-super-agent-remake/pull/26) | 23:22:08 09/11 | `1466670` | OSA-030 đồng bộ `.agents/` sau #21, #23, #24, #25. |
+| [#27](https://github.com/VagabondKingsman/open-super-agent-remake/pull/27) | 12:59:36 10/11 | `4512138` | OSA-031 port upstream v0.13.0–v0.17.0. Head `d97ad3c`. |
 
 PR #1 đến #5 rơi vào đêm 06/11 UTC, tức sáng 07/11 giờ Sài Gòn. Từ PR #17, code trên `i18n-vi` là v0.12.0, có `desktop/` và `mobile/` trong cây nhưng không có workflow build. Box vẫn chạy bản cũ cho tới khi deploy theo OPS.
 
