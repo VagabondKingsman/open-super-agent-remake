@@ -31,8 +31,18 @@ jobs:
         run: uv run python -m osa.i18n
       - name: Check bundled AI Native skill sources
         run: uv run python -m osa.skillpacks verify-sources
+      - name: Install bubblewrap sandbox
+        # 3 test trong tests/test_local_checks.py cần bwrap thật. Ubuntu 24.04 chặn user namespace
+        # không đặc quyền qua AppArmor, nên mở lại cho runner rồi thử bwrap một lần.
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          bwrap --version
+          bwrap --unshare-all --die-with-parent --ro-bind / / true
       - name: Tests
-        run: uv run pytest -q
+        env: { OSA_REQUIRE_SANDBOX: "1" }   # sandbox tests must run, not skip
+        run: uv run pytest -q -rs
 
   frontend:
     runs-on: ubuntu-latest

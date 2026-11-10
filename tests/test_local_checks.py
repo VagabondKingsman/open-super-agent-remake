@@ -1,9 +1,12 @@
-import difflib,json,sys
+import difflib,json,os,sys
 from pathlib import Path
 import pytest
 from osa import local_checks
 
 SANDBOX = sys.platform == "linux" and all(local_checks.shutil.which(x) for x in ("bwrap","prlimit","git","ps"))
+# CI đặt OSA_REQUIRE_SANDBOX=1: thiếu sandbox thì 3 test này chạy và FAIL thay vì SKIP.
+REQUIRE_SANDBOX = os.environ.get("OSA_REQUIRE_SANDBOX") == "1"
+needs_sandbox = pytest.mark.skipif(not SANDBOX and not REQUIRE_SANDBOX, reason="Linux bubblewrap sandbox unavailable")
 
 
 @pytest.fixture
@@ -35,7 +38,7 @@ def test_reject_paths_metadata(registered,patch):
     assert json.loads(local_checks.tool('check_patch',{'repo':'fixture','snapshot':snap,'patch':patch}))['status']=='BLOCKED'
 
 
-@pytest.mark.skipif(not SANDBOX,reason="Linux bubblewrap sandbox unavailable")
+@needs_sandbox
 def test_real_offline_sandbox_apply_and_pytest(registered):
     before={p.name:p.read_bytes() for p in registered.iterdir()}
     snap=local_checks.inspect('fixture')['snapshot'];out=local_checks.check('fixture',snap,patch_for(registered))
@@ -44,7 +47,7 @@ def test_real_offline_sandbox_apply_and_pytest(registered):
     assert out['original_repo_unchanged'] and before=={p.name:p.read_bytes() for p in registered.iterdir()}
 
 
-@pytest.mark.skipif(not SANDBOX,reason="Linux bubblewrap sandbox unavailable")
+@needs_sandbox
 def test_sandbox_hides_host_files_and_network(tmp_path):
     work=tmp_path/'work';work.mkdir();canary=tmp_path/'private';canary.write_text('host only')
     code=f"import pathlib,socket;assert not pathlib.Path({str(canary)!r}).exists();s=socket.socket();s.settimeout(1);\ntry:s.connect(('127.0.0.1',8765));raise AssertionError('host network reached')\nexcept OSError:print('ISOLATED')"
@@ -52,7 +55,7 @@ def test_sandbox_hides_host_files_and_network(tmp_path):
     assert r['exit_code']==0 and 'ISOLATED' in r['output'],r
 
 
-@pytest.mark.skipif(not SANDBOX,reason="Linux bubblewrap sandbox unavailable")
+@needs_sandbox
 def test_test_weakening_is_not_pass(registered):
     snap=local_checks.inspect('fixture')['snapshot'];old=(registered/'test_calc.py').read_text()
     p=''.join(difflib.unified_diff(old.splitlines(True),old.replace('==2','==1').splitlines(True),fromfile='a/test_calc.py',tofile='b/test_calc.py'))
@@ -64,3 +67,4 @@ def test_missing_sandbox_never_falls_back(registered,monkeypatch):
     monkeypatch.setattr(local_checks.shutil,'which',lambda _:None)
     out=local_checks.check('fixture',local_checks.inspect('fixture')['snapshot'],patch_for(registered))
     assert out['status']=='BLOCKED' and out['stages'][0]['exit_code'] is None
+
