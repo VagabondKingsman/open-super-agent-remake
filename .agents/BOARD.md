@@ -1,6 +1,6 @@
 # Bảng việc chung
 
-Snapshot 07/11/2026, Asia/Saigon (UTC+7). GitHub PR + base mới là trạng thái phối hợp; file local chưa push không giữ chỗ ở tài khoản khác.
+Cập nhật 10/11/2026 21:00, Asia/Saigon (UTC+7), base `8c108c9`. GitHub PR + base mới là trạng thái phối hợp; file local chưa push không giữ chỗ ở tài khoản khác.
 
 ## Claim protocol
 
@@ -29,10 +29,27 @@ Snapshot 07/11/2026, Asia/Saigon (UTC+7). GitHub PR + base mới là trạng th�
 | OSA-007 | P1. UI sau login và responsive | Preview sandbox vi/en/zh × 375/768/1440 PASS và sửa Quan sát ở 375px trong [PR #18](https://github.com/VagabondKingsman/open-super-agent-remake/pull/18). Còn: khoảng 390px sau login trên điện thoại của Tin Tin, `NOT_CHECKED` vì bot không vào tailnet sau mật khẩu. | Chờ Tin Tin kiểm trên điện thoại |
 | OSA-008 | P2. Reconcile crash giữa file và SQLite | Bơm lỗi trên data tạm, 19 ca. Giữ sửa tay và tombstone. Không tự cài lại. | Done · hoplite / `hoplite/osa-022-port-followups` · [PR #18](https://github.com/VagabondKingsman/open-super-agent-remake/pull/18) |
 | E2E-B1-B6 | Sửa audit Computer E2E B1–B6 | Effort fallback, dispatch giả, reviewer gộp draft, bot tự nhận kết quả, ảnh full màn hình off-host. Live PASS 10/11, xem [log](log/2026-11-10-tip-04b-window-and-handoff.md). | Done · cursor / `fix/e2e-audit-b1-b6` · [PR #35](https://github.com/VagabondKingsman/open-super-agent-remake/pull/35) merge `90d820c` |
-| TIP-04b | Cửa sổ task Computer quá nhỏ (ảnh trang 500 × 136) | Cửa sổ task nhỏ hơn 90% `computer.width` × `computer.height` được phóng lên. Live 1270 × 669. pytest 819 passed, 1 skipped. | PR-ready · cursor / `fix/tip-04b-window-handoff` · commit `5e20f83`, chưa push |
-| E2E-OPEN | Việc còn lại sau E2E 10/11 | Lỗi provider giữa stream không thử lại; thông báo B1 ghi "never existed" cả khi lượt sửa đã giao; "[新话题]" chưa dịch; Filter live, `cargo test` Android, APK `NOT_CHECKED`. | Chưa nhận |
+| TIP-04b | Cửa sổ task Computer quá nhỏ (ảnh trang 500 × 136) | Cửa sổ task nhỏ hơn 90% `computer.width` × `computer.height` được phóng lên. Live 1270 × 669. | Done · cursor / `fix/tip-04b-window-handoff` · [PR #36](https://github.com/VagabondKingsman/open-super-agent-remake/pull/36) merge `7a0e674` |
+| STREAM-STALL | Task Nova #253 bị Watchdog hủy vì stream xAI im 183 giây | `limits.stream_idle_s` 120, `limits.stream_retries` 1, 9 test mới. Đường retry chưa chạy live. | Done · cursor / `fix/stream-stall-retry` · [PR #37](https://github.com/VagabondKingsman/open-super-agent-remake/pull/37) merge `0500666` |
+| CI-SANDBOX | 3 test sandbox SKIP trên CI | CI cài `bubblewrap`, `OSA_REQUIRE_SANDBOX=1`, 3 test pass trên runner. | Done · cursor / `ci/sandbox-tests` · [PR #38](https://github.com/VagabondKingsman/open-super-agent-remake/pull/38) merge `e55d00a` |
+| CI-CHROME | `test_real_chrome` bị chặn trên CI | `xvfb` + `OSA_TEST_CHROME=1`, CI 828 passed, 1 skipped. | Done · cursor / `ci/real-chrome` · [PR #39](https://github.com/VagabondKingsman/open-super-agent-remake/pull/39) merge `8c108c9` |
+| DOCS-INSTALL | Deep audit cài máy mới, docs VI và `.agents/` | Cài từ clone mới chạy được theo tài liệu; `docs/vi/cai-dat-may-moi.md`; test headless không fail. | PR-ready · cursor / `docs/deep-audit-install` · patch ở box, chưa push |
+| AUDIT-F1 | Medium. `guard_stream` tính cả thời gian chờ chunk đầu | Model ra chunk đầu sau 120–180 giây trước đây vẫn xong, giờ bị đóng stream hai lần rồi fail. Đề xuất: ngưỡng riêng cho chunk đầu hoặc chỉ bắt đầu đếm sau chunk đầu, kèm test. `osa/providers.py:353`. | Chưa nhận |
+| AUDIT-F2 | Low. Router gọi lại thì phần suy nghĩ đã đẩy lên UI hiện hai lần, usage lượt hỏng không ghi | `osa/router.py:411-415`. Đề xuất: gửi sự kiện xóa phần thinking của lượt hỏng, ghi usage ước tính. | Chưa nhận |
+| AUDIT-F3 | Low. Gọi lại ngay, không chờ | `osa/worker.py:127-136`, `osa/router.py:411`. Lỗi "at capacity" dễ lặp lại. Đề xuất: chờ 2–5 giây có jitter. | Chưa nhận |
+| AUDIT-F4 | Low. `fit` giữ `left`/`top`, cửa sổ phóng to có thể tràn khỏi màn hình | `osa/computer/cdp_helper.py:567`. Đề xuất: kẹp `left`/`top` theo kích thước màn hình. | Chưa nhận |
+| AUDIT-F6 | Low. Chrome host trên Linux không màn hình báo lỗi tiếng Trung, không nói thiếu màn hình | `osa/computer/cdp_helper.py:360`. Đề xuất: `host.status()` kiểm `DISPLAY`/`WAYLAND_DISPLAY` trên Linux và trả lỗi có bản dịch. | Chưa nhận |
+| AUDIT-F8 | Low. `scripts/osa-start.sh` cố định cổng 8765 và in "started" trước khi server lên | `scripts/osa-start.sh:45`. Đề xuất: nhận `OSA_PORT`, chờ `/manifest.json` vài giây rồi mới báo. | Chưa nhận |
+| AUDIT-F9 | Low. `config.yaml` chưa có dòng `stream_idle_s`, `stream_retries` | Mặc định chỉ nằm trong code. Thêm vào `config.yaml` sau khi box vận hành dọn bản sửa `idle_pause_s` chưa commit, để `git pull` trên box không vướng file bẩn. | Chưa nhận |
+| AUDIT-F7 | Low. Dòng cảnh báo thiếu `OSA_PASSWORD` lúc khởi động và output CLI backup chỉ có tiếng Trung | `osa/server.py:92`, `osa/backup.py`. Đề xuất: bọc `i18n.t`. | Chưa nhận |
+| AUDIT-F10 | Low. `docs/docker.md` (bản upstream tiếng Trung) còn lệnh clone upstream | Hướng dẫn VI đã cảnh báo. Đề xuất: sửa URL clone sang remake `-b i18n-vi`, hoặc viết mục Compose tiếng Việt riêng. | Chưa nhận |
+| AUDIT-F12 | Low. File `.osabak` ghi ra với quyền 0644 | `osa/backup.py:187`. Nội dung đã mã hóa nhưng chứa secret. Đề xuất: `chmod 0600` sau khi ghi. | Chưa nhận |
+| AUDIT-F11 | Info. Nhánh mặc định GitHub là `main` cũ | Tin Tin đổi default branch sang `i18n-vi` trong Settings của repo, hoặc đồng bộ `main`. Cần Tin Tin quyết. | Chờ Tin Tin |
+| E2E-OPEN | Việc còn lại sau E2E 10/11 | Lỗi provider giữa stream đã sửa ở PR #37. Còn: thông báo B1 ghi "never existed" cả khi lượt sửa đã giao; "[新话题]" chưa dịch; Filter live, `cargo test` Android, APK `NOT_CHECKED`. | Chưa nhận |
 
 ## Done · đã public
+
+- PR #36–#39 (10/11/2026): TIP-04b, stream stall retry, CI sandbox, CI Chrome. Merge commit, giờ và head ở [STATE](STATE.md#bốn-pr-gần-nhất).
 
 - OSA-036: [PR #33](https://github.com/VagabondKingsman/open-super-agent-remake/pull/33) merge vào `i18n-vi` tại `4e146df` (`merged_at` `2026-11-10T08:49:28Z`, 15:49:28 Asia/Saigon). Nút Đổi server không gọi `navigate`.
 

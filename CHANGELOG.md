@@ -4,8 +4,11 @@
 
 ## [未发布]
 ### remake
-- 流式调用开了以后卡住（`limits.stream_idle_s` 秒没有新块，默认 120）或中途断了（连接断、服务忙如 xAI 的 "at capacity"、5xx）时，Worker、审稿人和 Router 同一轮再调一次（`limits.stream_retries`，默认 1），不再等 Watchdog 3 分钟后取消整个任务。额度用尽不重来；Router 已经推出正文的那一轮不重来。
-- E2E-B1-B6（PR #35）和 TIP-04b：
+- PR #37（Nova #253）：流式调用开了以后卡住（`limits.stream_idle_s` 秒没有新块，默认 120）或中途断了（连接断、服务忙如 xAI 的 "at capacity"、5xx）时，Worker、审稿人和 Router 同一轮再调一次（`limits.stream_retries`，默认 1），不再等 Watchdog 3 分钟后取消整个任务。额度用尽不重来；Router 已经推出正文的那一轮不重来。
+- CI（PR #38、#39）：backend 装 `bubblewrap` 和 `xvfb`，带 `OSA_REQUIRE_SANDBOX=1` 跑 `tests/test_local_checks.py` 的 3 个沙箱测试（缺沙箱就失败，不再跳过），带 `OSA_TEST_CHROME=1` 在 `xvfb-run -a` 里用真的 Chrome 跑 `test_real_chrome`。只剩 `test_real_desktop`（要 macOS）跳过。
+- 没有屏幕的 Linux（`DISPLAY`、`WAYLAND_DISPLAY` 都没有）上不再自动跑 `test_real_chrome`，跳过并提示用 `xvfb-run -a`；以前这里会等 20 秒后失败。
+- 越南语安装文档 `docs/vi/cai-dat-may-moi.md`：系统依赖、配置、首次运行和密码、按 CI 的方式跑测试、三种电脑、Docker Compose、升级和常见问题。
+- E2E-B1-B6（PR #35）和 TIP-04b（PR #36）：
   - `reasoning_effort` 只接受空、`low`、`medium`、`high`、`xhigh`、`max`。服务商对某个强度回 400 时去掉它重试一次，按模型记在 `settings` 的 `effort_rejects`，以后不再带；“测试”按钮会提示。
   - Router 没调 `dispatch` 却说派了不存在的任务 #N：多给一轮带工具的机会；仍没派就在回复后补一句更正，并在消息上记 `fabricated_task_ids`，以后放进上下文时改成系统通知。
   - Heavy 审稿人的问题去掉 `load_skill` / `verify_facts` / Skill Flow 这类行；汇总远短于草稿时再问一次，仍然太短就用最长的草稿，状态 `partial`。

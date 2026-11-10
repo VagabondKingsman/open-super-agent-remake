@@ -1,19 +1,19 @@
 # Bản đồ kỹ thuật OSA
 
-Nền hiện hành v0.6.1 (port `0897360`, `ec71362`, `3432671` trên lịch sử remake). Head public lúc viết OSA-014 là merge PR #15, xem [HANDOFF](HANDOFF.md). Đây là map để tìm đúng chỗ, không thay SCAN ở ref mới. Chi tiết tại `docs/architecture.md`, `docs/i18n.md`, `docs/vi/` ở root. `OSA_DATA_DIR` đổi chỗ DB, khóa, apps, workspace khi `memory.db` là đường tương đối. Đường tuyệt đối thì `_db_path()` trong `osa/config.py` giữ nguyên. Đó là OSA-015. Log của `scripts/osa-start.sh` đi theo data dir.
+Nền hiện hành là OSA 0.17.0, port từ upstream v0.17.0 (`ec02547`) qua OSA-021 và OSA-031, cộng các sửa của remake tới PR #39 (`8c108c9`). Head mới nhất xem [HANDOFF](HANDOFF.md). Đây là map để tìm đúng chỗ, không thay SCAN ở ref mới. Chi tiết tại `docs/architecture.md`, `docs/i18n.md`, `docs/vi/` ở root. `OSA_DATA_DIR` đổi chỗ DB, khóa, apps, workspace khi `memory.db` là đường tương đối. Đường tuyệt đối thì `_db_path()` trong `osa/config.py` giữ nguyên. Đó là OSA-015. Log của `scripts/osa-start.sh` đi theo data dir.
 
 ## Thành phần
 
 | Vùng | Vai trò và điểm vào |
 |---|---|
-| Backend | Python/FastAPI, `osa/server.py`: API + WebSocket `/ws`, lifespan/startup. `osa/router.py` nhận chat/route; `osa/worker.py` tác vụ nền; `run_heavy` trong `osa/worker.py` phối hợp nhiều worker; watchdog theo tiến độ/ngân sách. |
+| Backend | Python/FastAPI, `osa/server.py`: API + WebSocket `/ws`, lifespan/startup. `osa/router.py` nhận chat/route; `osa/worker.py` tác vụ nền; `run_heavy` trong `osa/worker.py` phối hợp nhiều worker; `osa/watchdog.py` hủy task 3 phút không có tiến triển, quá hạn hoặc vượt ngân sách. `providers.guard_stream` đóng stream im quá `limits.stream_idle_s`; `worker._reply` và vòng stream của Router gọi lại theo `limits.stream_retries` (PR #37). |
 | Frontend | React + TypeScript + Vite trong `web/`; `src/store.ts`, `src/components/`. Build ra `osa/static/dist/` gitignored. Thiếu dist thì server trả `osa/static/index.html` tiếng Trung cũ. Service worker `web/public/sw.js` có `OFFLINE_COPY` vi/en/zh, ngôn ngữ từ cache `osa-lang`, thiếu thì vi. |
 | Persistence | SQLite qua `osa/memory.py`. Settings, bots, chats, tasks, usage, skills. `settings.cost_unit` ghi một lần khi đổi `llm_usage.cost` từ CNY sang USD. Dữ liệu thật nằm ngoài source. Import module có thể mở DB. |
 | i18n | `osa/i18n.py`, locale `en.json`/`vi.json` ở backend và `web/src`. Chinese-as-key. UI ZH dùng source, EN/VI dịch theo key. Fresh install VI. Prompt gửi model là tiếng Anh từ OSA-011. `model_hint()` gắn chỉ thị trả lời theo `i18n.lang()`, mặc định vi. |
 | Skills | `osa/skills.py` quản bảng `skills`; shared `bot_id=NULL`, private override được ưu tiên. `osa/skillpacks.py` quản pack, hashes/default state; nguồn tracked trong `skills-pack/ai-native/`. |
 | Routines | `osa/routines.py`, UI Routines: lịch/webhook, validate, reservation trước await filter, cleanup lỗi; quiet không gửi khi không mới. Không dùng routine thật để test. |
 | Auth/channels | `osa/auth.py`: shared password `OSA_PASSWORD`, không phải multi-user/RBAC. Origin được kiểm trên WebSocket và request ghi dù có mật khẩu hay không. Chưa có mật khẩu thì Host chỉ nhận localhost, IP, `*.local`, `*.ts.net` và `server.allowed_hosts` / `OSA_ALLOWED_HOSTS`. Channels private/pairing nằm `osa/channels/`; API/WebSocket không đồng nghĩa external sends đã được duyệt. |
-| Computer | `osa/computer/`: Docker local hoặc Instabox, CDP/VNC/takeover; task dùng cửa sổ riêng nhưng chia sẻ máy/files/logins. Không có Docker thì API báo unavailable/docker_missing. |
+| Computer | `osa/computer/`: ba backend `local` (Docker, `local.py`), `host` (Chrome trên máy này, `host.py`) và `instabox` (`instabox.py`); CDP/VNC/takeover qua `cdp_helper.py`. Task dùng cửa sổ riêng nhưng chia sẻ máy/files/logins. Trên Docker và Instabox, `Ctx.fit` phóng cửa sổ task nhỏ hơn 90% `computer.width` × `computer.height` (PR #36). Không có Docker thì API báo unavailable/docker_missing. |
 | Apps/pages | MCP catalog và runtime ở `osa/catalog/`, `osa/mcp_hub.py`. Mô tả tool do server MCP trả về không đi qua bản dịch OSA. Pages, files, library, vault và backup là dữ liệu vận hành, không đưa vào git. |
 | Chi phí | `osa/prices.py` lấy USD từ models.dev. Bảng tay trong config cũng là USD. Nhãn `currency` còn là CNY thì bảng tay bị chia cho `legacy_cny_per_usd`, rồi `usd_rate`, rồi 7.1. UI hiện `$`. Trần tab giới hạn vẫn là token, bước, giây. |
 
@@ -43,7 +43,7 @@ Pytest fixtures phải thiết lập temp DB trước import. Không gọi CLI `
 
 `scripts/osa-start.sh` / `osa-stop.sh` quản instance local bằng PID/ownership, không broad pkill. Chỉ restart khi biết data dir và tác vụ đang chạy, có phê duyệt phù hợp. Mặc định loopback `127.0.0.1:8765`; trước public exposure cần OSA_PASSWORD + HTTPS, không mở VNC/CDP/tunnel không bảo vệ. Không dump settings/vault để tìm key.
 
-CI đã có `.github/workflows/ci.yml`: backend compile/import/catalog/templates/i18n/pytest; frontend test/build; Docker compose/build/smoke. Trigger push hiện chỉ main, PR không giới hạn branch trong workflow. Chưa đọc check-runs thì không khẳng định CI remote xanh; coverage Docker Computer E2E không suy ra từ job app-image smoke.
+CI đã có `.github/workflows/ci.yml`: backend compile/import/catalog/templates/i18n/verify-sources/pytest; frontend test/build; Docker compose/build/smoke. Workflow chạy khi push vào `main` hoặc `i18n-vi` và trên mọi PR. Từ PR #38 và #39, backend cài `bubblewrap` và `xvfb`, chạy pytest với `OSA_REQUIRE_SANDBOX=1` và `OSA_TEST_CHROME=1` dưới `xvfb-run -a`. Chưa đọc check-runs thì không khẳng định CI remote xanh; coverage Docker Computer E2E không suy ra từ job app-image smoke.
 
 ## Quan hệ upstream và lịch sử
 

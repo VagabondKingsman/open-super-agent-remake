@@ -125,6 +125,25 @@ Hệ quả: bot không có thư mục này thì không có ngữ cảnh vận h�
 
 Nguồn là task OSA-014, 07/11/2026. ADR này không đổi quyền merge.
 
+## ADR-014 · Accepted · Làm local trước, đẩy bằng patch
+
+Ngày 10/11/2026, Asia/Saigon. Tin Tin yêu cầu sửa và test trên box cho tới khi ổn định rồi mới mở PR. Box không `git push` được, và cloud agent không nhận bundle nhị phân.
+
+Quyết định:
+
+- Sửa trong một worktree riêng trên box, tách từ `origin/i18n-vi`. Checkout đang chạy server không bị đổi nhánh, stash hay reset.
+- Test như CI trên worktree. Commit nhỏ, author `Tin Tin <tintin@users.noreply.github.com>`.
+- `git format-patch origin/i18n-vi..HEAD` ra file text. Cloud agent `git am` lên branch mới, push, mở PR vào `i18n-vi`. CI xanh và Tin Tin đồng ý thì merge bằng merge commit.
+- `config.yaml` của box (`computer.idle_pause_s: 2592000`) không bao giờ vào patch.
+
+Phương án bị loại: sửa trực tiếp trên checkout đang chạy (dễ commit nhầm `config.yaml`, dễ làm server đọc code dở), gửi bundle nhị phân (bị từ chối).
+
+Hệ quả: PR #36 tới #39 đi theo cách này. Mỗi patch phải áp sạch trên `i18n-vi` mới nhất. Nếu base đã đổi, xuất lại patch trên base mới.
+
+Cũng trong phiên deep audit 10/11, STATE.md chuyển thành snapshot ngắn. Lịch sử append cũ nằm nguyên văn ở `archive/STATE-2026-11-07-den-2026-11-10.md`. Phiên sau sửa STATE theo snapshot, ghi diễn biến vào `log/`.
+
+Nguồn là yêu cầu của Tin Tin ngày 10/11/2026. ADR này không đổi quyền merge.
+
 ## Thêm ADR
 
 `ADR-ID · Proposed/Accepted/Superseded · ngày Asia/Saigon` → context → decision → alternatives/why → consequences → source/approval → ADR thay thế nếu có. Giữ quyết định cũ và ghi superseded; không sửa lịch sử cho khớp hindsight.

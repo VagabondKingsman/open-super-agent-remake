@@ -4,7 +4,7 @@
 
 Bản tiếng Việt của [kadaliao/open-super-agent](https://github.com/kadaliao/open-super-agent) v0.17.0 (`ec02547`), chạy trên máy của bạn. Bạn chọn model, nối ứng dụng qua MCP, giao việc nền cho Bot và xem Computer khi Bot làm. Tiền API do nhà cung cấp tính. Dự án không cấp credit.
 
-Repo: <https://github.com/VagabondKingsman/open-super-agent-remake>. Giấy phép [MIT](LICENSE). Tác giả upstream: Kada Liao. Nhánh làm việc: `i18n-vi`, tip `90d820c` (merge PR #35, 10/11/2026).
+Repo: <https://github.com/VagabondKingsman/open-super-agent-remake>. Giấy phép [MIT](LICENSE). Tác giả upstream: Kada Liao. Nhánh làm việc: `i18n-vi`, tip `8c108c9` (merge PR #39, 10/11/2026). Nhánh mặc định `main` trên GitHub là bản cũ, đừng dùng.
 
 ## Bản này giữ gì so với upstream
 
@@ -34,17 +34,20 @@ Các mục dưới đây có trong code remake, không có ở upstream. Bằng 
 - Trên Docker và Instabox, `computer_screenshot` có `screen: true` để chụp cả màn hình. Ảnh này chỉ để nhìn. Tọa độ click vẫn theo ảnh trang. Chrome trên máy này không có tham số đó.
 - Cửa sổ trình duyệt của task nhỏ hơn 90% kích thước `computer.width` × `computer.height` (mặc định 1280 × 800, không vượt màn hình) thì được phóng lên kích thước đó mỗi lần task dùng cửa sổ. Cửa sổ phóng to hết cỡ hoặc toàn màn hình giữ nguyên. Trên Instabox, ảnh trang trước khi sửa chỉ 500 × 136, sau khi sửa là 1270 × 669.
 - `backend: auto` chọn Instabox khi có `INSTABOX_API_KEY` trong vault hoặc môi trường và server không chạy trong app desktop.
+- Stream của model im quá `limits.stream_idle_s` giây (mặc định 120, ngắn hơn 3 phút của Watchdog) thì OSA đóng stream và gọi lại cùng lượt, tối đa `limits.stream_retries` lần (mặc định 1). Rớt kết nối, 5xx hay lỗi "at capacity" giữa stream cũng được gọi lại. Lỗi hết quota thì không. Router chỉ gọi lại khi UI chưa nhận chữ nào. Đây là bản sửa cho task Nova #253 bị Watchdog hủy (PR #37).
+- CI chạy thật 3 test sandbox (cài `bubblewrap`, `OSA_REQUIRE_SANDBOX=1`) và `test_real_chrome` với Chrome thật dưới `xvfb-run` (PR #38, #39). Chỉ còn `test_real_desktop` bị skip vì cần macOS.
 
 Code `desktop/` và `mobile/` có trong cây vì đi theo upstream. Remake không build và không phát hành hai app này. Workflow đóng gói app Mac của upstream không có trong repo.
 
 ## Chạy trên máy
 
-Cần Python từ 3.11, `uv`, Node khớp Vite trong lockfile (`^20.19.0 || >=22.12.0`). Computer Docker cần Docker. Không có Docker vẫn dùng UI, API và việc không cần desktop.
+Hướng dẫn đầy đủ, gồm gói hệ thống, Computer, Docker Compose, nâng cấp và lỗi thường gặp, nằm ở [Cài OSA remake trên máy mới](docs/vi/cai-dat-may-moi.md). Bản ngắn:
+
+Cần Python từ 3.11, `uv`, Node khớp Vite trong lockfile (`^20.19.0 || >=22.12.0`), `git`. Linux cần thêm `bubblewrap` cho sandbox chạy code. Computer Docker cần Docker. Không có Docker vẫn dùng UI, API và việc không cần desktop.
 
 ```bash
-git clone https://github.com/VagabondKingsman/open-super-agent-remake.git
+git clone -b i18n-vi https://github.com/VagabondKingsman/open-super-agent-remake.git
 cd open-super-agent-remake
-git checkout i18n-vi
 test -f .env || cp .env.example .env
 uv sync --locked
 (cd web && npm ci && npm test && npm run build)
@@ -57,14 +60,16 @@ Docker Compose là cách chạy khác: [Docker](docs/docker.md). Clone từ repo
 
 ## Kiểm tra
 
+Chạy giống CI (Linux, cần `bubblewrap`, `xvfb` và Chrome):
+
 ```bash
 uv run python -m osa.i18n
-uv run pytest -q
-(cd web && npm test && npm run build)
+env -u DISPLAY CI=1 OSA_REQUIRE_SANDBOX=1 OSA_TEST_CHROME=1 xvfb-run -a uv run pytest -q -rs
+(cd web && npm ci && npm test && npm run build)
 curl --fail http://127.0.0.1:8765/api/settings
 ```
 
-CI trên `aa1ab7e` (run `42766572535`) đã xanh backend, frontend và docker. Pytest dùng database tạm và model giả. Test đó không chứng minh Docker Computer, app Mac, điện thoại, hay kênh chat thật đã chạy.
+Trên `8c108c9`, pytest được 828 passed, 1 skipped (`test_real_desktop`, chỉ macOS). CI push trên `8c108c9` (run `42826978455`) xanh backend, frontend và docker. `uv run pytest -q` trơn vẫn chạy được trên máy thiếu sandbox hay màn hình, khi đó test cần chúng sẽ SKIP. Pytest dùng database tạm và model giả. Test đó không chứng minh Docker Computer, app Mac, điện thoại, hay kênh chat thật đã chạy.
 
 ## An toàn
 
@@ -72,6 +77,7 @@ Mặc định chỉ nghe localhost. Mở ra mạng thì bật `OSA_PASSWORD` và
 
 ## Tài liệu
 
+- [Cài trên máy mới](docs/vi/cai-dat-may-moi.md)
 - [Hướng dẫn tiếng Việt](docs/huong-dan-vi.md)
 - [Nhận bản upstream](docs/cap-nhat-tu-upstream.md)
 - [VI / EN / ZH](docs/i18n.md)

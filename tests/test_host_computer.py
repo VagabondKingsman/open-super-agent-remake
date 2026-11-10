@@ -3,6 +3,7 @@
 import asyncio
 import os
 import shutil
+import sys
 import threading
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -267,7 +268,7 @@ def test_once_card_cannot_be_always_allowed():
     assert not [r for r in approvals.rules() if r["pattern"] == "computer_shell"]
 
 
-# ---------- 真的 Chrome：本机有 Chrome 且不在 CI 才自动跑；OSA_TEST_CHROME=1 强制，=0 跳过 ----------
+# ---------- 真的 Chrome：本机有 Chrome、有屏幕（Linux 上要 DISPLAY）且不在 CI 才自动跑；OSA_TEST_CHROME=1 强制，=0 跳过 ----------
 PAGE = """<!doctype html><meta charset=utf-8><title>测试页</title>
 <form method=post action=/post><input name=msg placeholder=消息><button>发送</button></form>
 <form method=get action=/search><input name=q placeholder=关键词><button>搜索</button></form>
@@ -285,6 +286,9 @@ def _real_chrome_skip_reason() -> str:
         return "OSA_TEST_CHROME=0"
     if "CI" in os.environ:
         return "CI runner: set OSA_TEST_CHROME=1 to force"
+    if sys.platform.startswith("linux") and not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
+        # Linux server with no screen: Chrome never opens its debug port (20 s timeout). Run under xvfb-run -a
+        return "no display: run pytest under xvfb-run -a, or set OSA_TEST_CHROME=1 to force"
     if not host.chrome_path():
         return "要真的 Chrome：没找到 Chrome"
     return ""

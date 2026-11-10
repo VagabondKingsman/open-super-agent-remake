@@ -26,7 +26,7 @@ Hỏi khi câu trả lời đổi scope, kiến trúc, tiền, bảo mật, data
 
 ## Ai viết code, ai chạy
 
-Sửa repo bằng cloud agent. Branch `<bot>/<topic>` tách từ `i18n-vi`, PR vào `i18n-vi`. Box Grok Bot checkout bản đã merge rồi chạy và kiểm theo [OPS](OPS.md). Không sửa trên box rồi đẩy lên git. Không push, không mở PR, không comment trên `kadaliao/open-super-agent`.
+Từ 10/11/2026, Tin Tin chốt làm local trước: sửa và test trong một worktree trên box, xuất `git format-patch`, rồi cloud agent `git am` lên branch `<bot>/<topic>` tách từ `i18n-vi` và mở PR vào `i18n-vi` ([ADR-014](DECISIONS.md#adr-014--accepted--làm-local-trước-đẩy-bằng-patch)). Không sửa trên checkout đang chạy server. Box không tự `git push`. Không push, không mở PR, không comment trên `kadaliao/open-super-agent`.
 
 Khi tool đòi kết nối, dùng flow của nền tảng. Không hỏi Tin Tin dán PAT hay key. Không đọc credential từ máy khác.
 

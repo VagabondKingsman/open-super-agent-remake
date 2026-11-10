@@ -47,6 +47,7 @@ Dùng [mẫu log](log/_TEMPLATE.md), [VERIFY REPORT](templates/VERIFY-REPORT.md)
 | Cách làm với Tin Tin | PROTOCOL, RULES |
 | Skill nào, lúc nào | SKILL-FLOW |
 | Chạy và kiểm trên box | OPS |
+| Cài trên máy mới | `docs/vi/cai-dat-may-moi.md` ở root |
 | Hệ thống hiện tại | ARCHITECTURE |
 | Snapshot, giới hạn | STATE |
 | Owner, tiến độ | BOARD |
