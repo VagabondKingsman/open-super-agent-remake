@@ -120,6 +120,22 @@ def _outbound(msg: dict) -> dict:
 
 
 async def _reply(task: Task, log: tasklog.Log, role: str, client, model: str, msgs: list, tools_: list | None = None) -> dict:
+    """调一轮模型。流中途卡住（limits.stream_idle_s 秒没有新块）或断了（服务忙、连接断）就重来，
+    最多 limits.stream_retries 次，免得一次卡住的流让 Watchdog 把整个任务取消。额度用尽不重来。"""
+    attempt = 0
+    while True:
+        try:
+            return await _reply_once(task, log, role, client, model, msgs, tools_)
+        except Exception as e:
+            # 开流之前的错 create_chat 已经按规则重试过了，这里只管流开了之后的
+            if not getattr(e, "osa_midstream", False) or attempt >= providers.stream_retries() or not providers.retry_midstream(e):
+                raise
+            attempt += 1
+            task.last_progress = time.time()
+            await log.note(i18n.t("这一轮模型调用中途出错（{err}），重新调用", err=providers.brief(e)), "error")
+
+
+async def _reply_once(task: Task, log: tasklog.Log, role: str, client, model: str, msgs: list, tools_: list | None = None) -> dict:
     """流式调用一次模型，思考和正文边收边写进任务过程。返回这一轮的 assistant 消息。
 
     消息上的 finish_reason 是 stop / length / tool_calls 等。流被取消时，已有 usage 照实记；
@@ -148,7 +164,7 @@ async def _reply(task: Task, log: tasklog.Log, role: str, client, model: str, ms
         await log.append(text, piece)
 
     try:
-        async for chunk in stream:
+        async for chunk in providers.guard_stream(stream):
             task.last_progress = time.time()   # 还在出字就算有进展，Watchdog 不会当成卡住
             if getattr(chunk, "usage", None):
                 usage = chunk.usage
@@ -189,6 +205,10 @@ async def _reply(task: Task, log: tasklog.Log, role: str, client, model: str, ms
     except Exception as e:
         memory.record_error(role, model, providers.brief(e), task.id, bot_id=task.bot_id, chat_id=task.chat_id,
                             ms=(time.monotonic() - t0) * 1000)
+        for s in (think, text):   # 这一轮作废：没收完的思考、正文标成出错，别一直显示“进行中”
+            if s and s["status"] == "running":
+                await log.finish(s, status="error")
+        e.osa_midstream = True
         raise
     content, leaked = dsml.split(content)
     if len(content) > sent:   # 压着的结尾不是标记，或者标记后面还有话

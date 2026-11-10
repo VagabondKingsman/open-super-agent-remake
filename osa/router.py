@@ -5,6 +5,7 @@ import asyncio
 import json
 import re
 import time
+import logging
 import openai
 from .computer import tools as ctools
 from .config import CFG, call_kwargs, client_for
@@ -12,6 +13,8 @@ from . import approvals, botadmin, bots, dm, dsml, i18n, langcheck, local_checks
 from . import builtin  # noqa: F401  导入即注册内置工具
 from . import worker as worker_mod
 from .worker import IncompleteAnswer, Task, TaskFailed, run_worker, run_heavy
+
+log = logging.getLogger(__name__)
 
 ROUTER_PROMPT = """You are "{name}", the user's AI teammate. {instructions}
 You talk with the user in this chat. You do not research things yourself. Instead:
@@ -359,47 +362,59 @@ class Router:
         recorded = False
         sent = 0   # 正文推送到哪了：DeepSeek 写进正文的工具调用（见 dsml.py）不推送
         try:
-            try:
+            attempt = 0
+            while True:
+                stream = None
                 try:
-                    stream = await create()
-                except openai.BadRequestError:
-                    # 以为能看图、服务却不收图片：这一轮把图片换成文字再试一次，记下这个模型不能看图，免得之后每轮都报错
-                    if not media.strip_images(msgs):
-                        raise
-                    r = CFG["roles"]["router"]
-                    media.remember_test(r["provider"], r["model"], "no")
-                    stream = await create()
-                async for chunk in stream:
-                    if getattr(chunk, "usage", None):
-                        usage = chunk.usage
-                    if not chunk.choices:
+                    try:
+                        stream = await create()
+                    except openai.BadRequestError:
+                        # 以为能看图、服务却不收图片：这一轮把图片换成文字再试一次，记下这个模型不能看图，免得之后每轮都报错
+                        if not media.strip_images(msgs):
+                            raise
+                        r = CFG["roles"]["router"]
+                        media.remember_test(r["provider"], r["model"], "no")
+                        stream = await create()
+                    async for chunk in providers.guard_stream(stream):
+                        if getattr(chunk, "usage", None):
+                            usage = chunk.usage
+                        if not chunk.choices:
+                            continue
+                        choice = chunk.choices[0]
+                        if getattr(choice, "finish_reason", None):
+                            finish = choice.finish_reason
+                        d = choice.delta
+                        if d is None:
+                            continue
+                        rc = getattr(d, "reasoning_content", None)
+                        if first is None and (getattr(d, "content", None) or rc or getattr(d, "tool_calls", None)):
+                            first = time.monotonic()   # 第一个字（或思考、工具调用）出来的时间；只带角色的空块不算
+                        if rc:
+                            reasoning += rc
+                            await self.emit({"type": "stream", "sid": sid, "thinking": rc}, cid)
+                        if getattr(d, "content", None):
+                            content += d.content
+                            if (n := dsml.visible(content)) > sent:
+                                await self.emit({"type": "stream", "sid": sid, "delta": content[sent:n]}, cid)
+                                sent = n
+                        for tc in getattr(d, "tool_calls", None) or []:
+                            c = calls.setdefault(tc.index, {"id": "", "name": "", "args": ""})
+                            c["id"] = tc.id or c["id"]
+                            if tc.function:
+                                c["name"] += tc.function.name or ""
+                                c["args"] += tc.function.arguments or ""
+                    break
+                except Exception as e:
+                    memory.record_error("router", model, providers.brief(e), ms=(time.monotonic() - t0) * 1000)
+                    # 流中途卡住或断了，而且还没推送正文、没收到工具调用：重来一次。已经推送了正文就不重来，免得界面上重复
+                    # 开流之前的错 create_chat 已经按规则重试过了，这里只管流开了之后的
+                    if stream is not None and attempt < providers.stream_retries() and sent == 0 and not calls \
+                            and providers.retry_midstream(e):
+                        attempt += 1
+                        log.warning("router stream failed mid-way (%s); retrying", providers.brief(e))
+                        content, reasoning, usage, finish, first, t0 = "", "", None, None, None, time.monotonic()
                         continue
-                    choice = chunk.choices[0]
-                    if getattr(choice, "finish_reason", None):
-                        finish = choice.finish_reason
-                    d = choice.delta
-                    if d is None:
-                        continue
-                    rc = getattr(d, "reasoning_content", None)
-                    if first is None and (getattr(d, "content", None) or rc or getattr(d, "tool_calls", None)):
-                        first = time.monotonic()   # 第一个字（或思考、工具调用）出来的时间；只带角色的空块不算
-                    if rc:
-                        reasoning += rc
-                        await self.emit({"type": "stream", "sid": sid, "thinking": rc}, cid)
-                    if getattr(d, "content", None):
-                        content += d.content
-                        if (n := dsml.visible(content)) > sent:
-                            await self.emit({"type": "stream", "sid": sid, "delta": content[sent:n]}, cid)
-                            sent = n
-                    for tc in getattr(d, "tool_calls", None) or []:
-                        c = calls.setdefault(tc.index, {"id": "", "name": "", "args": ""})
-                        c["id"] = tc.id or c["id"]
-                        if tc.function:
-                            c["name"] += tc.function.name or ""
-                            c["args"] += tc.function.arguments or ""
-            except Exception as e:
-                memory.record_error("router", model, providers.brief(e), ms=(time.monotonic() - t0) * 1000)
-                raise
+                    raise
             memory.record_usage("router", model, usage, ms=(time.monotonic() - t0) * 1000,
                                 ttft=None if first is None else (first - t0) * 1000)
             recorded = True

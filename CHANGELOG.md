@@ -4,6 +4,7 @@
 
 ## [未发布]
 ### remake
+- 流式调用开了以后卡住（`limits.stream_idle_s` 秒没有新块，默认 120）或中途断了（连接断、服务忙如 xAI 的 "at capacity"、5xx）时，Worker、审稿人和 Router 同一轮再调一次（`limits.stream_retries`，默认 1），不再等 Watchdog 3 分钟后取消整个任务。额度用尽不重来；Router 已经推出正文的那一轮不重来。
 - E2E-B1-B6（PR #35）和 TIP-04b：
   - `reasoning_effort` 只接受空、`low`、`medium`、`high`、`xhigh`、`max`。服务商对某个强度回 400 时去掉它重试一次，按模型记在 `settings` 的 `effort_rejects`，以后不再带；“测试”按钮会提示。
   - Router 没调 `dispatch` 却说派了不存在的任务 #N：多给一轮带工具的机会；仍没派就在回复后补一句更正，并在消息上记 `fabricated_task_ids`，以后放进上下文时改成系统通知。
