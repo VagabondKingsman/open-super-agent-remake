@@ -307,6 +307,7 @@
   "没有应用 {name}": "Không có ứng dụng {name}",
   "没有开通需要的意图": "Chưa bật intents cần thiết",
   "没有待确认的请求 #{id}": "Không có yêu cầu chờ xác nhận #{id}",
+  "不能处理确认：只有用户发起的这一轮才能批准或拒绝卡片。请等用户在对话或卡片上决定。": "Không thể xử lý xác nhận: chỉ lượt do người dùng mở mới được phép duyệt hoặc từ chối thẻ. Hãy đợi người dùng quyết định trong hội thoại hoặc trên thẻ.",
   "没有技能 /{skill}": "Không có kỹ năng /{skill}",
   "没有按键": "Chưa có phím",
   "没有收到文件": "Chưa nhận được tệp",

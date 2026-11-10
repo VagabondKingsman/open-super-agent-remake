@@ -315,11 +315,13 @@ class Router:
         if hit := skills.parse(self.bot_id, text):
             meta |= {"skill": hit[0]["name"], "skill_prompt": skills.expand(*hit)}
         await self.add("user", text, cid, **meta)
-        await self.respond(cid)
+        await self.respond(cid, {"origin": "user"})
 
     async def respond(self, chat_id: int, turn: dict | None = None):
         """在某个对话里说一轮话。群聊由 groups 决定轮到谁。
-        turn 是这一轮的来由（见 dm.py）：reply 是这一轮欠谁回信，depth 是私信的深度，woke 是被谁的私信或回信叫醒的。"""
+        turn 是这一轮的来由（见 dm.py）：reply 是这一轮欠谁回信，depth 是私信的深度，woke 是被谁的私信或回信叫醒的。
+        origin=user 只在用户自己发消息引起的一轮上出现（handle_user，或群里 on_user 的 mention/lead）；
+        没有这个标记的一轮不能调用 resolve_approval。"""
         async with self.lock:
             self.turn = turn or {}
             owed = self.turn.get("reply")
@@ -611,6 +613,12 @@ class Router:
         real |= {r[0] for r in rows}
         return [i for i in ids if i not in real]
 
+
+    def _turn_woke(self) -> dict | None:
+        """私信（dm）、其他 Bot 的回信（reply）、或建改删 Bot 有了结果（botadmin）叫醒时的来由。
+        没有这条记录不等于是用户发起的：群聊 handoff 也不会带 woke。cancel_task 仍按有无 woke 区分取消理由。"""
+        return self.turn.get("woke")
+
     def _member(self, name: str) -> dict | None:
         """群里按名字找成员（不区分大小写，去掉开头的 @）。"""
         key = (name or "").strip().lstrip("@").lower()
@@ -700,7 +708,7 @@ class Router:
         if name == "list_tasks":
             return self._task_list()
         if name == "cancel_task":
-            woke = self.turn.get("woke")
+            woke = self._turn_woke()
             if not woke:
                 return self.cancel(args["task_id"], i18n.t("用户要求取消"))
             t, owed = self.tasks.get(args["task_id"]), self.turn.get("reply")
@@ -709,6 +717,9 @@ class Router:
             return self.cancel(args["task_id"], i18n.t("{name} 收到 {sender} 的新消息后自己取消的", name=self.bot["name"],
                                                        sender=dm._name(woke["from"])))
         if name == "resolve_approval":
+            # 白名单：只有 origin=user 的一轮能处理确认（用户发消息）。handoff / 私信 / 回信 / botadmin 及其他默认拒绝
+            if self.turn.get("origin") != "user":
+                return i18n.t("不能处理确认：只有用户发起的这一轮才能批准或拒绝卡片。请等用户在对话或卡片上决定。")
             return approvals.resolve(args["id"], args["approve"], args.get("note", ""), bool(args.get("always")),
                                      scope=args.get("scope"))
         if name == "recall":
