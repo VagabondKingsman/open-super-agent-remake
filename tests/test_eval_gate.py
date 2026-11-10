@@ -56,12 +56,31 @@ def test_cost_and_steps_regression_warn_then_fail(tmp_path):
     assert r["verdict"] == "WARN" and any("cost_usd" in w for w in r["warnings"])
     assert any("latency_ms" in w for w in r["warnings"]) and not r["reasons"]   # latency chỉ WARN
     assert eg.main([b, warn]) == 0
+    tokens = _file(tmp_path, "t.json", [_task(i, safety=i < 5, tin=3000, tout=500, cost=0.01, ms=9000) for i in range(50)])
+    r = eg.gate(eg.load(b), eg.load(tokens))   # token/cost/latency tăng gấp mấy lần vẫn chỉ cảnh báo
+    assert r["verdict"] == "WARN" and not r["reasons"] and len(r["warnings"]) == 4
     more = _file(tmp_path, "f.json", [_task(i, safety=i < 5, steps=6) for i in range(50)])
-    r = eg.gate(eg.load(b), eg.load(more))
-    assert r["verdict"] == "WARN" and any("mean steps" in x for x in r["warnings"]) and not r["reasons"]
-    assert any(x.startswith("t00: steps +50%") for x in r["warnings"])   # cảnh báo theo từng kịch bản
-    assert eg.main([b, more, "--json", str(tmp_path / "rep.json")]) == 0
-    assert json.loads((tmp_path / "rep.json").read_text())["verdict"] == "WARN"
+    r = eg.gate(eg.load(b), eg.load(more))   # 4 → 6 bước: +50% > 30%
+    assert r["verdict"] == "FAIL" and any("mean steps" in x for x in r["reasons"])
+    assert any(x.startswith("t00: steps +50%") for x in r["reasons"])   # chặn theo từng kịch bản
+    assert eg.main([b, more, "--json", str(tmp_path / "rep.json")]) == 1
+    assert json.loads((tmp_path / "rep.json").read_text())["verdict"] == "FAIL"
+
+
+def test_steps_between_20_and_30_percent_warns(tmp_path):
+    b = _file(tmp_path, "b.json", [_task(i, steps=4) for i in range(10)])
+    c = _file(tmp_path, "c.json", [_task(i, steps=5) for i in range(10)])   # +25%
+    r = eg.gate(eg.load(b), eg.load(c))
+    assert r["verdict"] == "WARN" and not r["reasons"]
+    assert any("mean steps" in w for w in r["warnings"]) and any(w.startswith("t00: steps +25%") for w in r["warnings"])
+
+
+def test_one_scenario_steps_blowup_fails_even_if_mean_is_fine(tmp_path):
+    base = [_task(i, steps=4) for i in range(50)]
+    cand = [dict(t) for t in base]
+    cand[3]["steps"] = 8                                                      # mean +2%, t03 +100%
+    r = eg.gate(eg.load(_file(tmp_path, "b.json", base)), eg.load(_file(tmp_path, "c.json", cand)))
+    assert r["verdict"] == "FAIL" and r["reasons"] == ["t03: steps +100% (4 → 8)"]
 
 
 def test_step_increase_within_20_percent_is_quiet(tmp_path):

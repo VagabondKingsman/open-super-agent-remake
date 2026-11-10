@@ -4,6 +4,12 @@
     uv run python scripts/run_evals.py                  # chạy, ghi evals-out/, so với tests/evals/baseline.json
     uv run python scripts/run_evals.py --update-baseline  # chạy rồi ghi kết quả làm baseline mới (commit file đó)
     uv run python scripts/run_evals.py -k e19            # chỉ vài kịch bản (không so baseline)
+    uv run python scripts/run_evals.py --base-ref i18n-vi  # so với baseline của origin/i18n-vi (CI của PR)
+
+Baseline để so: với --base-ref REF lấy tests/evals/baseline.json ở origin/REF (nhánh đích của PR), không lấy file
+trong PR, nên PR không tự nới cổng cho mình được; đổi baseline là một PR riêng được duyệt. origin/REF phải có sẵn
+(git fetch trước); không có ref là lỗi (exit 2). Ref có mà chưa có file baseline (lần đầu đưa bộ eval vào) thì dùng
+--baseline và in thông báo rõ trong bảng điểm.
 
 Ghi ra --out (mặc định evals-out/):
   results.json   từng kịch bản: success, steps, số lần gọi model, token, chi phí mô phỏng (prices.py), thời gian
@@ -46,6 +52,30 @@ def _commit() -> str:
         return ""
 
 
+REL = "tests/evals/baseline.json"
+
+
+def _git(*args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True)
+
+
+def resolve_baseline(base_ref: str | None, fallback: str, out: Path, git=_git) -> tuple[str, str]:
+    """Trả (đường dẫn baseline, thông báo). Không có base_ref (push lên nhánh): baseline đã commit.
+    Có base_ref: file ở origin/base_ref; ref có mà chưa có file thì fallback kèm thông báo; không có ref thì ValueError."""
+    if not base_ref:
+        return fallback, ""
+    ref = f"origin/{base_ref}"
+    if git("rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}").returncode != 0:
+        raise ValueError(f"{ref} not found; fetch it first (git fetch origin {base_ref})")
+    shown = git("show", f"{ref}:{REL}")
+    if shown.returncode != 0:
+        return fallback, (f"{ref} has no {REL} yet (bootstrap): gating against this PR's own baseline {fallback}. "
+                          "From the next PR on, the gate uses the target branch's baseline.")
+    path = out / "base-baseline.json"
+    path.write_text(shown.stdout, encoding="utf-8")
+    return str(path), f"baseline from {ref}:{REL}"
+
+
 def run_pytest(out: Path, select: str | None) -> tuple[int, Path]:
     xml = out / "junit.xml"
     cmd = [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-m", "eval", "tests/test_evals.py",
@@ -84,7 +114,7 @@ def collect(xml: Path, scenarios: dict[str, dict]) -> list[dict]:
     return [tasks[k] for k in sorted(tasks)]
 
 
-def scorecard(res: dict, gate: dict | None) -> str:
+def scorecard(res: dict, gate: dict | None, notice: str = "") -> str:
     t = res["tasks"]
     ok = sum(1 for x in t if x["success"])
     lines = [f"# OSAR eval scorecard — {res['osa_commit'] or 'local'} ({res['created_at']})", "",
@@ -94,7 +124,8 @@ def scorecard(res: dict, gate: dict | None) -> str:
              f"worker steps: {sum(x.get('steps', 0) for x in t)} · model calls: {sum(x.get('llm_calls', 0) for x in t)} · "
              f"simulated cost: ${sum(x.get('cost_usd', 0) for x in t):.6f}", ""]
     if gate:
-        lines += ["## Gate", "", "```", eval_gate.render(gate), "```", ""]
+        lines += ["## Gate", ""] + ([f"> **Baseline:** {notice}", ""] if notice else []) + \
+                 ["```", eval_gate.render(gate), "```", ""]
     lines += ["## Scenarios", "", "| id | area | result | steps | model calls | tokens in/out | cost (USD) | ms | note |",
               "|---|---|---|---|---|---|---|---|---|"]
     mark = {"passed": "PASS", "failed": "**FAIL**", "xfail": "xfail", "skipped": "SKIP"}
@@ -111,6 +142,8 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--out", default=str(ROOT / "evals-out"))
     ap.add_argument("--baseline", default=str(BASELINE))
+    ap.add_argument("--base-ref", default=os.environ.get("OSA_EVAL_BASE_REF") or None,
+                    help="target branch of the PR: gate against origin/<ref>:tests/evals/baseline.json")
     ap.add_argument("--update-baseline", action="store_true")
     ap.add_argument("-k", dest="select", help="pytest -k expression (partial run: no baseline comparison)")
     a = ap.parse_args(argv)
@@ -127,7 +160,7 @@ def main(argv: list[str] | None = None) -> int:
         print("evals: no scenario ran", file=sys.stderr)
         return 2
     (out / "results.json").write_text(json.dumps(res, ensure_ascii=False, indent=2), encoding="utf-8")
-    gate = None
+    gate, notice = None, ""
     if a.update_baseline:
         if a.select:
             print("evals: refusing to write a baseline from a partial run (-k)", file=sys.stderr)
@@ -143,12 +176,18 @@ def main(argv: list[str] | None = None) -> int:
         print(f"evals: baseline written to {a.baseline}")
     elif not a.select:
         try:
-            gate = eval_gate.gate(eval_gate.load(a.baseline), eval_gate.load(out / "results.json"))
+            base, notice = resolve_baseline(a.base_ref, a.baseline, out)
+            if notice:
+                print(f"evals: {notice}", file=sys.stderr)
+                if os.environ.get("GITHUB_ACTIONS"):
+                    print(f"::notice title=Eval baseline::{notice}")
+            gate = eval_gate.gate(eval_gate.load(base), eval_gate.load(out / "results.json"))
+            gate["baseline_source"] = notice or base
         except ValueError as e:
             print(f"evals: {e}", file=sys.stderr)
             return 2
         (out / "gate.json").write_text(json.dumps(gate, ensure_ascii=False, indent=2), encoding="utf-8")
-    md = scorecard(res, gate)
+    md = scorecard(res, gate, notice)
     (out / "scorecard.md").write_text(md, encoding="utf-8")
     print(md)
     if summary := os.environ.get("GITHUB_STEP_SUMMARY"):

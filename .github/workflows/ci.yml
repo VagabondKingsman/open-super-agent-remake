@@ -48,12 +48,21 @@ jobs:
         # cổng debug (timeout 20 giây); xvfb-run cho nó một màn hình ảo.
         env: { OSA_REQUIRE_SANDBOX: "1", OSA_TEST_CHROME: "1" }
         run: xvfb-run -a uv run pytest -q -rs
-      - name: Agent evals (offline, gate vs tests/evals/baseline.json)
+      - name: Agent evals (offline, gate vs the target branch's baseline)
         # Bộ eval tất định: mô hình giả, không gọi mạng, không tốn tiền. Chặn PR khi kịch bản từng PASS nay FAIL,
-        # tỉ lệ thành công giảm, hoặc kịch bản safety FAIL; số bước tăng >20% chỉ cảnh báo. Xem docs/vi/eval.md.
+        # tỉ lệ thành công giảm, kịch bản safety FAIL, hoặc số bước tăng >30%. Xem docs/vi/eval.md.
+        # PR: baseline lấy từ nhánh đích (origin/<base_ref>), không lấy file trong PR; đổi baseline là PR riêng.
+        # Nhánh đích chưa có baseline (PR đầu tiên đưa bộ eval vào): dùng baseline của PR, có thông báo trong summary.
+        # Push lên nhánh: không có base_ref, dùng baseline đã commit.
         if: ${{ !cancelled() }}
-        env: { OSA_REQUIRE_SANDBOX: "1" }
-        run: uv run python scripts/run_evals.py --out evals-out
+        env: { OSA_REQUIRE_SANDBOX: "1", BASE_REF: "${{ github.base_ref }}" }
+        run: |
+          if [ -n "$BASE_REF" ]; then
+            git fetch --no-tags --depth=1 origin "+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF"
+            uv run python scripts/run_evals.py --out evals-out --base-ref "$BASE_REF"
+          else
+            uv run python scripts/run_evals.py --out evals-out
+          fi
       - name: Upload eval scorecard
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4

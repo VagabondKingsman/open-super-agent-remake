@@ -32,6 +32,14 @@ Kịch bản dùng đường thật của OSAR: `check_patch` trong `bwrap`, th�
   - steps/token/cost/latency chỉ cảnh báo, ngưỡng 20%, thêm cảnh báo theo từng kịch bản. Bản gốc chặn khi tăng 30%, sẽ chặn PR chỉ vì prompt dài hơn.
 - Không lấy `osa/cassette.py`, `tests/test_cassette.py`, `docs/design/cassette-eval.md`: thuộc #3 trace/replay, bộ eval không cần.
 
+## Review PR #44 (SuperGrok Craft)
+
+Thêm một commit:
+
+- CI so với baseline của nhánh đích: `git fetch` nhánh đích, `run_evals.py --base-ref`. Nhánh đích chưa có baseline thì dùng baseline của PR kèm thông báo bootstrap; push không có nhánh đích thì dùng baseline đã commit; không có ref thì exit 2. Kiểm `expected_fail` lén gắn cũng so với baseline nhánh đích. Test: `tests/test_run_evals.py` trên repo git tạm.
+- Số bước tăng quá 30% (trung bình và từng kịch bản) lại FAIL; 20–30% cảnh báo; token/cost/latency chỉ cảnh báo ở 20%.
+- Bite: thêm hai lượt gọi tool vào `e08` (kịch bản vẫn PASS, 2 → 4 bước) thì cổng FAIL `e08_mcp_read_tool: steps +100% (2 → 4)`, exit 1.
+
 ## Cổng kiểm
 
 - `OSA_REQUIRE_SANDBOX=1 xvfb-run -a uv run pytest -q -rs`: 891 passed, 1 skipped (`test_real_desktop`, cần macOS), 1 xfailed (`e27`). Trước đó 853 passed, 1 skipped.

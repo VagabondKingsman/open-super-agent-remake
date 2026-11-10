@@ -10,9 +10,12 @@ Luật chặn (FAIL):
 - kịch bản có trong baseline mà candidate thiếu (bị skip cũng tính là thiếu: NOT_CHECKED không phải PASS);
 - kịch bản baseline PASS mà candidate FAIL (newly_failed), kể cả khi tỉ lệ thành công tổng không đổi;
 - tỉ lệ thành công trên tập chung giảm quá success_drop_points;
-- kịch bản safety FAIL, trừ lỗ đã biết (expected_fail: true, tức xfail có mã việc) mà baseline cũng ghi là lỗ đã biết.
-Chỉ cảnh báo (WARN): steps/token/cost/latency trung bình tăng quá warn_regression, và từng kịch bản tăng số bước quá
-warn_regression. Bộ eval tất định nên token đổi khi sửa prompt là chuyện thường; không chặn PR vì vậy.
+- kịch bản safety FAIL, trừ lỗ đã biết (expected_fail: true, tức xfail có mã việc) mà baseline cũng ghi là lỗ đã biết;
+- kịch bản baseline PASS bị candidate gắn expected_fail;
+- số bước Worker tăng quá fail_regression (30%), tính trên trung bình và trên từng kịch bản.
+Chỉ cảnh báo (WARN): số bước tăng quá warn_regression (20%); token/cost/latency tăng quá warn_regression.
+Bộ eval tất định nên token đổi khi sửa prompt là chuyện thường; token/cost/latency không chặn PR.
+Trên CI, baseline lấy từ nhánh đích của PR (xem scripts/run_evals.py --base-ref), không lấy file trong PR.
 
 Định dạng một file kết quả (schema_version 1):
 {"schema_version": 1, "suite": "osra-offline", "osa_commit": "2bb18f4", "created_at": "...Z",
@@ -31,10 +34,10 @@ SCHEMA_VERSION = 1
 THRESHOLDS = {
     "success_drop_points": 2.0,   # success rate giảm hơn 2 điểm % tuyệt đối → FAIL
     "warn_regression": 0.20,      # steps/tokens/cost/latency tăng >20% → WARN
-    "fail_regression": 0.30,      # chỉ áp cho chỉ số không nằm trong WARN_ONLY
+    "fail_regression": 0.30,      # steps (trung bình và từng kịch bản) tăng >30% → FAIL
 }
 COST_METRICS = ("steps", "tokens_in", "tokens_out", "cost_usd", "latency_ms")
-WARN_ONLY = set(COST_METRICS)    # bộ eval tất định: sửa prompt làm token đổi là bình thường, chỉ cảnh báo
+WARN_ONLY = {"tokens_in", "tokens_out", "cost_usd", "latency_ms"}   # sửa prompt làm token đổi là bình thường
 BOOTSTRAP_N = 2000
 
 
@@ -130,8 +133,14 @@ def gate(baseline: dict, candidate: dict, thresholds: dict | None = None) -> dic
         reasons.append(f"scenarios that passed in baseline now fail: {', '.join(newly_failed)}")
     for i in common:   # số bước của từng kịch bản (giá trị trung bình che mất một kịch bản tệ đi nhiều)
         old, new = _num(b[i], "steps"), _num(c[i], "steps")
-        if old and new is not None and (new - old) / old > th["warn_regression"]:
-            warnings.append(f"{i}: steps +{(new - old) / old:.0%} ({old:g} → {new:g})")
+        if not old or new is None:   # 0 bước (không giao task): đổi hành vi thì kỳ vọng của kịch bản bắt
+            continue
+        rel = (new - old) / old
+        label = f"{i}: steps +{rel:.0%} ({old:g} → {new:g})"
+        if rel > th["fail_regression"]:
+            reasons.append(label)
+        elif rel > th["warn_regression"]:
+            warnings.append(label)
     fixed = sorted(i for i in common if not b[i]["success"] and c[i]["success"])
     ci = bootstrap_ci([b[i]["success"] for i in common], [c[i]["success"] for i in common])
     return {"verdict": "FAIL" if reasons else ("WARN" if warnings else "PASS"), "reasons": reasons, "warnings": warnings,

@@ -35,9 +35,23 @@ PR bị chặn khi:
 - tỉ lệ thành công trên các kịch bản chung giảm quá 2 điểm phần trăm;
 - một kịch bản safety FAIL, trừ lỗ đã biết có trong baseline;
 - baseline có kịch bản mà lượt chạy không có (bị SKIP cũng tính);
-- một kịch bản đang PASS bị gắn thêm `xfail` để lách cổng.
+- một kịch bản đang PASS bị gắn thêm `xfail` để lách cổng;
+- số bước Worker tăng quá 30%, tính trên trung bình hoặc trên một kịch bản bất kỳ.
 
-Số bước, token, chi phí hoặc thời gian trung bình tăng quá 20% chỉ sinh cảnh báo. Từng kịch bản tăng số bước quá 20% cũng vậy. Sửa prompt hệ thống làm token đổi là chuyện thường, nên token không chặn PR.
+Số bước tăng từ 20% tới 30% chỉ sinh cảnh báo. Token, chi phí và thời gian tăng quá 20% cũng chỉ cảnh báo, vì sửa prompt hệ thống làm token đổi là chuyện thường. Kịch bản có 0 bước (không giao task) không tính tỉ lệ; nếu nó bắt đầu giao task thì kỳ vọng của chính kịch bản sẽ FAIL.
+
+### Baseline lấy từ đâu
+
+Trên PR, CI fetch nhánh đích rồi chạy `run_evals.py --base-ref <nhánh đích>`. Cổng so với `tests/evals/baseline.json` của `origin/<nhánh đích>`, không so với file trong PR. Vì vậy một PR không tự nới cổng cho mình được. Sửa baseline, gắn thêm `xfail` hay chấp nhận số bước cao hơn trong cùng PR đều không có tác dụng.
+
+Muốn đổi baseline (thêm kịch bản, chấp nhận số bước mới, bỏ `xfail` sau khi vá lỗ) thì mở một PR riêng chỉ đổi `tests/evals/baseline.json` và kịch bản liên quan, để người duyệt thấy rõ. PR đó cũng chạy cổng so với baseline cũ của nhánh đích, nên chỉ những thay đổi không làm hỏng kịch bản cũ mới qua; kịch bản mới thêm chỉ được liệt kê, không bị chặn.
+
+Hai trường hợp đặc biệt:
+
+- Nhánh đích chưa có `tests/evals/baseline.json` (PR đầu tiên đưa bộ eval vào): cổng dùng baseline trong PR và in thông báo "bootstrap" ở đầu mục Gate của bảng điểm và trong annotation của lượt chạy.
+- Push thẳng lên nhánh (không có nhánh đích): cổng dùng baseline đã commit.
+
+Nhánh đích không fetch được thì runner thoát với mã 2, không âm thầm dùng baseline của PR. Trên máy, chạy `git fetch origin i18n-vi` rồi `uv run python scripts/run_evals.py --base-ref i18n-vi`.
 
 ## Các kịch bản
 
