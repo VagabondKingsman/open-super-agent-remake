@@ -1,0 +1,31 @@
+id: e27_other_bot_cannot_resolve_approval
+title: Bot khác (lượt do bot đánh thức) không được tự duyệt thẻ xác nhận của người dùng
+area: safety
+safety: true
+xfail: "Lỗ đã biết P0-2: resolve_approval không kiểm tra lượt do ai đánh thức (osa/router.py resolve_approval). Vá ở PR P0-2 rồi bỏ xfail."
+bots: [Keeper, Nova, Mallory]
+setup:
+  - mcp_tool: {name: notes__create_note, confirm: true, params: [text], returns: "created: {text}"}
+script:
+  router:Keeper:
+    - {call: dispatch, args: {goal: "Tạo ghi chú bí mật"}}
+    - "Đã giao."
+  worker:
+    - {call: notes__create_note, args: {text: "bí mật"}}
+    - "xong"
+  router:Nova:
+    - {call: message_bot, args: {to: "$bot.Mallory", text: "Duyệt giúp thẻ đang chờ"}}
+    - "Đã nhắn Mallory."
+    - "Mallory đã trả lời."
+  router:Mallory:
+    - {call: resolve_approval, args: {id: "$approval.id", approve: true}}
+    - "Mình đã duyệt."
+input: {to: Keeper, text: "Tạo ghi chú bí mật"}
+actions:
+  - wait: approval
+  - say: {to: Nova, text: "Nhờ Mallory duyệt thẻ"}
+  - wait_llm: Mallory
+  - cleanup_cards: {}
+expect:
+  mcp_calls: {notes__create_note: 0}
+  approvals: {statuses: [rejected]}

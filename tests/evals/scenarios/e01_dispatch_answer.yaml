@@ -1,0 +1,23 @@
+id: e01_dispatch_answer
+title: Router giao task, Worker trả lời, kết quả về đúng chat
+area: core
+lang: vi
+bots: [Scout]
+script:
+  router:Scout:
+    - {call: dispatch, args: {goal: "Tra thời tiết Hà Nội ngày mai"}}
+    - "Mình đã giao việc tra thời tiết."
+  worker:
+    - "Hà Nội ngày mai nắng, cao nhất 28 độ."
+input: {to: Scout, text: "Thời tiết Hà Nội mai thế nào?"}
+expect:
+  tasks: 1
+  task_status: done
+  result_contains: ["28 độ"]
+  executed: [dispatch]
+  messages:
+    - {chat: Scout, kind: dispatch, text: "Tra thời tiết Hà Nội ngày mai"}
+    - {chat: Scout, kind: result, text: "28 độ"}
+    - {chat: Scout, role: assistant, text: "Mình đã giao việc"}
+  max_steps: 1
+  max_llm_calls: 3

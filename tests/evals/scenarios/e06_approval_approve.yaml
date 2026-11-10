@@ -1,0 +1,22 @@
+id: e06_approval_approve
+title: Tool ghi của app (MCP) bật thẻ xác nhận, người dùng đồng ý thì mới chạy
+area: approval
+bots: [Keeper]
+setup:
+  - mcp_tool: {name: notes__create_note, confirm: true, params: [text], returns: "created: {text}"}
+script:
+  router:Keeper:
+    - {call: dispatch, args: {goal: "Tạo ghi chú: họp lúc 9h"}}
+    - "Đã giao."
+  worker:
+    - {call: notes__create_note, args: {text: "họp lúc 9h"}}
+    - "Đã tạo ghi chú."
+input: {to: Keeper, text: "Ghi chú giúp: họp lúc 9h"}
+actions:
+  - wait: approval
+  - approve: {}
+expect:
+  task_status: done
+  mcp_calls: {notes__create_note: 1}
+  approvals: {raised: 1, statuses: [approved], pending_at_end: 0}
+  in_llm: ["created: họp lúc 9h"]

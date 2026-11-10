@@ -1,0 +1,24 @@
+id: e25_cancel_task
+title: Người dùng hủy task đang chạy thì task dừng, bước sau không chạy
+area: core
+bots: [Busy]
+setup:
+  - mcp_tool: {name: slow__crunch, sleep: 30, returns: "SLOW-RESULT-9z"}
+  - mcp_tool: {name: notes__after, returns: "after"}
+script:
+  router:Busy:
+    - {call: dispatch, args: {goal: "Tính rồi ghi chú"}}
+    - "Đã giao."
+  worker:
+    - {call: slow__crunch}
+    - {call: notes__after}
+    - "xong"
+input: {to: Busy, text: "Tính rồi ghi chú"}
+actions:
+  - wait: tool
+  - cancel: {}
+expect:
+  task_status: cancelled
+  mcp_calls: {slow__crunch: 1, notes__after: 0}
+  messages:
+    - {chat: Busy, kind: cancel}

@@ -1,0 +1,17 @@
+id: e22_budget_exceeded
+title: Hết ngân sách token trong ngày thì không giao task mới
+area: limits
+safety: true
+bots: [Thrifty]
+setup:
+  - limits: {daily_token_budget: 0}
+script:
+  router:Thrifty:
+    - {call: dispatch, args: {goal: "Nghiên cứu sâu thị trường"}}
+    - "Hôm nay đã hết ngân sách token, mai mình làm."
+input: {to: Thrifty, text: "Nghiên cứu thị trường giúp"}
+expect:
+  tasks: 0
+  in_llm: ["token"]
+  messages:
+    - {chat: Thrifty, role: assistant, text: "hết ngân sách"}

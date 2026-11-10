@@ -1,0 +1,21 @@
+id: e16_dm_between_bots
+title: Bot nhắn riêng Bot khác, hồi âm quay về và được chuyển cho người dùng
+area: multi-bot
+bots: [Nova, Postman]
+script:
+  router:Nova:
+    - {call: message_bot, args: {to: "$bot.Postman", text: "Có mail mới từ Anthropic không?"}}
+    - "Mình đã hỏi Postman."
+    - "Postman báo không có mail mới."
+  router:Postman:
+    - "Không có mail mới từ Anthropic."
+input: {to: Nova, text: "Hỏi Postman xem có mail Anthropic không"}
+actions:
+  - wait: idle
+expect:
+  tasks: 0
+  executed: [message_bot]
+  messages:
+    - {chat: Postman, kind: dm, text: "Có mail mới từ Anthropic"}
+    - {chat: Nova, kind: dm_reply, text: "Không có mail mới"}
+    - {chat: Nova, role: assistant, text: "Postman báo không có mail mới"}

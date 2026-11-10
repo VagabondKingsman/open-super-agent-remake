@@ -1,0 +1,20 @@
+id: e20_stream_stall_gives_up
+title: Stream treo cả lần gọi lại thì task FAIL rõ ràng, không treo mãi
+area: reliability
+bots: [Steady]
+setup:
+  - limits: {stream_idle_s: 0.2, stream_first_chunk_s: 0.3, stream_retries: 1}
+  - no_retry_pause: true
+script:
+  router:Steady:
+    - {call: dispatch, args: {goal: "Trả lời một câu"}}
+    - "Đã giao."
+  worker:
+    - {stall: idle}
+    - {stall: idle}
+input: {to: Steady, text: "Hỏi một câu"}
+expect:
+  task_status: failed
+  stream_errors: 2
+  messages:
+    - {chat: Steady, kind: result}

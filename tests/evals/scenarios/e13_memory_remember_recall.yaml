@@ -1,0 +1,19 @@
+id: e13_memory_remember_recall
+title: Bot ghi nhớ một sở thích, lượt sau sở thích đó có trong prompt
+area: memory
+bots: [Mem]
+script:
+  router:Mem:
+    - {call: remember, args: {text: "Tin Tin thích báo cáo bằng bảng"}}
+    - "Mình nhớ rồi."
+    - "Mình sẽ làm báo cáo dạng bảng."
+input: {to: Mem, text: "Nhớ là mình thích báo cáo dạng bảng"}
+actions:
+  - say: {to: Mem, text: "Làm báo cáo tuần nhé"}
+expect:
+  tasks: 0
+  executed: [remember]
+  memory: {contains: "báo cáo bằng bảng"}
+  in_llm: ["Tin Tin thích báo cáo bằng bảng"]
+  messages:
+    - {chat: Mem, role: assistant, text: "dạng bảng"}

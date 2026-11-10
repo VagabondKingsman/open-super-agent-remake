@@ -1,0 +1,20 @@
+id: e18_computer_browser
+title: Worker mở web và đọc trang qua Computer giả, không cần máy thật
+area: computer
+bots: [Surfer]
+setup:
+  - computer: fake
+script:
+  router:Surfer:
+    - {call: dispatch, args: {goal: "Mở example.com và đọc tiêu đề"}}
+    - "Đã giao."
+  worker:
+    - {call: browser_open, args: {url: "https://example.com"}}
+    - {call: browser_read}
+    - "Tiêu đề là Example Domain."
+input: {to: Surfer, text: "Xem example.com có gì"}
+expect:
+  task_status: done
+  executed: [browser_open, browser_read]
+  computer_ops: [open, read]
+  in_llm: ["Example Domain"]

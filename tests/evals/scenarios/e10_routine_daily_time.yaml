@@ -1,0 +1,16 @@
+id: e10_routine_daily_time
+title: Routine hằng ngày chỉ chạy khi tới giờ, kết quả có nội dung thì đăng
+area: routine
+bots: [Daily]
+setup:
+  - routine: {name: bao-cao-sang, prompt: "Tóm tắt tin công nghệ", trigger: {kind: daily, times: ["09:00"]}}
+script:
+  worker:
+    - "Có 2 tin mới: A và B."
+trigger: {kind: schedule}
+expect:
+  tasks: 1
+  task_status: done
+  routine_runs: [done]
+  messages:
+    - {chat: Daily, kind: result, text: "2 tin mới"}

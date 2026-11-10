@@ -1,0 +1,18 @@
+id: e23_i18n_vi_output
+title: Giao diện tiếng Việt thì chữ hệ thống bằng tiếng Việt; kết quả tiếng Trung bị gắn cờ ngôn ngữ
+area: i18n
+lang: vi
+bots: [Viet]
+script:
+  router:Viet:
+    - {call: dispatch, args: {goal: "Tóm tắt tin"}}
+    - "Đã giao."
+  worker:
+    - "今天的新闻摘要：股市上涨，天气晴朗，交通顺畅，没有重大事件发生。"
+input: {to: Viet, text: "Tóm tắt tin hôm nay"}
+expect:
+  task_status: done
+  lang_flag: true
+  messages:
+    - {chat: Viet, kind: dispatch, ui_text: "[任务已派发]"}
+    - {chat: Viet, kind: dispatch, text: "[Đã giao tác vụ]"}

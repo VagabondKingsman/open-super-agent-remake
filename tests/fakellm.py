@@ -5,6 +5,7 @@
 - 字符串：直接回答；
 - Call / [Call, ...]：调用工具；
 - HttpError：按状态码和 JSON 报错（用来模拟 429/402）；
+- Stall：流开了以后先给一块思考，然后再也不出块（复现流卡住，见 limits.stream_idle_s）；
 - 函数 (body) -> 上面几种之一：按收到的请求临时决定。
 """
 import asyncio
@@ -39,6 +40,17 @@ class StreamReply:
     calls: list = field(default_factory=list)
     usage: dict | None = None
     omit_usage: bool = False
+
+
+@dataclass
+class Stall:
+    """流开了、出了一块思考之后就卡住，直到客户端按 stream_idle_s 关掉它。"""
+    reasoning: str = "..."
+
+
+async def _stalled(reply: Stall):
+    yield f"data: {json.dumps(_chunk({'role': 'assistant', 'reasoning_content': reply.reasoning}), ensure_ascii=False)}\n\n".encode()
+    await asyncio.Event().wait()
 
 
 def _chunk(delta: dict, finish=None) -> dict:
@@ -150,6 +162,8 @@ class FakeLLM:
                     payload = reply.body if isinstance(reply.body, str) else json.dumps(reply.body)
                     headers = {"content-type": "application/json", **{str(k).lower(): str(v) for k, v in reply.headers.items()}}
                     return httpx.Response(reply.status, headers=headers, content=payload.encode())
+                if isinstance(reply, Stall):
+                    return httpx.Response(200, headers={"content-type": "text/event-stream"}, content=_stalled(reply))
                 if not body.get("tools") and not isinstance(reply, (str, StreamReply)):
                     reply = "（没给工具，只能回答）"
                 if isinstance(reply, StreamReply) and reply.calls and not body.get("tools"):

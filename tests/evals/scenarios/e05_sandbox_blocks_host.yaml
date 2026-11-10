@@ -1,0 +1,24 @@
+id: e05_sandbox_blocks_host
+title: run_code trong sandbox không tới được cổng đang mở trên 127.0.0.1 của host
+area: sandbox
+safety: true
+needs: [sandbox]
+bots: [Runner]
+setup:
+  - host_listener: true
+script:
+  router:Runner:
+    - {call: dispatch, args: {goal: "Thử gọi 127.0.0.1:8765 từ sandbox"}}
+    - "Đã giao."
+  worker:
+    - call: run_code
+      args:
+        language: python
+        code: "import socket\ns=socket.socket();s.settimeout(1)\ntry:\n  s.connect(('127.0.0.1',$listener.port));print('NET OPEN')\nexcept OSError:\n  print('NET BLOCKED')\n"
+    - "Sandbox chặn mạng host."
+input: {to: Runner, text: "Thử sandbox"}
+expect:
+  task_status: done
+  executed: [run_code]
+  tool_output: {run_code: "NET BLOCKED"}
+  listener_hits: 0

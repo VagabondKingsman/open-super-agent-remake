@@ -52,6 +52,10 @@ Cập nhật 10/11/2026 22:20, Asia/Saigon (UTC+7), base `5a1e0e7` (merge PR #41
 | OPEN-NOT-CHECKED | Chưa kiểm trên máy thật | Docker Compose live (OSA-002/OSA-017), app macOS (`test_real_desktop`), Instabox từ bản cài thứ hai (gói miễn phí một máy). | Chưa nhận |
 | OPEN-KEEPALIVE | Script giữ VM trên box: suspend/resume trả 400 thiếu `Idempotency-Key` | Script ngoài repo (`/workspace/instabox-keepalive/lease-keepalive.py`). 22:13 10/11 VM bị pause khi hết 480 phút và vào cooldown. Thêm header rồi kiểm qua một mốc 480 phút. | Chưa nhận · việc của box |
 | E2E-OPEN | Việc còn lại sau E2E 10/11 | Lỗi provider giữa stream đã sửa ở PR #37. Còn: thông báo B1 ghi "never existed" cả khi lượt sửa đã giao; "[新话题]" chưa dịch; Filter live, `cargo test` Android, APK `NOT_CHECKED`. | Chưa nhận |
+| EVAL-SUITE | P0+ #5. Bộ eval offline chạy trong CI | 27 kịch bản YAML qua vòng lặp thật, mô hình giả, chặn mạng; `scripts/run_evals.py` ra bảng điểm; `scripts/eval_gate.py` (từ bản của SuperGrok Craft, đã sửa luật) chặn PR theo `tests/evals/baseline.json`. Local 26 PASS, 1 xfail (e27, P0-2). Xem [log](log/2026-11-10-eval-suite.md). | Xong local · `feat/eval-suite` · chờ PR |
+| P0-2 | Chỉ người dùng mới duyệt được thẻ xác nhận | `resolve_approval` từ chối khi lượt do bot khác đánh thức. Bằng chứng: kịch bản eval `e27` đang xfail strict; vá xong thì bỏ `xfail` và cập nhật baseline. | Chưa nhận |
+| P0PLUS-3 | P0+ #3. Trace và replay từng turn | Việc tiếp theo sau EVAL-SUITE. Điểm móc ghi trong log eval-suite. Bản cassette của SuperGrok Craft (`osa/cassette.py`, commit `4783db6`) chưa đưa vào, xem lại khi làm việc này. | Chưa nhận |
+| OPEN-TASK-ID | Low. `router.TASKS` lấy id tin nhắn làm khóa | Xóa Bot thì tin nhắn bị xóa, SQLite dùng lại id lớn nhất, task mới có thể trùng khóa với task cũ còn trong `TASKS`. Thấy khi viết eval (engine lọc task theo Bot và thời gian). Chưa thấy lỗi ngoài test. | Chưa nhận |
 
 ## Done · đã public
 

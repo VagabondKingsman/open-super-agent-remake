@@ -1,0 +1,22 @@
+id: e21_task_timeout
+title: Task chạy quá task_timeout_s thì Watchdog hủy và báo lý do
+area: limits
+bots: [Slow]
+setup:
+  - limits: {task_timeout_s: 0.5, watchdog_interval_s: 0.1}
+  - watchdog: true
+  - mcp_tool: {name: slow__crunch, sleep: 30, returns: "SLOW-RESULT-9z"}
+script:
+  router:Slow:
+    - {call: dispatch, args: {goal: "Chạy phép tính rất lâu"}}
+    - "Đã giao."
+  worker:
+    - {call: slow__crunch}
+    - "không bao giờ tới đây"
+input: {to: Slow, text: "Chạy tính toán lâu"}
+expect:
+  task_status: cancelled
+  mcp_calls: {slow__crunch: 1}
+  messages:
+    - {chat: Slow, kind: cancel, text: "Watchdog"}
+  not_in_llm: ["SLOW-RESULT-9z"]

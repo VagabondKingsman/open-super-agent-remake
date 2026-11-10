@@ -1,0 +1,17 @@
+id: e24_i18n_en_output
+title: Giao diện tiếng Anh thì chữ hệ thống bằng tiếng Anh, không gắn cờ ngôn ngữ cho kết quả tiếng Anh
+area: i18n
+lang: en
+bots: [English]
+script:
+  router:English:
+    - {call: dispatch, args: {goal: "Summarize the news"}}
+    - "Dispatched."
+  worker:
+    - "Markets rose, the weather is clear and traffic is normal today."
+input: {to: English, text: "Summarize today's news"}
+expect:
+  task_status: done
+  lang_flag: false
+  messages:
+    - {chat: English, kind: dispatch, ui_text: "[任务已派发]"}
