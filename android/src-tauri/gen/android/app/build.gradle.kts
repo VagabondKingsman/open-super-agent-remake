@@ -18,7 +18,7 @@ android {
     compileSdk = 37
     namespace = "com.kadaliao.opensuperagent"
     defaultConfig {
-        manifestPlaceholders["usesCleartextTraffic"] = "false"
+        manifestPlaceholders["usesCleartextTraffic"] = "true"
         applicationId = "com.kadaliao.opensuperagent"
         minSdk = 24
         targetSdk = 37
