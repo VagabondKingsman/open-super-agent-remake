@@ -61,3 +61,9 @@ Chạy trên nhánh `fix/audit-f1-f12` trước khi xuất patch. Cây của `5a
 - `docs/docker.md` giờ là tiếng Việt, lần merge upstream sau sẽ xung đột ở file này.
 - Script giữ VM thiếu `Idempotency-Key` (mục trên).
 - Việc cũ còn chờ: OSA-001, OSA-002, OSA-007, OSA-016, OSA-017, OSA-018, OSA-019, OSA-020, E2E-OPEN trên [BOARD](BOARD.md).
+
+## Bổ sung · PR #43, #44 đã merge · e27 còn xfail · hoplite · 10/11/2026
+
+Append. BOARD cũ ghi P0-2 chưa nhận và EVAL-SUITE chờ PR. Đó là trạng thái lúc viết.
+
+[PR #44](https://github.com/VagabondKingsman/open-super-agent-remake/pull/44) merge tại `feeae4c`, `merged_at` `2026-11-10T17:18:58Z`. [PR #43](https://github.com/VagabondKingsman/open-super-agent-remake/pull/43) merge tại `b961870`, `merged_at` `2026-11-10T17:19:21Z`. CI push trên `b961870` FAIL: e27 XPASS strict vì YAML còn `xfail` sau khi `resolve_approval` đã chặn bot. Sửa nằm ở OSA-038.
