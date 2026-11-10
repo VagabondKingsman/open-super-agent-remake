@@ -83,7 +83,19 @@ Upstream đi từ v0.6.1 lên v0.12.0 trong ba ngày: 84 commit, khoảng 27.000
 6. Catalog: `en.json` lấy upstream cộng khóa chỉ remake có, `vi.json` dịch khóa mới. `uv run python -m osa.i18n` phải ra thiếu 0, thừa 0.
 7. Test upstream chạy với `i18n.set_lang("zh")` trong `tests/conftest.py`; test VI của remake tự đặt ngôn ngữ. Test upstream nào khẳng định câu chữ tiếng Trung gửi cho model thì sửa sang câu tiếng Anh mới, không xóa assertion.
 
-Những chỗ dễ sót lần sau: chi phí USD ở bảng `llm_calls` (cột `estimated`, migration đổi tiền cho cả hai bảng), giá ảnh `pricing.images` theo USD, số lần retry 5xx (`limits.provider_transient_retries` bằng `providers.RETRIES`), tranh chấp webhook nay nằm ở `events.deliver`. Plugin trong `osa/catalog/plugins/` vẫn trả lời model bằng tiếng Trung, chưa có test chặn.
+Những chỗ dễ sót lúc port v0.12.0: chi phí USD ở bảng `llm_calls` (cột `estimated`, migration đổi tiền cho cả hai bảng), giá ảnh `pricing.images` theo USD, số lần retry 5xx (`limits.provider_transient_retries` bằng `providers.RETRIES`), tranh chấp webhook nằm ở `events.deliver`.
+
+## Port v0.17.0 (10/11/2026, OSA-031)
+
+Upstream v0.13.0 đến v0.17.0 không nối lịch sử với nhau. Phạm vi lấy từ changelog và diff từng tag, không cherry-pick commit. Kết quả nằm ở [PR #27](https://github.com/VagabondKingsman/open-super-agent-remake/pull/27), head `d97ad3c`, merge `4512138`. Docs ghi mốc này ở [PR #28](https://github.com/VagabondKingsman/open-super-agent-remake/pull/28), merge `aa1ab7e`.
+
+- v0.13: panel chọn Computer. `computer.choices` giới hạn lựa chọn. Khóa Instabox nhập trên panel, thử rồi mã hóa vào vault. Docker không có vẫn báo `unavailable` của remake.
+- v0.14: tool chỉ đọc đứng cạnh nhau chạy song song. Lệnh ghi, Computer và bước cần xác nhận vẫn lần lượt.
+- v0.15: bỏ plugin nhà phát triển, chợ plugin, `/api/plugins` và `security.plugins`. Không xóa `data/plugins`.
+- v0.16: sáng, tối, hoặc theo hệ thống, lưu trên máy này. Bỏ trang Chi phí. Đơn giá USD ở trang Mô hình.
+- v0.17: `computer.linked_shell`, mặc định tắt. Mỗi lệnh phải xác nhận. App Mac cũ không chạy lệnh.
+
+CI trên head `d97ad3c` (run `42765374745`) và trên merge `4512138` (run `42765538964`) xanh backend, frontend, docker. Chưa chạy Docker Computer trên máy thật, chưa mở app Mac, chưa kiểm điện thoại.
 
 ## Điểm phải review
 

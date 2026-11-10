@@ -1,6 +1,6 @@
-# Hướng dẫn tiếng Việt · Open Super Agent remake v0.6.1
+# Hướng dẫn tiếng Việt · Open Super Agent remake v0.17.0
 
-Cập nhật 07/11/2026, Asia/Saigon (UTC+7). Nền upstream `9790ffa` (v0.6.0), cộng ba commit sau tag đó: `0897360` (chặn trang web khác khi chưa có mật khẩu), `ec71362` (v0.6.1) và `3432671` (`OSA_DATA_DIR`). Không gồm desktop/Tauri hay `v0.7.0-preview`. Bản này giữ hệ khóa tiếng Trung, VI mặc định, và các bản vá remake (thiếu Docker, lịch, webhook).
+Cập nhật 10/11/2026, Asia/Saigon (UTC+7). Nền là upstream v0.17.0 (`ec02547`). Remake `i18n-vi` tại `aa1ab7e`. Giữ tiếng Việt mặc định, khóa dịch tiếng Trung, prompt tiếng Anh, chi phí USD, gói AI Native, và các sửa bảo mật đã merge tới PR #25. Không build app Mac hay iPhone dù code `desktop/` và `mobile/` có trong cây.
 
 - [Repo remake](https://github.com/VagabondKingsman/open-super-agent-remake)
 - [Repo tác giả](https://github.com/kadaliao/open-super-agent)
@@ -85,7 +85,9 @@ Chọn Tiếng Việt / English / 中文 trong Cài đặt hoặc onboarding. M�
 
 Dịch frontend ở `web/src/locales/vi.json`, backend ở `osa/locales/vi.json`, cùng khóa tiếng Trung với en.json. Placeholder dùng `{name}`, không dùng `{{name}}`. UI dùng `vi-VN` cho ngày/giờ và nhận giọng nói. Xem [i18n](i18n.md).
 
-Nhãn, lỗi và thông báo có bản VI. Metadata ứng dụng/mẫu Bot dùng bản English upstream khi có; prompt nội bộ giữ tiếng Trung và thêm chỉ dẫn trả lời VI. Không chuyển đổi hàng loạt nội dung người dùng, tin nhắn cũ hoặc trang ngoài. Các gói prompt/schema/catalog VI kiểu cũ không còn được nạp.
+Nhãn, lỗi và thông báo có bản VI. Mẫu Bot có khối `vi:`. Metadata ứng dụng chưa có bản VI thì hiện bản English. Prompt gửi model là tiếng Anh, có câu yêu cầu trả lời theo ngôn ngữ giao diện. Không viết lại tin nhắn cũ hay trang ngoài.
+
+Giao diện sáng, tối, hoặc theo hệ thống chọn trong Cài đặt. Giá trị nằm ở `localStorage` khóa `osa.theme` trên máy này. Không gửi lên server. Máy khác không theo lựa chọn này.
 
 ## Bot, công việc và công cụ
 
@@ -95,9 +97,9 @@ Worker chạy tác vụ dài ở nền. Heavy cho nhiều Worker làm riêng r�
 
 Thêm model ở Cài đặt → Mô hình, chọn riêng cho Router, Worker, reviewer, filter và embedding. Muốn dùng Computer phải chọn model đọc được ảnh và tool calling. Kiểm tra model là API call thật, có thể tính phí. xAI có thể đi qua mục Khác với endpoint tương thích OpenAI; không đồng nghĩa có toàn bộ hosted tools của dịch vụ ngoài.
 
-Giá vẫn dùng cấu hình tiền tệ upstream, không tự chuyển sang VND. Model thiếu đơn giá có thể tính 0; không coi đó là cam kết miễn phí.
+Đơn giá là USD trên một triệu token, lấy từ models.dev. Không nhân tỷ giá, không đổi sang VND. Không còn trang Chi phí. Đơn giá ở Cài đặt → Mô hình. Số token và USD đã ghi nhận ở trang Quan sát. Model thiếu đơn giá có thể tính 0. Đó không phải cam kết miễn phí. Database cũ được đổi từ CNY sang USD một lần, đánh dấu `settings.cost_unit`.
 
-Ứng dụng là MCP server, khác ứng dụng chat để nhắn với Bot. Dùng quyền tối thiểu, đọc thẻ xác nhận trước khi gửi/xóa/thanh toán. Quy tắc “hỏi trước” ưu tiên hơn tự cho phép. Vault mã hóa secret, không loại bỏ rủi ro của app có quyền rộng.
+Ứng dụng là MCP server, khác kênh chat. Dùng quyền tối thiểu. Đọc thẻ xác nhận trước khi gửi, xóa, hoặc trả tiền. Quy tắc “hỏi trước” ưu tiên hơn tự cho phép. Vault mã hóa secret. Không có plugin nhà phát triển từ v0.15.0. Thư mục `data/plugins` cũ không bị xóa và không được nạp.
 
 Kỹ năng `/tên` là hướng dẫn Markdown. Mẫu Bot mang vai trò, kỹ năng và lịch, không mang key/hội thoại/bộ nhớ. Luôn xem trước nội dung trước khi cài/chia sẻ.
 
@@ -105,17 +107,21 @@ Kỹ năng `/tên` là hướng dẫn Markdown. Mẫu Bot mang vai trò, kỹ n�
 
 Lịch thuộc từng Bot: giờ cố định theo ngày/thứ, mỗi N phút (tối thiểu 5), hoặc webhook. Đây không phải cron-expression tổng quát. Chọn đúng timezone, kiểm tra next-run và trạng thái bật trước khi dùng.
 
-v0.6 so kết quả lịch với lần trước. Không có gì mới thì lưu trạng thái `quiet`, không đăng kết quả hay push. Bấm chạy thử luôn hiển thị kết quả. Marker nội bộ `[无新内容]` vẫn giữ như upstream; parser cũng hiểu `nothing new` và `Không có nội dung mới`.
+Lịch so kết quả với lần trước. Không có gì mới thì lưu trạng thái `quiet`, không đăng kết quả hay push. Bấm chạy thử luôn hiện kết quả. Marker nội bộ `[无新内容]` giữ như upstream. Parser cũng hiểu `nothing new` và `Không có nội dung mới`.
 
 Webhook nhận tại `POST /hooks/<tên>`. Khi đặt `OSA_WEBHOOK_TOKEN`, header `X-OSA-Token` phải khớp. Không đặt token thì: đã bật `OSA_PASSWORD` là từ chối, chưa bật thì chỉ nhận request local trực tiếp. Địa chỉ riêng của sự kiện `/hooks/<khóa ngẫu nhiên>` không cần token. Không dùng webhook gửi tin thật làm smoke mặc định. Bộ lọc keyword chạy trước, LLM filter có thể tính phí. Remake giữ reservation trước khi chờ filter để ngăn dispatch trùng đồng thời trong một runtime, không bảo đảm exactly-once trên hệ thống phân tán.
 
 ## Computer và dạy tác vụ
 
-Các Bot dùng chung một máy. v0.6 cho nhiều tác vụ dùng cùng lúc, mỗi tác vụ có cửa sổ trình duyệt riêng, chia sẻ tệp và đăng nhập. Giới hạn mặc định 3, chỉnh 1–8 trong Cài đặt; phần dư xếp hàng. Không phải mỗi Bot có một máy riêng.
+Các Bot dùng chung một Computer. Nhiều tác vụ mở cửa sổ trình duyệt riêng, dùng chung tệp và đăng nhập. Giới hạn mặc định 3 (`computer.parallel`), phần dư xếp hàng. Không phải mỗi Bot một máy.
 
-Bạn có thể xem màn hình, tiếp quản rồi trả quyền. Bot không phát lại cú bấm/nhập cũ đã chờ trước lúc tiếp quản. Dạy tác vụ ghi thao tác trong trình duyệt tối đa 10 phút thành bản nháp kỹ năng, không ghi mọi ứng dụng desktop.
+Panel chọn Docker trên máy này, Chrome trên máy này, hoặc Instabox. `computer.choices` giới hạn danh sách. Khóa Instabox nhập trên panel, được thử rồi mã hóa vào vault. `INSTABOX_API_KEY` trong môi trường vẫn dùng được.
 
-Trên box chưa có Docker: Computer và `/api/files` trả `unavailable`, `reason: docker_missing`, có giải thích và không 500. Nút khởi động bị khóa khi không thể dùng backend. Chưa có desktop/VNC/CDP thật; không gọi đó là desktop test PASS.
+Terminal trên Chrome của máy này là `computer.host_shell`, mặc định tắt. Terminal trên Mac đang cho server mượn là `computer.linked_shell`, cũng mặc định tắt, bật được từ panel của thiết bị khác. Mỗi lệnh phải xác nhận. App Mac cũ không chạy lệnh và báo cần cập nhật. Khóa server không chặn công tắc `linked_shell`. Chế độ demo thì không bật được.
+
+Bạn xem màn hình, tiếp quản, rồi trả quyền. Bot không phát lại cú bấm hoặc cú gõ đã chờ trước lúc tiếp quản. Dạy thao tác ghi lại việc trong trình duyệt, tối đa 10 phút, thành bản nháp kỹ năng. Không ghi mọi app desktop.
+
+Máy chưa có Docker: Computer và `/api/files` trả `unavailable`, `reason: docker_missing`, có câu giải thích, không trả 500. Nút khởi động bị khóa. HTTP 200 trên `/api/settings` không phải desktop đã chạy.
 
 Không mở VNC/CDP ra public, không chạy `cdp_helper.py` trực tiếp trên host. CAPTCHA, QR, OTP và mật khẩu phải do người dùng xử lý. Không ghi trình diễn với dữ liệu nhạy cảm; bộ che input không bảo đảm phát hiện mọi secret.
 
@@ -145,6 +151,6 @@ curl --fail http://127.0.0.1:8765/api/files
 
 Pytest dùng database tạm, model giả và không cần Computer thật. Lấy ID Bot thực từ bootstrap/UI trước khi GET `/api/bots/<id>/computer`. Nếu bật auth, dùng phiên UI đã đăng nhập; 401 không tự là lỗi và không nên tắt mật khẩu để smoke.
 
-Sau build, hard-refresh tab cũ. Cảnh báo bundle trên 500 kB không làm build thất bại. Việc desktop thật, LLM trả phí, kênh chat và Docker image chưa được chứng minh chỉ bằng unit test/HTTP 200.
+Sau build, tải lại tab cũ. Entry JS đã tách trang, khoảng 69 kB lúc OSA-022. Việc desktop thật, model trả phí, kênh chat và image Computer chưa được chứng minh chỉ bằng unit test hoặc HTTP 200.
 
 Trước mở public cần mật khẩu, HTTPS và review reverse proxy/WebSocket. Đừng công khai log, vault, backup hoặc link chứa dữ liệu riêng. Mount Docker socket có thể cấp quyền tương đương root trên host; chỉ dùng app/code bạn tin cậy. Xem [SECURITY.md](../SECURITY.md).

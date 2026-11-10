@@ -19,11 +19,11 @@ An open-source alternative to [Grok Bot](https://x.ai/bot). Bring your own model
 
 </div>
 
-## v0.6.1 remake
+## v0.17.0 remake
 
-This edition ports Vietnamese onto upstream's Chinese-as-key translation system, at upstream v0.6.1 plus `OSA_DATA_DIR`. It keeps parallel Computer windows, quiet routines, SSRF checks on fetched URLs, and boundaries around untrusted content. The local Docker backend reports `docker_missing` instead of crashing when Docker is absent. Schedule validation and concurrent-webhook reservations from the earlier remake are retained. Without `OSA_PASSWORD`, other websites cannot open the local WebSocket, and only localhost, IP addresses, `*.local`, `*.ts.net`, and `server.allowed_hosts` are accepted.
+This edition tracks upstream v0.17.0 (`ec02547`) on branch `i18n-vi` (`aa1ab7e`). Vietnamese is the default. English and Chinese stay available. Prompts sent to the model are English and ask for a reply in the UI language. Costs are USD. There is no Costs page: prices are on Models, recorded spend is on Observe. Developer plugins are gone. A missing Docker daemon still reports `unavailable` / `docker_missing`. The working branch does not build or publish the Mac or iPhone apps.
 
-[Local setup and limitations](docs/huong-dan-vi.md) · [Updating from upstream](docs/cap-nhat-tu-upstream.md) · [Translation guide](docs/i18n.md)
+[Vietnamese guide](docs/huong-dan-vi.md) · [Updating from upstream](docs/cap-nhat-tu-upstream.md) · [Translation guide](docs/i18n.md)
 
 ## Features
 

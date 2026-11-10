@@ -63,7 +63,7 @@ API Key 先看保险库（界面上填的），没有再看 `api_key_env` 写的
 - `config.yaml` 的 `pricing.models` 里写了的以它为准，单位也是美元。DeepSeek 分高峰和空闲两档（`[高峰, 空闲]`），models.dev 没有，所以默认配置里写着。数字来自 [DeepSeek API 定价](https://api-docs.deepseek.com/quick_start/pricing/)（2026-11-07 核对）。
 - 本机和内网的模型按 0 计。找不到单价的也按 0 计，设置页上显示“没有单价”。
 - 连不上 models.dev 时用上一次存下的；一次都没取到过的话，只有 `pricing.models` 里写了的有单价。国内服务器可以设 `HTTPS_PROXY`，
-  或者用 `pricing.source` 换一个地址。费用页的“单价”下面能看到上次更新的时间，也能点“现在更新”。
+  或者用 `pricing.source` 换一个地址。模型页的单价下面能看到上次更新的时间，也能点“现在更新”。没有单独的费用页。
 - 界面和接口里的金额是美元，例如 `$0.0123`。`/api/usage` 和任务详情的 `currency` 字段还在，值固定是 `$`。`prices.rate` 还在，值固定是 `1`，不再表示汇率。
 - 限额页（限制与预算）管的是 token、步数和秒数，不是一笔人民币或美元上限。`daily_token_budget` 仍是每天最多多少 token。
 
@@ -101,7 +101,7 @@ Heavy 另有两项，也只在 `config.yaml` 里改：
 - `heavy.min_drafts`：可用草稿少于此数就不叫审稿人，任务记失败并写明原因。默认 2。设得比 `workers` 大时按 `workers` 计。有人失败但草稿够数时仍汇总，任务状态是 `partial`（部分完成），不是 `done`。
 - 额度用尽不重试，Heavy 会停掉还没开始的研究员，并且不叫审稿人。算额度的是 HTTP 402，以及 429 里的 `org_token_rate_limit_day`、`insufficient_quota`、`free_limit_reached`、`budget_exceeded`。
 
-费用页的数字是**已记录的用量**，不是服务商账单。请求被取消时，流里已经有 usage 就照实记；没有 usage 回包但已经收到文字，就按大约 4 个字符一个 token 估算输出，并标成估算。进程被直接杀掉时，来不及记的用量不会出现在这里。
+观测页的数字是**已记录的用量**，不是服务商账单。请求被取消时，流里已经有 usage 就照实记；没有 usage 回包但已经收到文字，就按大约 4 个字符一个 token 估算输出，并标成估算。进程被直接杀掉时，来不及记的用量不会出现在这里。
 
 点“测试”产生的调用记在“测试模型”下面，金额用美元。
 
