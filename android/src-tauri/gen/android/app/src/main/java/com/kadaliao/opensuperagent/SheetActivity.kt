@@ -8,6 +8,10 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.webkit.CookieManager
 import android.widget.FrameLayout
+import android.content.pm.ShortcutInfo
+import android.content.pm.ShortcutManager
+import android.graphics.drawable.Icon
+import android.os.Build
 import java.net.URI
 
 class SheetActivity : Activity() {
@@ -52,7 +56,7 @@ class SheetActivity : Activity() {
     super.onDestroy()
   }
 
-  companion object {
+    companion object {
     const val EXTRA_URL = "url"
     const val EXTRA_ORIGIN = "origin"
 
@@ -71,6 +75,24 @@ class SheetActivity : Activity() {
     private fun port(u: URI): Int {
       if (u.port != -1) return u.port
       return if (u.scheme.equals("https", true)) 443 else 80
+    }
+
+    fun setCount(activity: Activity, count: Int) {
+      if (Build.VERSION.SDK_INT < 25) return
+      val manager = activity.getSystemService(ShortcutManager::class.java) ?: return
+      val n = count.coerceAtLeast(0)
+      if (n == 0) {
+        manager.removeDynamicShortcuts(listOf("pending"))
+        return
+      }
+      val label = if (n == 1) "1 pending" else "$n pending"
+      val info = ShortcutInfo.Builder(activity, "pending")
+        .setShortLabel(label)
+        .setLongLabel(label)
+        .setIcon(Icon.createWithResource(activity, R.mipmap.ic_launcher))
+        .setIntent(Intent(activity, MainActivity::class.java).setAction(Intent.ACTION_MAIN))
+        .build()
+      manager.dynamicShortcuts = listOf(info)
     }
   }
 }
