@@ -225,7 +225,9 @@ def context(chat_id: int, viewer: int | None = None, me: int | None = None, imag
             c = _no_leak(c)
         if r == "task" and meta.get("kind") == "handoff" and viewer is not None:
             to = meta.get("to")
-            if to == viewer:
+            if to == viewer and b == viewer:
+                text = f"(system notice: the task result you asked to get back is above; it is your turn to continue){defang(meta.get('note') or c)}"
+            elif to == viewer:
                 text = f"({name(b)} handed the work to you; it is your turn){defang(meta.get('note') or c)}"
             elif b == viewer:
                 text = f"(system notice: you handed the work to {name(to)}){defang(meta.get('note') or c)}"

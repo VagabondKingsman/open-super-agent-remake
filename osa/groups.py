@@ -145,13 +145,17 @@ async def after_task(task):
     if task.status != "done":
         await note(task.chat_id, i18n.t("任务 #{id} 没做完，没有交给 {name}", id=task.id, name=_name(h["to"])))
         return
+    if task.depth + 1 >= MAX_TURNS:
+        # 任务结果交接一串下来（也可能是自己交给自己）已经够长：停下等用户，免得来回派任务没完没了
+        await note(task.chat_id, i18n.t("Bot 们这一轮已经说了 {n} 次，先停一下，等你发话。", n=MAX_TURNS))
+        return
     g = get(task.chat_id)
     async with g.lock:
         request = h["note"] or i18n.t("资料在上面，请接着做")
         await _message(task.chat_id, "task", i18n.t("→ {name}：{text}（任务 #{id} 的结果）", name=_name(h["to"]), text=request, id=task.id),
                        task.bot_id, kind="handoff", to=h["to"], note=i18n.t("任务 #{id} 的结果在上面。{text}", id=task.id, text=request),
                        task_id=task.id)
-        await g.run([(h["to"], "handoff")], {"depth": task.depth})
+        await g.run([(h["to"], "handoff")], {"depth": task.depth + 1})
 
 
 async def wake(chat_id: int, bot_id: int, turn: dict):

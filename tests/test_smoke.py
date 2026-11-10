@@ -50,6 +50,43 @@ async def test_group_handoff_after_task(llm, events, make_bot):
     assert "资料：三条要点" in seen and "写个总结" in seen
 
 
+async def test_group_lead_hands_task_result_back_to_itself(llm, events, make_bot):
+    """B5：Bot điều phối dispatch bước cuối với handoff_to là chính nó, task xong thì nó được gọi lại để đăng tổng kết."""
+    lead, other = make_bot("Coord"), make_bot("Helper")
+    group = bots.create_group([lead["id"], other["id"]], lead=lead["id"])
+    llm.script("router:Coord", Call("dispatch", {"goal": "gom kết quả", "handoff_to": "Coord", "handoff_note": "đăng bảng tổng kết"}),
+               "Có kết quả mình sẽ đăng bảng", "BẢNG TỔNG KẾT: xong cả 3 bước")
+    llm.script("worker", "kết quả: 3 bước đều PASS")
+
+    await server.safe_handle(group, "@Coord gom kết quả rồi đăng bảng")
+    await until(lambda: find(group["id"], role="assistant", bot_id=lead["id"], text="BẢNG TỔNG KẾT"), what="lead đăng bảng")
+    await settle()
+
+    first = find(group["id"], role="assistant", bot_id=lead["id"])[0]
+    assert first["meta"]["tasks"]   # RETRO-01: lượt đầu có task thật
+    assert any(m["meta"].get("to") == lead["id"] for m in find(group["id"], kind="handoff"))
+    assert len(llm.bodies("router", "Coord")) == 3 and not llm.bodies("router", "Helper")
+    seen = "\n".join(str(m.get("content")) for m in llm.bodies("router", "Coord")[-1]["messages"])
+    assert "3 bước đều PASS" in seen and "your turn to continue" in seen
+
+
+async def test_group_self_handoff_still_bounded(llm, events, make_bot):
+    """Tự giao lại cho mình không thành vòng lặp vô hạn: mỗi lần chỉ chạy khi có task thật xong, và vẫn có MAX_TURNS."""
+    from osa import groups
+    lead, other = make_bot("Looper"), make_bot("Quiet")
+    group = bots.create_group([lead["id"], other["id"]], lead=lead["id"])
+    again = Call("dispatch", {"goal": "lặp", "handoff_to": "Looper"})
+    llm.script("router:Looper", *[again, "đang làm"] * (groups.MAX_TURNS + 3))
+    llm.script("worker", *["xong"] * (groups.MAX_TURNS + 3))
+
+    await server.safe_handle(group, "@Looper làm đi")
+    await settle(timeout=15)
+    # mỗi result đánh thức một lượt mới và tăng depth; tới MAX_TURNS thì dừng, chờ người dùng
+    assert len(find(group["id"], kind="dispatch")) == groups.MAX_TURNS
+    from osa import i18n
+    assert find(group["id"], text=i18n.t("Bot 们这一轮已经说了 {n} 次，先停一下，等你发话。", n=groups.MAX_TURNS))
+
+
 async def test_dm_reply_comes_back(llm, events, make_bot):
     nova, post = make_bot("Nova"), make_bot("Postman")
     llm.script("router:Nova", Call("message_bot", {"to": "Postman", "text": "看看有没有 Anthropic 的邮件"}),

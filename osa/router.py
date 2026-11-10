@@ -120,7 +120,7 @@ Group rules:
 - User messages have no marker. A line that starts with "[bot: name]" is another bot speaking. Speak only for yourself. Do not answer for another bot, and do not copy the "[bot: name]" format.
 - On your turn, do only the part that is yours. Do not take work that belongs to someone else or that the user assigned to someone else.
 - To have another bot continue (for example you looked something up and a bot who writes well should summarize), call handoff and say exactly what they should do.
-  If you must wait for a background task before the handoff, set handoff_to and handoff_note on dispatch. The task result is forwarded automatically. You do not need to come back.
+  If you must wait for a background task before the handoff, set handoff_to and handoff_note on dispatch. The task result is forwarded automatically. If you promised to do something yourself after the result (for example post a summary), set handoff_to to your own name; otherwise you will not be woken.
 - If your part must wait for another bot, say briefly that you will continue. Do not repeat their work.
 - Work handed to you: finish it and give the result. Dispatch if it needs a lookup.
 - Approval cards and "take over the computer" requests appear in your private chat with the user, not in the group.
@@ -195,7 +195,7 @@ ROUTER_TOOLS = [*[s for s in ctools.SCHEMAS if s["function"]["name"] in DIRECT_P
         "parameters": {"type": "object", "properties": {
             "goal": {"type": "string", "description": "A complete, self-contained task description"},
             "mode": {"type": "string", "enum": ["single", "heavy"]},
-            "handoff_to": {"type": "string", "description": "Group chats only: which member should continue from the result when the task finishes"},
+            "handoff_to": {"type": "string", "description": "Group chats only: which member should continue from the result when the task finishes. Use your own name if you need to continue yourself (for example to post a summary once the result is in)"},
             "handoff_note": {"type": "string", "description": "What that member should do with the result"}}, "required": ["goal"]}}},
     {"type": "function", "function": {"name": "save_skill", "description": "Save or overwrite a skill (a reusable way of doing something)",
         "parameters": {"type": "object", "properties": {
@@ -619,7 +619,7 @@ class Router:
             handoff = None
             if args.get("handoff_to") and self.chat["kind"] == "group":
                 to = self._member(args["handoff_to"])
-                if not to or to["id"] == self.bot_id:
+                if not to:   # 可以填自己：任务做完把结果交回给自己，接着汇总（B5）
                     return i18n.t("没派发：群里没有叫 {name} 的其他成员", name=args["handoff_to"])
                 handoff = {"to": to["id"], "note": args.get("handoff_note") or ""}
                 from . import groups
