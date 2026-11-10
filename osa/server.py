@@ -20,7 +20,7 @@ from starlette.background import BackgroundTask
 from . import backup
 backup.apply_pending()   # 确认过的恢复：在打开数据库之前换上
 from . import applets, approvals, auth, avatars, botadmin, bots, catalog, channels, computer, dm, events, groups, i18n, library, mcp_hub, media, memories, memory, push, router as rt, routines
-from . import mcpapps, observe, outputs, plugins, prices, providers, search, security, settings, skills, skillpacks, tasklog, teach, templates, unfurl, vault
+from . import mcpapps, observe, outputs, prices, providers, search, security, settings, skills, skillpacks, tasklog, teach, templates, unfurl, vault
 from . import worker as worker_mod
 from . import config
 from .computer import link
@@ -65,7 +65,6 @@ tasklog.notify = broadcast
 _events = registry.Context("server")
 _events.on("pages_changed", lambda: broadcast({"type": "pages_changed"}))
 _events.on("page_data", lambda page_id, data: broadcast({"type": "page_data", "page_id": page_id, "data": data}))
-_events.on("plugins_changed", lambda: broadcast({"type": "plugins_changed"}))
 
 
 async def parent_watch(pid: int, every: float = 2):
@@ -100,7 +99,6 @@ async def lifespan(app):
     skillpacks.ensure_defaults()
     routines.import_legacy(bots.primary()["id"])
     await mcp_hub.start()
-    await plugins.start()   # 启用了的插件（服务器锁下不加载）
     await channels.start()
     bg = [asyncio.create_task(watchdog()), asyncio.create_task(routines.scheduler()),
           asyncio.create_task(computer.idle_pauser()), asyncio.create_task(search.embed_loop()),
@@ -112,7 +110,6 @@ async def lifespan(app):
     for t in bg:
         t.cancel()
     await channels.stop()
-    await plugins.stop()
     await mcp_hub.stop()
     await computer.shutdown()
     if backup.RESTART:   # 网页上确认了恢复：用同样的命令行重新启动，启动时换上备份
@@ -960,60 +957,6 @@ async def mcp_app_say(app_name: str, data: dict = Body(...)):
     return {"ok": True}
 
 
-# ---------- 插件（osa/plugins.py）：只有用户在设置里能启用，Bot 没有对应的工具 ----------
-def _plugin_errors(e: Exception):
-    if isinstance(e, PermissionError):
-        raise HTTPException(403, str(e))
-    if isinstance(e, LookupError):
-        raise HTTPException(404, str(e))
-    if isinstance(e, (ValueError, TypeError)):
-        raise HTTPException(400, str(e))
-    raise HTTPException(500, str(e))
-
-
-@app.get("/api/plugins")
-async def list_plugins():
-    return plugins.listing()
-
-
-@app.get("/api/plugins/{name}/source")
-async def plugin_source(name: str, catalog: bool = False):
-    try:
-        return {"source": plugins.read_source(name, catalog)}
-    except Exception as e:
-        _plugin_errors(e)
-
-
-@app.post("/api/plugins/{name}/{action}")
-async def plugin_action(name: str, action: str):
-    fn = {"enable": plugins.enable, "disable": plugins.disable, "reload": plugins.reload, "install": plugins.install}.get(action)
-    if not fn:
-        raise HTTPException(404, i18n.t("没有这个操作"))
-    try:
-        await fn(name)
-    except Exception as e:
-        _plugin_errors(e)
-    return plugins.info(name) if action != "install" else {"ok": True}
-
-
-@app.put("/api/plugins/{name}/config")
-async def plugin_config(name: str, data: dict = Body(...)):
-    try:
-        await plugins.set_config(name, data.get("config"))
-    except Exception as e:
-        _plugin_errors(e)
-    return plugins.info(name)
-
-
-@app.delete("/api/plugins/{name}")
-async def delete_plugin(name: str):
-    try:
-        await plugins.remove(name)
-    except Exception as e:
-        _plugin_errors(e)
-    return {"ok": True}
-
-
 @app.get("/api/bots/{bot_id}/outputs")
 async def bot_outputs(bot_id: int, request: Request):
     """右栏“资料库”：这个 Bot 交出来的页面、文件、图片、链接，新的在前（见 outputs.py）。"""
@@ -1424,6 +1367,25 @@ async def pc_use(data: dict = Body(...)):
     return state
 
 
+@app.put("/api/computer/instabox-key")
+async def pc_instabox_key(data: dict = Body(...)):
+    """填 Instabox 的 API key（试过能用才加密存进保险库）；key 为空是删掉界面里填的，回到环境变量。"""
+    from .computer import instabox
+    if security.demo():
+        raise HTTPException(403, i18n.t("演示服务器上不能换电脑"))
+    if "instabox" not in computer.choices():
+        raise HTTPException(403, i18n.t("这台服务器上不能选这种电脑（config.yaml 的 computer.choices）"))
+    c = computer.get()
+    if c.backend == "instabox" and (c.users or c.exclusive):
+        raise HTTPException(400, i18n.t("电脑正在被用着（{who}），等用完再换", who=c.busy()))
+    try:
+        await instabox.save_key(str(data.get("key") or ""))
+    except computer.ComputerError as e:
+        _err(e)
+    await broadcast({"type": "computer", "computer": await computer.public_state()})
+    return settings.public()
+
+
 # ---------- 服务器借用你的 Mac（computer/link.py） ----------
 @app.get("/api/computer/links")
 async def pc_links():
@@ -1769,7 +1731,7 @@ async def put_settings(data: dict = Body(...)):
         _err(e)
     if "computer_parallel" in data:   # 并行数改大了，排队的任务马上能开始
         await computer.get().recheck()
-    if {"computer_parallel", "computer_backend", "computer_host_shell"} & data.keys():
+    if {"computer_parallel", "computer_backend", "computer_host_shell", "computer_linked_shell"} & data.keys():
         await broadcast({"type": "computer", "computer": await computer.public_state()})
     return out
 

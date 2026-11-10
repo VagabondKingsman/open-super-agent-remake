@@ -88,8 +88,11 @@ class LocalComputer(Computer):
         self.name = "osa-computer"
         self.data = os.environ.get("OSA_COMPUTER_DATA") or str(DATA / "computers" / "shared")
         self._starting = asyncio.Lock()
+        self.building = False   # 第一次用：正在构建电脑镜像（几分钟）
 
     async def status(self) -> dict:
+        if self.building:
+            return {"state": "starting", "detail": i18n.t("第一次用要先准备电脑（下载、安装浏览器和桌面），要几分钟")}
         code, out, err = await _run("docker", "inspect", "-f", "{{json .State}}", self.name, timeout=15)
         if code == 127 or err == "docker-missing":
             return {"state": "unavailable", "detail": i18n.t("未安装 Docker，无法使用本地电脑"), "reason": "docker_missing"}
@@ -105,10 +108,20 @@ class LocalComputer(Computer):
         return {"state": state, "detail": st.get("Status", "")}
 
     async def _ensure_image(self):
-        code, _, _ = await _run("docker", "image", "inspect", IMAGE, timeout=15)
+        code, _, err = await _run("docker", "image", "inspect", IMAGE, timeout=15)
+        if code == 127 or err == "docker-missing":
+            raise ComputerError(i18n.t("未安装 Docker，无法使用本地电脑"))
+        if code and ("Cannot connect to the Docker daemon" in err or "failed to connect to the docker API" in err):
+            raise ComputerError(i18n.t("连不上 Docker，无法使用本地电脑。用 Docker Compose 部署的，要加上 compose.computer.yaml（见 docs/docker.md）"))
         if code:
-            code, out, err = await _run("docker", "build", "--platform", await platform(), "-t", IMAGE,
-                                        str(IMAGE_DIR), timeout=1800)
+            self.building = True
+            self.changed()
+            try:
+                code, out, err = await _run("docker", "build", "--platform", await platform(), "-t", IMAGE,
+                                            str(IMAGE_DIR), timeout=1800)
+            finally:
+                self.building = False
+                self.changed()
             if code:
                 raise ComputerError(i18n.t("电脑镜像构建失败：{error}", error=(err or out)[-800:]))
 

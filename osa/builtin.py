@@ -1,4 +1,4 @@
-"""内置工具和服务的注册：网页、资料库、小应用数据、按意思检索、技能、发文件、画图、定时任务和事件、在沙箱里跑代码；给插件用的 llm、messenger；
+"""内置工具的注册：网页、资料库、小应用数据、按意思检索、技能、发文件、画图、定时任务和事件、在沙箱里跑代码；
 内置的事件来源（osa/sources/）。
 
 每个工具只在这里写一次，Router 和 Worker 都从注册表（registry.py）找；在哪些场合给模型用、要不要走确认规则，都在 Tool 上写明。
@@ -46,24 +46,24 @@ def load():
     _loaded = True
     web = frozenset({WORKER, APPLET})
     ctx.simple("web_search", tools.schema("web_search", "Search the web; returns titles, links and snippets", {"query": "search terms"}), tools.web_search,
-               where=web, gated=True, describe="search the web; returns titles, links and snippets",
+               where=web, gated=True, parallel=2, describe="search the web; returns titles, links and snippets",
                progress=lambda a: i18n.t("搜索：{what}", what=str(a.get("query") or "")[:60]))
     ctx.simple("fetch_url", tools.schema("fetch_url", "Fetch the text of a web page (truncated to 8000 characters)", {"url": "URL"}), tools.fetch_url,
-               where=web, gated=True, describe="fetch the text of a web page (truncated to 8000 characters)",
+               where=web, gated=True, parallel=3, describe="fetch the text of a web page (truncated to 8000 characters)",
                progress=lambda a: i18n.t("读取网页：{what}", what=str(a.get("url") or "")[:60]))
     ctx.tool(Tool("save_page", library.SAVE_PAGE, _save_page, when=_not_draft,
                   progress=lambda a: i18n.t("保存页面：{title}", title=str(a.get("title", ""))[:40])))
-    ctx.tool(Tool("read_page", library.READ_PAGE, lambda c: _sync(library.tool_read_page(c.args)),
+    ctx.tool(Tool("read_page", library.READ_PAGE, lambda c: _sync(library.tool_read_page(c.args)), parallel=3,
                   progress=lambda a: i18n.t("读页面 #{id}", id=a.get("page_id"))))
     ctx.tool(Tool("page_data", library.PAGE_DATA, lambda c: library.tool_page_data(c.bot_id, c.args),
                   progress=lambda a: i18n.t("小应用 #{id} 的数据", id=a.get("page_id"))))
     ctx.tool(Tool("send_file", media.SEND_FILE, _send_file, when=_not_draft,
                   progress=lambda a: i18n.t("发文件：{path}", path=str(a.get("path", ""))[:60])))
     ctx.tool(Tool("generate_image", images.GENERATE_IMAGE, _generate_image, where=frozenset({ROUTER})))
-    ctx.tool(Tool("search_memory", search.SEARCH_TOOL, lambda c: search.tool(c.bot_id, c.args),
+    ctx.tool(Tool("search_memory", search.SEARCH_TOOL, lambda c: search.tool(c.bot_id, c.args), parallel=3,
                   progress=lambda a: i18n.t("查记忆和资料库：{query}", query=str(a.get("query", ""))[:40])))
     # 技能：Bot 自己取做法和带的文件（用户 /名字 调用时做法已经附在消息里了）。只读，不用确认
-    ctx.tool(Tool("use_skill", skills.USE_SKILL, lambda c: _sync(skills.tool_use(c.bot_id, c.scope, c.args)),
+    ctx.tool(Tool("use_skill", skills.USE_SKILL, lambda c: _sync(skills.tool_use(c.bot_id, c.scope, c.args)), parallel=3,
                   describe="load a skill by name: its method and the files it ships with (scripts, references)",
                   progress=lambda a: i18n.t("看技能 /{name}", name=str(a.get("name", "")).lstrip("/")[:40])))
     # 定时任务和事件：只在对话里用（Worker 跑的就是它们，不让它自己改）。自己的随便管，主 Bot 管所有 Bot 的
@@ -89,8 +89,7 @@ def load():
         n = s["function"]["name"]
         ctx.tool(Tool(n, s, lambda c, n=n: _sync(skillpacks.tool(c.bot_id, n, c.args)), where=both))
     # 给插件用的服务（插件在 META 的 inject 里写要哪个），见 services.py
-    from . import services, sources
-    services.register(ctx)
+    from . import sources
     sources.register(ctx)
 
 
