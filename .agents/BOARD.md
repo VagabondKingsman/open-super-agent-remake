@@ -28,9 +28,12 @@ Snapshot 07/11/2026, Asia/Saigon (UTC+7). GitHub PR + base mới là trạng th�
 | OSA-005 | P2. Rà GitHub Actions | CI đã chạy đủ check của repo. Cứng hóa: `permissions`, `concurrency`, timeout, cache uv, `uv sync --locked`, smoke fail rõ và in log, workflow build image computer. Không pin SHA, không Dependabot. | Done · hoplite / `hoplite/osa-027-ci-hardening` · [PR #21](https://github.com/VagabondKingsman/open-super-agent-remake/pull/21) |
 | OSA-007 | P1. UI sau login và responsive | Preview sandbox vi/en/zh × 375/768/1440 PASS và sửa Quan sát ở 375px trong [PR #18](https://github.com/VagabondKingsman/open-super-agent-remake/pull/18). Còn: khoảng 390px sau login trên điện thoại của Tin Tin, `NOT_CHECKED` vì bot không vào tailnet sau mật khẩu. | Chờ Tin Tin kiểm trên điện thoại |
 | OSA-008 | P2. Reconcile crash giữa file và SQLite | Bơm lỗi trên data tạm, 19 ca. Giữ sửa tay và tombstone. Không tự cài lại. | Done · hoplite / `hoplite/osa-022-port-followups` · [PR #18](https://github.com/VagabondKingsman/open-super-agent-remake/pull/18) |
-| OSA-036 | P1. Android đổi server không văng | Nút Đổi server xóa địa chỉ đã lưu, trang tự mở lại trang kết nối. Không gọi `navigate`. | Đang làm · hoplite / `hoplite/osa-036-android-switch` |
+| OSA-036 | P1. Android đổi server không văng | Nút Đổi server xóa địa chỉ đã lưu, trang tự mở lại trang kết nối. Không gọi `navigate`. | Done · hoplite / `hoplite/osa-036-android-switch` · [PR #33](https://github.com/VagabondKingsman/open-super-agent-remake/pull/33) |
+| E2E-B1-B6 | Sửa audit Computer E2E B1–B6 | Effort fallback, dispatch giả, reviewer gộp draft, bot tự nhận kết quả, ảnh full màn hình off-host. Chưa gồm TIP-04b và `idle_pause_s`. | PR mở · cursor / `fix/e2e-audit-b1-b6` |
 
 ## Done · đã public
+
+- OSA-036: [PR #33](https://github.com/VagabondKingsman/open-super-agent-remake/pull/33) merge vào `i18n-vi` tại `4e146df` (`merged_at` `2026-11-10T08:49:28Z`, 15:49:28 Asia/Saigon). Nút Đổi server không gọi `navigate`.
 
 - OSA-034 + OSA-035: [PR #31](https://github.com/VagabondKingsman/open-super-agent-remake/pull/31) merge tại `c7c5321` (`merged_at` `2026-11-10T07:47:27Z`). [PR #32](https://github.com/VagabondKingsman/open-super-agent-remake/pull/32) merge tại `26752c9` (`merged_at` `2026-11-10T08:40:21Z`). Android nhớ server, nhận `opensuperagent://pair`, không gọi `navigate`. APK debug arm64: SHA-256 `bfb36d54d7008f8852b228061ea4adc4bef5b8b45a8352ad11e094458ae34150`. Chưa chạy trên điện thoại thật.
 

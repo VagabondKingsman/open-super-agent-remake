@@ -244,3 +244,11 @@ Append. Câu "OSA-034 chưa push" trên BOARD cũ là trạng thái lúc viết.
 [PR #31](https://github.com/VagabondKingsman/open-super-agent-remake/pull/31) merge vào `i18n-vi` tại `c7c5321`, `merged_at` `2026-11-10T07:47:27Z`. [PR #32](https://github.com/VagabondKingsman/open-super-agent-remake/pull/32) merge tại `26752c9`, `merged_at` `2026-11-10T08:40:21Z`. Head #32 là `6bca8fd`. CI backend, frontend, docker SUCCESS.
 
 OSA-036 (`hoplite/osa-036-android-switch`, head `08d7f76`): nút Đổi server xóa địa chỉ đã lưu. Trang web tự tải `http://tauri.localhost/`. Không gọi `navigate`. APK debug arm64 SHA-256 `230ef2d3a124c62430b545bea3aab518981e259c1c37b1162e31ad5196e1f4bd`. Chưa cài trên điện thoại thật. Máy này không có `/dev/kvm`.
+
+## Bổ sung · PR #33 đã merge · E2E audit B1–B6 đang mở · cursor · 10/11/2026
+
+Append. Câu "OSA-036 đang làm" ở trên là trạng thái lúc viết mục đó.
+
+`git fetch origin i18n-vi` rồi `git rev-parse HEAD` và `origin/i18n-vi` cùng là `4e146dfbaf6619297d1a1d40b5533bfa68a2d682` (merge [PR #33](https://github.com/VagabondKingsman/open-super-agent-remake/pull/33)). API `merged_at` `2026-11-10T08:49:28Z`, tức 15:49:28 Asia/Saigon. [PR #34](https://github.com/VagabondKingsman/open-super-agent-remake/pull/34) (OSA-037, `hoplite/osa-037-android-sheet`) vẫn mở. Phiên này không đụng nhánh đó.
+
+E2E-B1-B6: năm commit `git am` từ mailbox đã test, branch `fix/e2e-audit-b1-b6`, base `4e146df`. Head code `1d54c79`. Không sửa `config.yaml`. Không commit `.env`, DB, hay file bằng chứng. Suite liên quan trên máy này: 95 passed, exit 0. Full suite, `tsc`, `npm test` của phiên local là số người giao báo, phiên này không chạy lại (`NOT_CHECKED`). Docker Computer E2E live `NOT_CHECKED`. Paid usage 0. Chưa merge. Log: [2026-11-10-cursor-e2e-audit-b1-b6](log/2026-11-10-cursor-e2e-audit-b1-b6.md).
