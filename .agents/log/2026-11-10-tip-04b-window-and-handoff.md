@@ -42,7 +42,7 @@
 Bằng chứng nằm trên box vận hành, thư mục `osa-e2e-fix-verify-20261110/`, không đưa vào git (có ảnh chụp màn hình và dữ liệu chat).
 
 - Test bị skip:
-  - `tests/test_host_computer.py::test_real_chrome` trước đây cần `OSA_TEST_CHROME=1`. Khi bật thì fail vì conftest tắt `computer.enabled`. Đã sửa test tự bật cho chính nó và tự chạy khi máy có Chrome (`OSA_TEST_CHROME=0` để bỏ). PASS.
+  - `tests/test_host_computer.py::test_real_chrome` trước đây cần `OSA_TEST_CHROME=1`. Khi bật thì fail vì conftest tắt `computer.enabled`. Test vẫn tự bật cho chính nó. Tự chạy trên máy local khi có Chrome (`OSA_TEST_CHROME=0` để bỏ), và bị bỏ trên CI trừ khi `OSA_TEST_CHROME=1`. Lần chạy trên box: PASS.
   - `tests/test_host_desktop.py::test_real_desktop` chỉ chạy trên macOS, điều khiển chuột và bàn phím thật. Linux không chạy được. BLOCKED, giữ skip.
 - Chi phí live: usage.today.cost $7,048106 → $7,447328, tức $0,399 cho cả hai đợt (B1–B6 $0,344, TIP-04b $0,055). Đây là số OSA ghi nhận, không phải hóa đơn xAI.
 - Secrets: không ghi key, mật khẩu, link VNC/sshx/Tailscale. Quét thư mục bằng chứng không thấy key.

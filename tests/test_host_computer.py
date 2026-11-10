@@ -1,5 +1,5 @@
 """本机电脑（host.py）：文件只在工作文件夹里、终端默认关、上传 / 写文件 / 提交 / 终端命令先问；auto 在桌面 App 里选它。
-不开真的 Chrome（那个在文件末尾，要 OSA_TEST_CHROME=1 才跑）。"""
+不开真的 Chrome（文件末尾：本机有 Chrome 且不在 CI 才自动跑；OSA_TEST_CHROME=1 强制，=0 跳过）。"""
 import asyncio
 import os
 import shutil
@@ -267,7 +267,7 @@ def test_once_card_cannot_be_always_allowed():
     assert not [r for r in approvals.rules() if r["pattern"] == "computer_shell"]
 
 
-# ---------- 真的 Chrome：装了 Chrome 自动跑；OSA_TEST_CHROME=0 跳过 ----------
+# ---------- 真的 Chrome：本机有 Chrome 且不在 CI 才自动跑；OSA_TEST_CHROME=1 强制，=0 跳过 ----------
 PAGE = """<!doctype html><meta charset=utf-8><title>测试页</title>
 <form method=post action=/post><input name=msg placeholder=消息><button>发送</button></form>
 <form method=get action=/search><input name=q placeholder=关键词><button>搜索</button></form>
@@ -276,12 +276,24 @@ PAGE = """<!doctype html><meta charset=utf-8><title>测试页</title>
 <a href=/file.txt download>下载</a>"""
 
 
-# 这台机器装了 Chrome 就跑（OSA_TEST_CHROME=0 关掉）；没装时要 OSA_TEST_CHROME=1 才跑
-_CHROME = os.environ.get("OSA_TEST_CHROME", "auto")
+def _real_chrome_skip_reason() -> str:
+    """空字符串表示跑。=1 强制跑，=0 跳过；没设时要找到 Chrome，并且环境里没有 CI。"""
+    flag = os.environ.get("OSA_TEST_CHROME")
+    if flag == "1":
+        return ""
+    if flag in ("0", ""):
+        return "OSA_TEST_CHROME=0"
+    if "CI" in os.environ:
+        return "CI runner: set OSA_TEST_CHROME=1 to force"
+    if not host.chrome_path():
+        return "要真的 Chrome：没找到 Chrome"
+    return ""
 
 
-@pytest.mark.skipif(_CHROME in ("0", "") or (_CHROME == "auto" and not host.chrome_path()),
-                    reason="要真的 Chrome：没找到 Chrome，或者 OSA_TEST_CHROME=0")
+_REAL_CHROME_SKIP = _real_chrome_skip_reason()
+
+
+@pytest.mark.skipif(bool(_REAL_CHROME_SKIP), reason=_REAL_CHROME_SKIP or "skip")
 async def test_real_chrome(tmp_path, monkeypatch):
     site = tmp_path / "site"
     site.mkdir()
