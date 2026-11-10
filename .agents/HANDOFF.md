@@ -17,11 +17,11 @@ Repo: `VagabondKingsman/open-super-agent-remake`. Base: `i18n-vi`. Upstream `kad
 
 ## Head hiện tại
 
-Đối chiếu 10/11/2026, sau OSA-032:
+Đối chiếu 10/11/2026, sau OSA-033:
 
-`origin/i18n-vi = d9ae1d86b223bf4f3fe1e166ba5823658525a991`
+`origin/i18n-vi = c7c53219e7d6fdb2cc12d1926bf8b23e28883f0f`
 
-Đó là merge [PR #29](https://github.com/VagabondKingsman/open-super-agent-remake/pull/29) (OSA-032), `merged_at` API `2026-11-10T06:39:04Z` (13:39:04 Asia/Saigon). Head `e1d4399`. Docs người dùng ghi đúng v0.17.0. Code port nằm ở [PR #27](https://github.com/VagabondKingsman/open-super-agent-remake/pull/27), merge `4512138`, head `d97ad3c`. Version `0.17.0`. Upstream mới nhất vẫn là tag v0.17.0 (`ec02547`). Không có PR mở lúc đối chiếu. CI push trên `d9ae1d8` là run `42769937081`, SUCCESS.
+Đó là merge [PR #30](https://github.com/VagabondKingsman/open-super-agent-remake/pull/30) (OSA-033). Docs người dùng ghi đúng v0.17.0. Code port nằm ở [PR #27](https://github.com/VagabondKingsman/open-super-agent-remake/pull/27). Version `0.17.0`. Upstream mới nhất vẫn là tag v0.17.0 (`ec02547`). OSA-034 (vỏ Android) đang ở `hoplite/osa-034-android`, chưa merge.
 
 Phiên sau chạy `git fetch` và `git rev-parse origin/i18n-vi`. SHA mới hơn thì đọc log mới. Đừng coi `d9ae1d8` là latest mãi.
 

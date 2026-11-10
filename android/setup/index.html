@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Open Super Agent</title>
+<style>
+:root{--bg:#0d0d0e;--bg2:#151517;--line:#26262a;--fg:#ececec;--fg2:#a8a8ad;--bad:#ef6b6b;color-scheme:dark}
+@media (prefers-color-scheme:light){:root{--bg:#fbfbfa;--bg2:#f2f2f0;--line:#e2e2df;--fg:#18181a;--fg2:#57575c;color-scheme:light}}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%}
+body{background:var(--bg);color:var(--fg);font:16px/1.6 sans-serif;padding:48px 20px 24px}
+main{max-width:520px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+h1{margin:0;font-size:22px;text-align:center}
+.sub{margin:0;text-align:center;color:var(--fg2)}
+.card{border:1px solid var(--line);background:var(--bg2);border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:10px}
+input,button{font:inherit;width:100%;border-radius:12px;border:1px solid var(--line);padding:12px 14px}
+input{color:var(--fg);background:var(--bg)}
+button.primary{background:var(--fg);color:var(--bg);font-weight:600}
+.err{color:var(--bad);font-size:14px}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+  <h1>Open Super Agent</h1>
+  <p class="sub">Điện thoại này chỉ mở OSA trên server của bạn.</p>
+  <section id="connect">
+    <form id="remote" class="card">
+      <label for="url">Địa chỉ server</label>
+      <input id="url" type="url" inputmode="url" placeholder="https://osa.example.com" autocomplete="url" autocapitalize="off" spellcheck="false">
+      <button class="primary" type="submit">Kết nối</button>
+      <p class="err" id="err" hidden></p>
+    </form>
+  </section>
+  <section id="pair" hidden>
+    <div class="card">
+      <p>QR trỏ tới một server khác server đang lưu.</p>
+      <p class="server" id="pairServer"></p>
+      <button class="primary" id="pairOk" type="button">Đổi sang server này</button>
+      <button id="pairNo" type="button">Giữ server cũ</button>
+    </div>
+  </section>
+</main>
+<script src="setup.js"></script>
+</body>
+</html>

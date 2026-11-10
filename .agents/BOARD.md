@@ -28,6 +28,7 @@ Snapshot 07/11/2026, Asia/Saigon (UTC+7). GitHub PR + base mới là trạng th�
 | OSA-005 | P2. Rà GitHub Actions | CI đã chạy đủ check của repo. Cứng hóa: `permissions`, `concurrency`, timeout, cache uv, `uv sync --locked`, smoke fail rõ và in log, workflow build image computer. Không pin SHA, không Dependabot. | Done · hoplite / `hoplite/osa-027-ci-hardening` · [PR #21](https://github.com/VagabondKingsman/open-super-agent-remake/pull/21) |
 | OSA-007 | P1. UI sau login và responsive | Preview sandbox vi/en/zh × 375/768/1440 PASS và sửa Quan sát ở 375px trong [PR #18](https://github.com/VagabondKingsman/open-super-agent-remake/pull/18). Còn: khoảng 390px sau login trên điện thoại của Tin Tin, `NOT_CHECKED` vì bot không vào tailnet sau mật khẩu. | Chờ Tin Tin kiểm trên điện thoại |
 | OSA-008 | P2. Reconcile crash giữa file và SQLite | Bơm lỗi trên data tạm, 19 ca. Giữ sửa tay và tombstone. Không tự cài lại. | Done · hoplite / `hoplite/osa-022-port-followups` · [PR #18](https://github.com/VagabondKingsman/open-super-agent-remake/pull/18) |
+| OSA-034 | P1. App Android nối OSA như trang web | Vỏ trong `android/`. QR/pair, nhớ server, `platform: android`. Chưa push, chưa APK. `cargo test` chưa chạy vì máy này không có Rust. | Đang làm · hoplite / `hoplite/osa-034-android` |
 
 ## Done · đã public
 
