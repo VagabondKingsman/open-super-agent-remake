@@ -21,7 +21,7 @@ Repo: `VagabondKingsman/open-super-agent-remake`. Base: `i18n-vi`. Upstream `kad
 
 `origin/i18n-vi = 45121389631562ee1dba53ef6e558c2a0794aef3`
 
-Đó là merge [PR #27](https://github.com/VagabondKingsman/open-super-agent-remake/pull/27) (OSA-031), `merged_at` API `2026-11-10T05:59:36Z` (12:59:36 Asia/Saigon). Head `d97ad3c`. Port upstream v0.13.0–v0.17.0, version ghi 0.17.0. CI push trên SHA này là run `42765538964`.
+Đó là merge [PR #27](https://github.com/VagabondKingsman/open-super-agent-remake/pull/27) (OSA-031), `merged_at` API `2026-11-10T05:59:36Z` (12:59:36 Asia/Saigon). Head `d97ad3c`. Port upstream v0.13.0–v0.17.0, version ghi 0.17.0. CI push run `42765538964` SUCCESS trên SHA này.
 
 Phiên sau chạy `git fetch` và `git rev-parse origin/i18n-vi`. SHA mới hơn thì đọc log mới. Đừng coi `4512138` là latest mãi.
 
