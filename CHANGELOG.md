@@ -4,6 +4,13 @@
 
 ## [未发布]
 ### remake
+- E2E-B1-B6（PR #35）和 TIP-04b：
+  - `reasoning_effort` 只接受空、`low`、`medium`、`high`、`xhigh`、`max`。服务商对某个强度回 400 时去掉它重试一次，按模型记在 `settings` 的 `effort_rejects`，以后不再带；“测试”按钮会提示。
+  - Router 没调 `dispatch` 却说派了不存在的任务 #N：多给一轮带工具的机会；仍没派就在回复后补一句更正，并在消息上记 `fabricated_task_ids`，以后放进上下文时改成系统通知。
+  - Heavy 审稿人的问题去掉 `load_skill` / `verify_facts` / Skill Flow 这类行；汇总远短于草稿时再问一次，仍然太短就用最长的草稿，状态 `partial`。
+  - 群聊里 `dispatch` 的 `handoff_to` 可以填自己，任务做完叫回自己汇总；按任务结果交接的链条到 `MAX_TURNS`（8）停下。
+  - Docker、Instabox 上 `computer_screenshot` 支持 `screen: true`，截整个屏幕，只用来看。
+  - 任务浏览器窗口小于 `computer.width` × `computer.height` 的 90%（默认 1280 × 800，不超过屏幕）时放大到这个大小；最大化、全屏的窗口不动。
 - OSA-031：在 OSA-021 的 v0.12.0 基础上接到 upstream v0.17.0（`ec02547`），保留越南语、英文提示词、美元费用、AI Native 技能包和 remake 自己的安全和可靠性修复。版本号记为 0.17.0。
   - 0.13：电脑面板在本机、Docker 沙盒、云电脑之间选；`computer.choices` 限制可选项；Instabox 的 API Key 在面板里填写，先试再用再加密进保险库。Docker 没装或连不上时仍用 remake 的 `unavailable` 说法。
   - 0.14：Worker 一轮里相邻的只读工具一起跑。写操作、电脑操作、要确认的仍按顺序。
