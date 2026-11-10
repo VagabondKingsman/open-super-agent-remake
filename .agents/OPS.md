@@ -6,13 +6,14 @@ Cách cài, chạy và kiểm bản đã merge. Cài trên máy mới thì đọ
 
 | Mục | Giá trị |
 |---|---|
-| Checkout chạy server | `/workspace/open-super-agent`, nhánh local `ci/real-chrome`, code trùng `8c108c9` |
-| Process | `uv run uvicorn osa.server:app --host 127.0.0.1 --port 8765`, PID trong `logs/osa.pid` |
+| Checkout chạy server | `/workspace/open-super-agent`, nhánh local `deploy/audit-f1-f12` (`b8ca2c0`), cây trùng `5a1e0e7` (PR #41). Chưa ở `i18n-vi` |
+| Process | `uv run uvicorn osa.server:app --host 127.0.0.1 --port 8765`, pid 523005 lúc 22:20 10/11, PID trong `logs/osa.pid`, cổng trong `logs/osa.port` |
 | Khởi động, dừng | `bash scripts/osa-start.sh`, `bash scripts/osa-stop.sh` trong checkout đó |
 | DB | `data/osa.db` trong checkout. Kiểm bằng `ls -l /proc/<pid>/fd \| grep '\.db'` trước khi backup |
 | Secret | nạp từ `.env` của checkout và kho secret của bot. Không in giá trị |
-| Computer | Instabox (`backend: auto`, khóa trong vault) |
-| Giữ VM thức | `computer.idle_pause_s: 2592000` trong `config.yaml`, chưa commit, và một script gia hạn lease chạy nền. Không tắt script, không pause VM, không commit `config.yaml` |
+| Computer | Instabox, máy `docker-osar-test` (`backend: auto`, `INSTABOX_API_KEY` trong vault của OSA) |
+| `task_timeout_s` | 7200 từ `settings.overrides` trong DB. `config.yaml` ghi 600, override thắng |
+| Giữ VM thức | `computer.idle_pause_s: 2592000` trong `config.yaml`, chưa commit. `/workspace/instabox-keepalive/lease-keepalive.py` (pid 335522, log `lease.log`) gia hạn activity lease mỗi 3 phút. Trần `maxRunMinutes` 480 phút vẫn áp. Suspend/resume của script đang lỗi thiếu `Idempotency-Key` (BOARD OPEN-KEEPALIVE). Không tắt script, không để VM pause, không commit `config.yaml` |
 
 Restart server chỉ khi Tin Tin yêu cầu, và backup DB trước. Việc sửa code làm trong worktree riêng, không làm trên checkout này (xem [HANDOFF](HANDOFF.md#cách-làm-việc-từ-10112026)).
 
@@ -33,9 +34,61 @@ env -u DISPLAY CI=1 OSA_REQUIRE_SANDBOX=1 OSA_TEST_CHROME=1 xvfb-run -a uv run p
 git diff --check
 ```
 
-Trên `8c108c9`: 828 passed, 1 skipped (`test_real_desktop`, chỉ macOS). Box có `bwrap` 0.12.0, `xvfb-run`, Google Chrome, Node 24, uv 0.13.7. Box không có Docker, nên Docker build và compose là `NOT_CHECKED`. Đọc check-run CI cho phần đó.
+Trên code của PR #41 (`5a1e0e7`): 853 passed, 1 skipped (`test_real_desktop`, chỉ macOS). Web `npm test` 36/36. `osa.i18n` thiếu 0. Box có `bwrap` 0.12.0, `xvfb-run`, Google Chrome, Node 24, uv 0.13.7. Box không có Docker, nên Docker build và compose là `NOT_CHECKED`. Đọc check-run CI cho phần đó.
 
 Muốn chạy thử một bản cài mới song song mà không đụng server thật thì clone vào thư mục tạm, đặt `OSA_DATA_DIR` riêng, chạy uvicorn foreground ở cổng khác (ví dụ 8799), gỡ `INSTABOX_API_KEY` và các key provider khỏi môi trường của lệnh đó, tắt process khi xong.
+
+## Khóa cấu hình mới (PR #37, #41)
+
+Có mặc định trong code, có dòng comment trong `limits:` của `config.yaml`. Bỏ `#` để đổi:
+
+| Khóa | Mặc định | Việc |
+|---|---|---|
+| `limits.stream_first_chunk_s` | 170 | chờ chunk đầu tối đa bao nhiêu giây. Nhỏ hơn 180 giây của Watchdog |
+| `limits.stream_idle_s` | 120 | sau chunk đầu, hai chunk cách nhau quá số này thì đóng stream |
+| `limits.stream_retries` | 1 | số lần gọi lại cùng lượt, chờ 2–5 giây trước mỗi lần |
+
+Biến môi trường của script: `OSA_PORT` (mặc định 8765), `OSA_START_TIMEOUT` (giây chờ `/manifest.json`, mặc định 60), `OSA_STOP_TIMEOUT` (giây chờ process thoát, mặc định 20). Server luôn nghe `127.0.0.1`.
+
+## Deploy và restart
+
+Chỉ làm khi Tin Tin giao. Code đã merge vào `i18n-vi` hoặc là patch đã test trong worktree.
+
+1. Backup DB bằng sqlite backup API (an toàn khi server đang chạy, có WAL), kiểm `integrity_check`, quyền 0600:
+
+```bash
+TS=$(date +%Y%m%d-%H%M%S)
+.venv/bin/python - "$TS" <<'PY'
+import sqlite3, sys
+src = sqlite3.connect("file:data/osa.db?mode=ro", uri=True)
+dst = sqlite3.connect(f"/workspace/osa-backups/osa.db.<tên>.{sys.argv[1]}")
+src.backup(dst); print(dst.execute("pragma integrity_check").fetchone()[0])
+PY
+chmod 600 /workspace/osa-backups/osa.db.*.$TS
+```
+
+2. Giữ bản sửa `config.yaml`: `cp -p config.yaml /workspace/osa-backups/config.yaml.local.$TS && git diff config.yaml > /workspace/osa-backups/config.yaml.local.$TS.diff`.
+3. Đổi code (mục dưới), `uv sync --locked`, `(cd web && npm run build)`. `osa/static/dist/` nằm ngoài git nên phải build lại.
+4. `bash scripts/osa-stop.sh` (chờ process thoát, báo `stopped <pid> (port :8765)`), rồi `bash scripts/osa-start.sh` (chỉ báo `started` khi `/manifest.json` trả lời, lỗi thì in log và thoát 1).
+5. Kiểm: `/manifest.json` 200, đăng nhập bằng mật khẩu (không in), `GET /api/bots/1/computer` là `instabox` `running`, `ps -p 335522` còn chạy, `grep idle_pause_s config.yaml` vẫn là 2592000, `git status --short` chỉ có `config.yaml`.
+
+### Đưa checkout vận hành về i18n-vi
+
+Checkout đang ở nhánh local `deploy/audit-f1-f12`, cây trùng `5a1e0e7`. Khi cần theo `i18n-vi`:
+
+```bash
+cd /workspace/open-super-agent
+git fetch origin i18n-vi
+git diff config.yaml > /workspace/osa-backups/config.yaml.local.$TS.diff   # bước 2 ở trên
+git checkout -- config.yaml
+git checkout -B i18n-vi origin/i18n-vi
+git apply /workspace/osa-backups/config.yaml.local.$TS.diff
+git status --short    # chỉ còn " M config.yaml"
+```
+
+Nhánh local `i18n-vi` đã có (lúc 22:20 10/11 ở `d9ae1d8`, sau origin 54 commit) và không worktree nào đang giữ nó, nên `-B` đặt lại nó về `origin/i18n-vi` là an toàn.
+
+Nếu `git apply` báo xung đột (upstream sửa đúng dòng `idle_pause_s`) thì sửa tay dòng đó về 2592000. Code đổi thì restart theo bước 3–5. Chỉ đổi nhánh mà cây không đổi (như bây giờ) thì không cần restart.
 
 ## CI
 
@@ -169,9 +222,9 @@ Sau deploy, mở app một lần khi đang online, đóng hẳn tab hoặc PWA, 
 
 Trình duyệt của bot không đăng nhập được vào `127.0.0.1` hay URL tailnet. Ảnh UI sau login trên điện thoại là `NOT_CHECKED` cho đến khi Tin Tin thử. Viewport hay dùng khoảng 390px.
 
-### Deploy sau khi merge
+### Deploy sau khi merge (cách cũ, box `c16e6bb`)
 
-Làm trên worktree của box, sau khi PR đã vào `i18n-vi`. Không làm bước này từ phiên chỉ viết docs.
+Cách hiện tại ở mục [Deploy và restart](#deploy-và-restart). Làm trên worktree của box, sau khi PR đã vào `i18n-vi`. Không làm bước này từ phiên chỉ viết docs.
 
 1. Tìm pid `uvicorn osa.server:app`.
 2. Backup đúng file DB process đang mở, kèm `-wal` và `-shm` nếu có:

@@ -30,6 +30,7 @@ git rev-parse HEAD
 - Nếu có thay đổi dở hoặc pull không fast-forward, giữ nguyên chúng, fetch/read remote rồi đối chiếu; không stash/reset/rebase mù quáng. Tạo safety trước reconcile rủi ro. Không ghi đè sửa của bot khác.
 - Đọc lại STATE, BOARD, log mới nhất và các PR đang mở. GitHub/ref đã xác minh mới hơn snapshot được ưu tiên về trạng thái thực tế; chênh lệch cần ghi lại.
 - Tạo branch `<bot>/<topic>` từ base đã cập nhật, ví dụ `build-bot/worker-live-eval`. Với CloudAgent, yêu cầu agent dùng base/branch tương ứng.
+- Trên box Grok Bot: làm trong worktree riêng, không sửa checkout đang chạy server. Đường công bố: test như CI → `git format-patch origin/i18n-vi..HEAD` → cloud agent `git am`, push, mở PR vào `i18n-vi` → CI xanh → Tin Tin đồng ý thì merge. Chi tiết ở [HANDOFF](HANDOFF.md#cách-làm-việc-từ-10112026).
 - Claim một task, lập TIP/AC và test plan. Không chạy scheduler/channel/LLM thật để “xem có chạy không”.
 
 ## Cuối mỗi phiên và mỗi PR

@@ -1,11 +1,11 @@
-# Sửa audit F1–F12 và deep test trên box · 10/11/2026
+# Sửa audit F1–F13 và deep test trên box · 10/11/2026
 
 Giờ theo Asia/Saigon (UTC+7). Đồng hồ box chạy UTC, mọi giờ dưới đây đã cộng 7.
 
 - Yêu cầu (t77u): sửa các điểm audit còn lại, cập nhật lên bot đang chạy trên máy ảo, deep test tới khi xong.
 - Base: `origin/i18n-vi` = `91b6cfb` (merge PR #40). Worktree `/workspace/osar-fix`, nhánh `fix/audit-f1-f12`. Worktree cũ `/workspace/osar-audit` đã gỡ (nhánh của nó đã merge).
 - Skill Flow: osa-dev, ai-work-method, vibecode-kit (debug 9 bước cho lỗi tìm ra lúc live), unslop-vi cho văn bản tiếng Việt.
-- SHA dưới đây là SHA local. `git am` ở nơi khác sẽ ra SHA mới.
+- SHA trong bảng và các mục dưới là SHA local trên box. Cloud agent `git am` ra SHA khác, xem mục "Merge" cuối file.
 
 ## Sửa gì
 
@@ -56,3 +56,24 @@ Giờ theo Asia/Saigon (UTC+7). Đồng hồ box chạy UTC, mọi giờ dưới
 - `task_timeout_s` đang chạy 7200, từ `settings.overrides`. `config.yaml` ghi 600. Không đổi.
 - Thông báo `StreamStalled` in `int(n)` nên ngưỡng dưới 1 giây hiện "0 giây". Chỉ gặp khi cấu hình ngưỡng dưới 1 giây.
 - Docker Compose và `xvfb-run -a scripts/osa-start.sh` với server thật: `NOT_CHECKED`.
+
+## Merge (cập nhật 22:20)
+
+[PR #41](https://github.com/VagabondKingsman/open-super-agent-remake/pull/41), branch `fix/audit-f1-f13`, head `9bce42d`, merge vào `i18n-vi` tại `5a1e0e7` lúc 22:12:10. CI backend, frontend, docker xanh. Cây của `5a1e0e7` trùng cây local `b8ca2c0` mà box đang chạy.
+
+| Local | Trên `i18n-vi` | Commit |
+|---|---|---|
+| `d0a1df6` | `da7e0c8` | F1/F2/F3 stream |
+| `eb5cb12` | `e55f772` | F4 kẹp cửa sổ |
+| `044c9de` | `8091dd8` | F6 Linux không màn hình |
+| `5d6ca14` | `5953e0d` | F7/F12 i18n, backup 0600 |
+| `d6787ab` | `54985f8` | F8 script |
+| `7c20922` | `46403a7` | F9 `config.yaml` |
+| `4f84ce6` | `5f8d7a3` | F10 `docs/docker.md` |
+| `bb733ba` | `614d5f7` | docs |
+| `76b45da` | `30ef779` | F13 cửa sổ theo màn hình thật |
+| `b8ca2c0` | `9bce42d` | `.agents/` |
+
+## Sau merge
+
+- 22:08–22:13: script giữ VM gọi suspend/resume trước mốc 480 phút, cả hai trả 400 thiếu `Idempotency-Key`. 22:13 VM bị nền tảng pause, cooldown tới 22:18:18. 22:19 `POST /api/bots/1/computer/start` qua OSA trả 200, VM `running` lại. Không liên quan code PR #41. Ghi ở BOARD OPEN-KEEPALIVE.

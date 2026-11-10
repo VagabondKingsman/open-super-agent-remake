@@ -138,11 +138,24 @@ Quyết định:
 
 Phương án bị loại: sửa trực tiếp trên checkout đang chạy (dễ commit nhầm `config.yaml`, dễ làm server đọc code dở), gửi bundle nhị phân (bị từ chối).
 
-Hệ quả: PR #36 tới #39 đi theo cách này. Mỗi patch phải áp sạch trên `i18n-vi` mới nhất. Nếu base đã đổi, xuất lại patch trên base mới.
+Hệ quả: PR #36 tới #41 đi theo cách này. Mỗi patch phải áp sạch trên `i18n-vi` mới nhất. Nếu base đã đổi, xuất lại patch trên base mới.
 
 Cũng trong phiên deep audit 10/11, STATE.md chuyển thành snapshot ngắn. Lịch sử append cũ nằm nguyên văn ở `archive/STATE-2026-11-07-den-2026-11-10.md`. Phiên sau sửa STATE theo snapshot, ghi diễn biến vào `log/`.
 
 Nguồn là yêu cầu của Tin Tin ngày 10/11/2026. ADR này không đổi quyền merge.
+
+## ADR-015 · Accepted · 10/11/2026 · Chunk đầu của stream có giới hạn riêng
+
+Context: PR #37 thêm `limits.stream_idle_s` (120 giây) để đóng stream im và gọi lại, sửa task Nova #253 bị Watchdog hủy. Deep audit (AUDIT-F1) thấy bộ đếm chạy cả lúc chờ chunk đầu. Model nghĩ lâu, không stream phần thinking, có thể mất hai, ba phút mới ra chunk đầu. Trước PR #37 các lượt đó vẫn xong, sau PR #37 chúng bị đóng hai lần rồi fail.
+
+Decision:
+- Chờ chunk đầu tối đa `limits.stream_first_chunk_s` (mặc định 170 giây). Sau chunk đầu mới đếm `stream_idle_s` giữa hai chunk. Cả hai nhỏ hơn 180 giây của Watchdog, để lượt gọi lại còn kịp trước khi task bị hủy.
+- Gọi lại sau 2–5 giây có jitter (`providers.retry_pause`), vì lỗi "at capacity" gọi lại ngay thường lặp lại.
+- Router gọi lại thì gửi `reset` để UI xóa thinking đã hiện. Lượt hỏng vẫn ghi usage, ước tính khi thiếu.
+
+Phương án bị loại: tăng `stream_idle_s` lên gần 180 giây (stream treo giữa chừng phải chờ lâu hơn, gần sát Watchdog); bỏ hẳn giới hạn chunk đầu (lượt treo trước chunk đầu lại bị Watchdog hủy cả task).
+
+Hệ quả: một lượt treo trước chunk đầu tốn tối đa 170 + 5 giây trước khi gọi lại. Đường gọi lại chưa xảy ra tự nhiên trên live (BOARD OPEN-RETRY-LIVE). Nguồn: AUDIT-F1–F3, PR #41, yêu cầu t77u của Tin Tin.
 
 ## Thêm ADR
 
