@@ -322,6 +322,7 @@
   "没有开登录": "Login isn't enabled",
   "没有开通需要的意图": "The required intents aren't enabled",
   "没有待确认的请求 #{id}": "No pending request #{id}",
+  "不能处理确认：只有用户发起的这一轮才能批准或拒绝卡片。请等用户在对话或卡片上决定。": "Cannot resolve this approval: only a user-started turn may approve or deny a card. Wait for the user to decide in the chat or on the card.",
   "没有技能 /{skill}": "No skill /{skill}",
   "没有按键": "No keys given",
   "没有收到文件": "No file received",

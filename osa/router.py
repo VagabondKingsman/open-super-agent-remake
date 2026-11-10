@@ -611,6 +611,12 @@ class Router:
         real |= {r[0] for r in rows}
         return [i for i in ids if i not in real]
 
+
+    def _turn_woke(self) -> dict | None:
+        """这一轮被谁叫醒：私信（dm）、其他 Bot 的回信（reply）、或建改删 Bot 有了结果（botadmin）。
+        没有这条记录就是用户自己发消息发起的一轮。"""
+        return self.turn.get("woke")
+
     def _member(self, name: str) -> dict | None:
         """群里按名字找成员（不区分大小写，去掉开头的 @）。"""
         key = (name or "").strip().lstrip("@").lower()
@@ -700,7 +706,7 @@ class Router:
         if name == "list_tasks":
             return self._task_list()
         if name == "cancel_task":
-            woke = self.turn.get("woke")
+            woke = self._turn_woke()
             if not woke:
                 return self.cancel(args["task_id"], i18n.t("用户要求取消"))
             t, owed = self.tasks.get(args["task_id"]), self.turn.get("reply")
@@ -709,6 +715,9 @@ class Router:
             return self.cancel(args["task_id"], i18n.t("{name} 收到 {sender} 的新消息后自己取消的", name=self.bot["name"],
                                                        sender=dm._name(woke["from"])))
         if name == "resolve_approval":
+            # 只有用户发起的这一轮能处理确认；被其他 Bot 或私信叫醒的一轮不能自己点批准
+            if self._turn_woke():
+                return i18n.t("不能处理确认：只有用户发起的这一轮才能批准或拒绝卡片。请等用户在对话或卡片上决定。")
             return approvals.resolve(args["id"], args["approve"], args.get("note", ""), bool(args.get("always")),
                                      scope=args.get("scope"))
         if name == "recall":
