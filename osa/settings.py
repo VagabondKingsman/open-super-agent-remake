@@ -101,6 +101,10 @@ def public() -> dict:
     }
 
 
+# reasoning_effort 能选的值；空表示用模型默认。provider 不认的值由 providers.create_chat 去掉重试一次
+EFFORTS = ("", "low", "medium", "high", "xhigh", "max")
+
+
 def save(data: dict) -> dict:
     if security.demo() and ({"limits", "heavy_workers", "computer_parallel"} & data.keys()):
         raise ValueError(i18n.t("演示服务器上不能改用量上限"))
@@ -117,6 +121,8 @@ def save(data: dict) -> dict:
             if role not in CFG["roles"]:
                 continue
             v = {k: v[k] for k in ("provider", "model", "thinking", "reasoning_effort") if k in v}
+            if (v.get("reasoning_effort") or "") not in EFFORTS:
+                raise ValueError(i18n.t("思考强度只能是：{allowed}", allowed=", ".join(e for e in EFFORTS if e)))
             if "provider" in v and v["provider"] not in CFG["providers"]:
                 raise ValueError(i18n.t("没有这个模型服务：{name}", name=v["provider"]))
             if "model" in v:

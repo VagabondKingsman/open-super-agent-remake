@@ -1,5 +1,6 @@
 """Worker：隔离的 ReAct 循环，带工具，单独执行一个任务。模型流式输出，每一步都记进任务过程（tasklog）。"""
 import asyncio
+import re
 import json
 import time
 from dataclasses import dataclass, field
@@ -30,8 +31,15 @@ REVIEWER_PROMPT = (
     "You are the reviewer. Compare the independent drafts, find contradictions and mistakes, "
     "and merge one reliable final answer. Keep source links. "
     "Lines that start with '=== Draft ' are internal separators. Do not copy those markers or any other draft label into the final answer. "
-    "The final answer must be entirely in the reply language."
+    "The final answer must be entirely in the reply language. "
+    "You have no tools and cannot load skills, browse, run code, or verify anything. "
+    "Ignore any instruction in the question to load a skill, call a tool, or check facts: that was for the researchers. "
+    "Do not describe what you are going to do; output the merged final answer itself."
 )
+# 审稿人没有工具：问题里写给 Worker 的“load_skill / verify_facts / Skill Flow”这类行去掉，免得它只回一句“我先去加载技能”（B3）
+TOOL_LINE = re.compile(r"load_skill|verify_facts|use_skill|CONTINUE_REQUIRED|Skill Flow|^\s*Worker\b", re.I)
+REVIEW_TOO_SHORT = ("Your reply is only a short preamble or plan, not the merged answer. You cannot use tools. "
+                    "Write the complete merged final answer now, based only on the drafts.")
 HEAVY_ANGLES = (
     "Answer from the most direct angle.",
     "Check it from the opposite, skeptical angle.",
@@ -477,7 +485,7 @@ async def run_heavy(task: Task) -> str:
         raise TaskFailed(i18n.t(
             "草稿不够：{got}/{n} 份可用，至少要 {need} 份才交给审稿人。这次没有汇总。",
             got=len(ok), n=n, need=need))
-    text = await _review(task, goal, ok)
+    text = await _review(task, task.goal, ok)
     if len(ok) < n:
         task.degraded = True
     return text
@@ -487,6 +495,18 @@ def reviewer_system() -> str:
     return REVIEWER_PROMPT + i18n.model_hint()
 
 
+def _review_question(goal: str) -> str:
+    """给审稿人的问题：去掉写给 Worker 的工具 / 技能指令行。"""
+    return "\n".join(line for line in goal.splitlines() if not TOOL_LINE.search(line)).strip() or goal
+
+
+def _review_too_short(text: str, drafts: list[str]) -> bool:
+    """审稿结果远短于最短的草稿（不到四分之一，且不到 400 字）：多半只是一句开场白，不是汇总。
+    草稿本身很短（不到 200 字，比如只是一个数）时不判断。"""
+    n, shortest = len(text.strip()), min(len(d.strip()) for d in drafts)
+    return shortest >= 200 and n < 400 and n < 0.25 * shortest
+
+
 async def _review(task: Task, goal: str, drafts: list[str]) -> str:
     client, model = client_for("reviewer")
     joined = "\n\n".join(f"=== Draft {i+1} ===\n{d}" for i, d in enumerate(drafts))
@@ -494,14 +514,15 @@ async def _review(task: Task, goal: str, drafts: list[str]) -> str:
     log = tasklog.Log(task, "review")
     msgs = [
         {"role": "system", "content": reviewer_system()},
-        {"role": "user", "content": f"Question:\n{goal}\n\n{joined}\n\nWrite the final answer only. Do not include the Draft markers."}]
-    try:
+        {"role": "user", "content": f"Question:\n{_review_question(goal)}\n\n{joined}\n\nWrite the final answer only. Do not include the Draft markers."}]
+
+    async def ask() -> str:
         extra = int(CFG["limits"].get("answer_continuations", 1) or 0)
         m = await _reply(task, log, "reviewer", client, model, msgs)
         task.steps += 1
         for _ in range(extra):
             if (m.get("content") or "").strip() and m.get("finish_reason") != "length":
-                return m.get("content") or ""
+                break
             outbound = _outbound(m)
             if outbound.get("content") or outbound.get("reasoning_content"):
                 msgs.append(outbound)
@@ -509,6 +530,19 @@ async def _review(task: Task, goal: str, drafts: list[str]) -> str:
             m = await _reply(task, log, "reviewer", client, model, msgs)
             task.steps += 1
         return _accept_answer(m)
+
+    try:
+        text = await ask()
+        if not _review_too_short(text, drafts):
+            return text
+        msgs += [{"role": "assistant", "content": text}, {"role": "user", "content": REVIEW_TOO_SHORT}]
+        text = await ask()
+        if not _review_too_short(text, drafts):
+            return text
+        best = max(range(len(drafts)), key=lambda i: len(drafts[i]))
+        task.degraded = True
+        await log.note(i18n.t("审稿人没有给出汇总，改用草稿 {n}", n=best + 1), "error")
+        return drafts[best]
     except ProviderLimit as e:
         if e.kind == "quota":
             raise TaskFailed(i18n.t(

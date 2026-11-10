@@ -9,6 +9,7 @@ import copy
 import email.utils
 import ipaddress
 import json
+import logging
 import os
 import re
 import struct
@@ -21,6 +22,7 @@ from . import i18n, vault
 from .config import CFG
 from .memory import conn
 
+log = logging.getLogger(__name__)
 BASE = copy.deepcopy(CFG.get("providers") or {})   # config.yaml 里写的
 MODELS_TTL = 600
 # 服务那边临时出错（500、503、限流、连不上）时自动重试几次。SDK 默认只试 2 次、一共等 1.5 秒左右，
@@ -260,6 +262,29 @@ def classify_limit(e: Exception) -> ProviderLimit | None:
     return None
 
 
+def _effort_rejects() -> dict:
+    r = conn.execute("select value from settings where key='effort_rejects'").fetchone()
+    return json.loads(r[0]) if r else {}
+
+
+def _effort_key(base: str, model: str) -> str:
+    return f"{base.rstrip('/')}|{model}"
+
+
+def effort_rejected(base: str, model: str, effort: str) -> bool:
+    return effort in _effort_rejects().get(_effort_key(base, model), [])
+
+
+def remember_effort_reject(base: str, model: str, effort: str):
+    """模型服务对这个思考强度回了 400、不带就成功：记在设置表里（和 media.remember_test 一样）。"""
+    d = _effort_rejects()
+    k = _effort_key(base, model)
+    if effort not in d.get(k, []):
+        d[k] = d.get(k, []) + [effort]
+        conn.execute("insert or replace into settings values('effort_rejects', ?)", (json.dumps(d),))
+        conn.commit()
+
+
 async def create_chat(client, **kwargs):
     """流式或非流式补全。额度类错误立刻抛出，不重试。普通 429 按 Retry-After 等，次数有上限。
 
@@ -271,10 +296,25 @@ async def create_chat(client, **kwargs):
     cap = max(0.0, float(CFG["limits"].get("provider_retry_cap_s", 120) or 0))
     # 测试里的假客户端没有 with_options。真客户端关掉 SDK 自带重试，避免把额度类 429 再打一遍。
     caller = client.with_options(max_retries=0) if hasattr(client, "with_options") else client
+    base = str(getattr(client, "base_url", "") or "")
+    if kwargs.get("reasoning_effort") and effort_rejected(base, kwargs.get("model", ""), kwargs["reasoning_effort"]):
+        kwargs.pop("reasoning_effort")   # 以前这个模型就不认这个思考强度：直接不带
     rate_attempt = transient_attempt = 0
     while True:
         try:
             return await caller.chat.completions.create(**kwargs)
+        except openai.BadRequestError as e:
+            # 有的模型不认 reasoning_effort（比如 xAI 不收 max，有的推理模型什么强度都不收）：去掉再试一次，记下来以后不带
+            effort = kwargs.pop("reasoning_effort", None)
+            if not effort:
+                raise
+            try:
+                r = await caller.chat.completions.create(**kwargs)
+            except Exception:
+                raise e from None
+            remember_effort_reject(base, kwargs.get("model", ""), effort)
+            log.warning("model %s rejected reasoning_effort=%s (400); retried without it", kwargs.get("model"), effort)
+            return r
         except openai.APIStatusError as e:
             limit = classify_limit(e)
             if limit is not None and limit.kind == "quota":
@@ -462,6 +502,13 @@ def _png(w: int, h: int, rgb: tuple) -> bytes:
 RED = "data:image/png;base64," + base64.b64encode(_png(64, 64, (220, 30, 30))).decode()
 
 
+def _effort_note(rejected: list) -> dict:
+    if not rejected:
+        return {}
+    return {"effort_rejected": rejected[0],
+            "effort_warning": i18n.t("这个模型不认思考强度 {effort}，已改为不带它调用", effort=rejected[0])}
+
+
 async def test(provider: str, model: str, kind: str = "chat", role: str = "") -> dict:
     """真的调一次：chat 先带一张红色图片问颜色，看能不能看图；不支持图片再只发文字。embedding 算一条向量。"""
     from . import memory
@@ -483,8 +530,19 @@ async def test(provider: str, model: str, kind: str = "chat", role: str = "") ->
     from .config import call_kwargs
     kw = call_kwargs(role) if role in CFG["roles"] else {}   # 按这个用途的设置（思考模式等）来测
 
+    rejected = []   # 这个用途设的思考强度被模型服务拒了（400，不带就成功）
+
     async def ask(content) -> str:
-        r = await c.chat.completions.create(model=model, max_tokens=512, messages=[{"role": "user", "content": content}], **kw)
+        args = dict(model=model, max_tokens=512, messages=[{"role": "user", "content": content}], **kw)
+        try:
+            r = await c.chat.completions.create(**args)
+        except openai.BadRequestError:
+            if not kw.get("reasoning_effort"):
+                raise
+            args.pop("reasoning_effort")
+            r = await c.chat.completions.create(**args)
+            rejected.append(kw.pop("reasoning_effort"))
+            remember_effort_reject(base, model, rejected[-1])
         memory.record_usage("test", model, r.usage, provider=provider)
         msg = r.choices[0].message if r.choices else None
         return ((msg.content if msg else "") or getattr(msg, "reasoning_content", "") or "").strip()
@@ -497,7 +555,7 @@ async def test(provider: str, model: str, kind: str = "chat", role: str = "") ->
             seen = {False: "no", True: "unsure"}.get(prices.lookup(provider, model).get("vision"), "unsure")
         from . import media
         media.remember_test(provider, model, "yes" if seen is True else seen)   # 以后按测出来的判断要不要给它看图
-        return {"ok": True, "vision": "yes" if seen is True else seen, "reply": reply[:80], "ms": ms()}
+        return {"ok": True, "vision": "yes" if seen is True else seen, "reply": reply[:80], "ms": ms(), **_effort_note(rejected)}
     except (openai.AuthenticationError, openai.PermissionDeniedError, openai.APIConnectionError, openai.RateLimitError) as e:
         return {"ok": False, "error": explain(e, base), "ms": ms()}
     except Exception as e:
@@ -507,6 +565,6 @@ async def test(provider: str, model: str, kind: str = "chat", role: str = "") ->
         reply = await ask("Reply with exactly: ok")
         from . import media
         media.remember_test(provider, model, "no")
-        return {"ok": True, "vision": "no", "vision_error": img_err, "reply": reply[:80], "ms": ms()}
+        return {"ok": True, "vision": "no", "vision_error": img_err, "reply": reply[:80], "ms": ms(), **_effort_note(rejected)}
     except Exception as e:
         return {"ok": False, "error": explain(e, base), "ms": ms()}

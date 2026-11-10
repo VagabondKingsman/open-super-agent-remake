@@ -245,10 +245,10 @@ Append. Câu "OSA-034 chưa push" trên BOARD cũ là trạng thái lúc viết.
 
 OSA-036 (`hoplite/osa-036-android-switch`, head `08d7f76`): nút Đổi server xóa địa chỉ đã lưu. Trang web tự tải `http://tauri.localhost/`. Không gọi `navigate`. APK debug arm64 SHA-256 `230ef2d3a124c62430b545bea3aab518981e259c1c37b1162e31ad5196e1f4bd`. Chưa cài trên điện thoại thật. Máy này không có `/dev/kvm`.
 
-## Bổ sung · PR #33 đã merge · OSA-037 đang làm · hoplite · 10/11/2026
+## Bổ sung · PR #33 đã merge · E2E audit B1–B6 đang mở · cursor · 10/11/2026
 
 Append. Câu "OSA-036 đang làm" ở trên là trạng thái lúc viết mục đó.
 
-[PR #33](https://github.com/VagabondKingsman/open-super-agent-remake/pull/33) merge vào `i18n-vi` tại `4e146df`, `merged_at` `2026-11-10T08:49:28Z`. Head `8eaac9b`.
+`git fetch origin i18n-vi` rồi `git rev-parse origin/i18n-vi` là `ac85f7321c8f0b1b52fa8990b98021d40f0338cc` (merge [PR #34](https://github.com/VagabondKingsman/open-super-agent-remake/pull/34), `merged_at` `2026-11-10T09:18:46Z`). [PR #33](https://github.com/VagabondKingsman/open-super-agent-remake/pull/33) đã merge trước đó tại `4e146df`.
 
-OSA-037 (`hoplite/osa-037-android-sheet`): link cùng site và OAuth mở `SheetActivity`. Rust gọi `startActivity` qua JNI. Không tạo webview wry thứ hai. Push và badge vẫn chưa có. Chưa cài trên điện thoại thật.
+E2E-B1-B6: năm commit `git am` từ mailbox đã test, branch `fix/e2e-audit-b1-b6`. Head code `1d54c79`. Nhánh đã gộp `i18n-vi` sau PR #34. Không sửa `config.yaml`. Không commit `.env`, DB, hay file bằng chứng. Suite liên quan lúc mở PR: 95 passed. Docker Computer E2E live `NOT_CHECKED`. Paid usage 0. PR: [#35](https://github.com/VagabondKingsman/open-super-agent-remake/pull/35) vào `i18n-vi`. Chưa merge. Log: [2026-11-10-cursor-e2e-audit-b1-b6](log/2026-11-10-cursor-e2e-audit-b1-b6.md).

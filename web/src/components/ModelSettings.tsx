@@ -242,7 +242,7 @@ export function ProviderForm({ name, onDone, presetId, onBack, backLabel }: {
 }
 
 // ---------- 每项工作用哪个模型 ----------
-type TestResult = { ok: boolean; error?: string; ms?: number; vision?: 'yes' | 'no' | 'unsure'; vision_error?: string; dim?: number }
+type TestResult = { ok: boolean; error?: string; ms?: number; vision?: 'yes' | 'no' | 'unsure'; vision_error?: string; dim?: number; effort_rejected?: string; effort_warning?: string }
 
 export function useTest(body: () => object, deps: unknown[]) {
   const [res, setRes] = useState<TestResult | null>(null)
@@ -257,7 +257,7 @@ export function useTest(body: () => object, deps: unknown[]) {
   return { res, busy, run }
 }
 
-const THINK: [string, string][] = [['', t('思考：默认')], ['low', t('思考：少一些')], ['high', t('思考：多一些')], ['max', t('思考：最多')], ['off', t('不思考（快、省钱）')]]
+const THINK: [string, string][] = [['', t('思考：默认')], ['low', t('思考：少一些')], ['medium', t('思考：中等')], ['high', t('思考：多一些')], ['xhigh', t('思考：很多')], ['max', t('思考：最多')], ['off', t('不思考（快、省钱）')]]
 
 function RoleCard({ role }: { role: RoleDef }) {
   const s = useStore(x => x.settings) as S
@@ -290,6 +290,7 @@ function RoleCard({ role }: { role: RoleDef }) {
         <TestButton t={test} />
       </div>
       {test.res && !test.res.ok && <div className="role-error"><Icon name="alert" size={14} />{test.res.error}</div>}
+      {test.res?.ok && test.res.effort_warning && <div className="role-error"><Icon name="alert" size={14} />{test.res.effort_warning}</div>}
     </div>
   )
 }

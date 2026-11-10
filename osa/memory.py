@@ -225,7 +225,9 @@ def context(chat_id: int, viewer: int | None = None, me: int | None = None, imag
             c = _no_leak(c)
         if r == "task" and meta.get("kind") == "handoff" and viewer is not None:
             to = meta.get("to")
-            if to == viewer:
+            if to == viewer and b == viewer:
+                text = f"(system notice: the task result you asked to get back is above; it is your turn to continue){defang(meta.get('note') or c)}"
+            elif to == viewer:
                 text = f"({name(b)} handed the work to you; it is your turn){defang(meta.get('note') or c)}"
             elif b == viewer:
                 text = f"(system notice: you handed the work to {name(to)}){defang(meta.get('note') or c)}"
@@ -248,6 +250,12 @@ def context(chat_id: int, viewer: int | None = None, me: int | None = None, imag
             msgs.append({"role": "user", "content": note + defang(c)})
         elif r == "assistant" and others:
             msgs.append({"role": "user", "content": f"[bot: {name(b)}]{defang(c)}"})
+        elif r == "assistant" and meta.get("fabricated_task_ids"):
+            # B1：这条回复说派了并不存在的任务。改成通知形式，免得模型把“已派发 #N”当成可以照抄的格式
+            ids = ", ".join(f"#{i}" for i in meta["fabricated_task_ids"])
+            msgs.append({"role": "user", "content": f"(system notice: this is your earlier reply. It claimed task {ids} was dispatched, "
+                                                    f"but no dispatch tool call was made and that task never existed. Do not repeat this; "
+                                                    f"tasks start only by calling dispatch){c}"})
         elif r == "assistant" and "reasoning" in meta:
             # DeepSeek 思考模式：请求带工具时，历史回复的 reasoning_content 必须原样传回
             m = {"role": "assistant", "content": c}

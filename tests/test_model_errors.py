@@ -67,3 +67,24 @@ async def test_direct_chat_error_explained(real_client, events, make_bot):
 
 def test_brief_keeps_other_errors():
     assert providers.brief(ValueError("没有这个模型服务：x")) == "没有这个模型服务：x"
+
+
+async def test_rejected_effort_retried_without_it_on_real_client(real_client, events, make_bot, monkeypatch):
+    """B2：真客户端（关了 SDK 重试）遇到模型不认 reasoning_effort 的 400，去掉再试一次，对话照常回答。"""
+    from fakellm import HttpError
+    from osa import memory
+    from osa.config import CFG
+    memory.conn.execute("delete from settings where key='effort_rejects'")
+    monkeypatch.setitem(CFG["roles"], "router", {**CFG["roles"]["router"], "reasoning_effort": "max"})
+    b = make_bot("EffortSolo")
+    reject = HttpError(400, {"error": {"message": "unsupported reasoning_effort: max"}})
+    pick = lambda body: reject if "reasoning_effort" in body else "你好呀"
+    real_client.script("router:EffortSolo", pick, pick)
+
+    await server.safe_handle(bots.chat(b["chat_id"]), "你好")
+    await settle()
+
+    assert find(b["chat_id"], role="assistant", text="你好呀")
+    assert not events.of("error")
+    memory.conn.execute("delete from settings where key='effort_rejects'")
+    memory.conn.commit()
