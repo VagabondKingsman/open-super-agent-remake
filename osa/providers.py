@@ -336,6 +336,57 @@ async def create_chat(client, **kwargs):
             raise
 
 
+class StreamStalled(Exception):
+    """流开了，但很久没有新的块：服务那边卡住了。"""
+
+
+def stream_idle_s() -> float:
+    """流里两块之间最多等几秒。要比 Watchdog 的 3 分钟短，卡住的流才能先重来一次，而不是整个任务被取消。0 表示不限。"""
+    return max(0.0, float(CFG["limits"].get("stream_idle_s", 120) or 0))
+
+
+def stream_retries() -> int:
+    """流中途卡住或断了（服务忙、连接断）时，同一轮再调几次。"""
+    return max(0, int(CFG["limits"].get("stream_retries", 1) or 0))
+
+
+async def guard_stream(stream, idle_s: float | None = None):
+    """包住流式响应：两块之间超过 idle_s 秒就关掉流，抛 StreamStalled。"""
+    idle = stream_idle_s() if idle_s is None else idle_s
+    it = stream.__aiter__()
+    while True:
+        try:
+            chunk = await (asyncio.wait_for(it.__anext__(), idle) if idle > 0 else it.__anext__())
+        except StopAsyncIteration:
+            return
+        except asyncio.TimeoutError:
+            close = getattr(stream, "close", None) or getattr(stream, "aclose", None)
+            if close:
+                try:
+                    await close()
+                except Exception:
+                    pass
+            raise StreamStalled(i18n.t("模型 {n} 秒没有输出新内容", n=int(idle))) from None
+        yield chunk
+
+
+def retry_midstream(e: Exception) -> bool:
+    """流已经开了之后出的错，值不值得把这一轮重来：卡住、连接断、服务忙/临时故障可以，额度用尽和请求本身有问题不行。"""
+    if isinstance(e, StreamStalled):
+        return True
+    if isinstance(e, ProviderLimit):
+        return False
+    if isinstance(e, openai.APIConnectionError):   # 含超时
+        return True
+    if isinstance(e, openai.APIStatusError):
+        status = int(e.status_code or 0)
+        return status in (408, 409) or status >= 500
+    if isinstance(e, openai.APIError):   # SSE 里的 error 事件，没有状态码（比如 xAI 的 "at capacity"）
+        text = f"{getattr(e, 'code', '') or ''} {e}".lower()
+        return not any(c in text for c in QUOTA_CODES)
+    return False
+
+
 def explain(e: Exception, base_url: str = "") -> str:
     """把接口报错翻成一句人话。"""
     detail = ""

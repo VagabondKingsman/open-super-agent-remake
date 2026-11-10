@@ -1183,5 +1183,7 @@
   "思考强度只能是：{allowed}": "Mức suy nghĩ chỉ được là: {allowed}",
   "这个模型不认思考强度 {effort}，已改为不带它调用": "Model này không nhận mức suy nghĩ {effort}, đã gọi lại không kèm mức này",
   "（更正：这一轮没有派出任务 {ids}，上面说已派发是不对的。）": "(Đính chính: lượt này chưa giao tác vụ {ids} nào, câu nói đã giao ở trên là sai.)",
-  "审稿人没有给出汇总，改用草稿 {n}": "Reviewer không gộp được, dùng bản nháp {n}"
+  "审稿人没有给出汇总，改用草稿 {n}": "Reviewer không gộp được, dùng bản nháp {n}",
+  "模型 {n} 秒没有输出新内容": "Model không gửi thêm nội dung trong {n} giây",
+  "这一轮模型调用中途出错（{err}），重新调用": "Lượt gọi model lỗi giữa chừng ({err}), đang gọi lại"
 }
