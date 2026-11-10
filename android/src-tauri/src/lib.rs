@@ -106,7 +106,7 @@ fn on_pair(app: &AppHandle, pair: Pair) {
     let configured = state(app).cfg.lock().unwrap().url.clone().and_then(|u| connect::normalize(&u));
     if configured.as_ref().is_some_and(|c| c.origin() != pair.server.origin()) {
         *state(app).pair.lock().unwrap() = Some(pair);
-        show_setup(app, "?pair=1");
+        *state(app).next.lock().unwrap() = None;
         return;
     }
     let app = app.clone();
