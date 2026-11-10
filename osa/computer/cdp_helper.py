@@ -470,6 +470,15 @@ def _browser_ws() -> WS:
     return WS(url)
 
 
+def fit_bounds(bd: dict, want_w: int, want_h: int) -> dict:
+    """放大后的窗口位置和大小。size 就是屏幕大小（computer.width / height）：放大后不能跑出屏幕，
+    left / top 往回挪到 0 和“屏幕减窗口”之间（原来在 1000,600 的小窗口放大到 1280x800 会大半跑到屏幕外）。"""
+    w, h = max(bd["width"], want_w), max(bd["height"], want_h)
+    left = min(max(0, bd.get("left", 0)), max(0, want_w - w))
+    top = min(max(0, bd.get("top", 0)), max(0, want_h - h))
+    return {"left": left, "top": top, "width": w, "height": h}
+
+
 class Ctx:
     """这次操作在哪个窗口、哪个标签页。
 
@@ -563,9 +572,7 @@ class Ctx:
                 return False
             if bd["width"] >= want_w * 0.9 and bd["height"] >= want_h * 0.9:
                 return False
-            self.b.call("Browser.setWindowBounds", {"windowId": window, "bounds": {
-                "left": max(0, bd.get("left", 0)), "top": max(0, bd.get("top", 0)),
-                "width": max(bd["width"], want_w), "height": max(bd["height"], want_h)}})
+            self.b.call("Browser.setWindowBounds", {"windowId": window, "bounds": fit_bounds(bd, want_w, want_h)})
             time.sleep(0.3)   # 等页面按新大小重新排版，紧接着的截图才是新尺寸
             return True
         except Exception:
