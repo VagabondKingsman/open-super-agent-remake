@@ -17,9 +17,9 @@ Repo: `VagabondKingsman/open-super-agent-remake`. Base: `i18n-vi`. Upstream `kad
 
 ## Head hiện tại
 
-Đối chiếu 10/11/2026 21:00 Asia/Saigon: `origin/i18n-vi = 8c108c9`, merge [PR #39](https://github.com/VagabondKingsman/open-super-agent-remake/pull/39). Version `0.17.0`. CI push trên SHA này xanh cả ba job. Số test và trạng thái box ở [STATE](STATE.md). Phiên sau chạy `git fetch` và `git rev-parse origin/i18n-vi`. SHA mới hơn thì đọc log mới hơn.
+Đối chiếu 10/11/2026 22:20 Asia/Saigon: `origin/i18n-vi = 5a1e0e7`, merge [PR #41](https://github.com/VagabondKingsman/open-super-agent-remake/pull/41). Version `0.17.0`. CI trên PR #41 xanh cả ba job (backend, frontend, docker). Số test và trạng thái box ở [STATE](STATE.md). Phiên sau chạy `git fetch` và `git rev-parse origin/i18n-vi`. SHA mới hơn thì đọc log mới hơn.
 
-`main` là default branch trên GitHub nhưng đứng ở `a30e3cc`, tổ tiên cũ của `i18n-vi`, không có `.agents/` hay `tests/`. Clone bằng `git clone -b i18n-vi`. Cloud agent hay checkout `main` theo mặc định, phải chuyển sang `i18n-vi` trước khi làm.
+`main` là default branch trên GitHub nhưng đứng ở `a30e3cc` (AUDIT-F11, Tin Tin quyết), tổ tiên cũ của `i18n-vi`, không có `.agents/` hay `tests/`. Clone bằng `git clone -b i18n-vi`. Cloud agent hay checkout `main` theo mặc định, phải chuyển sang `i18n-vi` trước khi làm.
 
 Cài trên máy mới, cho người hay bot: [docs/vi/cai-dat-may-moi.md](../docs/vi/cai-dat-may-moi.md). Lệnh vận hành box ở [OPS](OPS.md).
 
@@ -32,8 +32,11 @@ Tin Tin chốt làm local trước rồi mới PR:
 3. Commit nhỏ, author `Tin Tin <tintin@users.noreply.github.com>`, rồi `git format-patch origin/i18n-vi..HEAD`. Box không `git push` được.
 4. Cloud agent trên repo remake checkout `i18n-vi`, `git am` các patch, push branch, mở PR vào `i18n-vi`.
 5. CI xanh và Tin Tin đồng ý thì merge (merge commit). Không force-push.
+6. Deploy lên box chỉ khi Tin Tin giao: backup DB, đổi code theo [OPS](OPS.md#deploy-và-restart), restart bằng script, kiểm `/manifest.json`, đăng nhập, Computer.
 
-Không bao giờ commit `config.yaml` của box vận hành. File đó có `computer.idle_pause_s: 2592000` chưa commit để giữ VM Instabox thức. Không stash, không `checkout -- .`, không đổi nhánh ở checkout đang chạy server.
+Không bao giờ commit `config.yaml` của box vận hành. File đó có `computer.idle_pause_s: 2592000` chưa commit để giữ VM Instabox thức. Ở checkout đang chạy server: không stash, không `checkout -- .`. Chỉ đổi code ở đó theo đúng các bước trong OPS, giữ lại dòng `idle_pause_s`.
+
+Skill Flow cho việc OSA: `osa-dev` → `ai-work-method` → `vibecode-kit` (debug 9 bước, QA 3 tầng). Văn bản tiếng Việt qua `unslop-vi`. Chi tiết ở [SKILL-FLOW](SKILL-FLOW.md).
 
 ## Đã merge
 
@@ -80,6 +83,8 @@ Giờ là `merged_at` đổi sang Asia/Saigon. `merged_by` trên API là Vagabon
 | [#37](https://github.com/VagabondKingsman/open-super-agent-remake/pull/37) | 20:15:33 10/11 | `0500666` | Stream treo hoặc rớt thì gọi lại cùng lượt (Nova #253). Head `1f5408a`. |
 | [#38](https://github.com/VagabondKingsman/open-super-agent-remake/pull/38) | 20:30:03 10/11 | `e55d00a` | CI cài `bubblewrap`, 3 test sandbox chạy thật. Head `0cc7217`. |
 | [#39](https://github.com/VagabondKingsman/open-super-agent-remake/pull/39) | 20:42:26 10/11 | `8c108c9` | CI chạy `test_real_chrome` dưới `xvfb`. Head `0aa79de`. |
+| [#40](https://github.com/VagabondKingsman/open-super-agent-remake/pull/40) | 21:16:04 10/11 | `91b6cfb` | Deep audit cài máy mới, `docs/vi/cai-dat-may-moi.md`, `.agents/`. Head `f7307a1`. Giờ commit merge. |
+| [#41](https://github.com/VagabondKingsman/open-super-agent-remake/pull/41) | 22:12:10 10/11 | `5a1e0e7` | Sửa AUDIT-F1–F13. Head `9bce42d`. Giờ commit merge. |
 
 PR #1 đến #5 rơi vào đêm 06/11 UTC, tức sáng 07/11 giờ Sài Gòn. Từ PR #17, code trên `i18n-vi` là v0.12.0, có `desktop/` và `mobile/` trong cây nhưng không có workflow build. Box vẫn chạy bản cũ cho tới khi deploy theo OPS.
 
@@ -104,6 +109,12 @@ Việc đã vào code, rút từ log và từ code ở `c16e6bb`. Thay đổi t�
   - Webhook cũ `/hooks/<tên>` cần `OSA_WEBHOOK_TOKEN` khi đã có mật khẩu.
   - `fetch_url` ghim IP đã kiểm, tối đa 2 MB. Push chặn IP nội bộ.
   - TZ Docker mặc định là `Asia/Ho_Chi_Minh`.
+- PR #37 và #41, stream model:
+  - Chunk đầu chờ tối đa `limits.stream_first_chunk_s` (170 giây). Sau chunk đầu, hai chunk cách nhau quá `limits.stream_idle_s` (120 giây) thì đóng stream. Cả hai phải nhỏ hơn 3 phút của Watchdog.
+  - Stream treo, rớt kết nối, 5xx, "at capacity" thì gọi lại cùng lượt `limits.stream_retries` lần (mặc định 1), chờ 2–5 giây trước mỗi lần. Hết quota và request sai không gọi lại. Router chỉ gọi lại khi UI chưa nhận chữ nào, và gửi `reset` để UI xóa phần thinking đã hiện.
+  - Usage của lượt hỏng vẫn được ghi (ước tính khi không có usage, `estimated=1`).
+  - Ba khóa trên có dòng comment trong `limits:` của `config.yaml`.
+- PR #41, khác: cửa sổ task phóng tới màn hình thật và không tràn ra ngoài; Chrome trên Linux không màn hình báo lỗi ngay với gợi ý `xvfb-run -a`; `scripts/osa-start.sh` nhận `OSA_PORT` và chờ `/manifest.json`; file backup quyền 0600; CLI backup và cảnh báo `OSA_PASSWORD` có vi/en; `docs/docker.md` tiếng Việt.
 
 Live OSA-011 đã có trong repo: [bằng chứng](evidence/osa-011-live-test/LIVE-TEST.md), head lúc chạy `f83e3cb`, Experiential, mọi model đuôi `:free`, cost ghi 0. Bốn lượt chat (vi, en, single, heavy) đều CJK 0. Báo cáo để trạng thái PARTIAL. 14 dòng usage, 116.236 token (`cache_hit` + `cache_miss` + `output`), vượt mục tiêu khoảng 100.000 nên không chạy routine. Guard harness cộng cột `input` thay vì `cache_hit` + `cache_miss`, phải sửa trước đợt sau. Harness dừng websocket vì regex 402 khớp offset 14025. Log server không có 402. `results.json` còn heavy `running` ở 60,38 giây. `summary.json` ghi heavy PASS 124 giây. Thư mục `raw/` không đưa vào git. Câu `NOT_CHECKED` trong log OSA-011 là lời lúc mở PR #13.
 
@@ -113,7 +124,7 @@ Code trên `i18n-vi` là v0.17.0. So với upstream `ec02547` không thiếu fil
 
 Chưa kiểm trên máy thật: Docker Computer E2E, app Mac, điện thoại sau login. Đó là OSA-002 và OSA-007, chưa phải code thiếu.
 
-Deep audit 10/11 (log [2026-11-10-deep-audit-install](log/2026-11-10-deep-audit-install.md)) để lại các mục AUDIT-F1 tới AUDIT-F12 trên [BOARD](BOARD.md). Mục nặng nhất là AUDIT-F1. `guard_stream` đếm cả thời gian chờ chunk đầu, nên model nghĩ lâu hơn 120 giây trước chunk đầu sẽ fail. Sửa mục này trước khi tăng `reasoning_effort` cho model chậm.
+Deep audit 10/11 ([log](log/2026-11-10-deep-audit-install.md)) tìm AUDIT-F1 tới F12. Live test lúc sửa tìm thêm F13. Tất cả đã sửa trong PR #41 ([log](log/2026-11-10-audit-fixes.md)), trừ F11 là việc của Tin Tin trên GitHub. Mục còn mở sau PR #41 là các dòng `OPEN-*` trên [BOARD](BOARD.md): đường gọi lại stream chưa xảy ra live, thông báo "0 giây", `docs/docker.md` sẽ xung đột khi merge upstream, các mục `NOT_CHECKED`, và script giữ VM thiếu `Idempotency-Key`.
 
 Ưu tiên và AC đầy đủ hơn ở [BOARD](BOARD.md). Bảng này là thứ tự nên hỏi Tin Tin. Chưa có câu giao thì chưa làm.
 
@@ -146,10 +157,10 @@ Audit 09/11, phần còn lại chưa giao (nhóm C): L2 vault key từ passphras
 ## Computer Instabox trên box vận hành
 
 - `computer.backend: auto` chọn Instabox khi có khóa Instabox: nhập trên panel (mã hóa vào vault) hoặc `INSTABOX_API_KEY` trong môi trường. Không có khóa thì dùng Docker. Trong app desktop thì dùng host.
-- Màn hình VM đọc bằng `xdpyinfo`. Ngày 10/11 VM là 1920 × 1080. Cửa sổ task theo `computer.width` × `computer.height` (1280 × 800) sau TIP-04b.
+- Màn hình VM đọc bằng `xdpyinfo`. Cỡ màn hình đổi theo người xem VNC: sáng 10/11 là 1920 × 1080, tối 10/11 là 661 × 1619. Cửa sổ task phóng tới `computer.width` × `computer.height` (1280 × 800), nhưng không quá màn hình thật (PR #41).
 - `GET /shot` trả 409 trên Instabox vì panel dùng live view. Đây không phải lỗi mới.
 - VM tự tạm dừng sau `computer.idle_pause_s` giây không dùng. Box vận hành đặt số lớn trong `config.yaml` local và chạy script giữ VM thức. Đừng commit giá trị đó. Script và đường dẫn là của box đó, máy khác tự cấu hình.
-- Script đó gia hạn lease hoạt động của Instabox (TTL 600 giây) theo chu kỳ. Đừng tắt nó và đừng để VM ở trạng thái pause. Instabox vẫn áp trần `maxRunMinutes` (480 phút lúc kiểm 10/11) cho mỗi lượt chạy. Hết trần thì VM dừng dù lease còn.
+- Script đó gia hạn lease hoạt động của Instabox (TTL 600 giây) theo chu kỳ. Đừng tắt nó và đừng để VM ở trạng thái pause. Instabox vẫn áp trần `maxRunMinutes` (480 phút lúc kiểm 10/11) cho mỗi lượt chạy. Hết trần thì VM dừng dù lease còn. Script định tự suspend rồi resume trước mốc đó để tránh cooldown, nhưng tối 10/11 cả hai lệnh trả 400 vì thiếu header `Idempotency-Key`, nên VM vào cooldown 5 phút (OPEN-KEEPALIVE). Sau cooldown, `POST /api/bots/<id>/computer/start` của OSA đánh thức lại (đã kiểm 22:19 10/11: trả 200, `running`).
 - Gói miễn phí chỉ có một máy. Đừng thử Instabox từ một bản cài thứ hai bằng cùng khóa khi box vận hành đang dùng.
 - Không ghi khóa, mật khẩu đăng nhập OSA, link VNC hay link remote của VM vào repo hoặc log.
 
