@@ -20,6 +20,19 @@ notify = None   # 由 server 设置：async (event) -> None
 log = logging.getLogger(__name__)
 
 
+def respond_turn(why: str, turn: dict | None = None) -> dict:
+    """按队列里这一项的原因生成传给 Router.respond 的来由，不改传入的 turn。
+    mention / lead 只由 on_user（用户发消息）排进来，这一项标 origin=user；
+    同一轮里随后从 g.handoffs 接上的 handoff 不带 origin；私信原样转交。"""
+    turn = turn or {}
+    if why == "dm":
+        return turn
+    out = {"depth": turn.get("depth", 0)}
+    if why in ("mention", "lead"):
+        out["origin"] = "user"
+    return out
+
+
 class Group:
     def __init__(self, chat_id: int):
         self.chat_id = chat_id
@@ -29,7 +42,8 @@ class Group:
 
     async def run(self, first: list[tuple[int, str]], turn: dict | None = None):
         """依次让 Bot 发言。first 是 [(bot_id, 原因)]，原因：mention / lead / handoff / dm。
-        turn 是私信引起的这一轮的来由（见 dm.py），只给原因是 dm 的那一轮；私信深度这一串都沿用。"""
+        turn 是私信引起的这一轮的来由（见 dm.py），只给原因是 dm 的那一轮；私信深度这一串都沿用。
+        origin=user 按队列项设置（mention/lead），不写在共用的 turn 上，免得同一轮的 handoff 沿用。"""
         turn = turn or {}
         queue, turns = list(first), 0
         while queue:
@@ -46,7 +60,7 @@ class Group:
             self.handoffs = []
             from . import router
             try:
-                await router.runtime(bot_id).respond(self.chat_id, turn if why == "dm" else {"depth": turn.get("depth", 0)})
+                await router.runtime(bot_id).respond(self.chat_id, respond_turn(why, turn))
             except Exception as e:
                 log.exception("群聊 %s 里 Bot %s 出错", self.chat_id, bot_id)
                 if notify:
@@ -114,6 +128,7 @@ async def on_user(chat: dict, text: str, via: str = "", attachments: list | None
             return
         hit = mentions(text, chat["bot_ids"])
         # 讨论串里没 @ 人：由被回复的那条消息的作者接；回复的是用户自己的消息，还是协调者接
+        # Bot 自己的发言不会走到这里（不会因为正文里 @ 别人就排 mention）
         lead = chat.get("root_bot") or (chat["lead"] if chat["lead"] in chat["bot_ids"] else chat["bot_ids"][0])
         await g.run([(b, "mention") for b in hit] or [(lead, "lead")])
 
