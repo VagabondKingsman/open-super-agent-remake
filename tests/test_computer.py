@@ -174,6 +174,21 @@ def test_enlarged_window_clamped_on_screen(monkeypatch):
     assert b["left"] + b["width"] <= 1280 and b["top"] + b["height"] <= 800
 
 
+def test_fit_respects_real_screen_smaller_than_settings(monkeypatch):
+    """Live trên Instabox: màn hình VNC bị đổi thành 661x1619. Chỉ phóng tới bề ngang màn hình,
+    lần sau không phóng lại nữa (trước đây mỗi thao tác đều setWindowBounds + chờ 0,3 giây)."""
+    from osa.computer import cdp_helper
+    monkeypatch.setattr(cdp_helper.time, "sleep", lambda s: None)
+    ctx = _ctx({"left": 628, "top": 600, "width": 510, "height": 267, "windowState": "normal"})
+    assert ctx.fit(5, [1280, 800], (661, 1619)) is True
+    b = ctx.b.bounds
+    assert (b["left"], b["width"], b["height"]) == (0, 661, 800)
+    assert b["top"] + b["height"] <= 1619
+    ctx.b.calls.clear()
+    assert ctx.fit(5, [1280, 800], (661, 1619)) is False
+    assert not [c for c in ctx.b.calls if c[0] == "Browser.setWindowBounds"]
+
+
 def test_fit_bounds_keeps_position_when_it_fits():
     from osa.computer.cdp_helper import fit_bounds
     # 只是矮了：宽度够，位置不用动
