@@ -31,7 +31,7 @@ Snapshot 07/11/2026, Asia/Saigon (UTC+7). GitHub PR + base mới là trạng th�
 
 ## Done · đã public
 
-- OSA-031: `hoplite/osa-031-port-v0.17`. Port upstream v0.13.0–v0.17.0 lên remake, version 0.17.0. Chưa merge. [Log](log/2026-11-10-hoplite-osa-031.md).
+- OSA-031: `hoplite/osa-031-port-v0.17` / [PR #27](https://github.com/VagabondKingsman/open-super-agent-remake/pull/27). Port upstream v0.13.0–v0.17.0, version 0.17.0. Đã merge vào `i18n-vi` tại `4512138` lúc 12:59:36 10/11/2026 Asia/Saigon (`merged_at` API `2026-11-10T05:59:36Z`). Head `d97ad3c`. [Log](log/2026-11-10-hoplite-osa-031.md).
 
 - OSA-030: `hoplite/osa-030-docs-sync` / [PR #26](https://github.com/VagabondKingsman/open-super-agent-remake/pull/26). Đồng bộ `.agents/` sau #21, #23, #24, #25. Đã merge vào `i18n-vi` tại `1466670` lúc 23:22:08 09/11/2026 Asia/Saigon (`merged_at` API `2026-11-09T16:22:08Z`).
 
