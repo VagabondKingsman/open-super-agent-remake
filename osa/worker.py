@@ -213,21 +213,6 @@ def _accept_answer(msg: dict) -> str:
     raise IncompleteAnswer(i18n.t("回答被截断了，不能当成完成。已收到的内容：\n{text}", text=content))
 
 
-async def _tool(task: Task, log: tasklog.Log, step: dict, name: str, raw: str, progress, env: dict,
-                shots: list) -> tuple[str, str]:
-    """调一个工具；调完发 tool_done 事件（只读，插件能看不能改，不等它们）。"""
-    out, status = await _call_tool(task, log, step, name, raw, progress, env, shots)
-    if registry.listening("tool_done"):
-        from . import bots
-        try:
-            args = json.loads(raw or "{}")
-        except json.JSONDecodeError:
-            args = {}
-        registry.fire("tool_done", scope="worker", bot=bots.get(task.bot_id) or {"id": task.bot_id}, chat_id=task.chat_id,
-                      task=task.public(), name=name, args=args, result=out, status=status)
-    return out, status
-
-
 async def _call_tool(task: Task, log: tasklog.Log, step: dict, name: str, raw: str, progress, env: dict,
                      shots: list) -> tuple[str, str]:
     """执行一个工具调用，返回 (给模型的结果, 这一步的状态)。工具出错交给模型自己处理。
@@ -280,6 +265,75 @@ async def _call_tool(task: Task, log: tasklog.Log, step: dict, name: str, raw: s
         return e.text, "error"
     except Exception as e:
         return i18n.t("工具出错：{error}", error=e), "error"
+
+
+def _lane(call: dict, env: dict) -> tuple[str, int] | None:
+    """这个调用能不能和相邻的只读调用一起跑：能就返回 (组, 同组同时最多几个)。
+    只有标了 parallel 的（只读、不改任何东西），而且这次不用问用户；电脑工具、写的、要确认的都不行。"""
+    name = call["function"]["name"]
+    tool = None if name in ctools.NAMES or name in local_checks.NAMES or name == "verify_facts" or name in skillpacks.NAMES else registry.available(name, registry.WORKER, env)
+    if not tool or tool.parallel < 1:
+        return None
+    try:
+        args = json.loads(call["function"]["arguments"] or "{}")
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(args, dict) or (tool.gated and approvals.decide(name, args=args)[0]):
+        return None
+    if name == "save_page":
+        ask, why = approvals.decide("save_page")
+        if ask or (CFG["limits"].get("save_page_approval") and "自动允许" not in why):
+            return None
+    return tool.group or tool.name, tool.parallel
+
+
+async def _run_calls(task: Task, log: tasklog.Log, calls: list, env: dict, history: list) -> tuple[list[tuple[str, list]], bool]:
+    """执行一轮的工具调用，按调用的顺序返回 ([(给模型的结果, 截图)], 是否因重复调用停了)。
+    相邻的只读调用（见 _lane）一起跑；别的照旧一个个跑。同一个工具连续重复时，这一轮剩下的调用不再执行。"""
+    def progress_for(step: dict):
+        async def progress(text: str):
+            task.last_action = text
+            log.current = step
+            await log.update(step, title=text)
+            if PROGRESS:
+                await PROGRESS(task, text)
+        return progress
+
+    skipped = i18n.t("这次调用被跳过，没有执行。同一个工具连续重复，请根据已有信息给出最终答案。")
+
+    async def one(call: dict, step: dict, sem: asyncio.Semaphore | None, skip: bool) -> tuple[str, list]:
+        name, raw, shots = call["function"]["name"], call["function"]["arguments"], []
+        if skip:
+            out, status = skipped, "error"
+        elif sem:
+            async with sem:
+                out, status = await _call_tool(task, log, step, name, raw, progress_for(step), env, shots)
+        else:
+            out, status = await _call_tool(task, log, step, name, raw, progress_for(step), env, shots)
+        await log.finish(step, status, out)
+        task.last_progress = time.time()
+        return out, shots
+
+    results, i, blocked = [], 0, False
+    while i < len(calls):
+        lanes = [None if blocked else _lane(calls[i], env)]
+        while lanes[0] and not blocked and i + len(lanes) < len(calls) and (nxt := _lane(calls[i + len(lanes)], env)):
+            lanes.append(nxt)
+        group = calls[i:i + len(lanes)]
+        steps, skips = [], []
+        for call in group:
+            name, raw = call["function"]["name"], call["function"]["arguments"]
+            steps.append(await log.start("tool", name, detail=raw[:2000]))
+            if blocked or _looping(history, f"{name}:{raw}"):
+                skips.append(True)
+                blocked = True
+            else:
+                skips.append(False)
+        sems = {lane[0]: asyncio.Semaphore(lane[1]) for lane in lanes if lane} if len(group) > 1 and not any(skips) else {}
+        results += await asyncio.gather(*(one(c, st, sems.get(lane[0]) if lane else None, skip)
+                                          for c, st, lane, skip in zip(group, steps, lanes, skips)))
+        i += len(group)
+    return results, blocked
 
 
 def worker_system(task: Task, pages: bool) -> str:
@@ -345,19 +399,10 @@ async def _run_worker(task: Task, goal: str, label: str = "") -> str:
         msgs.append(_outbound(m))
         shots = []   # 截图要等这一轮的工具结果都追加完再附上
         history = _history(task, label)
-        skipped = i18n.t("这次调用被跳过，没有执行。同一个工具连续重复，请根据已有信息给出最终答案。")
-        blocked = False
-        for call in m["tool_calls"]:
-            name, raw = call["function"]["name"], call["function"]["arguments"]
-            step = log.current = await log.start("tool", name, detail=raw[:2000])
-            # 同一条 assistant 消息里后面的调用也要有 tool result，只是不再执行。
-            if blocked or _looping(history, f"{name}:{raw}"):
-                out, status, blocked = skipped, "error", True
-            else:
-                out, status = await _tool(task, log, step, name, raw, progress, env, shots)
+        ran, blocked = await _run_calls(task, log, m["tool_calls"], env, history)
+        for call, (out, got) in zip(m["tool_calls"], ran):
             msgs.append({"role": "tool", "tool_call_id": call["id"], "content": out[:8000]})
-            await log.finish(step, status, out)
-            task.last_progress = time.time()
+            shots += got
         if not label:
             task.recent_calls = list(history)
         if shots:

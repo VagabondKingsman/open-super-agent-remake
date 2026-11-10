@@ -5,7 +5,9 @@
 - 文件：读写、列目录、删除、往网页上传都只在工作文件夹里（服务器给的路径在 Mac 上再查一遍）；
 - 整个屏幕：借出时你在 Mac 上同意的就包括屏幕；能不能做看 App 有没有“辅助功能”和“屏幕录制”权限；
   屏幕上的动作在 Mac 上照样不碰 Open Super Agent 自己的窗口；
-- 不执行终端命令。
+- 终端：执行服务器发来的命令，在工作文件夹里、以你的身份运行，环境变量里的密钥不传过去。开不开在服务器上管
+  （电脑面板的“允许 Bot 用终端”，默认关，computer.linked_shell），每条命令先在对话里问你（approvals.py）。
+  hello 里的 shell 是告诉服务器这一版能执行命令（旧版 App 的小程序没有）。
 断了隔几秒重连；令牌作废了（4401）隔几分钟再试；App 退出时跟着退出（OSA_PARENT_PID），退出前关掉 Bot 的 Chrome。
 
 环境变量：OSA_LINK_URL（wss://服务器/api/computer/link）、OSA_LINK_TOKEN、OSA_DATA_DIR。
@@ -63,6 +65,10 @@ async def handle(pc: HostComputer, op: str, a: dict):
         return await pc.stat_paths([str(p) for p in a["paths"]])
     if op == "rm":
         return await pc.rm(str(a["path"]))
+    if op == "exec":
+        stdin = a.get("stdin")
+        r = await pc._run(str(a["cmd"]), max(1, min(600, int(a.get("secs") or 120))), None if stdin is None else str(stdin))
+        return {"exit_code": r.exit_code, "stdout": r.stdout, "stderr": r.stderr, "timed_out": r.timed_out}
     if op == "desk_info":
         return await pc._desk_info() if macdesk.supported() else {"supported": False}
     if op in ("desk", "capture", "front", "grant"):
@@ -98,7 +104,7 @@ async def reply(ws, pc: HostComputer, msg: dict):
 
 async def connect_loop(pc: HostComputer, url: str, token: str):
     hello = {"type": "hello", "name": computer_name(), "platform": sys.platform, "desktop": macdesk.supported(),
-             "perms": macdesk.permissions() if macdesk.supported() else {}, "workspace": pc.workspace}
+             "perms": macdesk.permissions() if macdesk.supported() else {}, "workspace": pc.workspace, "shell": True}
     wait, tasks = 1, set()
     while True:
         code = None

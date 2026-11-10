@@ -7,7 +7,7 @@ import pytest
 
 from conftest import find, until
 from fakellm import Call, StreamReply
-from osa import approvals, i18n, library, mcp_hub, memory, routines, search, server, tasklog
+from osa import approvals, i18n, library, mcp_hub, memory, registry, routines, search, server, tasklog
 from osa.config import CFG
 from osa import worker
 from osa.worker import Task
@@ -183,7 +183,8 @@ async def test_b04_search_and_unknown_tool_are_localized(make_bot, monkeypatch):
     async def progress(_):
         return None
 
-    out, status = await worker._tool(task, log, step, "no_such_tool_osa009", "{}", progress, True, [])
+    out, status = await worker._call_tool(task, log, step, "no_such_tool_osa009", "{}", progress,
+                                           {"scope": registry.WORKER}, [])
     assert status == "error"
     assert out == "Unknown tool"
 
@@ -239,8 +240,8 @@ async def test_b06_mcp_is_error_marks_the_step_error(monkeypatch):
         return None
 
     try:
-        out, status = await worker._tool(task, log, step, "demo__expected_error", "{}", progress,
-                                         {"scope": registry.WORKER}, [])
+        out, status = await worker._call_tool(task, log, step, "demo__expected_error", "{}", progress,
+                                               {"scope": registry.WORKER}, [])
     finally:
         ctx.dispose()
     assert status == "error"

@@ -4,6 +4,12 @@
 
 ## [未发布]
 ### remake
+- OSA-031：在 OSA-021 的 v0.12.0 基础上接到 upstream v0.17.0（`ec02547`），保留越南语、英文提示词、美元费用、AI Native 技能包和 remake 自己的安全和可靠性修复。版本号记为 0.17.0。
+  - 0.13：电脑面板在本机、Docker 沙盒、云电脑之间选；`computer.choices` 限制可选项；Instabox 的 API Key 在面板里填写，先试再用再加密进保险库。Docker 没装或连不上时仍用 remake 的 `unavailable` 说法。
+  - 0.14：Worker 一轮里相邻的只读工具一起跑。写操作、电脑操作、要确认的仍按顺序。
+  - 0.15：去掉开发者插件（`osa/plugins.py`、插件市场、`/api/plugins`、`security.plugins`）。已有的 `data/plugins` 和数据库表留着不加载。
+  - 0.16：设置里选跟随系统、明亮或夜间，记在这台设备上。去掉“费用”页；单价说明留在“模型”页，仍按美元计。花了多少在“观测”。
+  - 0.17：借给服务器的 Mac 可以打开终端（`computer.linked_shell`，默认关）。每条命令仍要确认。旧版 Mac App 不能执行命令。
 - 以 upstream v0.12.0（`d432c74`）为新基础，按 OSA-021 重新移植 remake 自己的改动：越南语界面和 Chinese-as-key 词表、写给模型的英文提示词、Heavy 的可靠性修复、费用按美元记（含 `llm_calls` 和画图价格）、AI Native 技能包、`verify_facts` / `inspect_repo` / `check_patch`（现在经工具注册表提供）。下面 0.7.0–0.12.0 是 upstream 的原文。
 - 桌面 App（`desktop/`）和 iPhone App（`mobile/`）的代码随 upstream 留在仓库里，remake 不构建、不发布。
 - OSA-022：直接调模型的地方（事件过滤、导入记忆、演示转技能、插件 llm 服务）也走额度规则，额度用尽不再重试；`memory.db` 写成绝对路径、不在 `OSA_DATA_DIR` 里时启动和“备份与迁移”页会提醒；观测页窄屏下 Bot 筛选不再被挤出屏幕；前端按页面拆包，首屏 JS 从 1.36 MB 降到 69 kB；技能包对账在中途崩溃后能接着完成；Bot 模板有越南语版，自带插件的消息跟界面语言走，回复大半是中文而界面不是中文时记一个 `lang_flag`。

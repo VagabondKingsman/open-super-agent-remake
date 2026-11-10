@@ -29,11 +29,11 @@ Snapshot 07/11/2026, Asia/Saigon (UTC+7). GitHub PR + base mới là trạng th�
 | OSA-007 | P1. UI sau login và responsive | Preview sandbox vi/en/zh × 375/768/1440 PASS và sửa Quan sát ở 375px trong [PR #18](https://github.com/VagabondKingsman/open-super-agent-remake/pull/18). Còn: khoảng 390px sau login trên điện thoại của Tin Tin, `NOT_CHECKED` vì bot không vào tailnet sau mật khẩu. | Chờ Tin Tin kiểm trên điện thoại |
 | OSA-008 | P2. Reconcile crash giữa file và SQLite | Bơm lỗi trên data tạm, 19 ca. Giữ sửa tay và tombstone. Không tự cài lại. | Done · hoplite / `hoplite/osa-022-port-followups` · [PR #18](https://github.com/VagabondKingsman/open-super-agent-remake/pull/18) |
 
-## In progress
-
-- OSA-030: `OSA-030 / hoplite / hoplite/osa-030-docs-sync / đồng bộ BOARD, STATE, HANDOFF sau khi PR #21, #23, #24, #25 merge / claimed_at 09/11/2026 22:30 Asia/Saigon / [PR #26](https://github.com/VagabondKingsman/open-super-agent-remake/pull/26)`. Chỉ sửa `.agents/`.
-
 ## Done · đã public
+
+- OSA-031: `hoplite/osa-031-port-v0.17`. Port upstream v0.13.0–v0.17.0 lên remake, version 0.17.0. Chưa merge. [Log](log/2026-11-10-hoplite-osa-031.md).
+
+- OSA-030: `hoplite/osa-030-docs-sync` / [PR #26](https://github.com/VagabondKingsman/open-super-agent-remake/pull/26). Đồng bộ `.agents/` sau #21, #23, #24, #25. Đã merge vào `i18n-vi` tại `1466670` lúc 23:22:08 09/11/2026 Asia/Saigon (`merged_at` API `2026-11-09T16:22:08Z`).
 
 - OSA-029: `hoplite/osa-029-reliability` / [PR #25](https://github.com/VagabondKingsman/open-super-agent-remake/pull/25). Nhóm B của audit: watchdog/prune/embed không chết im lặng, WebSocket reconnect có backoff, TZ Docker mặc định Asia/Ho_Chi_Minh. Đã merge vào `i18n-vi` tại `254673c` lúc 22:26:20 09/11/2026 Asia/Saigon (`merged_at` API `2026-11-09T15:26:20Z`). Merge bởi Hoplite (`app/usehoplite`) theo câu "Duyệt merge theo thứ tự" của Tri Tran. [Log](log/2026-11-09-hoplite-osa-029.md).
 

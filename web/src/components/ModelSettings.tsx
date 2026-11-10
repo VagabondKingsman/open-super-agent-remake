@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { api, setSettings, useStore } from '../store'
 import { Icon } from '../icons'
-import { lang, t, tc, tn } from '../i18n'
+import { lang, locale, t, tc, tn } from '../i18n'
 import type { ModelItem, ModelList, Preset, Provider, Role, Settings as S } from '../types'
 import { money, PriceTag, Section, useToast } from './settingsKit'
 import { BrandIcon, modelBrand, providerBrand } from './BrandIcon'
@@ -19,7 +19,7 @@ export const ROLES: RoleDef[] = [
   { key: 'reviewer', name: t('Heavy 汇总'), desc: t('Heavy 模式里，把几个并行任务的结果汇总成一份。') },
   { key: 'filter', name: t('整理和过滤'), desc: t('判断定时任务收到的事件要不要处理、把导入的记忆拆成条目。便宜的就行。') },
 ]
-export const ROLE_NAMES: Record<string, string> = { ...Object.fromEntries(ROLES.map(r => [r.key, r.name])), embedding: t('按意思检索'), test: t('测试模型'), image: t('画图'), plugin: t('插件') }
+export const ROLE_NAMES: Record<string, string> = { ...Object.fromEntries(ROLES.map(r => [r.key, r.name])), embedding: t('按意思检索'), test: t('测试模型'), image: t('画图') }
 
 // ---------- 各个服务的模型列表：打开页面时拉一次，服务端缓存 10 分钟 ----------
 type Lists = Record<string, ModelList | undefined>
@@ -90,8 +90,32 @@ export default function ModelSettings() {
         <Section title={t('画图')} desc={t('你让 Bot 画图、生成头像时用。每次画之前都会先问你（卡片上写着价格），可以点“总是允许”。')}>
           <ImageModelCard />
         </Section>
+        <PriceNote />
       </>}
     </ListsCtx.Provider>
+  )
+}
+
+
+// 上面标的单价从哪来、什么时候更新的；models.dev 每天自动更新一次，也能现在更新。花了多少在“观测”里看
+function PriceNote() {
+  const s = useStore(x => x.settings) as S
+  const toast = useToast()
+  const [busy, setBusy] = useState(false)
+  const p = s.prices
+  const refresh = async () => {
+    setBusy(true)
+    try { const r = await api('/api/prices/refresh', { method: 'POST' }); setSettings(r.settings); toast(r.error ? t('更新失败：{error}', { error: r.error }) : t('单价已更新'), !!r.error) }
+    catch (e: any) { toast(e.message, true) }
+    setBusy(false)
+  }
+  const when = p.updated ? new Date(p.updated * 1000).toLocaleString(locale, { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : tc('price', '还没有')
+  return (
+    <p className="muted small">{tn('单价自动从 {link} 获取，每天更新一次（上次：{when}），按美元 / 百万 token 计；{config} 的 {pricing} 里写了的以它为准，本机的模型按 0 计。', {
+        link: <a href="https://models.dev" target="_blank" rel="noreferrer">models.dev</a>, when,
+        config: <code>config.yaml</code>, pricing: <code>pricing</code> })}
+      {p.error && <span className="error-line"> {t('上次更新失败：{error}', { error: p.error })}</span>}{' '}
+      <button className="link-btn" disabled={busy} onClick={refresh}>{busy ? t('更新中…') : t('现在更新')}</button></p>
   )
 }
 

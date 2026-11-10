@@ -3,37 +3,33 @@ import { encode } from 'uqr'
 import { api, setSettings, useStore } from '../store'
 import { desktop, phone } from '../desktop'
 import { Icon } from '../icons'
-import { languages, lang, locale, syncLang, t, tc, tn } from '../i18n'
+import { languages, lang, syncLang, t, tc, tn } from '../i18n'
 import type { Routine, Rule, Settings as S } from '../types'
 import Backup from './Backup'
 import BotAvatar from './BotAvatar'
 import { describe, STATUS, when } from './Routines'
 import Channels from './Channels'
-import Plugins from './Plugins'
-import ModelSettings, { ROLE_NAMES } from './ModelSettings'
-import { formatUsd } from '../formatUsd'
-import { priceSource, priceText, ToastHost, useToast } from './settingsKit'
+import ModelSettings from './ModelSettings'
+import { ToastHost, useToast } from './settingsKit'
+import { canSetTheme, setThemePref, themePref, type ThemePref } from '../theme'
 import { ask } from './Dialog'
 import { useBack } from '../swipe'
 
 // 设置：左边按类分组的导航，右边是这一页
 const GROUPS: { name: string; items: [string, string, string][] }[] = [
-  { name: t('模型与费用'), items: [['models', t('模型'), 'sparkles'], ['usage', t('费用'), 'coins'], ['limits', t('限制与预算'), 'gauge']] },
+  { name: t('模型与费用'), items: [['models', t('模型'), 'sparkles'], ['limits', t('限制与预算'), 'gauge']] },
   { name: t('安全'), items: [['rules', t('确认规则'), 'shield'], ['vault', t('保险库'), 'key']] },
   { name: tc('nav', '连接'), items: [['channels', t('聊天软件'), 'message'], ['notify', t('通知'), 'bell'], ['mobile', t('手机 App'), 'smartphone']] },
   { name: t('自动化'), items: [['triggers', t('定时任务'), 'clock'], ['events', t('事件'), 'zap']] },
   { name: t('数据'), items: [['backup', t('备份与迁移'), 'archive']] },
   // 插件是给开发者扩展 osa 自己的（预览），平常加能力用应用和技能，所以放在最后的“高级”里
-  { name: t('高级'), items: [['plugins', t('开发者插件（预览）'), 'puzzle']] },
 ]
 const TITLES = Object.fromEntries(GROUPS.flatMap(g => g.items.map(([k, v]) => [k, v])))
 const DESC: Record<string, string> = {
   models: t('Bot 用哪些大模型。先添加模型服务，再给每项工作选一个模型。'),
-  usage: t('花了多少钱：按天、按用途、按任务统计。'),
   limits: t('防止任务跑太久、花太多。改完离开输入框就保存。'),
   triggers: t('所有 Bot 的定时任务，在这里就能开关。'),
   events: t('所有 Bot 的事件：某件事发生时（收到 webhook、订阅源有新文章、网页变了……）Bot 处理一次。在这里就能开关。'),
-  plugins: t('给开发者扩展 osa 自己用的 Python 代码，在服务进程里运行：订阅事件、碰 osa 内部的状态。还在预览，写法以后可能会变。'),
 }
 const LIMIT_NAMES: Record<string, [string, string]> = {
   daily_token_budget: [t('每天最多用多少 token'), t('超过以后不再派新的任务，第二天恢复')],
@@ -68,6 +64,7 @@ export default function Settings({ onClose, initial }: { onClose: () => void; in
               </div>))}
             <span className="grow" />
             <button className="set-item" onClick={() => window.dispatchEvent(new CustomEvent('osa-onboarding'))}><Icon name="sparkles" />{t('新手引导')}</button>
+            <ThemeSwitch />
             <LangSwitch />
             {auth && <form method="post" action="/logout"><button className="set-item" type="submit"><Icon name="logout" />{t('退出登录')}</button></form>}
           </nav>
@@ -79,7 +76,6 @@ export default function Settings({ onClose, initial }: { onClose: () => void; in
             <div className="set-body">
               {title === 'models' && <ModelSettings />}
               {title === 'limits' && <Limits />}
-              {title === 'usage' && <Usage />}
               {title === 'rules' && <Rules />}
               {title === 'vault' && <Vault />}
               {title === 'triggers' && <Triggers key="schedule" category="schedule" onClose={onClose} />}
@@ -88,7 +84,6 @@ export default function Settings({ onClose, initial }: { onClose: () => void; in
               {title === 'notify' && (desktop?.push ? <PhoneNotifications /> : <Notifications />)}
               {title === 'mobile' && <MobileApp />}
               {title === 'backup' && <Backup />}
-              {title === 'plugins' && <Plugins />}
             </div>
           </div>
         </ToastHost>
@@ -143,61 +138,21 @@ function Limits() {
   )
 }
 
-function Usage() {
-  const [u, setU] = useState<any>(null)
-  const bots = useStore(x => x.bots)
-  useEffect(() => { api('/api/usage').then(setU); const timer = setInterval(() => api('/api/usage').then(setU), 8000); return () => clearInterval(timer) }, [])
-  if (!u) return <div className="muted">{t('加载中…')}</div>
-  const f = (v: number) => formatUsd(v)
-  const max = Math.max(...u.by_day.map((d: any) => d.cost), 1e-9)
-  return (
-    <div className="usage">
-      <div className="stat-row">
-        <div className="stat"><div className="muted small">{t('今天')}</div><div className="big">{f(u.today.cost)}</div><div className="muted small">{t('{n} 次调用 · 缓存命中 {rate}%', { n: u.today.calls, rate: (u.today.cache_rate * 100).toFixed(0) })}{u.today.estimated_calls ? ` · ${t('含 {n} 次估算', { n: u.today.estimated_calls })}` : ''}</div></div>
-        <div className="stat"><div className="muted small">{t('近 7 天')}</div><div className="big">{f(u.week.cost)}</div></div>
-        <div className="stat"><div className="muted small">{t('近 30 天')}</div><div className="big">{f(u.month.cost)}</div></div>
-      </div>
-      <h4>{t('近 30 天每日')}</h4>
-      <div className="bars">{u.by_day.map((d: any) => <div key={d.day} title={`${d.day}  ${f(d.cost)}`} style={{ height: `${Math.max(2, (d.cost / max) * 100)}%` }} />)}</div>
-      <div className="two-col">
-        <div><h4>{t('按用途')}</h4>{u.by_role.map((r: any) => <div className="kv" key={r.role + r.model}><span>{ROLE_NAMES[r.role] || (r.role.startsWith('plugin:') ? t('插件 {name}', { name: r.role.slice(7) }) : r.role)} · {r.model}{r.role === 'image' ? ' · ' + t('{n} 张', { n: r.calls }) : ''}</span><span>{f(r.cost)}</span></div>)}</div>
-        <div><h4>{t('按任务（最近 20 个）')}</h4>{u.by_task.map((tk: any) => <div className="kv" key={tk.id}><span>#{tk.id} {tk.goal}</span><span>{f(tk.cost)}</span></div>)}</div>
-      </div>
-      <Prices />
-      <p className="muted small">{t('这里是已记录的用量，不是服务商账单。取消时如果已经收到用量就照实记；没有用量回包时，按已收到的文字估算，并标成估算。')}</p>
-      <p className="muted small">{t('{n} 个 Bot 共用一个每日预算，在“限制与预算”里改。', { n: bots.length })}</p>
-    </div>
-  )
-}
+// 明亮 / 夜间 / 跟随系统：记在这台设备上，别的设备不受影响
+const THEMES: [ThemePref, string, string][] = [['system', 'monitor', t('跟随系统')], ['light', 'sun', t('明亮')], ['dark', 'moon', t('夜间')]]
 
-// 现在用的模型的单价，从哪来的；models.dev 每天自动更新
-function Prices() {
-  const s = useStore(x => x.settings) as S
-  const toast = useToast()
-  const [busy, setBusy] = useState(false)
-  const p = s.prices
-  const rows = [...Object.entries(s.roles).map(([k, v]) => [k, v.provider, v.model]),
-    ...(s.embedding.provider ? [['embedding', s.embedding.provider, s.embedding.model]] : [])]
-  const refresh = async () => {
-    setBusy(true)
-    try { const r = await api('/api/prices/refresh', { method: 'POST' }); setSettings(r.settings); toast(r.error ? t('更新失败：{error}', { error: r.error }) : t('单价已更新'), !!r.error) }
-    catch (e: any) { toast(e.message, true) }
-    setBusy(false)
-  }
-  const when = p.updated ? new Date(p.updated * 1000).toLocaleString(locale, { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : tc('price', '还没有')
+function ThemeSwitch() {
+  const [pref, setPref] = useState(themePref)
+  if (!canSetTheme) return null
   return (
-    <div>
-      <h4>{t('现在用的模型单价')}</h4>
-      {rows.map(([k, prov, model]) => {
-        const info = s.model_info[`${prov}/${model}`]
-        return <div className="kv" key={k} title={priceSource(info)}><span>{ROLE_NAMES[k] || k} · {model}</span>
-          <span className={priceText(info) ? '' : 'muted'}>{priceText(info) || t('没有单价，按 0 计')}</span></div>
-      })}
-      <p className="muted small">{tn('单价自动从 {link} 获取，每天更新一次（上次：{when}），按美元 / 百万 token 计；{config} 的 {pricing} 里写了的以它为准，本机的模型按 0 计。', {
-          link: <a href="https://models.dev" target="_blank" rel="noreferrer">models.dev</a>, when,
-          config: <code>config.yaml</code>, pricing: <code>pricing</code> })}
-        {p.error && <span className="error-line"> {t('上次更新失败：{error}', { error: p.error })}</span>}{' '}
-        <button className="link-btn" disabled={busy} onClick={refresh}>{busy ? t('更新中…') : t('现在更新')}</button></p>
+    <div className="set-item set-theme">
+      <Icon name="sun-moon" />{t('外观')}<span className="grow" />
+      <div className="seg" role="radiogroup" aria-label={t('外观')}>
+        {THEMES.map(([v, icon, label]) => (
+          <button key={v} className={pref === v ? 'on' : ''} role="radio" aria-checked={pref === v} title={label} aria-label={label}
+            onClick={() => { setThemePref(v); setPref(v) }}><Icon name={icon} size={15} /></button>
+        ))}
+      </div>
     </div>
   )
 }

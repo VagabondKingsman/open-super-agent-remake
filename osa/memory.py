@@ -235,9 +235,6 @@ def context(chat_id: int, viewer: int | None = None, me: int | None = None, imag
         elif r == "task" and meta.get("kind") == "image":   # generate_image 画好的图
             whose = name(b) if others and b else "you"
             msgs.append({"role": "user", "content": f"(system notice: {whose} drew an image, already shown to the user. Description: {defang(meta.get('prompt') or c)})"})
-        elif r == "task" and meta.get("kind") == "plugin":   # 插件以 Bot 的名义发进对话的（services.Messenger）
-            msgs.append({"role": "user", "content": f"(system notice, not the user speaking; a message plugin \"{meta.get('plugin', '')}\" posted "
-                                                    f"to the chat, the user has seen it) {defang(c)}"})
         elif r == "task" and meta.get("kind") in ("dm", "dm_reply"):
             msgs.append({"role": "user", "content": _dm_line(meta, defang(c), b, me, name)})
         elif r == "task":  # task rows are system notices so the router does not copy their format

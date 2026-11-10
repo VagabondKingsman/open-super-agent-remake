@@ -38,7 +38,7 @@ test('unit prices stay in USD per million tokens', () => {
 test('cost UI no longer prefixes a yuan sign', () => {
   const root = path.join(__dirname, '../..')
   const files = [
-    'web/src/components/Settings.tsx',
+    'web/src/components/Observe.tsx',
     'web/src/components/Tasks.tsx',
     'web/src/components/settingsKit.tsx',
     'web/src/formatUsd.ts',
@@ -52,7 +52,7 @@ test('cost UI no longer prefixes a yuan sign', () => {
     assert.equal(text.includes('人民币'), false, rel)
     assert.equal(text.includes('CNY'), false, rel)
   }
-  const settings = fs.readFileSync(path.join(root, 'web/src/components/Settings.tsx'), 'utf8')
+  const settings = fs.readFileSync(path.join(root, 'web/src/components/Observe.tsx'), 'utf8')
   const tasks = fs.readFileSync(path.join(root, 'web/src/components/Tasks.tsx'), 'utf8')
   const legacy = fs.readFileSync(path.join(root, 'osa/static/index.html'), 'utf8')
   assert.match(settings, /formatUsd\(/)

@@ -116,6 +116,11 @@ def _no_sandbox() -> str:
         if host.shell_on():
             return s + "You can run it with computer_shell in the terminal instead (each command needs user confirmation)."
         return s + "Once the user turns on \"Let Bots use the terminal\" in the computer panel, you can run it with computer_shell (each command needs user confirmation)."
+    if computer.backend_name() == "linked":
+        from .computer import linked
+        if linked.shell_on():
+            return s + "You can run it with computer_shell on the user's Mac instead (each command needs user confirmation)."
+        return s + "Once the user turns on \"Let Bots use the terminal\" in the computer panel, you can run it with computer_shell on the user's Mac (each command needs user confirmation)."
     return s
 
 

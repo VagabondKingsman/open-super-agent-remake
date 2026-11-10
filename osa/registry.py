@@ -1,4 +1,4 @@
-"""工具注册表和插件上下文：Router、Worker、小应用都从这里找工具。
+"""工具注册表：Router、Worker、小应用都从这里找工具。
 
 以前工具散在五处（tools.TOOLS、mcp_hub.TOOLS、ctools、botadmin、Router / Worker 里一长串 if name == ...），
 加一个工具要改好几个文件，Router 和 Worker 各写一遍。现在：
@@ -10,7 +10,7 @@
 - 事件也在这里：on(event, fn) / emit(event, **kw)。服务端用它把“页面变了”“小应用数据变了”广播给网页，
   工具的实现不用知道有 WebSocket 这回事。
 - 服务：provide(name, value) 把一个对象按名字登记出去（内置的 llm、messenger，插件自己提供的），插件在 META 里 inject 要用的；
-  依赖谁、谁先加载、提供者停了依赖它的先停，这些在 plugins.py。
+  以前有一套开发者插件（data/plugins 里的 Python 代码）也走 Context，2026-11-09 整个去掉了。
 - 事件来源：source(Source(...)) 登记一种“某件事发生了”的来源（收到 webhook、订阅源有新文章、网页变了……），
   用户在 Bot 的“事件”里选它、填参数，事件来了 Bot 在后台处理一次。调度、过滤、派任务在 events.py。
 - 插件不能改 Agent 的循环（调模型、调工具的那一圈）：只能注册工具、订阅事件（只读）、提供和使用服务。
@@ -57,6 +57,7 @@ class Tool:
     where: frozenset = frozenset({ROUTER, WORKER})      # 在哪些场合能用
     when: Callable[[dict], bool] | None = None          # 按这一轮的 env 决定给不给模型；None 就是总给
     gated: bool = False                                 # 跑之前按确认规则（approvals.decide）问不问用户；Router 不能等，所以不能和 ROUTER 一起用（注册时报错）
+    parallel: int = 0                                   # 只读、不改任何东西的工具填几：Worker 一轮里相邻的这种调用一起跑，同一组（group，没有就是工具名）同时最多这么多个；0 照旧一个个跑
     progress: Callable[[dict], str] | None = None       # Worker 任务卡片上这一步的说明
     describe: str = ""                                  # 给 Router 看的一句话能力说明（“后台 Worker 当前能用的工具”）
     group: str = ""                                     # 来自哪个应用（MCP 服务器名），空是内置
