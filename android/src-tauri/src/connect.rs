@@ -54,6 +54,12 @@ mod tests {
     }
 
     #[test]
+    fn explicit_http_stays_http() {
+        let u = normalize("http://192.168.1.10:8765").unwrap();
+        assert_eq!(u.as_str(), "http://192.168.1.10:8765/");
+    }
+
+    #[test]
     fn rejects_non_http() {
         assert!(normalize("javascript:alert(1)").is_none());
         assert!(normalize("file:///tmp").is_none());

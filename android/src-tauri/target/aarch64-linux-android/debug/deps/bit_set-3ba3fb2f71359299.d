@@ -1,0 +1,10 @@
+/tmp/hoplite/workspace/repo-repo_1448478993_ghl_4533044a5b054704a294c8feb697fa0b/android/src-tauri/target/aarch64-linux-android/debug/deps/bit_set-3ba3fb2f71359299.d: /home/hoplite/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bit-set-0.11.1/src/lib.rs /home/hoplite/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bit-set-0.11.1/src/iter.rs /home/hoplite/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bit-set-0.11.1/src/set.rs /home/hoplite/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bit-set-0.11.1/src/util.rs
+
+/tmp/hoplite/workspace/repo-repo_1448478993_ghl_4533044a5b054704a294c8feb697fa0b/android/src-tauri/target/aarch64-linux-android/debug/deps/libbit_set-3ba3fb2f71359299.rlib: /home/hoplite/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bit-set-0.11.1/src/lib.rs /home/hoplite/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bit-set-0.11.1/src/iter.rs /home/hoplite/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bit-set-0.11.1/src/set.rs /home/hoplite/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bit-set-0.11.1/src/util.rs
+
+/tmp/hoplite/workspace/repo-repo_1448478993_ghl_4533044a5b054704a294c8feb697fa0b/android/src-tauri/target/aarch64-linux-android/debug/deps/libbit_set-3ba3fb2f71359299.rmeta: /home/hoplite/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bit-set-0.11.1/src/lib.rs /home/hoplite/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bit-set-0.11.1/src/iter.rs /home/hoplite/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bit-set-0.11.1/src/set.rs /home/hoplite/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bit-set-0.11.1/src/util.rs
+
+/home/hoplite/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bit-set-0.11.1/src/lib.rs:
+/home/hoplite/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bit-set-0.11.1/src/iter.rs:
+/home/hoplite/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bit-set-0.11.1/src/set.rs:
+/home/hoplite/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bit-set-0.11.1/src/util.rs:
