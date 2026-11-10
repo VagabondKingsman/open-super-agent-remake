@@ -354,3 +354,63 @@ async def test_heavy_worker_concurrency(llm, events, fresh_bot, monkeypatch, con
     result = await _results(bot)
     assert result[-1]["meta"]["status"] == "done"
     assert llm.worker_peak == peak
+
+
+# ---------- B3：审稿人只回开场白 ----------
+LONG = "Bản nháp {i}: " + "phân tích chi tiết từng phương án với rủi ro và phép đo cụ thể. " * 12
+
+
+async def test_reviewer_preamble_falls_back_to_longest_draft(llm, events, fresh_bot, monkeypatch):
+    monkeypatch.setattr(i18n, "_lang", "vi")
+    monkeypatch.setitem(CFG["heavy"], "workers", 2)
+    monkeypatch.setitem(CFG["heavy"], "min_drafts", 2)
+    bot = fresh_bot("Preamble")
+    short, longer = LONG.format(i=1), LONG.format(i=2) + " Thêm kết luận."
+    llm.script("worker", short, longer)
+    llm.script("reviewer", "Tôi sẽ nạp skill rồi đối chiếu.", "Tôi sẽ nạp skill trước.")
+    goal = "So sánh 3 cách.\nSkill Flow: ai-work-method -> unslop-vi\nWorker phải load_skill ai-work-method trước khi viết.\nOutput: 200 từ."
+    llm.script(f"router:{bot['name']}", Call("dispatch", {"goal": goal, "mode": "heavy"}), "ack")
+    await _send(bot, "heavy")
+    result = await _results(bot)
+    meta = result[-1]["meta"]
+    assert meta["status"] == "partial"
+    assert longer.strip()[:60] in result[-1]["content"]
+    assert "Tôi sẽ nạp skill" not in result[-1]["content"]
+    rev = llm.bodies("reviewer")
+    assert len(rev) == 2   # một lần hỏi lại, không hơn
+    q = rev[0]["messages"][-1]["content"]
+    assert "load_skill" not in q and "Skill Flow" not in q and "So sánh 3 cách." in q and "Output: 200 từ." in q
+    assert "no tools" in rev[0]["messages"][0]["content"]
+    notes = [s["title"] for s in tasklog.steps(meta["task_id"]) if s["kind"] == "note"]
+    assert any("dùng bản nháp 2" in n for n in notes)
+
+
+async def test_reviewer_retry_recovers(llm, events, fresh_bot, monkeypatch):
+    monkeypatch.setattr(i18n, "_lang", "vi")
+    monkeypatch.setitem(CFG["heavy"], "workers", 2)
+    monkeypatch.setitem(CFG["heavy"], "min_drafts", 2)
+    bot = fresh_bot("Recover")
+    llm.script("worker", LONG.format(i=1), LONG.format(i=2))
+    merged = "Kết luận gộp: " + "chọn cách (c) vì một màn hình và một Chromium. " * 4
+    llm.script("reviewer", "Tôi sẽ đối chiếu.", merged)
+    llm.script(f"router:{bot['name']}", Call("dispatch", {"goal": "so sánh", "mode": "heavy"}), "ack")
+    await _send(bot, "heavy")
+    result = await _results(bot)
+    assert result[-1]["meta"]["status"] == "done"
+    assert merged.strip()[:40] in result[-1]["content"]
+    assert len(llm.bodies("reviewer")) == 2
+
+
+async def test_reviewer_good_merge_not_retried(llm, events, fresh_bot, monkeypatch):
+    monkeypatch.setattr(i18n, "_lang", "vi")
+    monkeypatch.setitem(CFG["heavy"], "workers", 2)
+    monkeypatch.setitem(CFG["heavy"], "min_drafts", 2)
+    bot = fresh_bot("GoodMerge")
+    llm.script("worker", LONG.format(i=1), LONG.format(i=2))
+    merged = "Kết luận gộp: " + "chọn cách (c) vì một màn hình và một Chromium. " * 4
+    llm.script("reviewer", merged)
+    llm.script(f"router:{bot['name']}", Call("dispatch", {"goal": "so sánh", "mode": "heavy"}), "ack")
+    await _send(bot, "heavy")
+    result = await _results(bot)
+    assert result[-1]["meta"]["status"] == "done"
+    assert len(llm.bodies("reviewer")) == 1
