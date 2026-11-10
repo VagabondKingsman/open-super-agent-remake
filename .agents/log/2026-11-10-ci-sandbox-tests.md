@@ -19,4 +19,10 @@ Người làm: Build Bot. Giờ ghi theo Asia/Saigon (UTC+7).
 ## Còn mở
 
 - `test_host_desktop` vẫn SKIP trên Linux, vì cần macOS và `OSA_TEST_DESKTOP=1`.
-- `test_real_chrome` không tự chạy trên CI (Chrome trên runner bị timeout cổng debug ở PR #36).
+- `test_real_chrome` đã chạy trên CI (xem mục dưới).
+
+## CI chạy test_real_chrome
+
+- Nguyên nhân timeout ở PR #36: runner không có màn hình (`DISPLAY` trống), Chrome có giao diện không khởi động được nên không ghi `DevToolsActivePort`, helper báo "không mở cổng debug trong 20 giây". Đã tái hiện trên box: bỏ `DISPLAY` thì test fail đúng lỗi này, chạy trong `xvfb-run -a` thì pass sau 3,8 giây.
+- Sửa: job backend cài thêm `xvfb`, in `google-chrome --version`, đặt `OSA_TEST_CHROME=1` và chạy `xvfb-run -a uv run pytest -q -rs`. Sandbox Chrome dùng user namespace, đã mở ở bước bubblewrap.
+- Code sản phẩm không đổi.

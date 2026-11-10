@@ -88,7 +88,7 @@ git diff --check
 
 `pytest` dùng temp DB và FakeLLM qua conftest. Ghi số passed, failed và skipped. Ba test trong `tests/test_local_checks.py` SKIP khi không phải Linux, hoặc khi thiếu một trong `bwrap`, `prlimit`, `git`, `ps` trên PATH. SKIP không phải PASS. Base `3c08269` có 172 test: 172 passed khi đủ sandbox, 169 passed và 3 skipped khi thiếu. Port v0.6.1 thêm 21 test trong `tests/test_auth.py` và `tests/test_data_dir.py`. Cây này có 193 test: 193 passed và 0 skipped khi đủ sandbox, 190 passed và 3 skipped khi thiếu. Không lấy 172 làm số hiện tại. Không bỏ assertion cũ để suite xanh.
 
-CI cài `bubblewrap`, mở user namespace trên runner rồi chạy `pytest` với `OSA_REQUIRE_SANDBOX=1`. Khi biến này bật, ba test sandbox không được SKIP: thiếu `bwrap` thì chúng FAIL. Trên máy local, bỏ trống biến này thì vẫn SKIP như cũ khi thiếu sandbox.
+CI cài `bubblewrap`, mở user namespace trên runner rồi chạy `pytest` với `OSA_REQUIRE_SANDBOX=1`. Khi biến này bật, ba test sandbox không được SKIP: thiếu `bwrap` thì chúng FAIL. Trên máy local, bỏ trống biến này thì vẫn SKIP như cũ khi thiếu sandbox. CI cũng đặt `OSA_TEST_CHROME=1` và chạy pytest trong `xvfb-run -a`, nên `test_real_chrome` chạy với Chrome thật trên màn hình ảo. Trên Linux không có màn hình, chạy tay thì thêm `xvfb-run -a` trước lệnh pytest.
 
 `verify-sources` đối chiếu SHA-256 của `skills-pack/ai-native/`. Lệnh này import `osa.memory`, nên khi chạy tay hãy đặt `OSA_CONFIG` tạm trước, và bỏ `OSA_DATA_DIR` hoặc trỏ nó vào thư mục tạm. Không gọi `defaults` hoặc `install` vào DB thật chỉ để kiểm tra tài liệu.
 
