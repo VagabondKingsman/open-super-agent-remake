@@ -22,12 +22,12 @@
 | Suite liên quan | PASS | `.venv/bin/python -m pytest` 7 file, 95 passed, exit 0 |
 | Full suite / frontend | NOT_CHECKED | Người giao báo 815 passed và `tsc`/`npm test` 33/33 trước khi đưa mailbox. Phiên này không chạy lại |
 | Docker Computer E2E live | NOT_CHECKED | Không có phiên Computer thật |
-| PR vào `i18n-vi`, không vào `main` hay kadaliao | chờ push | Ghi URL sau khi mở PR |
+| PR vào `i18n-vi`, không vào `main` hay kadaliao | PASS | [PR #35](https://github.com/VagabondKingsman/open-super-agent-remake/pull/35). `baseRefName` `i18n-vi`, head `fix/e2e-audit-b1-b6`. Chưa merge |
 
 - Retro: `retro_rubric.py` TIP-01 vòng 1, R1–R5 = 2/2, tổng 10/10, 0 RETRO-ID. Sổ nằm trong `data/vibecode/`, gitignore, không commit.
 - Secrets: diff năm commit không có `config.yaml`, `.env`, DB. Không in key.
 - Paid usage: 0.
-- Trạng thái: commit local. Chưa push, chưa mở PR, chưa merge.
+- Trạng thái: đã push `fix/e2e-audit-b1-b6`. PR [#35](https://github.com/VagabondKingsman/open-super-agent-remake/pull/35) mở vào `i18n-vi`. Chưa merge. Năm commit code kết thúc ở `1d54c79`.
 
 ## Còn mở / next step
 

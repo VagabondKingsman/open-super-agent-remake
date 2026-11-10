@@ -29,7 +29,7 @@ Snapshot 07/11/2026, Asia/Saigon (UTC+7). GitHub PR + base mới là trạng th�
 | OSA-007 | P1. UI sau login và responsive | Preview sandbox vi/en/zh × 375/768/1440 PASS và sửa Quan sát ở 375px trong [PR #18](https://github.com/VagabondKingsman/open-super-agent-remake/pull/18). Còn: khoảng 390px sau login trên điện thoại của Tin Tin, `NOT_CHECKED` vì bot không vào tailnet sau mật khẩu. | Chờ Tin Tin kiểm trên điện thoại |
 | OSA-008 | P2. Reconcile crash giữa file và SQLite | Bơm lỗi trên data tạm, 19 ca. Giữ sửa tay và tombstone. Không tự cài lại. | Done · hoplite / `hoplite/osa-022-port-followups` · [PR #18](https://github.com/VagabondKingsman/open-super-agent-remake/pull/18) |
 | OSA-036 | P1. Android đổi server không văng | Nút Đổi server xóa địa chỉ đã lưu, trang tự mở lại trang kết nối. Không gọi `navigate`. | Done · hoplite / `hoplite/osa-036-android-switch` · [PR #33](https://github.com/VagabondKingsman/open-super-agent-remake/pull/33) |
-| E2E-B1-B6 | Sửa audit Computer E2E B1–B6 | Effort fallback, dispatch giả, reviewer gộp draft, bot tự nhận kết quả, ảnh full màn hình off-host. Chưa gồm TIP-04b và `idle_pause_s`. | PR mở · cursor / `fix/e2e-audit-b1-b6` |
+| E2E-B1-B6 | Sửa audit Computer E2E B1–B6 | Effort fallback, dispatch giả, reviewer gộp draft, bot tự nhận kết quả, ảnh full màn hình off-host. Chưa gồm TIP-04b và `idle_pause_s`. | PR mở · cursor / `fix/e2e-audit-b1-b6` · [PR #35](https://github.com/VagabondKingsman/open-super-agent-remake/pull/35) |
 
 ## Done · đã public
 
