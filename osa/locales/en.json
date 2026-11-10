@@ -1218,5 +1218,7 @@
   "这台服务器上不能选这种电脑（config.yaml 的 computer.choices）": "This server doesn't offer that computer (computer.choices in config.yaml)",
   "这台电脑没装 Docker": "Docker isn't installed on this computer",
   "事件来源 {source} 现在没有了": "Event source {source} is gone",
-  "文件夹": "Folder"
+  "文件夹": "Folder",
+  "思考强度只能是：{allowed}": "Reasoning effort must be one of: {allowed}",
+  "这个模型不认思考强度 {effort}，已改为不带它调用": "This model rejects reasoning effort {effort}; called again without it"
 }

@@ -1179,5 +1179,7 @@
   "这台服务器上不能选这种电脑（config.yaml 的 computer.choices）": "Máy chủ này không cho chọn loại máy tính đó (computer.choices trong config.yaml)",
   "这台电脑没装 Docker": "Máy này chưa cài Docker",
   "事件来源 {source} 现在没有了": "Nguồn sự kiện {source} không còn",
-  "文件夹": "Thư mục"
+  "文件夹": "Thư mục",
+  "思考强度只能是：{allowed}": "Mức suy nghĩ chỉ được là: {allowed}",
+  "这个模型不认思考强度 {effort}，已改为不带它调用": "Model này không nhận mức suy nghĩ {effort}, đã gọi lại không kèm mức này"
 }
