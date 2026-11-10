@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react'
+import { applyStream } from './streamDelta'
 import { lang, syncLang, t } from './i18n'
 import type { App, Approval, Attachment, Bot, CatalogItem, Chat, ComputerState, Message, OpenThread, Settings, Skill, Stream, Task, TaskInfo, TaskStep, Teach, TeachDraft, ThreadInfo, ThreadSummary } from './types'
 import { notice } from './components/Dialog'
@@ -376,7 +377,7 @@ function handle(d: any) {
       set(s => {
         const st = s.streams[cid]
         if (!st || st.sid !== d.sid) return {}
-        return { streams: { ...s.streams, [cid]: { ...st, text: st.text + (d.delta || ''), thinking: st.thinking + (d.thinking || '') } } }
+        return { streams: { ...s.streams, [cid]: applyStream(st, d) } }
       })
       break
     case 'task':

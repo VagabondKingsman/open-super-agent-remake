@@ -157,9 +157,49 @@ def test_small_task_window_is_enlarged(monkeypatch):
     monkeypatch.setattr(cdp_helper.time, "sleep", lambda s: None)
     ctx = _ctx({"left": -5, "top": 10, "width": 510, "height": 267, "windowState": "normal"})
     assert ctx.fit(7, [1280, 800]) is True
-    assert ctx.b.bounds == {"left": 0, "top": 10, "width": 1280, "height": 800, "windowState": "normal"}
+    # 屏幕就是 1280x800：放大后的窗口贴着左上角，不能往下跑出屏幕（AUDIT-F4）
+    assert ctx.b.bounds == {"left": 0, "top": 0, "width": 1280, "height": 800, "windowState": "normal"}
     sets = [p for m, p in ctx.b.calls if m == "Browser.setWindowBounds"]
-    assert sets == [{"windowId": 7, "bounds": {"left": 0, "top": 10, "width": 1280, "height": 800}}]
+    assert sets == [{"windowId": 7, "bounds": {"left": 0, "top": 0, "width": 1280, "height": 800}}]
+
+
+def test_enlarged_window_clamped_on_screen(monkeypatch):
+    """AUDIT-F4：小窗口在右下角（1000,600），放大到 1280x800 后整个窗口还在屏幕里。"""
+    from osa.computer import cdp_helper
+    monkeypatch.setattr(cdp_helper.time, "sleep", lambda s: None)
+    ctx = _ctx({"left": 1000, "top": 600, "width": 510, "height": 267, "windowState": "normal"})
+    assert ctx.fit(3, [1280, 800]) is True
+    b = ctx.b.bounds
+    assert b["left"] >= 0 and b["top"] >= 0
+    assert b["left"] + b["width"] <= 1280 and b["top"] + b["height"] <= 800
+
+
+def test_fit_respects_real_screen_smaller_than_settings(monkeypatch):
+    """Live trên Instabox: màn hình VNC bị đổi thành 661x1619. Chỉ phóng tới bề ngang màn hình,
+    lần sau không phóng lại nữa (trước đây mỗi thao tác đều setWindowBounds + chờ 0,3 giây)."""
+    from osa.computer import cdp_helper
+    monkeypatch.setattr(cdp_helper.time, "sleep", lambda s: None)
+    ctx = _ctx({"left": 628, "top": 600, "width": 510, "height": 267, "windowState": "normal"})
+    assert ctx.fit(5, [1280, 800], (661, 1619)) is True
+    b = ctx.b.bounds
+    assert (b["left"], b["width"], b["height"]) == (0, 661, 800)
+    assert b["top"] + b["height"] <= 1619
+    ctx.b.calls.clear()
+    assert ctx.fit(5, [1280, 800], (661, 1619)) is False
+    assert not [c for c in ctx.b.calls if c[0] == "Browser.setWindowBounds"]
+
+
+def test_fit_bounds_keeps_position_when_it_fits():
+    from osa.computer.cdp_helper import fit_bounds
+    # 只是矮了：宽度够，位置不用动
+    assert fit_bounds({"left": 0, "top": 0, "width": 1280, "height": 300}, 1280, 800) == \
+        {"left": 0, "top": 0, "width": 1280, "height": 800}
+    # 比屏幕还宽的窗口：贴左边
+    assert fit_bounds({"left": 50, "top": 20, "width": 1400, "height": 200}, 1280, 800) == \
+        {"left": 0, "top": 0, "width": 1400, "height": 800}
+    # 负坐标（窗口一部分在屏幕左上外面）也拉回来
+    assert fit_bounds({"left": -40, "top": -10, "width": 400, "height": 300}, 1920, 1080) == \
+        {"left": 0, "top": 0, "width": 1920, "height": 1080}
 
 
 def test_big_or_maximized_window_left_alone(monkeypatch):

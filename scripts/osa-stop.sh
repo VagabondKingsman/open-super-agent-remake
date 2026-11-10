@@ -19,8 +19,10 @@ else
   LOG_DIR="$ROOT/logs"
 fi
 PIDFILE="$LOG_DIR/osa.pid"
+PORTFILE="$LOG_DIR/osa.port"
+PORT="$(cat "$PORTFILE" 2>/dev/null || echo "${OSA_PORT:-8765}")"
 if [[ ! -f "$PIDFILE" ]]; then
-  echo "No PID file; inspect the listener on :8765. No processes were killed."
+  echo "No PID file; inspect the listener on :$PORT. No processes were killed."
   exit 0
 fi
 read -r pid < "$PIDFILE"
@@ -34,6 +36,15 @@ if kill -0 "$pid" 2>/dev/null; then
     exit 1
   fi
   kill "$pid"
+  # Wait up to OSA_STOP_TIMEOUT seconds (default 20) for the process to exit, so a start right after works.
+  for _ in $(seq 1 $(( ${OSA_STOP_TIMEOUT:-20} * 2 ))); do
+    kill -0 "$pid" 2>/dev/null || break
+    sleep 0.5
+  done
+  if kill -0 "$pid" 2>/dev/null; then
+    echo "PID $pid still running after ${OSA_STOP_TIMEOUT:-20}s; PID file kept, inspect it" >&2
+    exit 1
+  fi
 fi
-rm -f "$PIDFILE"
-echo "stop requested for $pid; confirm port :8765 is released before starting again"
+rm -f "$PIDFILE" "$PORTFILE"
+echo "stopped $pid (port :$PORT)"

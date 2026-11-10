@@ -4,6 +4,17 @@
 
 ## [未发布]
 ### remake
+- 审计修复 AUDIT-F1–F12（`fix/audit-f1-f12`）：
+  - F1：流的第一块单独限时（`limits.stream_first_chunk_s`，默认 170 秒），`stream_idle_s` 只算第一块之后两块之间，想得久的模型不再在出第一个字之前被当成卡住。
+  - F2：Router 重来前发 `stream` 的 `reset`，网页清掉已显示的思考，不再出现两遍；Worker 和 Router 作废那一次的用量照记（没有 usage 按文字估算，`estimated=1`）。
+  - F3：流中途出错重来前等 2–5 秒（带随机），服务忙时不马上再撞一次。
+  - F4：放大后的任务窗口不跑出屏幕（left/top 收回到屏幕内）。屏幕实际比 `computer.width`×`computer.height` 小（比如看 VNC 的人把屏幕改成 661x1619）时只放大到屏幕那么大，不再每个动作都改一次大小。
+  - F6：Linux 没有 `DISPLAY` / `WAYLAND_DISPLAY` 时，本机 Chrome 直接报错并提示 `xvfb-run -a`，不再等 20 秒；Chrome 调试端口的报错有越南语和英语。
+  - F7：没设 `OSA_PASSWORD` 的启动提示、`python -m osa.backup` 的输出和帮助都走 i18n（vi/en）。
+  - F8：`scripts/osa-start.sh` 认 `OSA_PORT`（默认 8765），等 `/manifest.json` 答了才打印 started，超时（`OSA_START_TIMEOUT`，默认 60 秒）或进程提前退出就报错；`osa-stop.sh` 用同一个端口，等进程退出。
+  - F9：`config.yaml` 的 `limits:` 里加了 `stream_first_chunk_s`、`stream_idle_s`、`stream_retries` 三行注释掉的默认值。
+  - F10：`docs/docker.md` 改成越南语，clone remake 的 `-b i18n-vi`。
+  - F12：导出的备份文件权限是 0600。
 - PR #37（Nova #253）：流式调用开了以后卡住（`limits.stream_idle_s` 秒没有新块，默认 120）或中途断了（连接断、服务忙如 xAI 的 "at capacity"、5xx）时，Worker、审稿人和 Router 同一轮再调一次（`limits.stream_retries`，默认 1），不再等 Watchdog 3 分钟后取消整个任务。额度用尽不重来；Router 已经推出正文的那一轮不重来。
 - CI（PR #38、#39）：backend 装 `bubblewrap` 和 `xvfb`，带 `OSA_REQUIRE_SANDBOX=1` 跑 `tests/test_local_checks.py` 的 3 个沙箱测试（缺沙箱就失败，不再跳过），带 `OSA_TEST_CHROME=1` 在 `xvfb-run -a` 里用真的 Chrome 跑 `test_real_chrome`。只剩 `test_real_desktop`（要 macOS）跳过。
 - 没有屏幕的 Linux（`DISPLAY`、`WAYLAND_DISPLAY` 都没有）上不再自动跑 `test_real_chrome`，跳过并提示用 `xvfb-run -a`；以前这里会等 20 秒后失败。

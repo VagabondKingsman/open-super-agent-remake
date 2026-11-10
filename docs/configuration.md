@@ -94,8 +94,11 @@ pricing:
 - `save_page_approval`：`true` 时 Worker 写本地页面要先等确认。已经有一条“自动允许”规则时仍直接写。默认 `false`，但每次写页面都会记在任务结果里。
 - `provider_rate_retries`：普通 429（`rate_limit_exceeded`，以及没有额度码的 429）按响应头 `Retry-After` 再试几次。默认 1。没有这个头就等 1 秒。`provider_retry_cap_s`（默认 120）是最多等多少秒。
 - `provider_transient_retries`：408、409 和 5xx 再试几次。默认 5（和 `providers.RETRIES` 一致）。
-- `stream_idle_s`：流开了以后两块之间最多等几秒，超过就关掉这条流。默认 120，要比 Watchdog 的 3 分钟短。0 表示不限。
-- `stream_retries`：流开了以后卡住、断了（连接断、服务忙、5xx、SSE 里的 error）时，同一轮再调几次。默认 1。额度用尽不重来。Router 已经把正文推到界面上的那一轮不重来。
+- `stream_first_chunk_s`：流开了以后等第一块最多几秒。想得久的模型（高思考强度、不流式输出思考）第一块可能要两三分钟，所以和下一项分开算。默认 170，要比 Watchdog 的 3 分钟短。0 表示不限。
+- `stream_idle_s`：第一块之后，两块之间最多等几秒，超过就关掉这条流。默认 120，要比 Watchdog 的 3 分钟短。0 表示不限。
+- `stream_retries`：流开了以后卡住、断了（连接断、服务忙、5xx、SSE 里的 error）时，同一轮再调几次。默认 1。每次重来前等 2–5 秒（带随机）。额度用尽不重来。Router 已经把正文推到界面上的那一轮不重来；只推了思考的，重来时界面上的思考先清掉。作废那一次的用量照记（没有 usage 就按收到的文字估算，标 estimated）。
+
+`config.yaml` 的 `limits:` 里有这三项注释掉的默认值，去掉 `#` 就能改。
 
 Heavy 另有两项，也只在 `config.yaml` 里改：
 

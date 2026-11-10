@@ -470,6 +470,16 @@ def _browser_ws() -> WS:
     return WS(url)
 
 
+def fit_bounds(bd: dict, want_w: int, want_h: int, screen=None) -> dict:
+    """放大后的窗口位置和大小。放大后不能跑出屏幕：left / top 往回挪到 0 和“屏幕减窗口”之间
+    （原来在 1000,600 的小窗口放大到 1280x800 会大半跑到屏幕外）。screen 是 (宽, 高)，不知道就当屏幕是 want 那么大。"""
+    sw, sh = screen or (want_w, want_h)
+    w, h = max(bd["width"], want_w), max(bd["height"], want_h)
+    left = min(max(0, bd.get("left", 0)), max(0, sw - w))
+    top = min(max(0, bd.get("top", 0)), max(0, sh - h))
+    return {"left": left, "top": top, "width": w, "height": h}
+
+
 class Ctx:
     """这次操作在哪个窗口、哪个标签页。
 
@@ -509,9 +519,9 @@ class Ctx:
             if t is None:
                 t, self.window = self.new_window(front)
                 created = True
-        if w.get("size") and not HOST:
-            self.fit(self.window, w["size"])
         self.ws = WS(t["webSocketDebuggerUrl"])
+        if w.get("size") and not HOST:
+            self.fit(self.window, w["size"], self.screen())
         if HOST:
             pass   # 本机模式不把窗口提到前面：你可能正在用别的程序（要看就点“显示窗口”，即 op front）
         elif w.get("front"):
@@ -550,11 +560,22 @@ class Ctx:
             time.sleep(0.1)
         raise RuntimeError("新窗口没有打开")
 
-    def fit(self, window: int, size) -> bool:
+    def screen(self):
+        """屏幕实际能用的大小 (宽, 高)。VNC 看画面的人可能把屏幕改成别的大小（比如手机上的 661x1619），不一定是 computer.width / height。"""
+        try:
+            v = js(self.ws, "[screen.availWidth, screen.availHeight]")
+            return (int(v[0]), int(v[1])) if v and v[0] > 0 and v[1] > 0 else None
+        except Exception:
+            return None
+
+    def fit(self, window: int, size, screen=None) -> bool:
         """任务窗口太小（比如被拖成 510x267，页面截图只剩 500x136）：放大到电脑设置的大小。
-        新开的窗口会照着最前面的窗口的大小开，已经开着的小窗口也在这里放大。只改普通状态的窗口，最大化、全屏的不动。"""
+        新开的窗口会照着最前面的窗口的大小开，已经开着的小窗口也在这里放大。只改普通状态的窗口，最大化、全屏的不动。
+        屏幕比设置的小时只放大到屏幕那么大，不然每个动作都要改一次大小（窗口管理器不让超出屏幕）。"""
         try:
             want_w, want_h = int(size[0]), int(size[1])
+            if screen:
+                want_w, want_h = min(want_w, screen[0]), min(want_h, screen[1])
             bd = self.b.call("Browser.getWindowBounds", {"windowId": window})["bounds"]
             if bd.get("windowState") == "minimized":
                 self.b.call("Browser.setWindowBounds", {"windowId": window, "bounds": {"windowState": "normal"}})
@@ -563,9 +584,7 @@ class Ctx:
                 return False
             if bd["width"] >= want_w * 0.9 and bd["height"] >= want_h * 0.9:
                 return False
-            self.b.call("Browser.setWindowBounds", {"windowId": window, "bounds": {
-                "left": max(0, bd.get("left", 0)), "top": max(0, bd.get("top", 0)),
-                "width": max(bd["width"], want_w), "height": max(bd["height"], want_h)}})
+            self.b.call("Browser.setWindowBounds", {"windowId": window, "bounds": fit_bounds(bd, want_w, want_h, screen)})
             time.sleep(0.3)   # 等页面按新大小重新排版，紧接着的截图才是新尺寸
             return True
         except Exception:

@@ -60,6 +60,10 @@ limits:
   provider_rate_retries: 1   # 普通 429（rate_limit_exceeded）按 Retry-After 再试几次。额度用尽不重试
   provider_retry_cap_s: 120  # Retry-After 最多等这么多秒
   provider_transient_retries: 5  # 408/409/5xx 再试几次（和 upstream 的 providers.RETRIES 一致）。0 表示不试
+  # 流式调用开了以后（下面三行是代码里的默认值，要改就去掉 # ）：
+  # stream_first_chunk_s: 170  # 等第一块最多几秒（想得久的模型第一块慢），要比 Watchdog 的 3 分钟短。0 表示不限
+  # stream_idle_s: 120         # 第一块之后，两块之间最多等几秒，超过就关掉流重来。0 表示不限
+  # stream_retries: 1          # 流卡住、断了、服务忙时同一轮再调几次（等 2–5 秒再调）。额度用尽不重来
 
 memory:
   db: data/osa.db

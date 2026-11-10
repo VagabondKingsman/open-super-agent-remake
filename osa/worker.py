@@ -133,6 +133,8 @@ async def _reply(task: Task, log: tasklog.Log, role: str, client, model: str, ms
             attempt += 1
             task.last_progress = time.time()
             await log.note(i18n.t("这一轮模型调用中途出错（{err}），重新调用", err=providers.brief(e)), "error")
+            await providers.retry_pause(attempt)
+            task.last_progress = time.time()
 
 
 async def _reply_once(task: Task, log: tasklog.Log, role: str, client, model: str, msgs: list, tools_: list | None = None) -> dict:
@@ -205,6 +207,8 @@ async def _reply_once(task: Task, log: tasklog.Log, role: str, client, model: st
     except Exception as e:
         memory.record_error(role, model, providers.brief(e), task.id, bot_id=task.bot_id, chat_id=task.chat_id,
                             ms=(time.monotonic() - t0) * 1000)
+        # 作废的这一轮也花了 token：有 usage 照实记，没有就按已收到的文字估算
+        memory.record_partial(role, model, usage, memory.streamed_output_text(content, reasoning, calls), task.id)
         for s in (think, text):   # 这一轮作废：没收完的思考、正文标成出错，别一直显示“进行中”
             if s and s["status"] == "running":
                 await log.finish(s, status="error")

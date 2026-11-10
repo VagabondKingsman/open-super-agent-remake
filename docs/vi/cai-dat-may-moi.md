@@ -112,8 +112,9 @@ OSA đọc cấu hình theo ba lớp. `config.yaml` trong repo là mặc định
 | `limits.task_timeout_s` | `600` | một task chạy tối đa bao nhiêu giây. Task Computer dài có thể cần số lớn hơn, chỉnh ở Cài đặt → Giới hạn |
 | `limits.daily_token_budget` | `2000000` | số token tối đa mỗi ngày |
 | `limits.worker_max_steps` | `30` | số bước tối đa của một Worker |
-| `limits.stream_idle_s` | `120` (trong code, không có dòng trong `config.yaml`) | stream của model im quá số giây này thì OSA đóng stream. Phải nhỏ hơn 3 phút của Watchdog. `0` là không giới hạn |
-| `limits.stream_retries` | `1` (trong code) | số lần gọi lại cùng lượt khi stream treo, rớt kết nối, gặp 5xx hoặc lỗi "at capacity". Lỗi hết quota không gọi lại |
+| `limits.stream_first_chunk_s` | `170` (dòng comment trong `config.yaml`) | chờ khối đầu tiên của stream tối đa bao nhiêu giây. Model nghĩ lâu có thể mất hai, ba phút mới ra chữ đầu. Phải nhỏ hơn 3 phút của Watchdog. `0` là không giới hạn |
+| `limits.stream_idle_s` | `120` (dòng comment) | sau khối đầu, hai khối cách nhau quá số giây này thì OSA đóng stream. Phải nhỏ hơn 3 phút của Watchdog. `0` là không giới hạn |
+| `limits.stream_retries` | `1` (dòng comment) | số lần gọi lại cùng lượt khi stream treo, rớt kết nối, gặp 5xx hoặc lỗi "at capacity". Mỗi lần chờ 2–5 giây trước khi gọi lại. Lỗi hết quota không gọi lại |
 | `limits.provider_transient_retries` | `5` | số lần thử lại 408, 409, 5xx trước khi stream mở |
 | `computer.backend` | `auto` | trong app desktop là `host`. Ngoài app desktop, có khóa Instabox thì là `instabox`, không có thì là `local` (Docker) |
 | `computer.choices` | không đặt | giới hạn các kiểu Computer hiện trên panel, ví dụ `[instabox]` |
@@ -124,7 +125,7 @@ OSA đọc cấu hình theo ba lớp. `config.yaml` trong repo là mặc định
 | `security.local_exec` | `true` | máy chủ public nên đặt `false` |
 | `skills.ai_native_defaults` | `true` | cài sẵn bộ skill AI Native cho mọi Bot |
 
-Muốn đặt `stream_idle_s` hay `stream_retries` khác mặc định thì thêm vào khối `limits:` của file YAML bạn dùng.
+Ba khóa `stream_*` có sẵn dạng comment trong khối `limits:` của `config.yaml`. Muốn đổi thì bỏ dấu `#` ở dòng đó.
 
 ## 5. Chạy lần đầu
 
@@ -137,13 +138,15 @@ bash scripts/osa-start.sh
 bash scripts/osa-stop.sh
 ```
 
-Script ghi PID và log vào `logs/` trong checkout, hoặc `$OSA_DATA_DIR/logs/` khi có biến đó. Xem trước đường dẫn mà không khởi động:
+`osa-start.sh` chờ `/manifest.json` trả lời rồi mới in `started` (mặc định chờ tối đa 60 giây, đổi bằng `OSA_START_TIMEOUT`). Hết giờ, hoặc server thoát sớm, thì script báo lỗi, in mấy dòng log cuối và thoát mã 1. `osa-stop.sh` chờ process thoát hẳn (tối đa 20 giây) rồi mới báo `stopped`. Muốn cổng khác thì đặt `OSA_PORT`, ví dụ `OSA_PORT=8800 bash scripts/osa-start.sh`; script vẫn chỉ nghe `127.0.0.1`.
+
+Script ghi PID, cổng và log vào `logs/` trong checkout, hoặc `$OSA_DATA_DIR/logs/` khi có biến đó. Xem trước đường dẫn mà không khởi động:
 
 ```bash
 OSA_START_DRY_RUN=1 bash scripts/osa-start.sh
 ```
 
-Script luôn dùng cổng 8765. Cổng đó đã có process khác thì chạy foreground với cổng khác. Cách này không tự nạp `.env`, nên nạp trước:
+Muốn chạy foreground (không qua script) thì nhớ cách này không tự nạp `.env`, nên nạp trước:
 
 ```bash
 set -a; source .env; set +a
@@ -208,7 +211,7 @@ Panel Computer có ba kiểu. `computer.choices` giới hạn danh sách hiện 
 
 ### Chrome trên máy này
 
-**Đã chạy** qua `test_real_chrome` (pass sau khoảng 4 giây dưới `xvfb-run -a`). OSA mở Chrome với profile riêng và cổng debug riêng. Trên Linux không có màn hình, Chrome không mở được cổng debug và panel báo lỗi `Chrome 没有在 20 秒内开启调试端口` (câu này chưa có bản dịch, nghĩa là Chrome không mở cổng debug trong 20 giây). Chạy OSA bên trong màn hình ảo, ví dụ `xvfb-run -a bash scripts/osa-start.sh` (**chưa kiểm** với server thật), hoặc trỏ `DISPLAY` tới một Xvfb đang chạy.
+**Đã chạy** qua `test_real_chrome` (pass sau khoảng 4 giây dưới `xvfb-run -a`). OSA mở Chrome với profile riêng và cổng debug riêng. Trên Linux không có màn hình (không có `DISPLAY` lẫn `WAYLAND_DISPLAY`), panel báo ngay "Máy Linux này không có giao diện đồ họa..." kèm gợi ý `xvfb-run -a`, không còn chờ 20 giây (AUDIT-F6). Chạy OSA bên trong màn hình ảo, ví dụ `xvfb-run -a bash scripts/osa-start.sh` (**chưa kiểm** với server thật), hoặc trỏ `DISPLAY` tới một Xvfb đang chạy.
 
 ### Instabox
 
@@ -233,7 +236,7 @@ docker compose up -d
 
 Image app đã có Node, uv và bubblewrap, không cần cài Python hay build web trên máy host. Muốn dùng Computer Docker, thêm dòng `COMPOSE_FILE=compose.yaml:compose.computer.yaml` vào `.env` rồi `docker compose up -d` lại. File đó gắn `docker.sock`, tức là cấp cho server quyền gần như root trên host. Chỉ dùng Instabox thì đừng thêm file đó.
 
-Chi tiết (HTTPS qua Caddy, mirror, lỗi thường gặp) ở [docs/docker.md](../docker.md). File đó là bản upstream tiếng Trung và có lệnh clone upstream. Hãy clone repo remake như mục 2.
+Chi tiết (HTTPS qua Caddy, mirror, lỗi thường gặp) ở [docs/docker.md](../docker.md). Từ bản sửa AUDIT-F10, file đó là tiếng Việt và clone repo remake với `-b i18n-vi`.
 
 ## 9. Nâng cấp từ bản cũ
 
@@ -253,6 +256,7 @@ Migration DB chạy lúc khởi động. Git không hạ được schema DB, nê
 
 Những gì đổi ở các bản gần đây:
 
+- Bản sửa audit F1–F12: thêm `limits.stream_first_chunk_s` (170 giây), gọi lại stream sau 2–5 giây, `scripts/osa-start.sh` nhận `OSA_PORT` và chờ `/manifest.json` mới báo started, file backup quyền 0600. Không phải sửa YAML. Box đang có `config.yaml` sửa tay thì `git stash && git pull && git stash pop`: ba dòng mới nằm ở khối `limits:`, không đụng dòng bạn sửa, nên `stash pop` tự gộp (đã thử với `idle_pause_s` sửa tay).
 - PR #37: thêm `limits.stream_idle_s` và `limits.stream_retries` (có mặc định trong code, không phải sửa YAML).
 - PR #36: cửa sổ task Docker/Instabox tự phóng theo `computer.width` × `computer.height`.
 - PR #35: `reasoning_effort` chỉ nhận rỗng, `low`, `medium`, `high`, `xhigh`, `max`. Giá trị khác trên role cũ sẽ bị từ chối khi lưu.
@@ -262,10 +266,11 @@ Những gì đổi ở các bản gần đây:
 
 | Triệu chứng | Nguyên nhân | Cách xử lý |
 |---|---|---|
-| `Chrome 没有在 20 秒内开启调试端口` (Chrome không mở cổng debug trong 20 giây) | Linux không có màn hình, hoặc Chrome của Bot đã mở sẵn mà không có cổng debug | chạy dưới `xvfb-run -a` hoặc đặt `DISPLAY`. Nếu có màn hình thì đóng cửa sổ Chrome của Bot rồi thử lại |
+| "Máy Linux này không có giao diện đồ họa (không có DISPLAY / WAYLAND_DISPLAY)..." | Linux không có màn hình, Chrome trên máy này không mở được cửa sổ | khởi động bằng `xvfb-run -a scripts/osa-start.sh`, đặt `DISPLAY`, hoặc đổi `computer.backend` sang `docker` / `instabox` |
+| "Chrome không mở cổng debug trong 20 giây" | Chrome của Bot đã mở sẵn mà không có cổng debug | đóng cửa sổ Chrome của Bot rồi thử lại |
 | 3 test trong `tests/test_local_checks.py` SKIP | thiếu `bwrap`, `prlimit`, `git` hoặc `ps`, hoặc kernel chặn user namespace | cài gói ở mục 1, mở userns, kiểm lại bằng lệnh `bwrap` ở mục 1. Đặt `OSA_REQUIRE_SANDBOX=1` để biến SKIP thành FAIL |
 | `run_code` báo BLOCKED | như dòng trên | như dòng trên. OSA không chạy code ngoài sandbox |
-| Task bị hủy với "Không có tiến triển trong 3 phút" | stream model im lâu | từ PR #37, OSA đóng stream sau `stream_idle_s` (120 giây) và gọi lại một lần. Vẫn bị hủy thì xem log task và trạng thái provider |
+| Task bị hủy với "Không có tiến triển trong 3 phút" | stream model im lâu | OSA đóng stream khi khối đầu chưa tới sau `stream_first_chunk_s` (170 giây) hoặc hai khối cách nhau quá `stream_idle_s` (120 giây), rồi gọi lại một lần. Vẫn bị hủy thì xem log task và trạng thái provider |
 | Log task có dòng "Lượt gọi model lỗi giữa chừng (...), đang gọi lại" | provider báo "at capacity", 5xx, hoặc rớt kết nối giữa stream | OSA tự gọi lại `stream_retries` lần. Lỗi lặp lại thì đổi model hoặc thử lại sau |
 | Panel Computer báo `docker_missing` | máy không có Docker hoặc không nối được daemon | cài Docker, hoặc dùng Instabox hay Chrome trên máy này |
 | Trang web hiện tiếng Trung, giao diện cũ | chưa build `web/` | `(cd web && npm ci && npm run build)` rồi tải lại trang |

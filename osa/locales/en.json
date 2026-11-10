@@ -1224,5 +1224,62 @@
   "（更正：这一轮没有派出任务 {ids}，上面说已派发是不对的。）": "(Correction: no task {ids} was dispatched in this turn; the claim above is wrong.)",
   "审稿人没有给出汇总，改用草稿 {n}": "The reviewer did not merge the drafts; using draft {n}",
   "模型 {n} 秒没有输出新内容": "The model sent nothing new for {n} seconds",
-  "这一轮模型调用中途出错（{err}），重新调用": "The model call failed mid-way ({err}); calling it again"
+  "这一轮模型调用中途出错（{err}），重新调用": "The model call failed mid-way ({err}); calling it again",
+  "这台 Linux 电脑没有图形界面（没有 DISPLAY / WAYLAND_DISPLAY），Bot 用的 Chrome 开不了窗口。在有桌面的会话里运行 OSA，或者用 xvfb-run -a 启动它（比如 xvfb-run -a scripts/osa-start.sh），也可以把 computer.backend 换成 docker / instabox": "This Linux machine has no display (DISPLAY / WAYLAND_DISPLAY are not set), so the Bot's Chrome cannot open a window. Run OSA in a desktop session, start it with xvfb-run -a (for example xvfb-run -a scripts/osa-start.sh), or switch computer.backend to docker / instabox",
+  "Chrome 没有在 20 秒内开启调试端口。Bot 用的 Chrome 可能已经开着但没开调试端口，关掉它再试": "Chrome did not open its debug port within 20 seconds. The Bot's Chrome may already be open without a debug port; close it and try again",
+  "{n} 个 Bot": [
+    "{n} bot",
+    "{n} bots"
+  ],
+  "{n} 个密钥": [
+    "{n} secret",
+    "{n} secrets"
+  ],
+  "{n} 个对话": [
+    "{n} chat",
+    "{n} chats"
+  ],
+  "{n} 个应用": [
+    "{n} app",
+    "{n} apps"
+  ],
+  "{n} 个聊天软件连接": [
+    "{n} chat app connection",
+    "{n} chat app connections"
+  ],
+  "{n} 个聊天软件连接先停用了，确认原来那台已经停掉后，在 设置 → 聊天软件 里启用。": [
+    "{n} chat app connection was turned off. Once the old machine has stopped, turn it back on in Settings → Chat apps.",
+    "{n} chat app connections were turned off. Once the old machine has stopped, turn them back on in Settings → Chat apps."
+  ],
+  "{n} 个页面": [
+    "{n} page",
+    "{n} pages"
+  ],
+  "{n} 条消息": [
+    "{n} message",
+    "{n} messages"
+  ],
+  "{n} 条记忆": [
+    "{n} memory",
+    "{n} memories"
+  ],
+  "{when} 的备份（v{version}）：{items}": "Backup from {when} (v{version}): {items}",
+  "两次输入的不一样": "The two entries do not match",
+  "从备份恢复：服务下次启动时生效": "Restore from a backup: takes effect the next time the service starts",
+  "再输一遍：": "Enter it again: ",
+  "备份会在下次启动时恢复：开发模式下请手动重启服务": "The backup will be restored on the next start: in dev mode, restart the service yourself",
+  "备份口令：": "Backup passphrase: ",
+  "备份和恢复 open-super-agent 的全部数据": "Back up and restore all open-super-agent data",
+  "失败：{err}": "Failed: {err}",
+  "失败：这里的保险库主密钥和服务用的对不上。命令行要和服务用同样的环境变量（OSA_VAULT_KEY、OSA_CONFIG）": "Failed: the vault master key here does not match the one the service uses. Run this command with the same environment variables as the service (OSA_VAULT_KEY, OSA_CONFIG)",
+  "存到哪里（文件或目录），默认当前目录": "Where to save it (file or directory), default is the current directory",
+  "导出一个加密的备份文件": "Export an encrypted backup file",
+  "已从备份恢复数据，原来的数据库留在 {old}": "Data restored from the backup; the old database is kept at {old}",
+  "已准备好，重启服务后换上（原来的数据库会留一份）。": "Ready. Restart the service to switch over (a copy of the old database is kept).",
+  "已导出到 {dst}": "Exported to {dst}",
+  "有 {n} 个密钥解不开（主密钥换过），没有带上：{names}": [
+    "{n} secret could not be decrypted (the master key changed) and was left out: {names}",
+    "{n} secrets could not be decrypted (the master key changed) and were left out: {names}"
+  ],
+  "未设置 OSA_PASSWORD：网页不用登录就能访问，只能在本机或内网使用": "OSA_PASSWORD is not set: the web UI needs no login, so use it only on this machine or a private network"
 }
