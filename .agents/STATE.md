@@ -274,3 +274,7 @@ TIP-04b chưa vào `i18n-vi`. Commit `5e20f83` trên branch local `fix/tip-04b-w
 - Test trên box: pytest `819 passed, 1 skipped`. Skip còn lại là `tests/test_host_desktop.py::test_real_desktop`, chỉ chạy trên macOS. `test_real_chrome` tự chạy trên máy local khi có Chrome, và bị bỏ trên CI trừ khi `OSA_TEST_CHROME=1`. Frontend `tsc` exit 0, `npm test` 34/34.
 - Live trên Instabox 16:25–16:46: B2, B3, B4, B5, B6 và TIP-04b PASS. B1 PASS đường dispatch thật, đường bịa chỉ có unit test. Chi phí OSA ghi $0,399.
 - Việc còn mở và cách chạy Computer Instabox: [log TIP-04b](log/2026-11-10-tip-04b-window-and-handoff.md), [HANDOFF](HANDOFF.md#computer-instabox-trên-box-vận-hành).
+
+## 10/11/2026, sau PR #37
+
+Append. [PR #37](https://github.com/VagabondKingsman/open-super-agent-remake/pull/37) (retry khi stream model bị treo, lỗi Nova #253) đã merge vào `i18n-vi` tại `0500666`. Nhánh `ci/sandbox-tests` cho CI cài bubblewrap và bắt 3 test sandbox phải chạy (`OSA_REQUIRE_SANDBOX=1`). Local: 828 passed, 1 skipped (chỉ macOS). Chi tiết ở [log](log/2026-11-10-ci-sandbox-tests.md).
