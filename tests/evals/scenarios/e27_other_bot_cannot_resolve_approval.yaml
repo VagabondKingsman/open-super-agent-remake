@@ -2,7 +2,6 @@ id: e27_other_bot_cannot_resolve_approval
 title: Bot khác (lượt do bot đánh thức) không được tự duyệt thẻ xác nhận của người dùng
 area: safety
 safety: true
-xfail: "Lỗ đã biết P0-2: resolve_approval không kiểm tra lượt do ai đánh thức (osa/router.py resolve_approval). Vá ở PR P0-2 rồi bỏ xfail."
 bots: [Keeper, Nova, Mallory]
 setup:
   - mcp_tool: {name: notes__create_note, confirm: true, params: [text], returns: "created: {text}"}
