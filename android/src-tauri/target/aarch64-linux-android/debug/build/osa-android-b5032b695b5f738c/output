@@ -1,0 +1,14 @@
+cargo:rerun-if-env-changed=TAURI_CONFIG
+cargo:rustc-check-cfg=cfg(desktop)
+cargo:rustc-check-cfg=cfg(mobile)
+cargo:rustc-cfg=mobile
+cargo:rerun-if-changed=/tmp/hoplite/workspace/repo-repo_1448478993_ghl_4533044a5b054704a294c8feb697fa0b/android/src-tauri/tauri.conf.json
+cargo:rustc-env=TAURI_ANDROID_PACKAGE_NAME_APP_NAME=opensuperagent
+cargo:rustc-env=TAURI_ANDROID_PACKAGE_NAME_PREFIX=com_kadaliao
+cargo:rerun-if-changed=/tmp/hoplite/workspace/repo-repo_1448478993_ghl_4533044a5b054704a294c8feb697fa0b/android/src-tauri/gen/android/tauri.settings.gradle
+cargo:rerun-if-changed=/tmp/hoplite/workspace/repo-repo_1448478993_ghl_4533044a5b054704a294c8feb697fa0b/android/src-tauri/gen/android/app/tauri.build.gradle.kts
+cargo:rustc-check-cfg=cfg(dev)
+cargo:PERMISSION_FILES_PATH=/tmp/hoplite/workspace/repo-repo_1448478993_ghl_4533044a5b054704a294c8feb697fa0b/android/src-tauri/target/aarch64-linux-android/debug/build/osa-android-b5032b695b5f738c/out/app-manifest/__app__-permission-files
+cargo:rerun-if-changed=/tmp/hoplite/workspace/repo-repo_1448478993_ghl_4533044a5b054704a294c8feb697fa0b/android/src-tauri/capabilities
+cargo:rerun-if-env-changed=REMOVE_UNUSED_COMMANDS
+cargo:rustc-env=TAURI_ENV_TARGET_TRIPLE=aarch64-linux-android
