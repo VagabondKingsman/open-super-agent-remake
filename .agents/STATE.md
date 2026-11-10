@@ -1,5 +1,7 @@
 # Trạng thái hiện tại · 10/11/2026
 
+> Cập nhật 22:05 (UTC+7): phiên sửa audit F1–F12, xem mục "Đang mở" và [log sửa audit](log/2026-11-10-audit-fixes.md). Số kiểm trên nhánh sửa: pytest kiểu CI 853 passed, 1 skipped; `osa.i18n` backend 1214 câu, thiếu 0; web `npm test` 36/36.
+
 Snapshot lúc 21:00 Asia/Saigon (UTC+7), viết trong phiên deep audit cài đặt. Phiên mới phải `git fetch origin` và `git rev-parse origin/i18n-vi` lại. SHA mới hơn thì đọc log mới hơn file này.
 
 Lịch sử STATE từ 07/11 tới trước phiên này được chuyển nguyên văn sang [archive/STATE-2026-11-07-den-2026-11-10.md](archive/STATE-2026-11-07-den-2026-11-10.md). Các câu "chưa merge" trong đó là trạng thái lúc viết từng mục.
@@ -42,6 +44,8 @@ Lệnh và output đầy đủ ở [log deep audit](log/2026-11-10-deep-audit-in
 
 ## Đang mở
 
-- Branch `docs/deep-audit-install` (phiên này): một sửa test, hướng dẫn cài máy mới, docs và `.agents/`. Chưa push. Patch ở thư mục evidence của box, CloudAgent `git am` rồi mở PR vào `i18n-vi`.
-- Kết quả audit còn mở, chưa sửa: xem bảng trong [log deep audit](log/2026-11-10-deep-audit-install.md#phát-hiện) và [BOARD](BOARD.md).
+- Branch local `fix/audit-f1-f12` trong worktree `/workspace/osar-fix` (base `91b6cfb`, PR #40): sửa AUDIT-F1–F4, F6–F10, F12 và F13 (tìm ra lúc test live). Chưa push. Patch ở `/workspace/osar-audit-fixes-20261110/patches/`, CloudAgent `git am` rồi mở PR vào `i18n-vi`. Chi tiết và bằng chứng: [log sửa audit](log/2026-11-10-audit-fixes.md).
+- Box vận hành đang chạy code của nhánh này (nhánh local `deploy/audit-f1-f12` trong `/workspace/open-super-agent`, cùng SHA với commit code cuối), `config.yaml` vẫn có `idle_pause_s: 2592000` chưa commit. Khi PR merge thì đưa checkout đó về `i18n-vi`: chép `config.yaml` ra ngoài, `git checkout -- config.yaml`, `git checkout i18n-vi && git pull`, áp lại dòng `idle_pause_s`.
+- `limits.task_timeout_s` đang chạy là 7200, lấy từ `settings.overrides` trong DB (Cài đặt → Giới hạn). `config.yaml` ghi 600. Vì sao task #259 báo 600: `NOT_CHECKED` (có thể nó đọc `config.yaml` thay vì settings). Bản sửa này không đụng giá trị đó.
+- AUDIT-F11 (nhánh mặc định GitHub) chờ Tin Tin.
 - Việc cũ còn chờ: OSA-001, OSA-002, OSA-007, OSA-016, OSA-017, OSA-018, OSA-019, OSA-020 trên [BOARD](BOARD.md).

@@ -8,7 +8,7 @@
   - F1：流的第一块单独限时（`limits.stream_first_chunk_s`，默认 170 秒），`stream_idle_s` 只算第一块之后两块之间，想得久的模型不再在出第一个字之前被当成卡住。
   - F2：Router 重来前发 `stream` 的 `reset`，网页清掉已显示的思考，不再出现两遍；Worker 和 Router 作废那一次的用量照记（没有 usage 按文字估算，`estimated=1`）。
   - F3：流中途出错重来前等 2–5 秒（带随机），服务忙时不马上再撞一次。
-  - F4：放大后的任务窗口不跑出屏幕（left/top 收回到屏幕内）。
+  - F4：放大后的任务窗口不跑出屏幕（left/top 收回到屏幕内）。屏幕实际比 `computer.width`×`computer.height` 小（比如看 VNC 的人把屏幕改成 661x1619）时只放大到屏幕那么大，不再每个动作都改一次大小。
   - F6：Linux 没有 `DISPLAY` / `WAYLAND_DISPLAY` 时，本机 Chrome 直接报错并提示 `xvfb-run -a`，不再等 20 秒；Chrome 调试端口的报错有越南语和英语。
   - F7：没设 `OSA_PASSWORD` 的启动提示、`python -m osa.backup` 的输出和帮助都走 i18n（vi/en）。
   - F8：`scripts/osa-start.sh` 认 `OSA_PORT`（默认 8765），等 `/manifest.json` 答了才打印 started，超时（`OSA_START_TIMEOUT`，默认 60 秒）或进程提前退出就报错；`osa-stop.sh` 用同一个端口，等进程退出。
