@@ -17,13 +17,13 @@ Repo: `VagabondKingsman/open-super-agent-remake`. Base: `i18n-vi`. Upstream `kad
 
 ## Head hiện tại
 
-Đối chiếu trong phiên OSA-030, 09/11/2026:
+Đối chiếu 10/11/2026, sau OSA-032:
 
-`origin/i18n-vi = 45121389631562ee1dba53ef6e558c2a0794aef3`
+`origin/i18n-vi = d9ae1d86b223bf4f3fe1e166ba5823658525a991`
 
-Đó là merge [PR #27](https://github.com/VagabondKingsman/open-super-agent-remake/pull/27) (OSA-031), `merged_at` API `2026-11-10T05:59:36Z` (12:59:36 Asia/Saigon). Head `d97ad3c`. Port upstream v0.13.0–v0.17.0, version ghi 0.17.0. CI push run `42765538964` SUCCESS trên SHA này.
+Đó là merge [PR #29](https://github.com/VagabondKingsman/open-super-agent-remake/pull/29) (OSA-032), `merged_at` API `2026-11-10T06:39:04Z` (13:39:04 Asia/Saigon). Head `e1d4399`. Docs người dùng ghi đúng v0.17.0. Code port nằm ở [PR #27](https://github.com/VagabondKingsman/open-super-agent-remake/pull/27), merge `4512138`, head `d97ad3c`. Version `0.17.0`. Upstream mới nhất vẫn là tag v0.17.0 (`ec02547`). Không có PR mở lúc đối chiếu. CI push trên `d9ae1d8` là run `42769937081`, SUCCESS.
 
-Phiên sau chạy `git fetch` và `git rev-parse origin/i18n-vi`. SHA mới hơn thì đọc log mới. Đừng coi `4512138` là latest mãi.
+Phiên sau chạy `git fetch` và `git rev-parse origin/i18n-vi`. SHA mới hơn thì đọc log mới. Đừng coi `d9ae1d8` là latest mãi.
 
 `main` là default branch trên GitHub nhưng đứng ở `a30e3cc`, tổ tiên cũ của `i18n-vi`, không có `.agents/` hay `tests/`. Cloud agent hay checkout `main` theo mặc định. Phải chuyển sang `i18n-vi` trước khi làm.
 
@@ -60,6 +60,8 @@ Giờ là `merged_at` đổi sang Asia/Saigon. `merged_by` trên API là Vagabon
 | [#25](https://github.com/VagabondKingsman/open-super-agent-remake/pull/25) | 22:26:20 09/11 | `254673c` | OSA-029 độ tin cậy: vòng nền, WebSocket backoff, TZ. |
 | [#26](https://github.com/VagabondKingsman/open-super-agent-remake/pull/26) | 23:22:08 09/11 | `1466670` | OSA-030 đồng bộ `.agents/` sau #21, #23, #24, #25. |
 | [#27](https://github.com/VagabondKingsman/open-super-agent-remake/pull/27) | 12:59:36 10/11 | `4512138` | OSA-031 port upstream v0.13.0–v0.17.0. Head `d97ad3c`. |
+| [#28](https://github.com/VagabondKingsman/open-super-agent-remake/pull/28) | 13:09:02 10/11 | `aa1ab7e` | OSA-031 ghi `.agents/` sau khi #27 merge. Head `c9efd89`. |
+| [#29](https://github.com/VagabondKingsman/open-super-agent-remake/pull/29) | 13:39:04 10/11 | `d9ae1d8` | OSA-032 README và docs người dùng cho v0.17.0. Head `e1d4399`. |
 
 PR #1 đến #5 rơi vào đêm 06/11 UTC, tức sáng 07/11 giờ Sài Gòn. Từ PR #17, code trên `i18n-vi` là v0.12.0, có `desktop/` và `mobile/` trong cây nhưng không có workflow build. Box vẫn chạy bản cũ cho tới khi deploy theo OPS.
 
@@ -88,6 +90,10 @@ Việc đã vào code, rút từ log và từ code ở `c16e6bb`. Thay đổi t�
 Live OSA-011 đã có trong repo: [bằng chứng](evidence/osa-011-live-test/LIVE-TEST.md), head lúc chạy `f83e3cb`, Experiential, mọi model đuôi `:free`, cost ghi 0. Bốn lượt chat (vi, en, single, heavy) đều CJK 0. Báo cáo để trạng thái PARTIAL. 14 dòng usage, 116.236 token (`cache_hit` + `cache_miss` + `output`), vượt mục tiêu khoảng 100.000 nên không chạy routine. Guard harness cộng cột `input` thay vì `cache_hit` + `cache_miss`, phải sửa trước đợt sau. Harness dừng websocket vì regex 402 khớp offset 14025. Log server không có 402. `results.json` còn heavy `running` ở 60,38 giây. `summary.json` ghi heavy PASS 124 giây. Thư mục `raw/` không đưa vào git. Câu `NOT_CHECKED` trong log OSA-011 là lời lúc mở PR #13.
 
 ## Còn lại
+
+Code trên `i18n-vi` là v0.17.0. So với upstream `ec02547` không thiếu file trong `osa/`, `web/`, `tests/`, `desktop/`, `mobile/`. Khác biệt còn lại là của remake: tiếng Việt mặc định, prompt tiếng Anh, chi phí USD, AI Native, và các sửa bảo mật đã merge tới PR #25. Không có plugin. Không có trang Chi phí. `desktop/` và `mobile/` có trong cây, remake không build. Workflow đóng gói app Mac của upstream không có.
+
+Chưa kiểm trên máy thật: Docker Computer E2E, app Mac, điện thoại sau login. Đó là OSA-002 và OSA-007, chưa phải code thiếu.
 
 Ưu tiên và AC đầy đủ hơn ở [BOARD](BOARD.md). Bảng này là thứ tự nên hỏi Tin Tin. Chưa có câu giao thì chưa làm.
 

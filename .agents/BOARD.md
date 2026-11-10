@@ -31,6 +31,10 @@ Snapshot 07/11/2026, Asia/Saigon (UTC+7). GitHub PR + base mới là trạng th�
 
 ## Done · đã public
 
+- OSA-032: `hoplite/osa-032-docs-v017` / [PR #29](https://github.com/VagabondKingsman/open-super-agent-remake/pull/29). README VI/EN/ZH, hướng dẫn VI, i18n và nhật ký port ghi đúng v0.17.0. Đã merge vào `i18n-vi` tại `d9ae1d8` lúc 13:39:04 10/11/2026 Asia/Saigon (`merged_at` API `2026-11-10T06:39:04Z`). Head `e1d4399`. CI push run `42769937081` SUCCESS. [Log](log/2026-11-10-hoplite-osa-032.md).
+
+- OSA-031 docs: [PR #28](https://github.com/VagabondKingsman/open-super-agent-remake/pull/28). Ghi PR #27 đã merge. Merge `aa1ab7e` lúc 13:09:02 10/11/2026 Asia/Saigon (`merged_at` API `2026-11-10T06:09:02Z`). Head `c9efd89`. CI push run `42766572535` SUCCESS.
+
 - OSA-031: `hoplite/osa-031-port-v0.17` / [PR #27](https://github.com/VagabondKingsman/open-super-agent-remake/pull/27). Port upstream v0.13.0–v0.17.0, version 0.17.0. Đã merge vào `i18n-vi` tại `4512138` lúc 12:59:36 10/11/2026 Asia/Saigon (`merged_at` API `2026-11-10T05:59:36Z`). Head `d97ad3c`. [Log](log/2026-11-10-hoplite-osa-031.md).
 
 - OSA-030: `hoplite/osa-030-docs-sync` / [PR #26](https://github.com/VagabondKingsman/open-super-agent-remake/pull/26). Đồng bộ `.agents/` sau #21, #23, #24, #25. Đã merge vào `i18n-vi` tại `1466670` lúc 23:22:08 09/11/2026 Asia/Saigon (`merged_at` API `2026-11-09T16:22:08Z`).
