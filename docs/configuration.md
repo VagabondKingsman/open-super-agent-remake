@@ -112,9 +112,9 @@ Heavy 另有两项，也只在 `config.yaml` 里改：
 ```yaml
 computer:
   enabled: true
-  backend: auto          # auto：有 INSTABOX_API_KEY 就用 Instabox，否则用本地 Docker；也可以指定 instabox / local
+  backend: auto          # auto：桌面 App 里用 host；否则有 Instabox 的 API Key（面板里填的或 INSTABOX_API_KEY）用 Instabox，没有用本地 Docker；也可以指定 host / instabox / local
   parallel: 3            # 几个任务可以同时用电脑，多了排队；设置 → 限制与预算 里也能改
-  width: 1280
+  width: 1280            # remake：Docker、Instabox 上任务的浏览器窗口小于 width × height 的 90% 时放大到这个大小（不超过屏幕）
   height: 800
   idle_pause_s: 900      # 闲置多少秒后自动暂停
   instabox_template: agent-browser

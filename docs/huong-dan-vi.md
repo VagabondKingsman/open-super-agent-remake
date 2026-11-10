@@ -1,16 +1,17 @@
 # Hướng dẫn tiếng Việt · Open Super Agent remake v0.17.0
 
-Cập nhật 10/11/2026, Asia/Saigon (UTC+7). Nền là upstream v0.17.0 (`ec02547`). Remake `i18n-vi` tại `aa1ab7e`. Giữ tiếng Việt mặc định, khóa dịch tiếng Trung, prompt tiếng Anh, chi phí USD, gói AI Native, và các sửa bảo mật đã merge tới PR #25. Không build app Mac hay iPhone dù code `desktop/` và `mobile/` có trong cây.
+Cập nhật 10/11/2026, Asia/Saigon (UTC+7). Nền là upstream v0.17.0 (`ec02547`). Remake `i18n-vi` tại `8c108c9` (merge PR #39). Giữ tiếng Việt mặc định, khóa dịch tiếng Trung, prompt tiếng Anh, chi phí USD, gói AI Native, các sửa bảo mật tới PR #25 và các sửa sau đợt E2E tới PR #39. Không build app Mac hay iPhone dù code `desktop/` và `mobile/` có trong cây.
 
 - [Repo remake](https://github.com/VagabondKingsman/open-super-agent-remake)
 - [Repo tác giả](https://github.com/kadaliao/open-super-agent)
 - [Cập nhật và công bố source](cap-nhat-tu-upstream.md), [hướng dẫn dịch](i18n.md)
+- Cài trên máy mới, từ gói hệ thống tới Computer và nâng cấp: [cai-dat-may-moi.md](vi/cai-dat-may-moi.md). File này chỉ tóm tắt.
 
 ## Bộ cài và dữ liệu
 
 | Thành phần | Vị trí |
 |---|---|
-| Checkout trên box | `/workspace/open-super-agent` |
+| Checkout trên box vận hành | `/workspace/open-super-agent`. Máy khác clone vào chỗ tùy ý |
 | Nhánh triển khai local | `i18n-vi` |
 | Web/API | `http://127.0.0.1:8765` |
 | Backend | `osa/server.py`, ứng dụng `osa.server:app` |
@@ -27,8 +28,10 @@ Git chỉ lưu source. `.env`, `data/`, log, khóa, `.venv/`, node_modules, bund
 
 Cần Python từ 3.11, uv và Node khớp Vite trong lockfile (`^20.19.0 || >=22.12.0`). Không cần Docker để mở UI/API, nhưng Computer local cần Docker daemon và image.
 
+Các bước đầy đủ cho máy mới, kể cả `bubblewrap`, Chrome và `xvfb`, nằm ở [cai-dat-may-moi.md](vi/cai-dat-may-moi.md).
+
 ```bash
-cd /workspace/open-super-agent
+cd <thư mục checkout>
 test -f .env || cp .env.example .env
 uv sync --locked
 (cd web && npm ci && npm test && npm run build)
@@ -93,7 +96,7 @@ Giao diện sáng, tối, hoặc theo hệ thống chọn trong Cài đặt. Gi�
 
 Bot có chat, vai trò và bộ nhớ riêng. Nhóm gồm 2–6 Bot; `@TênBot` gọi đích danh, `@everyone` gọi mọi thành viên. Bot điều phối nhận tin không @. Khi `dispatch` trong nhóm, Bot có thể đặt `handoff_to` là tên mình để được gọi lại lúc task xong. Chuỗi bàn giao theo kết quả task dừng sau 8 lượt (`MAX_TURNS`). Thẻ phê duyệt vẫn nằm trong chat riêng của Bot thực hiện, không ở nhóm.
 
-Worker chạy tác vụ dài ở nền. Heavy cho nhiều Worker làm riêng rồi reviewer tổng hợp, có thể tốn nhiều token hơn. Reviewer không có tool, nên câu hỏi gửi reviewer bỏ các dòng yêu cầu `load_skill`, `verify_facts`, Skill Flow. Bản gộp quá ngắn so với bản nháp thì OSA hỏi lại một lần, vẫn ngắn thì trả bản nháp dài nhất với trạng thái `partial`. Watchdog hủy việc quá hạn/lặp/vượt ngân sách. Bắt đầu chủ đề mới chỉ bỏ ngữ cảnh cũ, không xóa lịch sử hay bộ nhớ dài hạn.
+Worker chạy tác vụ dài ở nền. Heavy cho nhiều Worker làm riêng rồi reviewer tổng hợp, có thể tốn nhiều token hơn. Reviewer không có tool, nên câu hỏi gửi reviewer bỏ các dòng yêu cầu `load_skill`, `verify_facts`, Skill Flow. Bản gộp quá ngắn so với bản nháp thì OSA hỏi lại một lần, vẫn ngắn thì trả bản nháp dài nhất với trạng thái `partial`. Watchdog hủy việc quá hạn, lặp, vượt ngân sách, hoặc 3 phút không có tiến triển. Stream model im quá `limits.stream_idle_s` (120 giây) thì OSA đóng stream và gọi lại cùng lượt `limits.stream_retries` lần (mặc định 1), để task không bị Watchdog hủy vì một stream treo. Bắt đầu chủ đề mới chỉ bỏ ngữ cảnh cũ, không xóa lịch sử hay bộ nhớ dài hạn.
 
 Thêm model ở Cài đặt → Mô hình, chọn riêng cho Router, Worker, reviewer, filter và embedding. Muốn dùng Computer phải chọn model đọc được ảnh và tool calling. Kiểm tra model là API call thật, có thể tính phí. Mức suy nghĩ có thể là mặc định, `low`, `medium`, `high`, `xhigh`, `max`, hoặc tắt. Provider trả 400 cho một mức thì OSA gọi lại không kèm mức đó, nhớ theo model trong `settings.effort_rejects`, và nút Thử báo mức bị từ chối. Ngày 10/11/2026, xAI `grok-4.7` không nhận `max`, `grok-4.20-0309-reasoning` không nhận mức nào. xAI có thể đi qua mục Khác với endpoint tương thích OpenAI; không đồng nghĩa có toàn bộ hosted tools của dịch vụ ngoài.
 
@@ -145,13 +148,13 @@ Backup chứa secret nên cần mật khẩu riêng. Không chứa đầy đủ 
 
 ```bash
 uv run python -m osa.i18n
-uv run pytest -q
+env -u DISPLAY CI=1 OSA_REQUIRE_SANDBOX=1 OSA_TEST_CHROME=1 xvfb-run -a uv run pytest -q -rs
 (cd web && npm test && npm run build)
 curl --fail http://127.0.0.1:8765/api/settings
 curl --fail http://127.0.0.1:8765/api/files
 ```
 
-Pytest dùng database tạm, model giả và không cần Computer thật. Lấy ID Bot thực từ bootstrap/UI trước khi GET `/api/bots/<id>/computer`. Nếu bật auth, dùng phiên UI đã đăng nhập; 401 không tự là lỗi và không nên tắt mật khẩu để smoke.
+Lệnh pytest ở trên chạy giống CI: 828 passed, 1 skipped trên `8c108c9`. Máy thiếu `bwrap`, `xvfb` hoặc Chrome thì dùng `uv run pytest -q`, test cần chúng sẽ SKIP. Pytest dùng database tạm, model giả và không cần Computer thật. Lấy ID Bot thực từ bootstrap/UI trước khi GET `/api/bots/<id>/computer`. Nếu bật auth, dùng phiên UI đã đăng nhập; 401 không tự là lỗi và không nên tắt mật khẩu để smoke.
 
 Sau build, tải lại tab cũ. Entry JS đã tách trang, khoảng 69 kB lúc OSA-022. Việc desktop thật, model trả phí, kênh chat và image Computer chưa được chứng minh chỉ bằng unit test hoặc HTTP 200.
 

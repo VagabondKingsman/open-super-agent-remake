@@ -86,13 +86,26 @@ git diff --check
 
 `uv run python -m osa.i18n` không mở DB. Nó báo khóa EN/VI thiếu hoặc thừa, placeholder lệch, và câu tiếng Trung trên frontend chưa bọc `t()`.
 
-`pytest` dùng temp DB và FakeLLM qua conftest. Ghi số passed, failed và skipped. Ba test trong `tests/test_local_checks.py` SKIP khi không phải Linux, hoặc khi thiếu một trong `bwrap`, `prlimit`, `git`, `ps` trên PATH. SKIP không phải PASS. Base `3c08269` có 172 test: 172 passed khi đủ sandbox, 169 passed và 3 skipped khi thiếu. Port v0.6.1 thêm 21 test trong `tests/test_auth.py` và `tests/test_data_dir.py`. Cây này có 193 test: 193 passed và 0 skipped khi đủ sandbox, 190 passed và 3 skipped khi thiếu. Không lấy 172 làm số hiện tại. Không bỏ assertion cũ để suite xanh.
+`pytest` dùng temp DB và FakeLLM qua conftest. Ghi số passed, failed và skipped. SKIP không phải PASS. Không bỏ assertion cũ để suite xanh.
 
-CI cài `bubblewrap`, mở user namespace trên runner rồi chạy `pytest` với `OSA_REQUIRE_SANDBOX=1`. Khi biến này bật, ba test sandbox không được SKIP: thiếu `bwrap` thì chúng FAIL. Trên máy local, bỏ trống biến này thì vẫn SKIP như cũ khi thiếu sandbox. CI cũng đặt `OSA_TEST_CHROME=1` và chạy pytest trong `xvfb-run -a`, nên `test_real_chrome` chạy với Chrome thật trên màn hình ảo. Trên Linux không có màn hình, chạy tay thì thêm `xvfb-run -a` trước lệnh pytest.
+Trên `8c108c9`, chạy giống CI được 828 passed, 1 skipped:
+
+```bash
+env -u DISPLAY CI=1 OSA_REQUIRE_SANDBOX=1 OSA_TEST_CHROME=1 xvfb-run -a uv run pytest -q -rs
+```
+
+Test còn skip là `tests/test_host_desktop.py::test_real_desktop`. Test này cần macOS và `OSA_TEST_DESKTOP=1`, vì nó điều khiển chuột và bàn phím thật.
+
+Các test phụ thuộc môi trường:
+
+- Ba test trong `tests/test_local_checks.py` cần Linux cùng `bwrap`, `prlimit`, `git`, `ps` trên PATH, và kernel cho phép user namespace. Thiếu một thứ thì chúng SKIP. Đặt `OSA_REQUIRE_SANDBOX=1` để chúng FAIL thay vì SKIP. CI đặt biến này sau khi cài `bubblewrap` và chạy `sysctl -w kernel.apparmor_restrict_unprivileged_userns=0`.
+- `test_real_chrome` mở Chrome thật. `OSA_TEST_CHROME=1` ép chạy, `0` bỏ qua. Không đặt biến thì test chạy khi tìm thấy Chrome, có màn hình (`DISPLAY` hoặc `WAYLAND_DISPLAY` trên Linux) và không có biến `CI`. Linux không có màn hình thì chạy pytest trong `xvfb-run -a`. Không có màn hình, Chrome không mở cổng debug và test fail sau 20 giây nếu bị ép chạy.
+
+Cách cài các gói này trên máy mới nằm ở [docs/vi/cai-dat-may-moi.md](docs/vi/cai-dat-may-moi.md).
 
 `verify-sources` đối chiếu SHA-256 của `skills-pack/ai-native/`. Lệnh này import `osa.memory`, nên khi chạy tay hãy đặt `OSA_CONFIG` tạm trước, và bỏ `OSA_DATA_DIR` hoặc trỏ nó vào thư mục tạm. Không gọi `defaults` hoặc `install` vào DB thật chỉ để kiểm tra tài liệu.
 
-Đổi runtime, UI, i18n, hoặc một file ở root ngoài `.agents/` thì chạy i18n, pytest và frontend tests. Build khi đụng UI hoặc trước handoff phát hành. Ghi command, exit code và số test. Vite có thể cảnh báo chunk JS lớn hơn 500 kB. Cảnh báo đó không phải build fail. Trên base `3c08269` chunk này khoảng 1,15 MB. Số đo của từng phiên nằm trong log, không phải ngưỡng cứng.
+Đổi runtime, UI, i18n, hoặc một file ở root ngoài `.agents/` thì chạy i18n, pytest và frontend tests. Build khi đụng UI hoặc trước handoff phát hành. Ghi command, exit code và số test. Vite có thể cảnh báo chunk JS lớn hơn 500 kB. Cảnh báo đó không phải build fail. Từ OSA-003 (PR #18) frontend tách theo trang. Trên `8c108c9` entry JS là 68,89 kB, chunk lớn nhất (Markdown) 345,77 kB, không còn cảnh báo. Số đo của từng phiên nằm trong log, không phải ngưỡng cứng.
 
 `uv run python -m osa.catalog` kiểm manifest ứng dụng và không mở SQLite. `uv run python -m osa.templates` kiểm YAML template, không cài template và không chạy routine. Import module vẫn mở DB, nên đặt `OSA_CONFIG` tạm trước. Không cài template lên DB thật và không cho lịch chạy.
 
@@ -128,4 +141,4 @@ Port commit upstream theo [docs/cap-nhat-tu-upstream.md](docs/cap-nhat-tu-upstre
 
 Dùng [.github/pull_request_template.md](.github/pull_request_template.md) và [.agents/templates/PR.md](.agents/templates/PR.md). Ghi TIP, từng AC, lệnh đã chạy, và phần chưa chạy (`NOT_CHECKED`). `git diff --check` phải sạch. Quét diff tìm secret và PII, rồi đọc lại các mẫu trùng, trước khi commit.
 
-CI nằm ở [.github/workflows/ci.yml](.github/workflows/ci.yml): compile và import, catalog, templates, i18n, pytest, frontend test và build, cộng job Docker image. Push trong workflow hiện chỉ ghi nhánh `main`. PR không giới hạn nhánh. Chưa đọc check-run thì không kết luận CI remote xanh. Job Docker smoke không thay Computer E2E.
+CI nằm ở [.github/workflows/ci.yml](.github/workflows/ci.yml): compile và import, catalog, templates, i18n, pytest, frontend test và build, cộng job Docker image. Workflow chạy khi push vào `main` hoặc `i18n-vi`, và trên mọi PR. Job backend cài `bubblewrap` và `xvfb`, rồi chạy pytest dưới `xvfb-run -a` với `OSA_REQUIRE_SANDBOX=1` và `OSA_TEST_CHROME=1`. Workflow `computer-image.yml` build image Computer khi `osa/computer/image/` đổi. Chưa đọc check-run thì không kết luận CI remote xanh. Job Docker smoke không thay Computer E2E.

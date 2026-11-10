@@ -21,7 +21,7 @@ An open-source alternative to [Grok Bot](https://x.ai/bot). Bring your own model
 
 ## v0.17.0 remake
 
-This edition tracks upstream v0.17.0 (`ec02547`) on branch `i18n-vi` (`90d820c`). Vietnamese is the default. English and Chinese stay available. Prompts sent to the model are English and ask for a reply in the UI language. Costs are USD. There is no Costs page: prices are on Models, recorded spend is on Observe. Developer plugins are gone. A missing Docker daemon still reports `unavailable` / `docker_missing`. The working branch does not build or publish the Mac or iPhone apps.
+This edition tracks upstream v0.17.0 (`ec02547`) on branch `i18n-vi` (`8c108c9`, PR #39). The GitHub default branch `main` is an old snapshot; always use `i18n-vi`. Vietnamese is the default. English and Chinese stay available. Prompts sent to the model are English and ask for a reply in the UI language. Costs are USD. There is no Costs page: prices are on Models, recorded spend is on Observe. Developer plugins are gone. A missing Docker daemon still reports `unavailable` / `docker_missing`. The working branch does not build or publish the Mac or iPhone apps.
 
 Fixes from the 10 Nov 2026 Computer E2E audit (remake only):
 
@@ -72,7 +72,7 @@ The architecture follows DeepSeek's Super-agent design: a Router that converses,
 With Docker Compose you only need Docker:
 
 ```bash
-git clone https://github.com/VagabondKingsman/open-super-agent-remake.git && cd open-super-agent-remake
+git clone -b i18n-vi https://github.com/VagabondKingsman/open-super-agent-remake.git && cd open-super-agent-remake
 cp .env.example .env     # optionally fill in DEEPSEEK_API_KEY, or add a key later in Settings → Models
 docker compose up -d     # the first build takes 5–10 minutes; then open http://127.0.0.1:8765
 ```
@@ -81,10 +81,11 @@ The first time you open it, a short setup guide walks you through adding a model
 
 See [Deploy with Docker Compose](docs/docker.md) (in Chinese) for automatic HTTPS, using Instabox as the computer, and backups.
 
-Without Docker you need Python ≥ 3.11 with [uv](https://docs.astral.sh/uv/) and Node ≥ 20 (plus Docker for the local computer backend):
+Without Docker you need Python ≥ 3.11 with [uv](https://docs.astral.sh/uv/) and Node `^20.19.0 || >=22.12.0` (plus Docker for the local computer backend, and `bubblewrap` on Linux for the code sandbox). The full install guide, in Vietnamese, is [docs/vi/cai-dat-may-moi.md](docs/vi/cai-dat-may-moi.md):
 
 ```bash
 export DEEPSEEK_API_KEY=sk-...              # optional, you can also add it in Settings → Models; see .env.example
+uv sync --locked
 (cd web && npm ci && npm run build)
 uv run uvicorn osa.server:app --port 8765   # open http://127.0.0.1:8765
 ```
