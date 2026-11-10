@@ -25,7 +25,11 @@ const BRIDGE: &str = r#"(function () {
     setBadge: function () {},
     openExternal: function (url) { quiet('android_open_external', { url: String(url) }); },
     speech: false,
-    switchServer: function () { quiet('android_switch_server'); }
+    switchServer: function () {
+      call('android_switch_server').then(function () {
+        location.replace('http://tauri.localhost/');
+      }).catch(function () {});
+    }
   };
 })();"#;
 
@@ -163,7 +167,15 @@ fn android_open_external(app: AppHandle, url: String) {
 
 #[tauri::command]
 fn android_switch_server(app: AppHandle) {
-    show_setup(&app, "?switch=1");
+    {
+        let st = state(&app);
+        let mut cfg = st.cfg.lock().unwrap();
+        cfg.url = None;
+        store::save(&st.dir, &cfg);
+        st.next.lock().unwrap().take();
+        *st.origin.lock().unwrap() = None;
+    }
+    // The page reloads itself. navigate() fills wry's 8-message Android queue.
 }
 
 fn build_main(app: &AppHandle) -> tauri::Result<()> {

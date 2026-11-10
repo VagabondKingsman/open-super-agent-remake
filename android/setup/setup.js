@@ -43,4 +43,4 @@ document.querySelector('#pairOk').addEventListener('click', async () => {
 })
 document.querySelector('#pairNo').addEventListener('click', () => invoke('cancel_pair'))
 
-paint()
+paint().catch((e) => showError(String(e)))
