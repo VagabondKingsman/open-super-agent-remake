@@ -54,9 +54,15 @@ fn setup_url(query: &str) -> Url {
 
 fn show_setup(app: &AppHandle, query: &str) {
     *state(app).origin.lock().unwrap() = None;
-    if let Some(w) = main_window(app) {
-        let _ = w.navigate(setup_url(query));
-    }
+    let url = setup_url(query);
+    let app = app.clone();
+    // The Android webview queue holds 8 messages. Sending navigate from the
+    // command thread fills it and panics. The UI thread drains that queue.
+    let _ = app.clone().run_on_main_thread(move || {
+        if let Some(w) = main_window(&app) {
+            let _ = w.navigate(url);
+        }
+    });
 }
 
 fn server_pattern(origin: &Url) -> String {
@@ -93,9 +99,13 @@ fn open_server(app: &AppHandle, origin: Url, first: Option<Url>) {
     *state(app).origin.lock().unwrap() = Some(origin.clone());
     state(app).error.lock().unwrap().clear();
     grant(app, &origin);
-    if let Some(w) = main_window(app) {
-        let _ = w.navigate(first.unwrap_or(origin));
-    }
+    let url = first.unwrap_or(origin);
+    let app = app.clone();
+    let _ = app.clone().run_on_main_thread(move || {
+        if let Some(w) = main_window(&app) {
+            let _ = w.navigate(url);
+        }
+    });
 }
 
 fn connect(app: &AppHandle, origin: Url, ticket: &str) -> Result<(), String> {
