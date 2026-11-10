@@ -406,13 +406,19 @@ class Router:
                     break
                 except Exception as e:
                     memory.record_error("router", model, providers.brief(e), ms=(time.monotonic() - t0) * 1000)
+                    # 作废的这次也花了 token：有 usage 照实记，没有就按已收到的文字估算
+                    memory.record_partial("router", model, usage, memory.streamed_output_text(content, reasoning, calls))
                     # 流中途卡住或断了，而且还没推送正文、没收到工具调用：重来一次。已经推送了正文就不重来，免得界面上重复
                     # 开流之前的错 create_chat 已经按规则重试过了，这里只管流开了之后的
                     if stream is not None and attempt < providers.stream_retries() and sent == 0 and not calls \
                             and providers.retry_midstream(e):
                         attempt += 1
                         log.warning("router stream failed mid-way (%s); retrying", providers.brief(e))
-                        content, reasoning, usage, finish, first, t0 = "", "", None, None, None, time.monotonic()
+                        if reasoning or content:   # 界面上已经显示的思考清掉，免得重来后同一段思考出现两遍
+                            await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
+                        content, reasoning, usage, finish, first = "", "", None, None, None
+                        await providers.retry_pause(attempt)
+                        t0 = time.monotonic()
                         continue
                     raise
             memory.record_usage("router", model, usage, ms=(time.monotonic() - t0) * 1000,

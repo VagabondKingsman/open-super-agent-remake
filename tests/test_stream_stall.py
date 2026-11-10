@@ -33,6 +33,9 @@ class Stream:
         for c in self.chunks:
             if c == "hang":
                 await asyncio.Event().wait()
+            if isinstance(c, tuple) and c[0] == "sleep":   # 这一块之前停一会儿
+                await asyncio.sleep(c[1])
+                continue
             if isinstance(c, Exception):
                 raise c
             yield c
@@ -65,9 +68,18 @@ def _capacity():
                            httpx.Request("POST", "https://api.example/v1/chat/completions"), body=None)
 
 
+PAUSES: list = []
+
+
 @pytest.fixture
 def fast_idle(monkeypatch):
-    monkeypatch.setitem(CFG, "limits", {**CFG["limits"], "stream_idle_s": 0.2, "stream_retries": 1})
+    monkeypatch.setitem(CFG, "limits", {**CFG["limits"], "stream_idle_s": 0.2, "stream_first_chunk_s": 0.6,
+                                         "stream_retries": 1})
+    PAUSES.clear()
+
+    async def no_wait(attempt):
+        PAUSES.append(attempt)
+    monkeypatch.setattr(providers, "retry_pause", no_wait)
 
 
 async def _reply(task_id, client):
@@ -113,7 +125,8 @@ async def test_quota_error_mid_stream_not_retried(fast_idle):
 
 
 async def test_retries_zero_keeps_old_behaviour(monkeypatch):
-    monkeypatch.setitem(CFG, "limits", {**CFG["limits"], "stream_idle_s": 0.2, "stream_retries": 0})
+    monkeypatch.setitem(CFG, "limits", {**CFG["limits"], "stream_idle_s": 0.2, "stream_first_chunk_s": 0.2,
+                                         "stream_retries": 0})
     client = Client(STALL, OK)
     with pytest.raises(providers.StreamStalled):
         await _reply(9305, client)
@@ -121,8 +134,70 @@ async def test_retries_zero_keeps_old_behaviour(monkeypatch):
 
 
 def test_idle_limit_shorter_than_watchdog():
-    """Watchdog 3 分钟没进展就取消任务；流的空闲上限必须更短，重来才有机会。"""
+    """Watchdog 3 分钟没进展就取消任务；流的空闲上限、第一块的上限都必须更短，重来才有机会。"""
     assert 0 < providers.stream_idle_s() < 180
+    assert providers.stream_idle_s() <= providers.stream_first_chunk_s() < 180
+
+
+# F1：想得久的模型第一块来得慢，不算卡住；第一块之后才按 stream_idle_s 算
+async def test_slow_first_chunk_within_first_limit_is_not_a_stall(fast_idle):
+    client = Client([("sleep", 0.4), Chunk(Delta(content="xong")), Chunk(Delta(), "stop")])
+    _, msg = await _reply(9306, client)
+    assert msg["content"] == "xong" and client.calls == 1 and PAUSES == []
+
+
+async def test_first_chunk_never_comes_is_a_stall(fast_idle):
+    client = Client(["hang"], OK)
+    _, msg = await _reply(9307, client)
+    assert msg["content"] == "xong" and client.calls == 2 and client.streams[0].closed
+
+
+async def test_mid_stream_gap_uses_idle_limit_not_first_limit(fast_idle):
+    # 第一块之后停 0.4 秒：比第一块的上限（0.6）短，但比两块之间的上限（0.2）长，算卡住
+    client = Client([Chunk(Delta(reasoning="a")), ("sleep", 0.4), Chunk(Delta(content="muộn")), Chunk(Delta(), "stop")], OK)
+    _, msg = await _reply(9308, client)
+    assert msg["content"] == "xong" and client.calls == 2
+
+
+async def test_guard_stream_explicit_limits():
+    s = Stream([("sleep", 0.15), Chunk(Delta(content="x")), ("sleep", 0.15), Chunk(Delta(content="y"))])
+    got = [c async for c in providers.guard_stream(s, idle_s=0.3, first_s=0.3)]
+    assert len(got) == 2
+    s = Stream([Chunk(Delta(content="x")), ("sleep", 0.3), Chunk(Delta(content="y"))])
+    with pytest.raises(providers.StreamStalled):
+        [c async for c in providers.guard_stream(s, idle_s=0.1, first_s=5)]
+
+
+# F3：重来之前等一会儿（2–5 秒，带随机）
+async def test_worker_retry_waits_before_calling_again(fast_idle):
+    client = Client(STALL, OK)
+    await _reply(9309, client)
+    assert PAUSES == [1]
+
+
+def test_retry_delay_between_2_and_5_seconds():
+    for attempt in (1, 2, 3, 10):
+        for _ in range(50):
+            d = providers.stream_retry_delay(attempt)
+            assert 2.0 <= d <= 5.0
+
+
+async def test_retry_pause_uses_delay(monkeypatch):
+    waited = []
+
+    async def fake_sleep(s):
+        waited.append(s)
+    monkeypatch.setattr(providers.asyncio, "sleep", fake_sleep)
+    await providers.retry_pause(1)
+    assert len(waited) == 1 and 2.0 <= waited[0] <= 3.0
+
+
+# F2：作废那一次的用量也要记
+async def test_worker_failed_attempt_usage_is_recorded(fast_idle):
+    client = Client([Chunk(Delta(reasoning="nghĩ rất nhiều " * 20)), "hang"], OK)
+    await _reply(9310, client)
+    rows = memory.conn.execute("select output, estimated from llm_calls where task_id=9310 and err is null").fetchall()
+    assert any(r[1] == 1 and r[0] > 0 for r in rows)
 
 
 def test_retry_classification():
@@ -154,3 +229,21 @@ async def test_router_does_not_retry_after_text_was_shown(fast_idle, monkeypatch
     await server.safe_handle(bots.chat(b["chat_id"]), "chào")
     await settle()
     assert client.calls == 1   # 正文已经推到界面上，重来会重复，所以照旧报错
+
+
+async def test_router_retry_resets_shown_thinking_and_records_usage(fast_idle, monkeypatch, events, make_bot):
+    before = memory.conn.execute("select count(*) from llm_calls where role='router' and estimated=1").fetchone()[0]
+    client = Client([Chunk(Delta(reasoning="đang nghĩ " * 20)), "hang"],
+                    [Chunk(Delta(reasoning="đang nghĩ")), Chunk(Delta(content="Chào lại")), Chunk(Delta(), "stop")])
+    monkeypatch.setattr(providers, "client", lambda name, timeout=None: client)
+    b = make_bot("Resetty")
+    await server.safe_handle(bots.chat(b["chat_id"]), "chào")
+    await settle()
+    assert client.calls == 2 and PAUSES == [1]
+    streams = [e for e in events.of("stream") if e.get("chat_id", b["chat_id"]) == b["chat_id"]]
+    kinds = ["reset" if e.get("reset") else "thinking" if e.get("thinking") else "delta" for e in streams]
+    i = kinds.index("reset")
+    assert "thinking" in kinds[:i] and "thinking" in kinds[i + 1:]
+    assert find(b["chat_id"], role="assistant", text="Chào lại")
+    after = memory.conn.execute("select count(*) from llm_calls where role='router' and estimated=1").fetchone()[0]
+    assert after == before + 1

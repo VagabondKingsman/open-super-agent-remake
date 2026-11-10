@@ -4,6 +4,7 @@ config.yaml 的 providers 是默认值；在 设置 → 模型 里添加或改�
 密钥存进保险库（LLM_KEY_<名字>）。用密钥时先看保险库，没有再看 config.yaml 里写的环境变量。
 """
 import asyncio
+import random
 import base64
 import copy
 import email.utils
@@ -345,18 +346,38 @@ def stream_idle_s() -> float:
     return max(0.0, float(CFG["limits"].get("stream_idle_s", 120) or 0))
 
 
+def stream_first_chunk_s() -> float:
+    """流开了以后等第一块最多几秒。想得久的模型（高思考强度、不流式输出思考）第一块可能要两三分钟，
+    所以单独算，默认 170，仍比 Watchdog 的 3 分钟短。0 表示不限。"""
+    return max(0.0, float(CFG["limits"].get("stream_first_chunk_s", 170) or 0))
+
+
 def stream_retries() -> int:
     """流中途卡住或断了（服务忙、连接断）时，同一轮再调几次。"""
     return max(0, int(CFG["limits"].get("stream_retries", 1) or 0))
 
 
-async def guard_stream(stream, idle_s: float | None = None):
-    """包住流式响应：两块之间超过 idle_s 秒就关掉流，抛 StreamStalled。"""
+def stream_retry_delay(attempt: int) -> float:
+    """第 attempt 次重来之前等几秒：2、4 秒起步，加一点随机，最多 5 秒。服务忙（at capacity）时马上再调多半还是忙。"""
+    base = min(5.0, 2.0 * attempt)
+    return min(5.0, base + random.uniform(0, 1.0))
+
+
+async def retry_pause(attempt: int):
+    """流中途出错、重来之前的等待。测试替换这个函数，不用真等。"""
+    await asyncio.sleep(stream_retry_delay(attempt))
+
+
+async def guard_stream(stream, idle_s: float | None = None, first_s: float | None = None):
+    """包住流式响应：第一块超过 first_s 秒、之后两块之间超过 idle_s 秒，就关掉流，抛 StreamStalled。"""
     idle = stream_idle_s() if idle_s is None else idle_s
+    first = stream_first_chunk_s() if first_s is None else first_s
     it = stream.__aiter__()
+    got = False
     while True:
+        wait = idle if got else first
         try:
-            chunk = await (asyncio.wait_for(it.__anext__(), idle) if idle > 0 else it.__anext__())
+            chunk = await (asyncio.wait_for(it.__anext__(), wait) if wait > 0 else it.__anext__())
         except StopAsyncIteration:
             return
         except asyncio.TimeoutError:
@@ -366,7 +387,8 @@ async def guard_stream(stream, idle_s: float | None = None):
                     await close()
                 except Exception:
                     pass
-            raise StreamStalled(i18n.t("模型 {n} 秒没有输出新内容", n=int(idle))) from None
+            raise StreamStalled(i18n.t("模型 {n} 秒没有输出新内容", n=int(wait))) from None
+        got = True
         yield chunk
 
 
