@@ -7,6 +7,7 @@ mod store;
 use serde_json::{json, Value};
 use std::path::PathBuf;
 use std::sync::Mutex;
+use std::sync::Arc;
 use std::time::Duration;
 use tauri::ipc::CapabilityBuilder;
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
@@ -62,10 +63,61 @@ fn server_pattern(origin: &Url) -> String {
 }
 
 fn check_remote(origin: &Url) -> Result<(), String> {
-    let agent = ureq::AgentBuilder::new().timeout(Duration::from_secs(15)).build();
+    let mut builder = ureq::AgentBuilder::new().timeout(Duration::from_secs(15));
+    // A LAN server behind a private proxy often has a self-signed cert.
+    // Public hosts keep the normal verifier.
+    if lan_host(origin) {
+        builder = builder.tls_config(Arc::new(private_tls()));
+    }
+    let agent = builder.build();
     match agent.get(origin.join("/manifest.json").unwrap().as_str()).call() {
         Ok(_) => Ok(()),
         Err(e) => Err(format!("Can't reach this address: {e}")),
+    }
+}
+
+fn lan_host(origin: &Url) -> bool {
+    let Some(host) = origin.host_str() else { return false };
+    if host.eq_ignore_ascii_case("localhost") || host.ends_with(".local") { return true; }
+    let Ok(ip) = host.parse::<std::net::IpAddr>() else { return false };
+    ip.is_loopback() || ip.is_private() || ip.is_link_local()
+}
+
+fn private_tls() -> rustls::ClientConfig {
+    let mut roots = rustls::RootCertStore::empty();
+    roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+    let mut cfg = rustls::ClientConfig::builder()
+        .with_root_certificates(roots)
+        .with_no_client_auth();
+    cfg.dangerous().set_certificate_verifier(Arc::new(AllowAnyCert));
+    cfg
+}
+
+#[derive(Debug)]
+struct AllowAnyCert;
+
+impl rustls::client::danger::ServerCertVerifier for AllowAnyCert {
+    fn verify_server_cert(
+        &self,
+        _end_entity: &rustls::pki_types::CertificateDer<'_>,
+        _intermediates: &[rustls::pki_types::CertificateDer<'_>],
+        _server_name: &rustls::pki_types::ServerName<'_>,
+        _ocsp: &[u8],
+        _now: rustls::pki_types::UnixTime,
+    ) -> Result<rustls::client::danger::ServerCertVerified, rustls::Error> {
+        Ok(rustls::client::danger::ServerCertVerified::assertion())
+    }
+
+    fn verify_tls12_signature(&self, message: &[u8], cert: &rustls::pki_types::CertificateDer<'_>, dss: &rustls::DigitallySignedStruct) -> Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
+        rustls::crypto::verify_tls12_signature(message, cert, dss, &rustls::crypto::ring::default_provider().signature_verification_algorithms)
+    }
+
+    fn verify_tls13_signature(&self, message: &[u8], cert: &rustls::pki_types::CertificateDer<'_>, dss: &rustls::DigitallySignedStruct) -> Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
+        rustls::crypto::verify_tls13_signature(message, cert, dss, &rustls::crypto::ring::default_provider().signature_verification_algorithms)
+    }
+
+    fn supported_verify_schemes(&self) -> Vec<rustls::SignatureScheme> {
+        rustls::crypto::ring::default_provider().signature_verification_algorithms.supported_schemes()
     }
 }
 

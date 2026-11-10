@@ -7,6 +7,8 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.webkit.CookieManager
+import android.net.http.SslError
+import android.webkit.SslErrorHandler
 import android.widget.FrameLayout
 import android.content.pm.ShortcutInfo
 import android.content.pm.ShortcutManager
@@ -33,6 +35,10 @@ class SheetActivity : Activity() {
     CookieManager.getInstance().setAcceptCookie(true)
     CookieManager.getInstance().setAcceptThirdPartyCookies(web, true)
     web.webViewClient = object : WebViewClient() {
+      override fun onReceivedSslError(view: WebView, handler: SslErrorHandler, error: SslError) {
+        LanCert.proceed(view, handler, error)
+      }
+
       override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
         val next = request.url.toString()
         if (request.isForMainFrame && !sameOrigin(next, origin)) {
