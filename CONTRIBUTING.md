@@ -103,6 +103,8 @@ Các test phụ thuộc môi trường:
 
 Cách cài các gói này trên máy mới nằm ở [docs/vi/cai-dat-may-moi.md](docs/vi/cai-dat-may-moi.md).
 
+Bộ eval offline (27 kịch bản agent, mô hình giả, không gọi mạng) chạy cùng pytest. Chạy riêng và so với baseline bằng `uv run python scripts/run_evals.py`. Đổi Router, Worker, tool, thẻ xác nhận, routine hoặc prompt thì xem bảng điểm. Kịch bản từng PASS mà nay FAIL sẽ chặn PR trên CI. Thêm kịch bản, cập nhật baseline và luật của cổng: [docs/vi/eval.md](docs/vi/eval.md).
+
 `verify-sources` đối chiếu SHA-256 của `skills-pack/ai-native/`. Lệnh này import `osa.memory`, nên khi chạy tay hãy đặt `OSA_CONFIG` tạm trước, và bỏ `OSA_DATA_DIR` hoặc trỏ nó vào thư mục tạm. Không gọi `defaults` hoặc `install` vào DB thật chỉ để kiểm tra tài liệu.
 
 Đổi runtime, UI, i18n, hoặc một file ở root ngoài `.agents/` thì chạy i18n, pytest và frontend tests. Build khi đụng UI hoặc trước handoff phát hành. Ghi command, exit code và số test. Vite có thể cảnh báo chunk JS lớn hơn 500 kB. Cảnh báo đó không phải build fail. Từ OSA-003 (PR #18) frontend tách theo trang. Trên `8c108c9` entry JS là 68,89 kB, chunk lớn nhất (Markdown) 345,77 kB, không còn cảnh báo. Số đo của từng phiên nằm trong log, không phải ngưỡng cứng.
