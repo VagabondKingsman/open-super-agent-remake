@@ -15,7 +15,7 @@ export function themePref(): ThemePref {
 export const isDark = () => document.documentElement.dataset.theme !== 'light'
 
 // 外壳支持换主题时才能在 App 里固定（旧版手机 App 的状态栏不跟着变，固定了会看不清）
-export const canSetTheme = !(desktop?.platform === 'ios' && !desktop.setTheme)
+export const canSetTheme = !((desktop?.platform === 'ios' || desktop?.platform === 'android') && !desktop.setTheme)
 
 function apply() {
   const pref = canSetTheme ? themePref() : 'system'

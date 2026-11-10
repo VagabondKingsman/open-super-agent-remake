@@ -19,7 +19,7 @@ export type Bridge = {
     disconnect(): Promise<void>
   }
   // 下面这些只有手机 App 有
-  platform?: 'macos' | 'ios'
+  platform?: 'macos' | 'ios' | 'android'
   push?: {
     // 这台手机给这台服务器开着推送时，返回要交给 /api/push/subscribe 的订阅（中转或服务器密钥变了会自动重新登记）；没开返回 null
     current(serverKey: string): Promise<PushSub | null>
@@ -32,7 +32,7 @@ export type Bridge = {
 }
 
 export const desktop: Bridge | undefined = typeof window !== 'undefined' ? (window as any).osaDesktop : undefined
-export const phone = desktop?.platform === 'ios'
+export const phone = desktop?.platform === 'ios' || desktop?.platform === 'android'
 
 // 点到别的网站的链接：用系统浏览器打开，不在 App 的窗口里跳走。
 // 外壳分不清是页面跳转还是页面里的 iframe 在加载，所以由页面自己在点击时处理。
