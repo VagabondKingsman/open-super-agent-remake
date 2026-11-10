@@ -247,3 +247,15 @@ async def test_router_retry_resets_shown_thinking_and_records_usage(fast_idle, m
     assert find(b["chat_id"], role="assistant", text="Chào lại")
     after = memory.conn.execute("select count(*) from llm_calls where role='router' and estimated=1").fetchone()[0]
     assert after == before + 1
+
+
+def test_config_yaml_documents_stream_defaults(monkeypatch):
+    """AUDIT-F9：config.yaml 里注释掉的三行和代码默认值一致。"""
+    import re
+    from pathlib import Path
+    text = (Path(__file__).resolve().parent.parent / "config.yaml").read_text()
+    got = {k: float(v) for k, v in re.findall(r"^  # (stream_\w+): (\d+)", text, re.M)}
+    assert set(got) == {"stream_first_chunk_s", "stream_idle_s", "stream_retries"}
+    monkeypatch.setitem(CFG, "limits", {k: v for k, v in CFG["limits"].items() if not k.startswith("stream_")})
+    assert got == {"stream_first_chunk_s": providers.stream_first_chunk_s(), "stream_idle_s": providers.stream_idle_s(),
+                   "stream_retries": providers.stream_retries()}
