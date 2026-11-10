@@ -11,6 +11,10 @@ function showError(text) {
 
 async function paint() {
   const s = await invoke('setup_state')
+  if (s.next) {
+    location.replace(s.next)
+    return
+  }
   if (s.pair) {
     connect.hidden = true
     pair.hidden = false
@@ -28,13 +32,14 @@ document.querySelector('#remote').addEventListener('submit', async (e) => {
   showError('')
   try {
     await invoke('choose_remote', { url: document.querySelector('#url').value })
+    await paint()
   } catch (e) {
     showError(String(e))
   }
 })
 
 document.querySelector('#pairOk').addEventListener('click', async () => {
-  try { await invoke('confirm_pair') } catch (e) { showError(String(e)) }
+  try { await invoke('confirm_pair'); await paint() } catch (e) { showError(String(e)) }
 })
 document.querySelector('#pairNo').addEventListener('click', () => invoke('cancel_pair'))
 
