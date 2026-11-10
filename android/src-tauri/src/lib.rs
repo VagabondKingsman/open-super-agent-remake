@@ -73,7 +73,8 @@ fn check_remote(origin: &Url) -> Result<(), String> {
 
 fn grant(app: &AppHandle, origin: &Url) {
     let key = origin.origin().ascii_serialization();
-    let mut granted = state(app).granted.lock().unwrap();
+    let st = state(app);
+    let mut granted = st.granted.lock().unwrap();
     if granted.contains(&key) {
         return;
     }
@@ -100,9 +101,10 @@ fn open_server(app: &AppHandle, origin: Url, first: Option<Url>) {
 fn connect(app: &AppHandle, origin: Url, ticket: &str) -> Result<(), String> {
     check_remote(&origin)?;
     {
-        let mut cfg = state(app).cfg.lock().unwrap();
+        let st = state(app);
+        let mut cfg = st.cfg.lock().unwrap();
         cfg.url = Some(origin.origin().ascii_serialization());
-        store::save(&state(app).dir, &cfg);
+        store::save(&st.dir, &cfg);
     }
     let first = (!ticket.is_empty()).then(|| connect::ticket_url(&origin, ticket));
     open_server(app, origin, first);
