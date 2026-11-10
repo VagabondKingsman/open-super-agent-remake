@@ -32,17 +32,22 @@ jobs:
       - name: Check bundled AI Native skill sources
         run: uv run python -m osa.skillpacks verify-sources
       - name: Install bubblewrap sandbox
-        # 3 test trong tests/test_local_checks.py cần bwrap thật. Ubuntu 24.04 chặn user namespace
+        # 3 test trong tests/test_local_checks.py cần bwrap thật; xvfb cho test_real_chrome. Ubuntu 24.04 chặn user namespace
         # không đặc quyền qua AppArmor, nên mở lại cho runner rồi thử bwrap một lần.
         run: |
           sudo apt-get update -q
-          sudo apt-get install -y --no-install-recommends bubblewrap
+          sudo apt-get install -y --no-install-recommends bubblewrap xvfb
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
           bwrap --version
           bwrap --unshare-all --die-with-parent --ro-bind / / true
+      - name: Check Chrome
+        run: google-chrome --version
       - name: Tests
-        env: { OSA_REQUIRE_SANDBOX: "1" }   # sandbox tests must run, not skip
-        run: uv run pytest -q -rs
+        # OSA_REQUIRE_SANDBOX: sandbox tests must run, not skip.
+        # OSA_TEST_CHROME: test_real_chrome must run. Runner không có màn hình nên Chrome không mở được
+        # cổng debug (timeout 20 giây); xvfb-run cho nó một màn hình ảo.
+        env: { OSA_REQUIRE_SANDBOX: "1", OSA_TEST_CHROME: "1" }
+        run: xvfb-run -a uv run pytest -q -rs
 
   frontend:
     runs-on: ubuntu-latest
