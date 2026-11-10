@@ -26,8 +26,9 @@ const BRIDGE: &str = r#"(function () {
     openExternal: function (url) { quiet('android_open_external', { url: String(url) }); },
     speech: false,
     switchServer: function () {
-      quiet('android_switch_server');
-      location.replace('http://tauri.localhost/');
+      call('android_switch_server').then(function () {
+        location.replace('http://tauri.localhost/');
+      }).catch(function () {});
     }
   };
 })();"#;
