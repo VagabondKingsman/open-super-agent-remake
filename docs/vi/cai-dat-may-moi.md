@@ -233,7 +233,7 @@ docker compose up -d
 
 Image app đã có Node, uv và bubblewrap, không cần cài Python hay build web trên máy host. Muốn dùng Computer Docker, thêm dòng `COMPOSE_FILE=compose.yaml:compose.computer.yaml` vào `.env` rồi `docker compose up -d` lại. File đó gắn `docker.sock`, tức là cấp cho server quyền gần như root trên host. Chỉ dùng Instabox thì đừng thêm file đó.
 
-Chi tiết (HTTPS qua Caddy, mirror, lỗi thường gặp) ở [docs/docker.md](../docker.md). File đó là bản upstream tiếng Trung và có lệnh clone upstream. Hãy clone repo remake như mục 2.
+Chi tiết (HTTPS qua Caddy, mirror, lỗi thường gặp) ở [docs/docker.md](../docker.md). Từ bản sửa AUDIT-F10, file đó là tiếng Việt và clone repo remake với `-b i18n-vi`.
 
 ## 9. Nâng cấp từ bản cũ
 
