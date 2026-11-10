@@ -1181,5 +1181,6 @@
   "事件来源 {source} 现在没有了": "Nguồn sự kiện {source} không còn",
   "文件夹": "Thư mục",
   "思考强度只能是：{allowed}": "Mức suy nghĩ chỉ được là: {allowed}",
-  "这个模型不认思考强度 {effort}，已改为不带它调用": "Model này không nhận mức suy nghĩ {effort}, đã gọi lại không kèm mức này"
+  "这个模型不认思考强度 {effort}，已改为不带它调用": "Model này không nhận mức suy nghĩ {effort}, đã gọi lại không kèm mức này",
+  "（更正：这一轮没有派出任务 {ids}，上面说已派发是不对的。）": "(Đính chính: lượt này chưa giao tác vụ {ids} nào, câu nói đã giao ở trên là sai.)"
 }

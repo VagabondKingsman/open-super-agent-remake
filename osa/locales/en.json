@@ -1220,5 +1220,6 @@
   "事件来源 {source} 现在没有了": "Event source {source} is gone",
   "文件夹": "Folder",
   "思考强度只能是：{allowed}": "Reasoning effort must be one of: {allowed}",
-  "这个模型不认思考强度 {effort}，已改为不带它调用": "This model rejects reasoning effort {effort}; called again without it"
+  "这个模型不认思考强度 {effort}，已改为不带它调用": "This model rejects reasoning effort {effort}; called again without it",
+  "（更正：这一轮没有派出任务 {ids}，上面说已派发是不对的。）": "(Correction: no task {ids} was dispatched in this turn; the claim above is wrong.)"
 }

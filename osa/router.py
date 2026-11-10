@@ -3,6 +3,7 @@
 一个 Bot 一个 Router，既在私聊里说话，也在它所在的群聊里说话；每一轮都明确是在哪个对话里。"""
 import asyncio
 import json
+import re
 import time
 import openai
 from .computer import tools as ctools
@@ -93,7 +94,7 @@ ATTACH_SEE = ('- "[附件] path" in a message is a file the user uploaded to the
 STATE_PROMPT = """
 
 (The text below is system-attached current state. It is refreshed every turn and is not the user speaking.)
-Current tasks:
+Current tasks (a task exists only if you called the dispatch tool; writing "dispatched task #N" without calling it starts nothing):
 {tasks}
 
 Write operations waiting for the user. When they agree or refuse in chat, call resolve_approval. If the meaning is unclear, ask before deciding for them:
@@ -101,6 +102,14 @@ Write operations waiting for the user. When they agree or refuse in chat, call r
 
 Tools you can use in this turn. This list decides what you can do: if you said earlier in the chat that you "can't" or "have no such tool", it may not have existed then; if it is here now, use it:
 {tools}{memories}{turn}"""
+
+# B1：回复里“#数字”旁边出现这些词，就当它在说派了这个任务
+FAKE_DISPATCH_RE = re.compile(r"#(\d{1,9})\b")
+SENTENCE_RE = re.compile(r"(?<=[.!?])\s+|[\n。！？；;]")
+CLAIM_WORDS = re.compile(r"派|任务|giao|tác vụ|nhiệm vụ|dispatch|task|assign", re.I)
+FAKE_DISPATCH_NOTE = ("(System, not the user: your reply says task {ids} was dispatched, but you did not call the dispatch tool "
+                      "in this turn and no such task exists. Saying it does not start anything. If the user wants this work done, "
+                      "call dispatch now. Otherwise tell the user plainly that nothing was dispatched.)")
 
 GROUP_PROMPT = """
 
@@ -485,9 +494,10 @@ class Router:
         self._turn_waits = 0              # 本轮弹出的新建 / 修改 / 删除 Bot 的卡片：有了结果会再叫醒这个 Bot
         self._turn_files = []             # 本轮 send_file 发的文件，挂在这条回复下面显示
         shown, thinking, shots, finish = "", "", [], None
-        await self.emit({"type": "stream_start", "sid": sid}, cid)
-        try:
-            rounds_used = True
+        async def rounds():
+            """跑最多 10 轮工具调用。返回（轮数是否用完, 最后一段正文, 最后一段思考）。"""
+            nonlocal shown, thinking, shots, finish
+            rounds_used, content, reasoning = True, "", ""
             for _ in range(10):
                 content, reasoning, calls, finish = await self._stream(client, model, msgs, sid, started)
                 shown += content
@@ -516,6 +526,24 @@ class Router:
                 if shown and not shown.endswith("\n"):
                     shown += "\n\n"
                     await self.emit({"type": "stream", "sid": sid, "delta": "\n\n"}, cid)
+            return rounds_used, content, reasoning
+
+        fake: list[int] = []
+        await self.emit({"type": "stream_start", "sid": sid}, cid)
+        try:
+            rounds_used, content, reasoning = await rounds()
+            # B1：没派任务却说“已派发任务 #N”、而 #N 根本不存在。给一次带工具的机会真的去派；仍然没有就在后面补一句更正
+            if not self._turn_tasks and (fake := self._fake_dispatch_ids(shown)):
+                msgs.append({"role": "assistant", "content": content, "reasoning_content": reasoning})
+                msgs.append({"role": "user", "content": FAKE_DISPATCH_NOTE.format(ids=", ".join(f"#{i}" for i in fake))})
+                if not shown.endswith("\n"):
+                    shown += "\n\n"
+                    await self.emit({"type": "stream", "sid": sid, "delta": "\n\n"}, cid)
+                rounds_used, content, reasoning = await rounds()
+                if not self._turn_tasks and self._fake_dispatch_ids(shown):
+                    fix = i18n.t("（更正：这一轮没有派出任务 {ids}，上面说已派发是不对的。）", ids=", ".join(f"#{i}" for i in fake))
+                    shown = shown.rstrip() + "\n\n" + fix
+                    await self.emit({"type": "stream", "sid": sid, "delta": "\n\n" + fix}, cid)
             # 空回复，或 finish_reason=length：再要一次完整回复。仍空就不要当成成功的空白消息。
             if not shown.strip() or finish == "length":
                 if not shown.strip() and rounds_used:   # 工具轮数用完还没开口：关掉工具，逼它给一句回复
@@ -539,8 +567,28 @@ class Router:
         await self.add("assistant", shown.strip(), cid, reasoning=reasoning, thinking=thinking,
                        thought_s=round(time.time() - started, 1), sid=sid, tasks=self._turn_tasks,
                        **({"lang_flag": flag} if flag else {}),
+                       **({"fabricated_task_ids": fake} if fake else {}),
                        **({"attachments": self._turn_files} if self._turn_files else {}))
         return shown.strip()
+
+    def _fake_dispatch_ids(self, text: str) -> list[int]:
+        """回复里说派了任务（#N 旁边有 派发 / giao / dispatch / task 之类的词），但 #N 既不是这一轮派的、
+        也不是任何真的派过的任务（任务号就是 dispatch 那条消息的 id）。这种是模型照着历史回复编的（B1）。"""
+        ids = []
+        for sentence in SENTENCE_RE.split(text or ""):   # 只看同一句话里的词，免得“PR #42”沾上前一句的“已派发”
+            if not CLAIM_WORDS.search(sentence):
+                continue
+            for m in FAKE_DISPATCH_RE.finditer(sentence):
+                if (n := int(m.group(1))) not in ids:
+                    ids.append(n)
+        if not ids:
+            return []
+        real = set(self._turn_tasks) | set(self.tasks)
+        rows = memory.conn.execute(
+            f"select id from messages where id in ({','.join('?' * len(ids))}) and json_extract(meta, '$.kind')='dispatch'",
+            ids).fetchall()
+        real |= {r[0] for r in rows}
+        return [i for i in ids if i not in real]
 
     def _member(self, name: str) -> dict | None:
         """群里按名字找成员（不区分大小写，去掉开头的 @）。"""
