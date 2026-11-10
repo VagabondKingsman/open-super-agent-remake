@@ -43,8 +43,9 @@ APPS = DATA / "apps"
 MIN_PASS = 8
 MAX_UNZIPPED = 8 << 30
 NEED_TABLES = {"bots", "chats", "messages"}
-COUNTS = {"bots": "个 Bot", "chats": "个对话", "messages": "条消息", "memories": "条记忆", "skills": "个技能",
-          "routines": "个定时任务", "pages": "个页面", "apps": "个应用", "channels": "个聊天软件连接"}
+COUNTS = {"bots": i18n.N_("{n} 个 Bot"), "chats": i18n.N_("{n} 个对话"), "messages": i18n.N_("{n} 条消息"),
+          "memories": i18n.N_("{n} 条记忆"), "skills": i18n.N_("{n} 个技能"), "routines": i18n.N_("{n} 个定时任务"),
+          "pages": i18n.N_("{n} 个页面"), "apps": i18n.N_("{n} 个应用"), "channels": i18n.N_("{n} 个聊天软件连接")}
 RESTART = False   # 网页上确认恢复后置位：服务关闭时重新启动自己
 
 
@@ -186,6 +187,7 @@ def export(passphrase: str, snap: Path | None = None) -> tuple[Path, dict]:
         snap.unlink()
         out = work / f"osa-backup-{time.strftime('%Y%m%d-%H%M')}.osabak"
         encrypt(zpath, out, passphrase)
+        os.chmod(out, 0o600)   # 备份里有全部数据和密钥：只给自己读（AUDIT-F12）
         zpath.unlink()
         return out, meta
     except BaseException:
@@ -293,7 +295,7 @@ def apply_pending() -> bool:
             os.replace(APPS, APPS.with_name(f"apps.before-restore-{ts}"))
         os.replace(STAGE / "apps", APPS)
     shutil.rmtree(STAGE, ignore_errors=True)
-    print(f"已从备份恢复数据，原来的数据库留在 {old}", flush=True)
+    print(i18n.t("已从备份恢复数据，原来的数据库留在 {old}", old=old), flush=True)
     return True
 
 
@@ -314,7 +316,7 @@ def restart():
         pass
     argv = getattr(sys, "orig_argv", None) or [sys.executable, *sys.argv]
     if "--multiprocessing-fork" in argv:   # uvicorn --reload 的子进程：重新执行不了，退出后要手动重启
-        print("备份会在下次启动时恢复：开发模式下请手动重启服务", flush=True)
+        print(i18n.t("备份会在下次启动时恢复：开发模式下请手动重启服务"), flush=True)
         os._exit(3)
     sys.stdout.flush()
     sys.stderr.flush()
@@ -327,50 +329,53 @@ def _passphrase(twice: bool) -> str:
     if p:
         return p
     import getpass
-    p = getpass.getpass("备份口令：")
-    if twice and getpass.getpass("再输一遍：") != p:
-        sys.exit("两次输入的不一样")
+    p = getpass.getpass(i18n.t("备份口令："))
+    if twice and getpass.getpass(i18n.t("再输一遍：")) != p:
+        sys.exit(i18n.t("两次输入的不一样"))
     return p
 
 
 def _summary(meta: dict) -> str:
     c = meta.get("counts") or {}
-    parts = [f"{c[k]} {v}" for k, v in COUNTS.items() if c.get(k)]
+    parts = [i18n.t(v, n=c[k]) for k, v in COUNTS.items() if c.get(k)]
+    parts.append(i18n.t("{n} 个密钥", n=meta.get("secrets", 0)))
     when = time.strftime("%Y-%m-%d %H:%M", time.localtime(meta.get("created") or 0))
-    return f"{when} 的备份（v{meta.get('version') or '?'}）：" + "、".join(parts) + f"、{meta.get('secrets', 0)} 个密钥"
+    sep = "、" if i18n.lang() == "zh" else ", "
+    return i18n.t("{when} 的备份（v{version}）：{items}", when=when, version=meta.get("version") or "?", items=sep.join(parts))
 
 
 def main(argv: list[str]):
     import argparse
-    ap = argparse.ArgumentParser(prog="python -m osa.backup", description="备份和恢复 open-super-agent 的全部数据")
+    ap = argparse.ArgumentParser(prog="python -m osa.backup", description=i18n.t("备份和恢复 open-super-agent 的全部数据"))
     sub = ap.add_subparsers(dest="cmd", required=True)
-    e = sub.add_parser("export", help="导出一个加密的备份文件")
-    e.add_argument("-o", "--output", help="存到哪里（文件或目录），默认当前目录")
-    r = sub.add_parser("restore", help="从备份恢复：服务下次启动时生效")
+    e = sub.add_parser("export", help=i18n.t("导出一个加密的备份文件"))
+    e.add_argument("-o", "--output", help=i18n.t("存到哪里（文件或目录），默认当前目录"))
+    r = sub.add_parser("restore", help=i18n.t("从备份恢复：服务下次启动时生效"))
     r.add_argument("file")
     a = ap.parse_args(argv)
     try:
         if a.cmd == "export":
             if not key_matches():
-                sys.exit("失败：这里的保险库主密钥和服务用的对不上。命令行要和服务用同样的环境变量（OSA_VAULT_KEY、OSA_CONFIG）")
+                sys.exit(i18n.t("失败：这里的保险库主密钥和服务用的对不上。命令行要和服务用同样的环境变量（OSA_VAULT_KEY、OSA_CONFIG）"))
             path, meta = export(_passphrase(True))
             dst = Path(a.output or ".")
             dst = dst / path.name if dst.is_dir() else dst
             shutil.move(path, dst)
             shutil.rmtree(path.parent, ignore_errors=True)
-            print(f"已导出到 {dst}\n{_summary(meta)}")
+            print(i18n.t("已导出到 {dst}", dst=dst) + "\n" + _summary(meta))
             if meta["unreadable"]:
-                print(f"有 {len(meta['unreadable'])} 个密钥解不开（主密钥换过），没有带上：{', '.join(meta['unreadable'])}")
+                print(i18n.t("有 {n} 个密钥解不开（主密钥换过），没有带上：{names}", n=len(meta["unreadable"]),
+                             names=", ".join(meta["unreadable"])))
         else:
             if not key_matches():
-                sys.exit("失败：这里的保险库主密钥和服务用的对不上。命令行要和服务用同样的环境变量（OSA_VAULT_KEY、OSA_CONFIG）")
+                sys.exit(i18n.t("失败：这里的保险库主密钥和服务用的对不上。命令行要和服务用同样的环境变量（OSA_VAULT_KEY、OSA_CONFIG）"))
             meta = stage(Path(a.file), _passphrase(False))
             confirm()
-            print(_summary(meta) + "\n已准备好，重启服务后换上（原来的数据库会留一份）。")
+            print(_summary(meta) + "\n" + i18n.t("已准备好，重启服务后换上（原来的数据库会留一份）。"))
             if meta.get("channels_off"):
-                print(f"{meta['channels_off']} 个聊天软件连接先停用了，确认原来那台已经停掉后，在 设置 → 聊天软件 里启用。")
+                print(i18n.t("{n} 个聊天软件连接先停用了，确认原来那台已经停掉后，在 设置 → 聊天软件 里启用。", n=meta["channels_off"]))
     except BackupError as err:
-        sys.exit(f"失败：{err}")
+        sys.exit(i18n.t("失败：{err}", err=err))
 
 
 if __name__ == "__main__":
