@@ -2412,6 +2412,8 @@ dependencies = [
 name = "osa-android"
 version = "0.17.0"
 dependencies = [
+ "jni",
+ "ndk-context",
  "serde",
  "serde_json",
  "tauri",
