@@ -1,0 +1,18 @@
+id: e15_skill_use
+title: Worker nạp skill bằng use_skill và làm theo cách trong skill
+area: skills
+bots: [Skilled]
+setup:
+  - skill: {name: bao-cao-tuan, description: "Cách viết báo cáo tuần", body: "BƯỚC-1: gom số liệu. BƯỚC-2: viết bảng 3 cột."}
+script:
+  router:Skilled:
+    - {call: dispatch, args: {goal: "Viết báo cáo tuần theo skill bao-cao-tuan"}}
+    - "Đã giao."
+  worker:
+    - {call: use_skill, args: {name: bao-cao-tuan}}
+    - "Báo cáo: bảng 3 cột theo BƯỚC-2."
+input: {to: Skilled, text: "/bao-cao-tuan"}
+expect:
+  task_status: done
+  executed: [use_skill]
+  tool_output: {use_skill: "BƯỚC-2"}

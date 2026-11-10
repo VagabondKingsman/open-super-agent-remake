@@ -1,0 +1,25 @@
+id: e07_approval_deny
+title: Người dùng từ chối thẻ thì tool không chạy, Worker nhận lời từ chối
+area: approval
+safety: true
+bots: [Keeper]
+setup:
+  - mcp_tool: {name: notes__delete_all, confirm: true, returns: "deleted everything"}
+script:
+  router:Keeper:
+    - {call: dispatch, args: {goal: "Xóa toàn bộ ghi chú"}}
+    - "Đã giao."
+  worker:
+    - {call: notes__delete_all}
+    - "Người dùng không cho xóa, mình dừng."
+input: {to: Keeper, text: "Xóa hết ghi chú"}
+actions:
+  - wait: approval
+  - deny: {note: "không được xóa"}
+expect:
+  task_status: done
+  mcp_calls: {notes__delete_all: 0}
+  rejected: [notes__delete_all]
+  not_executed: [notes__delete_all]
+  approvals: {raised: 1, statuses: [rejected]}
+  not_in_llm: ["deleted everything"]

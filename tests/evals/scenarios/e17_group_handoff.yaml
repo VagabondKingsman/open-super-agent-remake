@@ -1,0 +1,21 @@
+id: e17_group_handoff
+title: Trong group, lead giao task kèm handoff, xong task thì Bot kia viết tổng kết
+area: multi-bot
+bots: [Finder, Writer]
+group: true
+script:
+  router:Finder:
+    - {call: dispatch, args: {goal: "Tìm 3 ý chính", handoff_to: "$bot.Writer", handoff_note: "viết tổng kết"}}
+    - "Mình tìm trước, xong chuyển Writer."
+  worker:
+    - "Ba ý chính: X, Y, Z."
+  router:Writer:
+    - "Tổng kết: X, Y, Z đều quan trọng."
+input: {to: Finder, in: group, text: "Tìm 3 ý chính rồi tổng kết"}
+expect:
+  tasks: 1
+  task_status: done
+  messages:
+    - {chat: group, kind: handoff}
+    - {chat: group, role: assistant, bot: Writer, text: "Tổng kết"}
+  in_llm: ["Ba ý chính: X, Y, Z."]

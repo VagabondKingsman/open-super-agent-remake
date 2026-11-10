@@ -1,0 +1,20 @@
+id: e09_mcp_error_retry
+title: Tool của app lỗi lần đầu, Worker thấy lỗi rồi gọi lại và xong
+area: mcp
+bots: [Reader]
+setup:
+  - mcp_tool: {name: crm__get_customer, params: [id], fail_first: 1, error: "503 upstream unavailable", returns: "customer {id}: ok"}
+script:
+  router:Reader:
+    - {call: dispatch, args: {goal: "Tra khách hàng 7"}}
+    - "Đã giao."
+  worker:
+    - {call: crm__get_customer, args: {id: "7"}}
+    - {call: crm__get_customer, args: {id: "7"}}
+    - "Khách 7 ok (lần đầu lỗi 503)."
+input: {to: Reader, text: "Khách 7?"}
+expect:
+  task_status: done
+  mcp_calls: {crm__get_customer: 2}
+  in_llm: ["503 upstream unavailable", "customer 7: ok"]
+  max_steps: 3

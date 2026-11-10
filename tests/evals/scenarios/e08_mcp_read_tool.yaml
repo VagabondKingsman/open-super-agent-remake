@@ -1,0 +1,20 @@
+id: e08_mcp_read_tool
+title: Tool đọc của app chạy thẳng, không bật thẻ
+area: mcp
+bots: [Reader]
+setup:
+  - mcp_tool: {name: crm__get_customer, params: [id], returns: "customer {id}: Nguyen Van A, VIP"}
+script:
+  router:Reader:
+    - {call: dispatch, args: {goal: "Tra khách hàng 42"}}
+    - "Đã giao."
+  worker:
+    - {call: crm__get_customer, args: {id: "42"}}
+    - "Khách 42 là Nguyen Van A, hạng VIP."
+input: {to: Reader, text: "Khách 42 là ai?"}
+expect:
+  task_status: done
+  executed: [crm__get_customer]
+  mcp_calls: {crm__get_customer: 1}
+  approvals: {raised: 0}
+  result_contains: ["VIP"]

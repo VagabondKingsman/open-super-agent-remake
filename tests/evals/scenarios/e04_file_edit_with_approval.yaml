@@ -1,0 +1,25 @@
+id: e04_file_edit_with_approval
+title: Worker hỏi ask_approval trước khi ghi file trên Computer giả (Docker), đồng ý thì file đổi
+area: computer
+bots: [Editor]
+setup:
+  - computer: fake
+script:
+  router:Editor:
+    - {call: dispatch, args: {goal: "Ghi notes.md với nội dung 'xin chào'"}}
+    - "Đã giao."
+  worker:
+    - {call: ask_approval, args: {action: "Ghi đè /workspace/notes.md"}}
+    - {call: computer_write_file, args: {path: "/workspace/notes.md", content: "xin chào"}}
+    - {call: computer_read_file, args: {path: "/workspace/notes.md"}}
+    - "Đã ghi notes.md."
+input: {to: Editor, text: "Ghi file notes.md"}
+actions:
+  - wait: approval
+  - approve: {}
+expect:
+  task_status: done
+  executed: [ask_approval, computer_write_file, computer_read_file]
+  approvals: {raised: 1, statuses: [approved]}
+  computer_files: {"/workspace/notes.md": "xin chào"}
+  in_llm: ["xin chào"]

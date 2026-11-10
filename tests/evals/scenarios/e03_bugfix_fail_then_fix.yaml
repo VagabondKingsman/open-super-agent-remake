@@ -1,0 +1,28 @@
+id: e03_bugfix_fail_then_fix
+title: Patch sai bị check_patch FAIL, Worker sửa lại rồi PASS
+area: code
+needs: [sandbox]
+bots: [Coder]
+setup:
+  - fixture_repo:
+      name: calc
+      files:
+        calc.py: "def answer():\n    return 1\n"
+        test_calc.py: "from calc import answer\ndef test_answer():\n    assert answer()==2\n"
+      tests: [test_calc.py]
+script:
+  router:Coder:
+    - {call: dispatch, args: {goal: "Sửa calc.answer cho test_calc qua"}}
+    - "Đã giao."
+  worker:
+    - {call: inspect_repo, args: {repo: calc}}
+    - {call: check_patch, args: {repo: calc, snapshot: "$tool.snapshot", patch: "$file:calc_wrong.patch"}}
+    - {call: inspect_repo, args: {repo: calc}}
+    - {call: check_patch, args: {repo: calc, snapshot: "$tool.snapshot", patch: "$file:calc_fix.patch"}}
+    - "Lần đầu FAIL (trả 3), lần hai PASS."
+input: {to: Coder, text: "Sửa bug calc"}
+expect:
+  task_status: done
+  tool_output: {check_patch: '"status": "FAIL"'}
+  in_llm: ['"status": "PASS"']
+  max_steps: 5

@@ -1,0 +1,16 @@
+id: e12_event_webhook
+title: Webhook tới URL có khóa thì kích hoạt event, payload vào goal dưới dạng dữ liệu
+area: routine
+bots: [Hook]
+setup:
+  - routine: {name: gh-issue, prompt: "Phân loại issue mới", trigger: {kind: event, source: webhook}}
+script:
+  worker:
+    - "Issue #12 là bug, ưu tiên cao."
+trigger: {kind: webhook, payload: {issue: 12, title: "crash khi mở app"}}
+expect:
+  task_status: done
+  routine_runs: [done]
+  in_llm: ["crash khi mở app"]
+  messages:
+    - {chat: Hook, kind: result, text: "Issue #12"}

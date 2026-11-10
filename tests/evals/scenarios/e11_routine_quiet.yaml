@@ -1,0 +1,14 @@
+id: e11_routine_quiet
+title: Routine không có gì mới thì im lặng, không đăng kết quả
+area: routine
+bots: [Daily]
+setup:
+  - routine: {name: kiem-mail, prompt: "Xem có mail mới không", trigger: {kind: every, minutes: 30}}
+script:
+  worker:
+    - "[nothing new]"
+trigger: {kind: schedule}
+expect:
+  routine_runs: [quiet]
+  no_messages:
+    - {chat: Daily, kind: result}

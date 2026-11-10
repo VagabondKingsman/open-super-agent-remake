@@ -1,0 +1,27 @@
+id: e02_bugfix_check_patch_pass
+title: Sửa bug bằng inspect_repo + check_patch, patch đúng qua sandbox ngay lần đầu
+area: code
+needs: [sandbox]
+bots: [Coder]
+setup:
+  - fixture_repo:
+      name: calc
+      files:
+        calc.py: "def answer():\n    return 1\n"
+        test_calc.py: "from calc import answer\ndef test_answer():\n    assert answer()==2\n"
+      tests: [test_calc.py]
+script:
+  router:Coder:
+    - {call: dispatch, args: {goal: "Sửa calc.answer cho test_calc qua"}}
+    - "Đã giao việc sửa bug."
+  worker:
+    - {call: inspect_repo, args: {repo: calc}}
+    - {call: check_patch, args: {repo: calc, snapshot: "$tool.snapshot", patch: "$file:calc_fix.patch"}}
+    - "Patch đã PASS trong sandbox: answer() trả 2."
+input: {to: Coder, text: "Sửa bug calc giúp mình"}
+expect:
+  task_status: done
+  executed: [inspect_repo, check_patch]
+  tool_output: {check_patch: '"status": "PASS"'}
+  result_contains: ["PASS"]
+  max_steps: 3

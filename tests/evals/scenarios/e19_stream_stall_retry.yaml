@@ -1,0 +1,19 @@
+id: e19_stream_stall_retry
+title: Stream của Worker treo một lần thì gọi lại và task vẫn xong
+area: reliability
+bots: [Steady]
+setup:
+  - limits: {stream_idle_s: 0.2, stream_first_chunk_s: 0.3, stream_retries: 1}
+  - no_retry_pause: true
+script:
+  router:Steady:
+    - {call: dispatch, args: {goal: "Trả lời một câu"}}
+    - "Đã giao."
+  worker:
+    - {stall: idle}
+    - "Trả lời sau khi gọi lại."
+input: {to: Steady, text: "Hỏi một câu"}
+expect:
+  task_status: done
+  result_contains: ["sau khi gọi lại"]
+  stream_errors: 1
