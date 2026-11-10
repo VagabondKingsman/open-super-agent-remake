@@ -137,6 +137,50 @@ async def test_chrome_without_permission(tmp_path, monkeypatch):
     assert host.chrome_path() is None
 
 
+# AUDIT-F6：Linux 没有图形界面时不等 20 秒，直接说清楚（翻译过，提到 xvfb-run）
+async def test_linux_without_display_fails_fast(tmp_path, monkeypatch):
+    from osa import i18n
+    monkeypatch.setattr(i18n, "_lang", "vi")
+    monkeypatch.setitem(CFG["computer"], "enabled", True)
+    monkeypatch.setattr(host, "DATA", tmp_path / "data")
+    monkeypatch.setattr(host, "chrome_path", lambda: "/fake/chrome")
+    monkeypatch.setattr(host, "_probe", lambda p: True)
+    monkeypatch.setattr(host.sys, "platform", "linux")
+    monkeypatch.delenv("DISPLAY", raising=False)
+    monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
+    c = host.HostComputer(0)
+
+    async def never(payload):
+        raise AssertionError("không được chạy helper khi không có màn hình")
+    c._helper_run = never
+    st = await c.status()
+    assert st["state"] == "error" and "xvfb-run" in st["detail"] and "DISPLAY" in st["detail"]
+    assert "không có giao diện đồ họa" in st["detail"]
+    with pytest.raises(ComputerError, match="xvfb-run"):
+        await c.start()
+    monkeypatch.setenv("WAYLAND_DISPLAY", "wayland-0")   # 有屏幕就照常
+    assert not host.no_display()
+    monkeypatch.setattr(host.sys, "platform", "darwin")
+    monkeypatch.delenv("WAYLAND_DISPLAY")
+    assert not host.no_display()
+
+
+def test_helper_debug_port_error_translated(monkeypatch):
+    from osa import i18n
+    zh = "Chrome 没有在 20 秒内开启调试端口。Bot 用的 Chrome 可能已经开着但没开调试端口，关掉它再试"
+    monkeypatch.setattr(host.sys, "platform", "linux")
+    monkeypatch.setenv("DISPLAY", ":99")
+    monkeypatch.setattr(i18n, "_lang", "en")
+    assert host.helper_error(zh).startswith("Chrome did not open its debug port within 20 seconds")
+    monkeypatch.setattr(i18n, "_lang", "vi")
+    out = host.helper_error(zh)
+    assert out.startswith("Chrome không mở cổng debug trong 20 giây") and "xvfb-run" not in out
+    monkeypatch.delenv("DISPLAY")
+    monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
+    assert "xvfb-run" in host.helper_error(zh)
+    assert host.helper_error("lỗi khác") == "lỗi khác"
+
+
 def test_default_rules():
     assert approvals.decide("browser_upload", "host")[0]
     assert approvals.decide("browser_submit", "host")[0]

@@ -79,6 +79,32 @@ def chrome_path() -> str | None:
     return None
 
 
+def no_display() -> bool:
+    """Linux 服务器没有图形界面（没有 DISPLAY / WAYLAND_DISPLAY）：Chrome 开不了窗口，也就一直不开调试端口。"""
+    return sys.platform.startswith("linux") and not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
+
+
+NO_DISPLAY = i18n.N_("这台 Linux 电脑没有图形界面（没有 DISPLAY / WAYLAND_DISPLAY），Bot 用的 Chrome 开不了窗口。"
+                     "在有桌面的会话里运行 OSA，或者用 xvfb-run -a 启动它（比如 xvfb-run -a scripts/osa-start.sh），"
+                     "也可以把 computer.backend 换成 docker / instabox")
+# 浏览器控制脚本（cdp_helper.py，也在电脑里跑，不能 import osa）报的错：这里翻译
+HELPER_ERRORS = (
+    i18n.N_("Chrome 没有在 20 秒内开启调试端口。Bot 用的 Chrome 可能已经开着但没开调试端口，关掉它再试"),
+    i18n.N_("没找到 Chrome：先安装 Google Chrome，或者在 config.yaml 的 computer.chrome_path 写上它的路径"),
+)
+
+
+def helper_error(msg: str) -> str:
+    """把脚本的中文报错翻成当前语言；Linux 上没有图形界面时再补一句怎么办。"""
+    for zh in HELPER_ERRORS:
+        if msg.startswith(zh):
+            out = i18n.t(zh)
+            if zh == HELPER_ERRORS[0] and no_display():
+                out += " " + i18n.t(NO_DISPLAY)
+            return out
+    return msg
+
+
 def shell_on() -> bool:
     return bool((CFG.get("computer") or {}).get("host_shell", False)) and security.local_exec()
 
@@ -153,7 +179,7 @@ class HostComputer(Computer):
         if p.returncode == 0:
             return json.loads(out.decode().strip().splitlines()[-1])
         e = (err or out).decode(errors="replace").strip() or i18n.t("退出码 {code}", code=p.returncode)
-        raise ComputerError(e.splitlines()[-1].removeprefix("RuntimeError: ")[:500])
+        raise ComputerError(helper_error(e.splitlines()[-1].removeprefix("RuntimeError: "))[:500])
 
     def _port(self) -> int:
         try:
@@ -168,6 +194,8 @@ class HostComputer(Computer):
         if _probe(path) is None:
             return {"state": "error", "detail": i18n.t("没权限打开 Chrome（{path}），它可能在外接硬盘上。到 系统设置 → 隐私与安全性 → 文件与文件夹，"
                                                        "给 Open Super Agent 打开“可移除的宗卷”，再重新打开 App", path=path)}
+        if no_display():   # 不等 20 秒的调试端口超时，直接说清楚
+            return {"state": "error", "detail": i18n.t(NO_DISPLAY)}
         if port := self._port():
             try:
                 async with httpx.AsyncClient(timeout=2) as h:

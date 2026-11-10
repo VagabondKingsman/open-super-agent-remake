@@ -1224,5 +1224,7 @@
   "（更正：这一轮没有派出任务 {ids}，上面说已派发是不对的。）": "(Correction: no task {ids} was dispatched in this turn; the claim above is wrong.)",
   "审稿人没有给出汇总，改用草稿 {n}": "The reviewer did not merge the drafts; using draft {n}",
   "模型 {n} 秒没有输出新内容": "The model sent nothing new for {n} seconds",
-  "这一轮模型调用中途出错（{err}），重新调用": "The model call failed mid-way ({err}); calling it again"
+  "这一轮模型调用中途出错（{err}），重新调用": "The model call failed mid-way ({err}); calling it again",
+  "这台 Linux 电脑没有图形界面（没有 DISPLAY / WAYLAND_DISPLAY），Bot 用的 Chrome 开不了窗口。在有桌面的会话里运行 OSA，或者用 xvfb-run -a 启动它（比如 xvfb-run -a scripts/osa-start.sh），也可以把 computer.backend 换成 docker / instabox": "This Linux machine has no display (DISPLAY / WAYLAND_DISPLAY are not set), so the Bot's Chrome cannot open a window. Run OSA in a desktop session, start it with xvfb-run -a (for example xvfb-run -a scripts/osa-start.sh), or switch computer.backend to docker / instabox",
+  "Chrome 没有在 20 秒内开启调试端口。Bot 用的 Chrome 可能已经开着但没开调试端口，关掉它再试": "Chrome did not open its debug port within 20 seconds. The Bot's Chrome may already be open without a debug port; close it and try again"
 }
