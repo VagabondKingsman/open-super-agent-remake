@@ -10,24 +10,30 @@ Repo: `VagabondKingsman/open-super-agent-remake`. Base: `i18n-vi`. Upstream `kad
 2. [README](README.md), [RULES](RULES.md), [PERSONA](PERSONA.md), [PROTOCOL](PROTOCOL.md).
 3. [STATE](STATE.md), [BOARD](BOARD.md), log mới nhất trong [log/](log/). Bỏ qua `_TEMPLATE.md`. STATE là snapshot. Fetch lại ref trước khi nhận việc.
 4. [SKILL-FLOW](SKILL-FLOW.md). Cài bảy skill trong `skills-pack/ai-native/` và bridge [osa-dev](skills/osa-dev/SKILL.md). Đọc skill trước khi làm, không gọi tên rồi coi như đã nạp.
-5. [ARCHITECTURE](ARCHITECTURE.md), [OPS](OPS.md) nếu sắp chạy box, [DECISIONS](DECISIONS.md).
+5. [ARCHITECTURE](ARCHITECTURE.md), [OPS](OPS.md) nếu sắp chạy box, [DECISIONS](DECISIONS.md). Cài máy mới thì đọc [docs/vi/cai-dat-may-moi.md](../docs/vi/cai-dat-may-moi.md).
 6. [templates/](templates/) khi lập TIP, viết PR, hoặc bàn giao một task. `templates/HANDOFF.md` là mẫu một task. File này là bàn giao cả dự án.
 
 [PROMPT](PROMPT.md) là đoạn Tin Tin dán vào bot mới. Sau khi đã đọc danh sách trên thì không cần đọc lại như quy trình.
 
 ## Head hiện tại
 
-Đối chiếu 10/11/2026 16:52, sau PR #35: `origin/i18n-vi = 90d820c`, merge [PR #35](https://github.com/VagabondKingsman/open-super-agent-remake/pull/35) (E2E-B1-B6). TIP-04b (cửa sổ task Computer) nằm ở branch `fix/tip-04b-window-handoff`, chưa merge. Đọc [log TIP-04b](log/2026-11-10-tip-04b-window-and-handoff.md) trước. Đoạn dưới là mốc cũ.
+Đối chiếu 10/11/2026 21:00 Asia/Saigon: `origin/i18n-vi = 8c108c9`, merge [PR #39](https://github.com/VagabondKingsman/open-super-agent-remake/pull/39). Version `0.17.0`. CI push trên SHA này xanh cả ba job. Số test và trạng thái box ở [STATE](STATE.md). Phiên sau chạy `git fetch` và `git rev-parse origin/i18n-vi`. SHA mới hơn thì đọc log mới hơn.
 
-Đối chiếu 10/11/2026, sau OSA-033:
+`main` là default branch trên GitHub nhưng đứng ở `a30e3cc`, tổ tiên cũ của `i18n-vi`, không có `.agents/` hay `tests/`. Clone bằng `git clone -b i18n-vi`. Cloud agent hay checkout `main` theo mặc định, phải chuyển sang `i18n-vi` trước khi làm.
 
-`origin/i18n-vi = c7c53219e7d6fdb2cc12d1926bf8b23e28883f0f`
+Cài trên máy mới, cho người hay bot: [docs/vi/cai-dat-may-moi.md](../docs/vi/cai-dat-may-moi.md). Lệnh vận hành box ở [OPS](OPS.md).
 
-Đó là merge [PR #30](https://github.com/VagabondKingsman/open-super-agent-remake/pull/30) (OSA-033). Docs người dùng ghi đúng v0.17.0. Code port nằm ở [PR #27](https://github.com/VagabondKingsman/open-super-agent-remake/pull/27). Version `0.17.0`. Upstream mới nhất vẫn là tag v0.17.0 (`ec02547`). OSA-034 (vỏ Android) đang ở `hoplite/osa-034-android`, chưa merge.
+## Cách làm việc từ 10/11/2026
 
-Phiên sau chạy `git fetch` và `git rev-parse origin/i18n-vi`. SHA mới hơn thì đọc log mới. Đừng coi `d9ae1d8` là latest mãi.
+Tin Tin chốt làm local trước rồi mới PR:
 
-`main` là default branch trên GitHub nhưng đứng ở `a30e3cc`, tổ tiên cũ của `i18n-vi`, không có `.agents/` hay `tests/`. Cloud agent hay checkout `main` theo mặc định. Phải chuyển sang `i18n-vi` trước khi làm.
+1. Sửa và test trên box, trong một worktree riêng: `git -C <checkout> worktree add <thư mục mới> -b <bot>/<topic> origin/i18n-vi`. Không sửa trực tiếp checkout đang chạy server.
+2. Chạy đủ gate như CI (mục "Chạy test giống CI" trong hướng dẫn cài). Ghi số vào log.
+3. Commit nhỏ, author `Tin Tin <tintin@users.noreply.github.com>`, rồi `git format-patch origin/i18n-vi..HEAD`. Box không `git push` được.
+4. Cloud agent trên repo remake checkout `i18n-vi`, `git am` các patch, push branch, mở PR vào `i18n-vi`.
+5. CI xanh và Tin Tin đồng ý thì merge (merge commit). Không force-push.
+
+Không bao giờ commit `config.yaml` của box vận hành. File đó có `computer.idle_pause_s: 2592000` chưa commit để giữ VM Instabox thức. Không stash, không `checkout -- .`, không đổi nhánh ở checkout đang chạy server.
 
 ## Đã merge
 
@@ -70,6 +76,10 @@ Giờ là `merged_at` đổi sang Asia/Saigon. `merged_by` trên API là Vagabon
 | [#33](https://github.com/VagabondKingsman/open-super-agent-remake/pull/33) | 15:49:27 10/11 | `4e146df` | OSA-036 nút Đổi server. |
 | [#34](https://github.com/VagabondKingsman/open-super-agent-remake/pull/34) | 16:18:45 10/11 | `ac85f73` | OSA-037 trang nổi Android. |
 | [#35](https://github.com/VagabondKingsman/open-super-agent-remake/pull/35) | 16:23:51 10/11 | `90d820c` | E2E-B1-B6: effort fallback, chặn dispatch bịa, reviewer, tự handoff, ảnh cả màn hình. Head `e5d9f5a`. Giờ commit merge. |
+| [#36](https://github.com/VagabondKingsman/open-super-agent-remake/pull/36) | 17:08:40 10/11 | `7a0e674` | TIP-04b cửa sổ task tự phóng, handoff `.agents/`, README VI. Head `875a71d`. |
+| [#37](https://github.com/VagabondKingsman/open-super-agent-remake/pull/37) | 20:15:33 10/11 | `0500666` | Stream treo hoặc rớt thì gọi lại cùng lượt (Nova #253). Head `1f5408a`. |
+| [#38](https://github.com/VagabondKingsman/open-super-agent-remake/pull/38) | 20:30:03 10/11 | `e55d00a` | CI cài `bubblewrap`, 3 test sandbox chạy thật. Head `0cc7217`. |
+| [#39](https://github.com/VagabondKingsman/open-super-agent-remake/pull/39) | 20:42:26 10/11 | `8c108c9` | CI chạy `test_real_chrome` dưới `xvfb`. Head `0aa79de`. |
 
 PR #1 đến #5 rơi vào đêm 06/11 UTC, tức sáng 07/11 giờ Sài Gòn. Từ PR #17, code trên `i18n-vi` là v0.12.0, có `desktop/` và `mobile/` trong cây nhưng không có workflow build. Box vẫn chạy bản cũ cho tới khi deploy theo OPS.
 
@@ -102,6 +112,8 @@ Live OSA-011 đã có trong repo: [bằng chứng](evidence/osa-011-live-test/LI
 Code trên `i18n-vi` là v0.17.0. So với upstream `ec02547` không thiếu file trong `osa/`, `web/`, `tests/`, `desktop/`, `mobile/`. Khác biệt còn lại là của remake: tiếng Việt mặc định, prompt tiếng Anh, chi phí USD, AI Native, và các sửa bảo mật đã merge tới PR #25. Không có plugin. Không có trang Chi phí. `desktop/` và `mobile/` có trong cây, remake không build. Workflow đóng gói app Mac của upstream không có.
 
 Chưa kiểm trên máy thật: Docker Computer E2E, app Mac, điện thoại sau login. Đó là OSA-002 và OSA-007, chưa phải code thiếu.
+
+Deep audit 10/11 (log [2026-11-10-deep-audit-install](log/2026-11-10-deep-audit-install.md)) để lại các mục AUDIT-F1 tới AUDIT-F12 trên [BOARD](BOARD.md). Mục nặng nhất là AUDIT-F1. `guard_stream` đếm cả thời gian chờ chunk đầu, nên model nghĩ lâu hơn 120 giây trước chunk đầu sẽ fail. Sửa mục này trước khi tăng `reasoning_effort` cho model chậm.
 
 Ưu tiên và AC đầy đủ hơn ở [BOARD](BOARD.md). Bảng này là thứ tự nên hỏi Tin Tin. Chưa có câu giao thì chưa làm.
 
@@ -137,13 +149,15 @@ Audit 09/11, phần còn lại chưa giao (nhóm C): L2 vault key từ passphras
 - Màn hình VM đọc bằng `xdpyinfo`. Ngày 10/11 VM là 1920 × 1080. Cửa sổ task theo `computer.width` × `computer.height` (1280 × 800) sau TIP-04b.
 - `GET /shot` trả 409 trên Instabox vì panel dùng live view. Đây không phải lỗi mới.
 - VM tự tạm dừng sau `computer.idle_pause_s` giây không dùng. Box vận hành đặt số lớn trong `config.yaml` local và chạy script giữ VM thức. Đừng commit giá trị đó. Script và đường dẫn là của box đó, máy khác tự cấu hình.
+- Script đó gia hạn lease hoạt động của Instabox (TTL 600 giây) theo chu kỳ. Đừng tắt nó và đừng để VM ở trạng thái pause. Instabox vẫn áp trần `maxRunMinutes` (480 phút lúc kiểm 10/11) cho mỗi lượt chạy. Hết trần thì VM dừng dù lease còn.
+- Gói miễn phí chỉ có một máy. Đừng thử Instabox từ một bản cài thứ hai bằng cùng khóa khi box vận hành đang dùng.
 - Không ghi khóa, mật khẩu đăng nhập OSA, link VNC hay link remote của VM vào repo hoặc log.
 
 ## Bước đầu phiên sau
 
 1. Ack với Tin Tin. Nói đã đọc HANDOFF, head đang thấy, và việc định hỏi. Bot khác Kingfisher thì hỏi prefix. Giữ cách nói trong PERSONA.
-2. `git status --short`. Cây sạch thì `git switch i18n-vi` và `git pull --ff-only origin i18n-vi`, rồi `git rev-parse HEAD`. Cây bẩn hoặc pull không tua được thì dừng, fetch và đọc, không reset.
+2. `git status --short`. Cây sạch thì `git switch i18n-vi` và `git pull --ff-only origin i18n-vi`, rồi `git rev-parse HEAD`. Cây bẩn hoặc pull không tua được thì dừng, fetch và đọc, không reset. Trên box vận hành, checkout đang chạy server luôn bẩn vì `config.yaml`: chỉ `git fetch` ở đó, làm việc trong worktree.
 3. Đọc STATE, BOARD, log mới hơn file này nếu có. Chọn một ID chưa có owner. Claim theo BOARD. Chưa được phép push thì nói chưa giữ chỗ.
 4. Cài skill theo SKILL-FLOW. Thiếu `UpdateSkill` thì ghi `NOT_INSTALLED`. Không đi tìm token để thay.
 5. Phiên onboarding dừng trước push, PR, merge, model trả phí, channel thật, và restart data thật. Tin Tin chốt task và quyền.
-6. Sửa repo trên cloud agent, branch `<bot>/<topic>`, PR vào `i18n-vi`. Box chỉ chạy và kiểm. Merge khi Tin Tin viết "Duyệt merge", ghim head SHA, method merge. Chi tiết ở PROTOCOL và OPS.
+6. Sửa theo mục "Cách làm việc từ 10/11/2026" ở trên. Tóm tắt là worktree trên box, test như CI, `format-patch`, cloud agent `git am` rồi mở PR vào `i18n-vi`. Merge khi Tin Tin đồng ý cho đúng PR, ghim head SHA, method merge. Chi tiết ở PROTOCOL và OPS.
