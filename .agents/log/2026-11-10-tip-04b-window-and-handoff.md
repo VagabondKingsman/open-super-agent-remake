@@ -2,7 +2,7 @@
 
 - Bắt đầu/kết thúc: 10/11/2026 16:22–17:05 Asia/Saigon (UTC+7).
 - Repo: `VagabondKingsman/open-super-agent-remake`. `origin/i18n-vi` = `90d820c` (merge [PR #35](https://github.com/VagabondKingsman/open-super-agent-remake/pull/35), giờ commit merge 16:23:51). Tree của `90d820c` trùng `e5d9f5a` (head PR #35).
-- Branch local `fix/tip-04b-window-handoff` tách từ `90d820c`. Commit fix `d5061b5` (cherry-pick từ `b9fdaa7`), cộng commit docs của phiên này. Box không push được lên GitHub. Patch nằm ở `/workspace/osa-pr35-update/` trên box vận hành, cloud agent sẽ đẩy và mở PR.
+- Branch local `fix/tip-04b-window-handoff` tách từ `90d820c`. Commit fix `5e20f83` (cherry-pick từ `b9fdaa7`), cộng commit docs của phiên này. Box không push được lên GitHub. Patch nằm ở `/workspace/osa-pr35-update/` trên box vận hành, cloud agent sẽ đẩy và mở PR.
 - Approval: Tin Tin giao cài bản mới nhất vào OSAR đang chạy, test E2E live bản fix (cho phép gọi xAI trả phí và dùng Instabox), sửa cửa sổ task, làm cho suite pass, viết handoff và docs.
 - Skill Flow: osa-dev → ai-work-method → vibecode-kit. Prose qua unslop-vi.
 

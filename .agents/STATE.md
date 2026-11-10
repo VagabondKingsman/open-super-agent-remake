@@ -269,7 +269,7 @@ Bản fix trên `i18n-vi`, theo code:
 | B5 | Trong nhóm, `handoff_to` có thể là chính Bot đó. `groups.after_task` đếm `depth`, tới `MAX_TURNS` (8) thì dừng và đăng thông báo. | `osa/router.py`, `osa/groups.py`, `osa/memory.py` |
 | B4 | `computer_screenshot` có `screen: true` trên Docker/Instabox, gọi `Computer.look()`, ảnh chỉ để nhìn. Host bỏ qua tham số này. | `osa/computer/tools.py` |
 
-TIP-04b chưa vào `i18n-vi`. Commit `d5061b5` trên branch local `fix/tip-04b-window-handoff` (cherry-pick `b9fdaa7`): cửa sổ task trên Docker/Instabox nhỏ hơn 90% `computer.width` × `computer.height` thì được phóng lên kích thước đó. Patch ở `/workspace/osa-pr35-update/` trên box vận hành. Cloud agent đẩy và mở PR vào `i18n-vi`.
+TIP-04b chưa vào `i18n-vi`. Commit `5e20f83` trên branch local `fix/tip-04b-window-handoff` (cherry-pick `b9fdaa7`): cửa sổ task trên Docker/Instabox nhỏ hơn 90% `computer.width` × `computer.height` thì được phóng lên kích thước đó. Patch ở `/workspace/osa-pr35-update/` trên box vận hành. Cloud agent đẩy và mở PR vào `i18n-vi`.
 
 - Test trên box: pytest `819 passed, 1 skipped`. Skip còn lại là `tests/test_host_desktop.py::test_real_desktop`, chỉ chạy trên macOS. `test_real_chrome` giờ tự chạy khi máy có Chrome. Frontend `tsc` exit 0, `npm test` 34/34.
 - Live trên Instabox 16:25–16:46: B2, B3, B4, B5, B6 và TIP-04b PASS. B1 PASS đường dispatch thật, đường bịa chỉ có unit test. Chi phí OSA ghi $0,399.
