@@ -4,7 +4,7 @@ import re
 import json
 import time
 from dataclasses import dataclass, field
-from .config import CFG, call_kwargs, client_for
+from .config import CFG, call_kwargs, client_for, fallback_for
 from .providers import ProviderLimit, create_chat
 from . import applets, approvals, dsml, i18n, local_checks, memories, memory, mcp_hub, providers, registry, skillpacks, tasklog, verification
 from . import builtin  # noqa: F401  导入即注册内置工具
@@ -119,34 +119,47 @@ def _outbound(msg: dict) -> dict:
     return {k: v for k, v in msg.items() if k != "finish_reason"}
 
 
-async def _reply(task: Task, log: tasklog.Log, role: str, client, model: str, msgs: list, tools_: list | None = None) -> dict:
+async def _reply(task: Task, log: tasklog.Log, role: str, client, model: str, msgs: list, tools_: list | None = None,
+                 kw: dict | None = None) -> dict:
     """调一轮模型。流中途卡住（limits.stream_idle_s 秒没有新块）或断了（服务忙、连接断）就重来，
-    最多 limits.stream_retries 次，免得一次卡住的流让 Watchdog 把整个任务取消。额度用尽不重来。"""
-    attempt = 0
+    最多 limits.stream_retries 次，免得一次卡住的流让 Watchdog 把整个任务取消。重来还是卡住，而这个角色配了
+    备用模型（roles.<role>.fallback），就换备用模型把这一轮做完，任务不至于整个失败。额度用尽不重来。"""
+    attempt, fell_back = 0, False
+    kw = call_kwargs(role) if kw is None else kw
     while True:
         try:
-            return await _reply_once(task, log, role, client, model, msgs, tools_)
+            return await _reply_once(task, log, role, client, model, msgs, tools_, kw)
         except Exception as e:
             # 开流之前的错 create_chat 已经按规则重试过了，这里只管流开了之后的
-            if not getattr(e, "osa_midstream", False) or attempt >= providers.stream_retries() or not providers.retry_midstream(e):
+            if not getattr(e, "osa_midstream", False) or not providers.retry_midstream(e):
                 raise
-            attempt += 1
+            if attempt < providers.stream_retries():
+                attempt += 1
+                note = i18n.t("这一轮模型调用中途出错（{err}），重新调用", err=providers.brief(e))
+            elif not fell_back and (fb := fallback_for(role, model)):
+                client, model, kw = fb
+                fell_back = True   # 备用模型只试一次：再卡住就是服务整体出问题，别一直耗下去
+                note = i18n.t("这一轮模型调用中途出错（{err}），换备用模型 {model} 继续", err=providers.brief(e), model=model)
+            else:
+                raise
             task.last_progress = time.time()
-            await log.note(i18n.t("这一轮模型调用中途出错（{err}），重新调用", err=providers.brief(e)), "error")
+            await log.note(note, "error")
             await providers.retry_pause(attempt)
             task.last_progress = time.time()
 
 
-async def _reply_once(task: Task, log: tasklog.Log, role: str, client, model: str, msgs: list, tools_: list | None = None) -> dict:
+async def _reply_once(task: Task, log: tasklog.Log, role: str, client, model: str, msgs: list, tools_: list | None = None,
+                      kw: dict | None = None) -> dict:
     """流式调用一次模型，思考和正文边收边写进任务过程。返回这一轮的 assistant 消息。
 
     消息上的 finish_reason 是 stop / length / tool_calls 等。流被取消时，已有 usage 照实记；
     没有 usage 但已经收到文字就按估算记一条。"""
+    kw = call_kwargs(role) if kw is None else kw
     t0, first = time.monotonic(), None
     try:
         stream = await create_chat(client, model=model, messages=msgs, stream=True,
                                    stream_options={"include_usage": True},
-                                   **({"tools": tools_} if tools_ else {}), **call_kwargs(role))
+                                   **({"tools": tools_} if tools_ else {}), **kw)
     except Exception as e:
         memory.record_error(role, model, providers.brief(e), task.id, bot_id=task.bot_id, chat_id=task.chat_id,
                             ms=(time.monotonic() - t0) * 1000)

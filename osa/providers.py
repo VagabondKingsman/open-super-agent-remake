@@ -387,7 +387,7 @@ async def guard_stream(stream, idle_s: float | None = None, first_s: float | Non
                     await close()
                 except Exception:
                     pass
-            raise StreamStalled(i18n.t("模型 {n} 秒没有输出新内容", n=int(wait))) from None
+            raise StreamStalled(i18n.t("模型 {n} 秒没有输出新内容", n=f"{wait:g}")) from None
         got = True
         yield chunk
 

@@ -102,7 +102,13 @@ async def test_stalled_stream_retried_once_and_task_goes_on(fast_idle):
     assert len(err) == 1
 
 
-async def test_stall_every_time_gives_up_after_retries(fast_idle):
+def no_fallback(monkeypatch, role: str):
+    """这个角色不配备用模型：只看原来的重试行为。"""
+    monkeypatch.setitem(CFG["roles"], role, {k: v for k, v in CFG["roles"][role].items() if k != "fallback"})
+
+
+async def test_stall_every_time_gives_up_after_retries(fast_idle, monkeypatch):
+    no_fallback(monkeypatch, "worker")
     client = Client(STALL)
     with pytest.raises(providers.StreamStalled):
         await _reply(9302, client)
@@ -125,6 +131,7 @@ async def test_quota_error_mid_stream_not_retried(fast_idle):
 
 
 async def test_retries_zero_keeps_old_behaviour(monkeypatch):
+    no_fallback(monkeypatch, "worker")
     monkeypatch.setitem(CFG, "limits", {**CFG["limits"], "stream_idle_s": 0.2, "stream_first_chunk_s": 0.2,
                                          "stream_retries": 0})
     client = Client(STALL, OK)
@@ -190,6 +197,42 @@ async def test_retry_pause_uses_delay(monkeypatch):
     monkeypatch.setattr(providers.asyncio, "sleep", fake_sleep)
     await providers.retry_pause(1)
     assert len(waited) == 1 and 2.0 <= waited[0] <= 3.0
+
+
+# C9：主模型连着卡住、重来也没用，就换 roles.<role>.fallback 的备用模型把这一轮做完，而不是让任务失败
+def _backup_provider(monkeypatch, role: str, model: str):
+    """给这个角色配一个备用模型，走一个单独的假服务，好分辨请求落到哪个模型上。"""
+    monkeypatch.setitem(CFG["providers"], "backup", {"base_url": "http://backup.llm/v1", "api_key_env": "BACKUP_KEY"})
+    monkeypatch.setitem(CFG["roles"], role, {**CFG["roles"][role], "fallback": {"provider": "backup", "model": model}})
+
+
+async def test_worker_stalls_twice_then_backup_model_finishes_the_round(fast_idle, monkeypatch):
+    _backup_provider(monkeypatch, "worker", "backup-model")
+    main, backup = Client(STALL), Client(OK)
+    monkeypatch.setattr(providers, "client", lambda name, timeout=None: backup if name == "backup" else main)
+    task, msg = await _reply(9311, main)
+    assert msg["content"] == "xong" and main.calls == 2 and backup.calls == 1
+    ok = [r[0] for r in memory.conn.execute("select model from llm_calls where task_id=9311 and err is null")]
+    assert "backup-model" in ok   # 用量记在真正答话的那个模型上
+    notes = [s["title"] for s in tasklog.steps(9311) if s["kind"] == "note"]
+    assert len(notes) == 2 and "backup-model" in notes[-1]
+
+
+async def test_backup_model_stalling_too_gives_up(fast_idle, monkeypatch):
+    _backup_provider(monkeypatch, "worker", "backup-model")
+    main, backup = Client(STALL), Client(STALL)
+    monkeypatch.setattr(providers, "client", lambda name, timeout=None: backup if name == "backup" else main)
+    with pytest.raises(providers.StreamStalled):
+        await _reply(9312, main)
+    assert main.calls == 2 and backup.calls == 1   # 备用模型只试一次，不跟着无限重来
+
+
+async def test_fallback_equal_to_primary_is_ignored(fast_idle, monkeypatch):
+    monkeypatch.setitem(CFG["roles"], "worker", {**CFG["roles"]["worker"], "fallback": {"model": "fake-model"}})
+    client = Client(STALL)
+    with pytest.raises(providers.StreamStalled):
+        await _reply(9313, client)
+    assert client.calls == 2
 
 
 # F2：作废那一次的用量也要记

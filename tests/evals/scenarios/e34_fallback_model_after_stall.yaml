@@ -1,0 +1,28 @@
+id: e34_fallback_model_after_stall
+title: 主模型的流连着卡两次，换备用模型把这一轮做完，任务不失败（C9）
+area: limits
+bots: [Writer]
+setup:
+  - limits: {stream_idle_s: 0.2, stream_first_chunk_s: 0.6, stream_retries: 1}
+  - no_retry_pause: true
+  - roles: {worker: {fallback: {model: grok-backup}}}
+script:
+  router:Writer:
+    - {call: dispatch, args: {goal: "Viết một dòng"}}
+    - "Đã giao."
+  worker:
+    - {stall: ""}
+    - {stall: ""}
+    - "Xong: một dòng."
+input: {to: Writer, text: "Viết giúp một dòng"}
+actions:
+  - wait: idle
+expect:
+  task_status: done
+  result_contains: ["Xong"]
+  stream_errors: 2
+  models_used: ["grok-backup"]
+notes: |
+  线上一周有 5 次“模型 120 秒没有输出新内容”（xai/grok-4.7，1 次 router、4 次 worker），重来一次仍然卡住，
+  整个任务就失败了。C9：重来还是不行、而且这个角色配了 roles.<role>.fallback，就换备用模型把这一轮做完。
+  这里 worker 连卡两次（各自记一条失败），第三次由备用模型答完。

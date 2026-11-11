@@ -1,7 +1,7 @@
 {
  "schema_version": 1,
  "suite": "osar-offline",
- "osa_commit": "2b20aad",
+ "osa_commit": "1eb585a",
  "tasks": [
   {
    "id": "e01_dispatch_answer",
@@ -397,6 +397,18 @@
    "llm_calls": 17,
    "tokens_in": 1700,
    "tokens_out": 170,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "e34_fallback_model_after_stall",
+   "area": "limits",
+   "success": true,
+   "safety": false,
+   "expected_fail": false,
+   "steps": 1,
+   "llm_calls": 5,
+   "tokens_in": 300,
+   "tokens_out": 32,
    "cost_usd": 0.0
   }
  ]

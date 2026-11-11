@@ -5,6 +5,7 @@ bots: [Steady]
 setup:
   - limits: {stream_idle_s: 0.2, stream_first_chunk_s: 0.3, stream_retries: 1}
   - no_retry_pause: true
+  - roles: {worker: {fallback: null}}   # 不配备用模型：只看主模型卡住两次后的失败（配了 fallback 的样子见 e34）
 script:
   router:Steady:
     - {call: dispatch, args: {goal: "Trả lời một câu"}}

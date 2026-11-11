@@ -8,7 +8,7 @@ import time
 import logging
 import openai
 from .computer import tools as ctools
-from .config import CFG, call_kwargs, client_for
+from .config import CFG, call_kwargs, client_for, fallback_for
 from . import approvals, botadmin, bots, dm, dsml, i18n, langcheck, local_checks, media, memories, memory, providers, registry, routines, skillpacks, skills, tasklog, verification
 from . import builtin  # noqa: F401  导入即注册内置工具
 from . import worker as worker_mod
@@ -372,17 +372,18 @@ class Router:
         """流式调用一次模型，边收边推送正文和思考过程。返回 (正文, 思考, 工具调用列表, finish_reason)。"""
         tools = self._tools()
         cid = self.chat["id"]
+        kw = call_kwargs("router")
         def create():
             return providers.create_chat(
                 client, model=model, messages=msgs, stream=True, **({"tools": tools} if use_tools else {}),
-                stream_options={"include_usage": True}, **call_kwargs("router"))
+                stream_options={"include_usage": True}, **kw)
         t0, first = time.monotonic(), None
         content, reasoning, calls, usage = "", "", {}, None
         finish = None
         recorded = False
         sent = 0   # 正文推送到哪了：DeepSeek 写进正文的工具调用（见 dsml.py）不推送
         try:
-            attempt = 0
+            attempt, fell_back = 0, False
             while True:
                 stream = None
                 try:
@@ -430,18 +431,25 @@ class Router:
                     self._count_usage(memory.record_partial("router", model, usage,
                                                            memory.streamed_output_text(content, reasoning, calls)))
                     # 流中途卡住或断了，而且还没推送正文、没收到工具调用：重来一次。已经推送了正文就不重来，免得界面上重复
-                    # 开流之前的错 create_chat 已经按规则重试过了，这里只管流开了之后的
-                    if stream is not None and attempt < providers.stream_retries() and sent == 0 and not calls \
-                            and providers.retry_midstream(e):
+                    # 开流之前的错 create_chat 已经按规则重试过了，这里只管流开了之后的。重来还是不行，而且这个角色配了
+                    # 备用模型（roles.<role>.fallback），就换备用模型把这一轮说完
+                    if stream is None or sent or calls or not providers.retry_midstream(e):
+                        raise
+                    if attempt < providers.stream_retries():
                         attempt += 1
                         log.warning("router stream failed mid-way (%s); retrying", providers.brief(e))
-                        if reasoning or content:   # 界面上已经显示的思考清掉，免得重来后同一段思考出现两遍
-                            await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
-                        content, reasoning, usage, finish, first = "", "", None, None, None
-                        await providers.retry_pause(attempt)
-                        t0 = time.monotonic()
-                        continue
-                    raise
+                    elif not fell_back and (fb := fallback_for("router", model)):
+                        client, model, kw = fb
+                        fell_back = True   # 备用模型只试一次
+                        log.warning("router stream failed twice (%s); continuing on %s", providers.brief(e), model)
+                    else:
+                        raise
+                    if reasoning or content:   # 界面上已经显示的思考清掉，免得重来后同一段思考出现两遍
+                        await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
+                    content, reasoning, usage, finish, first = "", "", None, None, None
+                    await providers.retry_pause(attempt)
+                    t0 = time.monotonic()
+                    continue
             self._count_usage(memory.record_usage("router", model, usage, ms=(time.monotonic() - t0) * 1000,
                                                  ttft=None if first is None else (first - t0) * 1000))
             recorded = True
