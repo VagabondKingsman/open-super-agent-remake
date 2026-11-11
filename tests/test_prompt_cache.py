@@ -1,4 +1,6 @@
 """Router 每轮发给模型的内容：前面的部分要逐字不变，才能命中模型服务的缓存。"""
+import re
+
 from conftest import until
 from osa import bots, memories, memory, router, server
 from osa.config import CFG
@@ -47,3 +49,15 @@ def test_history_window_moves_in_batches(make_bot, monkeypatch):
             assert ctx[:len(prev)] == prev
         prev = ctx
     assert ctx[0]["role"] == "system" and "#" in ctx[0]["content"]   # 移出的只留编号和开头
+
+
+async def test_state_block_carries_the_server_clock(llm, events, make_bot):
+    """C12：模型说时间只能来自这一行或本轮的某个工具。它附在每轮的状态里，所以系统提示词照样逐字不变。"""
+    a = make_bot("Clocky")
+    llm.script("router:Clocky", "ok")
+    await server.safe_handle(bots.chat(a["chat_id"]), "mấy giờ rồi")
+    await until(lambda: llm.bodies("router", "Clocky"), what="请求")
+    body = llm.bodies("router", "Clocky")[-1]
+    state = body["messages"][-1]["content"]
+    assert re.search(r"Now: \d{4}-\d\d-\d\d \d\d:\d\d:\d\dZ \(server clock, UTC\)", state), state[-400:]
+    assert "Now:" not in body["messages"][0]["content"]      # 缓存的前缀里没有会变的东西

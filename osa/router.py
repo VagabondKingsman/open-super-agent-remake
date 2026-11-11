@@ -115,6 +115,7 @@ ATTACH_SEE = ('- "[附件] path" in a message is a file the user uploaded to the
 STATE_PROMPT = """
 
 (The text below is system-attached current state. It is refreshed every turn and is not the user speaking.)
+Now: {now} (server clock, UTC). Any time or date you state comes from this line or from a tool you called in this turn; do not estimate one.
 Current tasks (a task exists only if you called the dispatch tool; writing "dispatched task #N" without calling it starts nothing):
 {tasks}
 
@@ -591,7 +592,8 @@ class Router:
             bot_rule=PRIMARY_RULE if b["is_primary"] else OTHER_RULE.format(primary=p) if (p := bots.primary_name()) else "",
             attach_rule=ATTACH_SEE if see else ATTACH_BLIND) + verification.HINT + local_checks.runtime_hint() + skillpacks.runtime_hint(self.bot_id) + i18n.model_hint()
         recent = memories.turn_block(self.bot_id, related)
-        state = STATE_PROMPT.format(tasks=self._task_list(), approvals=approvals.summary(self.bot_id),
+        state = STATE_PROMPT.format(now=time.strftime("%Y-%m-%d %H:%M:%SZ", time.gmtime()),
+                                   tasks=self._task_list(), approvals=approvals.summary(self.bot_id),
                                     tools=", ".join(t["function"]["name"] for t in self._tools()),
                                     memories="\n\n" + recent if recent else "", turn=self._turn_block())
         msgs = [{"role": "system", "content": system}] + with_state(
