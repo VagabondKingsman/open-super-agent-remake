@@ -150,15 +150,15 @@ mong đợi miss% của worker giảm từ 25% xuống dưới 15%, và không c
 
 ### C19: một task chết mà không gọi model lần nào (đo 11/11)
 
-Task #212: router giao việc xong, 3 phút sau Watchdog hủy (“没有进展”), `task_steps` chỉ có đúng dòng hủy,
+Task #212: router giao việc xong, 3 phút sau Watchdog hủy (“không có tiến triển”), `task_steps` chỉ có đúng dòng hủy,
 `llm_calls` không có lấy một dòng của worker. Truy ra: `_reply_once` chờ `create_chat` — tức là chờ kết nối và
 response header — mà client của openai mặc định chờ **600 giây**, dài hơn Watchdog (180 s) và dài hơn cả mọi
-giới hạn khác trong `limits`. Kết nối卡住 thì không có lỗi, không có dòng nào được ghi, `last_progress` đứng yên,
+giới hạn khác trong `limits`. Kết nối bị treo thì không có lỗi, không có dòng nào được ghi, `last_progress` đứng yên,
 và Watchdog hủy task trước khi bất cứ thứ gì kịp xảy ra. `stream_idle_s`/`stream_first_chunk_s` chỉ áp cho
 *stream đã mở*, không áp cho giai đoạn kết nối.
 
 Đã sửa: `limits.provider_head_s` (mới, 120) — request stream phải có response header trong 120 s, quá thì ném
-`StreamStalled` (đúng loại “值得重来”): worker重试 một lần rồi chuyển sang model dự phòng; router重试 như流卡住.
+`StreamStalled` (đúng loại “đáng gọi lại”): worker gọi lại một lần rồi chuyển sang model dự phòng; router cũng gọi lại như khi stream bị treo.
 Request không stream thì không áp (cả câu trả lời vốn dài). Test: client giả treo → `StreamStalled` trong
 khoảng 0,05 s (không treo), `retry_midstream` = True; `_reply` gọi lại lần hai và trả lời được.
 Chỗ này trước đó cũng không có test nào — “kết nối treo” là lỗ hổng cuối cùng của đường ổn định (A1–A7).
