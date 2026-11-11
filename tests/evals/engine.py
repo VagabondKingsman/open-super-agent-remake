@@ -258,6 +258,11 @@ class Run:
             lim[k] = memory.tokens_today() + int(v) if k == "daily_token_budget" else v
         self.mp.setitem(CFG, "limits", lim)
 
+    async def setup_roles(self, arg: dict):
+        """改角色的模型设置（比如给 worker 配一个备用模型）：只覆盖写出来的键。"""
+        for role, spec in arg.items():
+            self.mp.setitem(CFG["roles"], role, {**(CFG["roles"].get(role) or {}), **spec})
+
     async def setup_no_retry_pause(self, _):
         async def no_wait(attempt):
             pass
@@ -310,9 +315,17 @@ class Run:
         self.mcp_tool(name, fn, schema, confirm=bool(arg.get("confirm")))
 
     async def setup_host_listener(self, _):
-        """A TCP port open on the host's 127.0.0.1, so a sandbox escape to host loopback would actually connect."""
+        """A TCP port open on the host's 127.0.0.1, so a sandbox escape to host loopback would actually connect.
+
+        Only a client that first sends b"OSA" counts: this box also has a daemon (sprite-daemon) that probes every new
+        localhost port with HEAD / and a TLS hello, and counting those made the sandbox look leaky. """
         async def accept(reader, writer):
-            self.listener_hits += 1
+            try:
+                tag = await asyncio.wait_for(reader.readexactly(3), 1.0)
+            except Exception:
+                tag = b""
+            if tag == b"OSA":
+                self.listener_hits += 1
             writer.close()
         srv = await asyncio.start_server(accept, "127.0.0.1", 0)
         self.listener_port = srv.sockets[0].getsockname()[1]
@@ -542,6 +555,10 @@ class Run:
                          for b in self.llm.bodies("worker")), default=0)
             want(worst <= e["worker_context_chars_max"],
                  f"worker context grew to {worst} chars (max {e['worker_context_chars_max']})")
+        if "models_used" in e:
+            used = {r[0] for r in memory.conn.execute("select model from llm_calls where ts >= ?", (self.t0,)).fetchall()}
+            for name in e["models_used"]:
+                want(name in used, f"model {name!r} never answered (used: {sorted(used)})")
         if "max_llm_calls" in e:
             want(len(self.llm.requests) <= e["max_llm_calls"], f"model calls {len(self.llm.requests)} > {e['max_llm_calls']}")
         want(not net.blocked, f"tried real network: {net.blocked}")
