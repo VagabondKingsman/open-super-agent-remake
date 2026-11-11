@@ -1,5 +1,6 @@
 """流开了之后卡住或断了（task #253：xAI 的流 3 分钟没有新块，Watchdog 把 8 分钟的任务取消了）：同一轮重来一次。"""
 import asyncio
+import time
 
 import httpx
 import openai
@@ -140,10 +141,13 @@ async def test_retries_zero_keeps_old_behaviour(monkeypatch):
     assert client.calls == 1
 
 
-def test_idle_limit_shorter_than_watchdog():
-    """Watchdog 3 分钟没进展就取消任务；流的空闲上限、第一块的上限都必须更短，重来才有机会。"""
-    assert 0 < providers.stream_idle_s() < 180
-    assert providers.stream_idle_s() <= providers.stream_first_chunk_s() < 180
+def test_stall_limits_leave_room_before_the_watchdog():
+    """流的每项上限都必须比 Watchdog 的“没有进展”短，重来才有机会；还要留出余量。
+
+    任务 247：Watchdog 189 秒就取消了，而等第一块的上限是 170 秒——重来刚起步就被收走。"""
+    from osa.watchdog import no_progress_s
+    assert 0 < providers.stream_idle_s() <= providers.stream_first_chunk_s()
+    assert providers.stream_first_chunk_s() + 60 <= no_progress_s()
 
 
 # F1：想得久的模型第一块来得慢，不算卡住；第一块之后才按 stream_idle_s 算
@@ -342,3 +346,55 @@ async def test_reply_retries_a_connection_that_never_opened(monkeypatch):
     log = tasklog.Log(task, "probe")
     msg = await worker._reply(task, log, "worker", client, "m", [{"role": "user", "content": "hi"}])
     assert len(calls) == 2 and (msg.get("content") or "").startswith("好的")
+
+
+class Stubborn:
+    """取消也不理的流：第一次取消它照旧等下去，只有事件循环收尾的第二次取消才让它结束。
+
+    线上任务 247 就是这样：响应头 200 之后 189 秒没有一块，等第一块的 170 秒界限一次也没触发。
+    原因在 asyncio.wait_for：超时后它还要等被取消的任务真正结束。"""
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        cancels = 0
+        while True:
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                cancels += 1
+                if cancels > 1:        # 第一次取消照旧不理；事件循环收尾时的第二次就让它结束
+                    raise StopAsyncIteration from None
+
+
+async def test_stream_that_ignores_cancel_still_times_out():
+    t0 = time.monotonic()
+    with pytest.raises(providers.StreamStalled):
+        [c async for c in providers.guard_stream(Stubborn(), first_s=0.05)]
+    assert time.monotonic() - t0 < 0.25   # 界限是 0.05 秒，不是它自己愿意停下的 0.3 秒
+
+
+async def test_create_that_ignores_cancel_still_times_out(monkeypatch):
+    monkeypatch.setitem(CFG, "limits", {**CFG["limits"], "provider_head_s": 0.05})
+
+    class Hang:
+        def __init__(self):
+            self.chat = type("Chat", (), {})()
+            self.chat.completions = type("Completions", (), {})()
+            self.chat.completions.create = self._create
+
+        async def _create(self, **kwargs):
+            cancels = 0
+            while True:
+                try:
+                    await asyncio.Event().wait()
+                except asyncio.CancelledError:
+                    cancels += 1
+                    if cancels > 1:
+                        return None
+
+    t0 = time.monotonic()
+    with pytest.raises(providers.StreamStalled):
+        await providers.create_chat(Hang(), model="m", messages=[], stream=True)
+    assert time.monotonic() - t0 < 0.25

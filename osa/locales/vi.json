@@ -3,6 +3,7 @@
   " 等 {n} 个": " (cùng {n} Bot)",
   "**↩️ {name} 回信**": "**↩️ {name} đã trả lời**",
   "3 分钟没有进展": "Không có tiến triển trong 3 phút",
+  "{n} 秒没有进展": "Không có tiến triển trong {n} giây",
   "App ID 应该以 cli_ 开头，在开发者后台应用的“凭证与基础信息”里": "App ID phải bắt đầu bằng cli_; lấy ở phần thông tin xác thực trong trang quản trị ứng dụng",
   "App ID 或 App Secret 不对（{error}）": "App ID hoặc App Secret không đúng ({error})",
   "Bot ID 或 Secret 不对，或者机器人的 API 模式没选“长连接”（{error}）": "Bot ID hoặc Secret sai, hoặc API mode chưa chọn kết nối dài hạn ({error})",

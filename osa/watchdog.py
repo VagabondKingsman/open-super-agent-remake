@@ -8,6 +8,13 @@ from . import i18n, memory
 log = logging.getLogger(__name__)
 
 
+def no_progress_s() -> float:
+    """多久没有进展才算卡住。必须**长于**最长的流界限（first chunk 170 秒 / 头 120 秒），
+    否则流刚要重来，任务先被取消了：任务 247 的 189 秒就是这样——上限比 C19 的 120 秒头更短，
+    重来还没开始就被 Watchdog 收走。"""
+    return float(CFG["limits"].get("no_progress_s", 300) or 300)
+
+
 def _stuck_loop(task) -> bool:
     """按每个 Worker 自己的历史看。Heavy 并行时不能把三个人的第一次调用拼成一次死循环。"""
     histories = list((getattr(task, "repeat_history", None) or {}).values()) or [getattr(task, "recent_calls", [])]
@@ -30,8 +37,8 @@ async def watchdog():
                 reason = None
                 if now - t.started - t.paused_s > lim["task_timeout_s"]:
                     reason = i18n.t("运行超过 {n} 秒", n=lim["task_timeout_s"])
-                elif now - t.last_progress > 180:
-                    reason = i18n.t("3 分钟没有进展")
+                elif now - t.last_progress > no_progress_s():
+                    reason = i18n.t("{n} 秒没有进展", n=f"{no_progress_s():g}")
                 elif _stuck_loop(t):
                     reason = i18n.t("连续重复同一个工具调用，疑似死循环")
                 elif memory.tokens_today() > lim["daily_token_budget"]:

@@ -307,6 +307,30 @@ def dump_prompt(kwargs: dict) -> None:
         log.warning("prompt dump failed", exc_info=True)
 
 
+def _quiet(task: asyncio.Future) -> None:
+    """取走没人等的任务的异常，免得循环最后喊一句 "exception was never retrieved"。"""
+    if not task.cancelled():
+        task.exception()
+
+
+async def _bounded(aw, seconds: float, text: str):
+    """等一个 awaitable 最多 seconds 秒，到点抛 StreamStalled —— 它拒不配合取消也拦不住我们。
+
+    asyncio.wait_for 超时后还要等被取消的任务真正结束；流对象取消时若还占着连接，它就永远不结束，
+    于是“等第一块 170 秒”一次也没触发（线上任务 247：响应头 200 之后 189 秒没有一块，Watchdog 先
+    把任务取消了，llm_calls 里连一行都没有）。asyncio.wait 到点就返回，被丢下的任务自己结束。
+    """
+    if seconds <= 0:
+        return await aw
+    task = asyncio.ensure_future(aw)
+    done, _ = await asyncio.wait({task}, timeout=seconds)
+    if not done:
+        task.cancel()
+        task.add_done_callback(_quiet)
+        raise StreamStalled(text) from None
+    return task.result()
+
+
 async def create_chat(client, **kwargs):
     """流式或非流式补全。额度类错误立刻抛出，不重试。普通 429 按 Retry-After 等，次数有上限。
 
@@ -325,12 +349,8 @@ async def create_chat(client, **kwargs):
     async def open_stream():
         """流式请求：连接/响应头也就等 provider_head_s 秒，卡住当成流中途卡住（可以重来、可以换备用模型）。"""
         head = provider_head_s() if kwargs.get("stream") else 0
-        if not head:
-            return await caller.chat.completions.create(**kwargs)
-        try:
-            return await asyncio.wait_for(caller.chat.completions.create(**kwargs), head)
-        except asyncio.TimeoutError:
-            raise StreamStalled(i18n.t("模型服务 {n} 秒没有响应（连接没能建起来）", n=f"{head:g}")) from None
+        return await _bounded(caller.chat.completions.create(**kwargs), head,
+                              i18n.t("模型服务 {n} 秒没有响应（连接没能建起来）", n=f"{head:g}"))
 
     rate_attempt = transient_attempt = 0
     while True:
@@ -417,17 +437,17 @@ async def guard_stream(stream, idle_s: float | None = None, first_s: float | Non
     while True:
         wait = idle if got else first
         try:
-            chunk = await (asyncio.wait_for(it.__anext__(), wait) if wait > 0 else it.__anext__())
+            chunk = await _bounded(it.__anext__(), wait, i18n.t("模型 {n} 秒没有输出新内容", n=f"{wait:g}"))
         except StopAsyncIteration:
             return
-        except asyncio.TimeoutError:
+        except StreamStalled:
             close = getattr(stream, "close", None) or getattr(stream, "aclose", None)
             if close:
                 try:
                     await close()
                 except Exception:
                     pass
-            raise StreamStalled(i18n.t("模型 {n} 秒没有输出新内容", n=f"{wait:g}")) from None
+            raise
         got = True
         yield chunk
 

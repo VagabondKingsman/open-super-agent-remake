@@ -127,6 +127,7 @@ async def _reply(task: Task, log: tasklog.Log, role: str, client, model: str, ms
     attempt, fell_back = 0, False
     kw = call_kwargs(role) if kw is None else kw
     while True:
+        task.last_progress = time.time()   # 每次尝试都算一次进展：Watchdog 的 5 分钟从这一轮开始算
         try:
             return await _reply_once(task, log, role, client, model, msgs, tools_, kw)
         except Exception as e:
