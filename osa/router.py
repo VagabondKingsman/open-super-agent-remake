@@ -614,7 +614,7 @@ class Router:
                            images=media.MODEL_IMAGES if see else 0))   # C13: 索引挪到状态块，开头才是稳定的前缀
         if removed:
             state += "\n\n" + removed
-        memory.remember_state(cid, state)   # C14：原样存下这一轮的状态，下一轮的正文才是它的延长
+        memory.remember_state(cid, self.bot_id, state)   # C14：原样存下这一轮的状态，下一轮的正文才是它的延长
         msgs = [{"role": "system", "content": system}] + with_state(history, state)
         self._turn_context = "\n".join(str(m.get("content") or "") for m in msgs)
         sid, started = f"s{time.time_ns()}", time.time()

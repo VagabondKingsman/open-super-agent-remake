@@ -210,19 +210,22 @@ def keep_tail(chat_id: int, tail: list[dict]) -> None:
     conn.commit()
 
 
-def remember_state(chat_id: int, state: str) -> None:
+def remember_state(chat_id: int, bot_id: int, state: str) -> None:
     """把这一轮发出去的状态记在最新那条用户消息上：下一轮原样带上，模型服务的缓存才认得这段前缀。
 
     供应商的缓存不是“前缀相同就命中”，而是“这次请求是上一次请求正文的延长”。以前状态挂在最后一条上、
-    存库时不存，下一轮就不延长了 —— 实测每轮第一次调用只命中 7%（拿 17.9k 里的 1.07k）。"""
+    存库时不存，下一轮就不延长了 —— 实测每轮第一次调用只命中 7%（拿 17.9k 里的 1.07k）。
+    按 Bot 分开记：群聊里同一条用户消息会被好几个 Bot 各发一次，各自的“当前任务”不一样。"""
     row = conn.execute("select id, meta from messages where chat_id=? and role='user' order by id desc limit 1",
                        (chat_id,)).fetchone()
     if not row:
         return
     meta = json.loads(row[1] or "{}")
-    if meta.get("state"):
+    states = meta.get("state") if isinstance(meta.get("state"), dict) else {}
+    if str(bot_id) in states:
         return          # 同一条用户消息又醒了一次：保留当时发出去的那份，新状态接在后面
-    meta["state"] = state
+    states[str(bot_id)] = state
+    meta["state"] = states
     conn.execute("update messages set meta=? where id=?", (json.dumps(meta, ensure_ascii=False), row[0]))
     conn.commit()
 
@@ -335,8 +338,8 @@ def context(chat_id: int, viewer: int | None = None, me: int | None = None, imag
                 from . import media
                 parts = [p for a in meta.get("attachments") or [] if (mid, a.get("media")) in shown
                          and (p := media.image_part(a["media"]))]
-            if meta.get("state"):     # 当时发出去的状态：原样带上，前缀才连得上（见 remember_state）
-                c = str(c) + meta["state"]
+            if st := (meta.get("state") or {}).get(str(me)):   # 当时发出去的状态：原样带上（见 remember_state）
+                c = str(c) + st
             msgs.append({"role": "user", "content": [{"type": "text", "text": c}, *parts] if parts else c})
             msgs.extend(meta.get("tail") or [])   # 这一轮之后发过的工具往返，原样放回（见 keep_tail）
     return msgs

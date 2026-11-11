@@ -102,8 +102,8 @@ async def test_stored_state_is_not_overwritten_on_a_second_wake(make_bot):
     memory.conn.execute("insert into messages(ts, role, content, meta, chat_id, bot_id) values(?,?,?,?,?,?)",
                         (0, "user", "一条", "{}", cid, a["id"]))
     memory.conn.commit()
-    memory.remember_state(cid, "STATE A")
-    memory.remember_state(cid, "STATE B")
+    memory.remember_state(cid, a["id"], "STATE A")
+    memory.remember_state(cid, a["id"], "STATE B")
     body = memory.context(cid, me=a["id"])
     assert body[-1]["content"].endswith("STATE A")
 
@@ -122,3 +122,16 @@ async def test_a_tool_turn_chains_into_the_next_turn(llm, events, make_bot, monk
     tool_body = next(b for b in bodies if any(m.get("tool_calls") for m in b))
     assert any(m["role"] == "tool" for m in tool_body), "这一轮应该有工具往返"
     assert bodies[-1][:len(tool_body)] == tool_body   # 上一轮发过的整段（含工具往返）原样是这一轮的开头
+
+
+def test_two_bots_in_a_group_keep_their_own_state(make_bot):
+    """群聊里同一条用户消息会被两个 Bot 各发一次：各自的状态要分开记，别把别人的“当前任务”带回自己这轮。"""
+    a, b = make_bot("GA"), make_bot("GB")
+    g = bots.create_group([a["id"], b["id"]], lead=a["id"])
+    memory.conn.execute("insert into messages(ts, role, content, meta, chat_id, bot_id) values(?,?,?,?,?,?)",
+                        (0, "user", "在吗", "{}", g["id"], a["id"]))
+    memory.conn.commit()
+    memory.remember_state(g["id"], a["id"], "STATE-A")
+    memory.remember_state(g["id"], b["id"], "STATE-B")
+    assert memory.context(g["id"], viewer=a["id"], me=a["id"])[-1]["content"].endswith("STATE-A")
+    assert memory.context(g["id"], viewer=b["id"], me=b["id"])[-1]["content"].endswith("STATE-B")
