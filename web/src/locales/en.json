@@ -1046,7 +1046,7 @@
   "推送经过 Open Super Agent 的推送中转发给苹果，内容在服务器上加密，只有这台手机能解开，中转看不到。": "Notifications go to Apple through the Open Super Agent push relay. They're encrypted on your server and only this phone can read them; the relay can't.",
   "这台手机连着 {server}。": "This phone is connected to {server}.",
   "切换服务器": "Switch server",
-  "在 iPhone 上装好 Open Super Agent App，用系统相机扫下面的二维码，就能连上这台服务器并自动登录。也可以在 App 里手动填这个地址：{server}": "Install the Open Super Agent app on your iPhone, then scan the QR code below with the Camera app to connect to this server and sign in. You can also type this address in the app: {server}",
+  "在手机上装好 Open Super Agent App，用系统相机扫下面的二维码，就能连上这台服务器并自动登录。也可以在 App 里手动填这个地址：{server}": "Install the Open Super Agent app on your phone, then scan the QR code below with the Camera app to connect to this server and sign in. You can also type this address in the app: {server}",
   "手机打不开 localhost。请用手机能打开的地址（局域网 IP、Tailscale 或域名）打开这个页面，再来这里扫码。": "A phone can't open localhost. Open this page at an address your phone can reach (a LAN IP, Tailscale or a domain), then come back here to scan.",
   "二维码 5 分钟内有效，只能用一次，相当于一次登录，别发给别人。": "The QR code works once, within 5 minutes. It signs you in, so don't share it.",
   "这台服务器没开登录，扫码直接连上。": "This server has no password, so scanning connects right away.",

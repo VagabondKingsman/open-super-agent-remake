@@ -4,6 +4,7 @@
 
 ## [未发布]
 ### remake
+- 设置 → 手机 App：说明不再写 iPhone。扫码那段改成手机通用（en/vi）。
 - 侧栏里右键或长按一个 Bot：复制它的编号、标成未读、从列表里隐藏、打开详情、删除。详情页也能复制编号。编号是创建时分配的数字，删过的不再复用。
 - 两个“同名 Bot”其实是同一个 Bot 的两个私聊（`cursor/direct-chat-label`）：
   - 侧栏和对话标题改为**对话自己的名字**区分：私聊的名字仍是 Bot 的名字，但对话自带一个不同的标题时显示成 `Nova · scratch-nova`（`web/src/chatLabel.ts`，`web/tests/chat-label.cjs`）。之前直接写 `bot.name`，同一 Bot 的两个私聊一模一样，分不出哪个是哪个。

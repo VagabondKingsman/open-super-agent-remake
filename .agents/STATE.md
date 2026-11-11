@@ -1,10 +1,10 @@
 # Trạng thái hiện tại · 11/11/2026
 
-Snapshot sau merge PR #50 và #51, 11/11/2026 23:16 Asia/Saigon. Phiên mới phải `git fetch origin` và `git rev-parse origin/i18n-vi` lại. SHA mới hơn thì đọc log mới hơn file này.
+Snapshot sau merge PR #54 (`8bc4119`) và câu ứng dụng điện thoại bỏ chữ iPhone. Phiên mới phải `git fetch origin` và `git rev-parse origin/i18n-vi` lại. SHA mới hơn thì đọc log mới hơn file này.
 
 ## Base
 
-- `origin/i18n-vi` = `14449fd3aa68581a49ec31fee12d61e803364acf`, merge [PR #51](https://github.com/VagabondKingsman/open-super-agent-remake/pull/51). Head lúc merge `6e550b0`.
+- `origin/i18n-vi` trước commit này là `8bc4119788aff587508d68419e8f812d661f81cc`, merge [PR #54](https://github.com/VagabondKingsman/open-super-agent-remake/pull/54). Head lúc merge `1c3a94a`. Trước đó [PR #51](https://github.com/VagabondKingsman/open-super-agent-remake/pull/51) merge `14449fd`, head `6e550b0`.
 - Cùng ngày, trước #51: [PR #50](https://github.com/VagabondKingsman/open-super-agent-remake/pull/50) merge `30dfb24` (head `fa0372d`). [PR #49](https://github.com/VagabondKingsman/open-super-agent-remake/pull/49) merge `887fd7d`. [PR #48](https://github.com/VagabondKingsman/open-super-agent-remake/pull/48) merge `c0fc919`. [PR #47](https://github.com/VagabondKingsman/open-super-agent-remake/pull/47) merge `3c631a3` (head `9b931f6`).
 - Version sản phẩm `0.17.0`, nền upstream v0.17.0 (`ec02547`). Tag APK `v1.0` không đổi version Python.
 - APK arm64 debug: SHA-256 `e3cb6a28d4df9917342be429bb50ebf4ba4fc52fa0c73407b183ac93d65df58d`. Release <https://github.com/VagabondKingsman/open-super-agent-remake/releases/tag/v1.0>.
@@ -16,7 +16,7 @@ Phần dưới là snapshot 10/11 và các mục bổ sung. Câu "chưa merge" t
 
 ## Bổ sung · menu bot · cursor · 11/11/2026
 
-Nhánh `cursor/bot-context-menu-efeb`, chưa vào `i18n-vi`. ID bot là số gán lúc tạo (`bots._next_id`), hiện trong Chi tiết và sao chép được. Menu thanh bên thêm đánh dấu chưa đọc, ẩn, sửa chi tiết, xóa. Bot chính vẫn không xóa được.
+Đã merge [PR #54](https://github.com/VagabondKingsman/open-super-agent-remake/pull/54) tại `8bc4119`. ID bot là số gán lúc tạo (`bots._next_id`), hiện trong Chi tiết và sao chép được. Menu thanh bên thêm đánh dấu chưa đọc, ẩn, sửa chi tiết, xóa. Bot chính vẫn không xóa được.
 
 # Trạng thái 10/11/2026
 
