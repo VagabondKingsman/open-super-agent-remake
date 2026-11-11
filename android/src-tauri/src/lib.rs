@@ -261,15 +261,35 @@ fn start_sheet(url: &Url, origin: &str) -> Result<(), String> {
     let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) }.map_err(|e| e.to_string())?;
     let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
     let activity = unsafe { JObject::from_raw(ctx.context().cast()) };
-    let class = env.find_class("com/kadaliao/opensuperagent/SheetActivity").map_err(|e| e.to_string())?;
-    let url_s = env.new_string(url.as_str()).map_err(|e| e.to_string())?;
-    let origin_s = env.new_string(origin).map_err(|e| e.to_string())?;
-    env.call_static_method(
+    let class = match env.find_class("com/kadaliao/opensuperagent/SheetActivity") {
+        Ok(class) => class,
+        Err(e) => {
+            clear_jni_exception(&env);
+            return Err(e.to_string());
+        }
+    };
+    let url_s = match env.new_string(url.as_str()) {
+        Ok(value) => value,
+        Err(e) => {
+            clear_jni_exception(&env);
+            return Err(e.to_string());
+        }
+    };
+    let origin_s = match env.new_string(origin) {
+        Ok(value) => value,
+        Err(e) => {
+            clear_jni_exception(&env);
+            return Err(e.to_string());
+        }
+    };
+    let called = env.call_static_method(
         class,
         "openAndWait",
         "(Landroid/app/Activity;Ljava/lang/String;Ljava/lang/String;)V",
         &[JValue::Object(&activity), JValue::Object(&url_s), JValue::Object(&origin_s)],
-    ).map_err(|e| e.to_string())?;
+    );
+    clear_jni_exception(&env);
+    called.map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -284,19 +304,33 @@ fn android_set_badge(count: i64) {
 }
 
 #[cfg(target_os = "android")]
+fn clear_jni_exception(env: &jni::JNIEnv) {
+    // jni 0.21 reports JavaException without ExceptionClear. DetachCurrentThread
+    // with that exception still pending aborts the whole process.
+    let _ = env.exception_clear();
+}
+
+#[cfg(target_os = "android")]
 fn set_badge(count: i64) {
     use jni::objects::{JObject, JValue};
     let ctx = ndk_context::android_context();
     let Ok(vm) = (unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) }) else { return };
     let Ok(mut env) = vm.attach_current_thread() else { return };
     let activity = unsafe { JObject::from_raw(ctx.context().cast()) };
-    let Ok(class) = env.find_class("com/kadaliao/opensuperagent/SheetActivity") else { return };
+    let class = match env.find_class("com/kadaliao/opensuperagent/SheetActivity") {
+        Ok(class) => class,
+        Err(_) => {
+            clear_jni_exception(&env);
+            return;
+        }
+    };
     let _ = env.call_static_method(
         class,
         "setCount",
         "(Landroid/app/Activity;I)V",
         &[JValue::Object(&activity), JValue::Int(count as i32)],
     );
+    clear_jni_exception(&env);
 }
 
 #[cfg(not(target_os = "android"))]
