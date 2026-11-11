@@ -32,7 +32,7 @@ export default function Sidebar({ onNewBot, onNewGroup, onSettings, onClose }: {
   // 右键菜单：点别处、按 Esc、滚动、窗口变化都关掉
   useEffect(() => {
     if (!ctx) return
-    const close = () => setCtx(null)
+    const close = () => { skipClick.current = false; setCtx(null) }
     const key = (e: KeyboardEvent) => { if (e.key === 'Escape') close() }
     window.addEventListener('pointerdown', close)
     window.addEventListener('keydown', key)
@@ -64,7 +64,7 @@ export default function Sidebar({ onNewBot, onNewGroup, onSettings, onClose }: {
     }
   }
   const open = (c: Chat) => { openChat(c.id); onClose() }
-  const showMenu = (c: Chat, x: number, y: number) => { skipClick.current = true; setCtx({ chat: c, x, y }) }
+  const showMenu = (c: Chat, x: number, y: number) => setCtx({ chat: c, x, y })
   const onMenu = (c: Chat) => (e: MouseEvent) => { e.preventDefault(); clearHold(); showMenu(c, e.clientX, e.clientY) }
   const onHoldStart = (c: Chat) => (e: PointerEvent) => {
     if (e.button !== 0) return
@@ -72,7 +72,11 @@ export default function Sidebar({ onNewBot, onNewGroup, onSettings, onClose }: {
     hold.current.x = e.clientX
     hold.current.y = e.clientY
     const x = e.clientX, y = e.clientY
-    hold.current.timer = window.setTimeout(() => { hold.current.timer = null; showMenu(c, x, y) }, 480)
+    hold.current.timer = window.setTimeout(() => {
+      hold.current.timer = null
+      skipClick.current = true   // 只吞掉长按松开时那一下 click，右键没有这下 click
+      showMenu(c, x, y)
+    }, 480)
   }
   const onHoldMove = (e: PointerEvent) => {
     if (hold.current.timer === null) return
@@ -100,6 +104,14 @@ export default function Sidebar({ onNewBot, onNewGroup, onSettings, onClose }: {
   const hiddenBot = (c: Chat) => c.kind === 'direct' && !!bots.find(b => b.chat_id === c.id && b.hidden)
   const pins = chats.filter(c => c.pinned && !hiddenBot(c)).sort((a, b) => a.pinned - b.pinned)
   const hidden = bots.filter(b => b.hidden)
+  const hiddenRows = hidden.flatMap(b => {
+    const c = chats.find(x => x.id === b.chat_id)
+    if (!c) return []
+    const x = info(c)
+    return x ? [{ b, c, x }] : []
+  })
+  const hiddenNeeds = hiddenRows.some(r => r.x.needs)
+  const hiddenUnread = hiddenRows.reduce((n, r) => n + count(r.c), 0)
 
   return (
     <aside className="sidebar">
@@ -160,17 +172,22 @@ export default function Sidebar({ onNewBot, onNewGroup, onSettings, onClose }: {
       </nav>
       {hidden.length > 0 && (
         <div className="hidden-bots">
-          <button className="side-link" onClick={() => setShowHidden(v => !v)}>{t('已隐藏的 Bot')} ({hidden.length})</button>
-          {showHidden && hidden.map(b => {
-            const c = chats.find(x => x.id === b.chat_id)
-            if (!c) return null
-            return (
-              <button key={b.id} className="chat-item" {...press(c)}>
-                <BotAvatar avatar={b.avatar} size={34} />
-                <div className="ci-text"><div className="ci-name">{b.name}</div></div>
-              </button>
-            )
-          })}
+          <button className="side-link" onClick={() => setShowHidden(v => !v)}>
+            {t('已隐藏的 Bot')} ({hidden.length})
+            {hiddenNeeds && <span className="badge warn">!</span>}
+            {hiddenUnread > 0 && <span className="badge">{hiddenUnread}</span>}
+          </button>
+          {showHidden && (
+            <div className="hidden-list">
+              {hiddenRows.map(({ b, c, x }) => (
+                <button key={b.id} className="chat-item" {...press(c)}>
+                  <BotAvatar avatar={b.avatar} size={34} busy={x.busy} />
+                  <div className="ci-text"><div className="ci-name">{b.name}</div></div>
+                  {badge(c, x.needs)}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
       {ctx && (

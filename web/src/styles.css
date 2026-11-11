@@ -65,8 +65,9 @@ a { color: var(--link); text-decoration: none; } a:hover { text-decoration: unde
 .chat-item, .pin-item { -webkit-touch-callout: none; }
 .id-line { display: flex; align-items: center; gap: 8px; }
 .id-line input { flex: 1; min-width: 0; }
-.hidden-bots { margin: 4px 8px 8px; }
-.hidden-bots > .side-link { display: block; width: 100%; text-align: left; padding: 6px 8px; }
+.hidden-bots { margin: 4px 8px 8px; display: flex; flex-direction: column; min-height: 0; max-height: 32vh; }
+.hidden-bots > .side-link { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 6px 8px; flex: none; }
+.hidden-list { overflow-y: auto; min-height: 0; }
 .head-actions .icon-btn.on { color: var(--fg); } .head-actions .icon-btn.on .icon { fill: currentColor; }   /* 已置顶：实心图钉 */
 .side-bottom { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-top: 1px solid var(--line); }
 .side-link { color: var(--fg2); font-size: 14px; } .side-link:hover { color: var(--fg); }
