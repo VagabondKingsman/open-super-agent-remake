@@ -1,6 +1,6 @@
 # Hướng dẫn tiếng Việt · Open Super Agent remake v0.17.0
 
-Cập nhật 10/11/2026, Asia/Saigon (UTC+7). Nền là upstream v0.17.0 (`ec02547`). Remake `i18n-vi` tại `8c108c9` (merge PR #39). Giữ tiếng Việt mặc định, khóa dịch tiếng Trung, prompt tiếng Anh, chi phí USD, gói AI Native, các sửa bảo mật tới PR #25 và các sửa sau đợt E2E tới PR #39. Không build app Mac hay iPhone dù code `desktop/` và `mobile/` có trong cây.
+Cập nhật 11/11/2026, Asia/Saigon (UTC+7). Nền là upstream v0.17.0 (`ec02547`). Remake `i18n-vi` đã có PR #47 (app Android). Giữ tiếng Việt mặc định, khóa dịch tiếng Trung, prompt tiếng Anh, chi phí USD, gói AI Native. Không build app Mac hay iPhone dù code `desktop/` và `mobile/` có trong cây. APK Android arm64 nằm ở release `v1.0`.
 
 - [Repo remake](https://github.com/VagabondKingsman/open-super-agent-remake)
 - [Repo tác giả](https://github.com/kadaliao/open-super-agent)
@@ -130,6 +130,14 @@ Máy chưa có Docker: Computer và `/api/files` trả `unavailable`, `reason: d
 
 Không mở VNC/CDP ra public, không chạy `cdp_helper.py` trực tiếp trên host. CAPTCHA, QR, OTP và mật khẩu phải do người dùng xử lý. Không ghi trình diễn với dữ liệu nhạy cảm; bộ che input không bảo đảm phát hiện mọi secret.
 
+## App Android
+
+OSA chạy trên server. Điện thoại chỉ mở trang web đó. File cài và cách dùng nằm ở [android/README.md](../android/README.md). Release [v1.0](https://github.com/VagabondKingsman/open-super-agent-remake/releases/tag/v1.0) là APK debug arm64, ký khóa debug.
+
+Nhập `http://IP:cổng` hoặc tên Tailscale `http://máy.ts.net/`. App kiểm `GET /manifest.json` trước khi mở trang. Sai địa chỉ thì ở lại màn hình nhập. Đăng nhập là form `POST /login` của server. Sau khi vào, Cài đặt có nút Đổi máy chủ.
+
+Ngày 11/11/2026, Samsung Galaxy S22 Ultra nối `http://osa.taila99125.ts.net/`, đăng nhập, và mở được chat AutoBot cùng Nova.
+
 ## Kênh chat, thư viện và backup
 
 Telegram, Feishu/Lark, DingTalk, WeCom, Discord dùng cùng hội thoại web. Kênh hỗ trợ chat riêng từ tài khoản ghép đôi; nhóm OSA không tự là group/channel thật ở nền tảng ngoài. Chỉ để một instance nhận tin với cùng token. Đọc [channels](channels.md) để cấp quyền đúng.
@@ -154,7 +162,7 @@ curl --fail http://127.0.0.1:8765/api/settings
 curl --fail http://127.0.0.1:8765/api/files
 ```
 
-Lệnh pytest ở trên chạy giống CI: 828 passed, 1 skipped trên `8c108c9`. Máy thiếu `bwrap`, `xvfb` hoặc Chrome thì dùng `uv run pytest -q`, test cần chúng sẽ SKIP. Pytest dùng database tạm, model giả và không cần Computer thật. Lấy ID Bot thực từ bootstrap/UI trước khi GET `/api/bots/<id>/computer`. Nếu bật auth, dùng phiên UI đã đăng nhập; 401 không tự là lỗi và không nên tắt mật khẩu để smoke.
+Lệnh pytest ở trên chạy giống CI. Số 828 passed, 1 skipped là của `8c108c9`, không phải head hiện tại. CI PR #47 trên `9b931f6` xanh cả ba job. Máy thiếu `bwrap`, `xvfb` hoặc Chrome thì dùng `uv run pytest -q`, test cần chúng sẽ SKIP. Pytest dùng database tạm, model giả và không cần Computer thật. Lấy ID Bot thực từ bootstrap/UI trước khi GET `/api/bots/<id>/computer`. Nếu bật auth, dùng phiên UI đã đăng nhập; 401 không tự là lỗi và không nên tắt mật khẩu để smoke.
 
 Sau build, tải lại tab cũ. Entry JS đã tách trang, khoảng 69 kB lúc OSA-022. Việc desktop thật, model trả phí, kênh chat và image Computer chưa được chứng minh chỉ bằng unit test hoặc HTTP 200.
 

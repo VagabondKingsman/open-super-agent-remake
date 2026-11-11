@@ -4,7 +4,7 @@
 
 Bản tiếng Việt của [kadaliao/open-super-agent](https://github.com/kadaliao/open-super-agent) v0.17.0 (`ec02547`), chạy trên máy của bạn. Bạn chọn model, nối ứng dụng qua MCP, giao việc nền cho Bot và xem Computer khi Bot làm. Tiền API do nhà cung cấp tính. Dự án không cấp credit.
 
-Repo: <https://github.com/VagabondKingsman/open-super-agent-remake>. Giấy phép [MIT](LICENSE). Tác giả upstream: Kada Liao. Nhánh làm việc: `i18n-vi`, tip `8c108c9` (merge PR #39, 10/11/2026). Nhánh mặc định `main` trên GitHub là bản cũ, đừng dùng.
+Repo: <https://github.com/VagabondKingsman/open-super-agent-remake>. Giấy phép [MIT](LICENSE). Tác giả upstream: Kada Liao. Nhánh làm việc: `i18n-vi`. Bản Android cài trên điện thoại: [release v1.0](https://github.com/VagabondKingsman/open-super-agent-remake/releases/tag/v1.0). Nhánh mặc định `main` trên GitHub là bản cũ, đừng dùng.
 
 ## Bản này giữ gì so với upstream
 
@@ -37,7 +37,9 @@ Các mục dưới đây có trong code remake, không có ở upstream. Bằng 
 - Stream của model im quá `limits.stream_idle_s` giây (mặc định 120, ngắn hơn 3 phút của Watchdog) thì OSA đóng stream và gọi lại cùng lượt, tối đa `limits.stream_retries` lần (mặc định 1). Rớt kết nối, 5xx hay lỗi "at capacity" giữa stream cũng được gọi lại. Lỗi hết quota thì không. Router chỉ gọi lại khi UI chưa nhận chữ nào. Đây là bản sửa cho task Nova #253 bị Watchdog hủy (PR #37).
 - CI chạy thật 3 test sandbox (cài `bubblewrap`, `OSA_REQUIRE_SANDBOX=1`) và `test_real_chrome` với Chrome thật dưới `xvfb-run` (PR #38, #39). Chỉ còn `test_real_desktop` bị skip vì cần macOS.
 
-Code `desktop/` và `mobile/` có trong cây vì đi theo upstream. Remake không build và không phát hành hai app này. Workflow đóng gói app Mac của upstream không có trong repo.
+Code `desktop/` và `mobile/` có trong cây vì đi theo upstream. Remake không build và không phát hành app Mac hay iPhone. Workflow đóng gói app Mac của upstream không có trong repo.
+
+App Android là vỏ WebView, OSA vẫn ở server. Cách cài và các lỗi đã sửa (văng lúc nối, văng sau mật khẩu) nằm ở [android/README.md](android/README.md). File cài arm64: [v1.0](https://github.com/VagabondKingsman/open-super-agent-remake/releases/tag/v1.0).
 
 ## Chạy trên máy
 
@@ -69,7 +71,7 @@ env -u DISPLAY CI=1 OSA_REQUIRE_SANDBOX=1 OSA_TEST_CHROME=1 xvfb-run -a uv run p
 curl --fail http://127.0.0.1:8765/api/settings
 ```
 
-Trên `8c108c9`, pytest được 828 passed, 1 skipped (`test_real_desktop`, chỉ macOS). CI push trên `8c108c9` (run `42826978455`) xanh backend, frontend và docker. `uv run pytest -q` trơn vẫn chạy được trên máy thiếu sandbox hay màn hình, khi đó test cần chúng sẽ SKIP. Pytest dùng database tạm và model giả. Test đó không chứng minh Docker Computer, app Mac, điện thoại, hay kênh chat thật đã chạy.
+Số 828 passed, 1 skipped là của `8c108c9` (PR #39), không phải số của head hiện tại. CI của PR #47 trên `9b931f6` xanh backend, frontend và docker. `uv run pytest -q` trơn vẫn chạy được trên máy thiếu sandbox hay màn hình, khi đó test cần chúng sẽ SKIP. Pytest dùng database tạm và model giả. Test đó không chứng minh Docker Computer, app Mac, hay kênh chat thật đã chạy. Điện thoại Android arm64 đã đăng nhập được trên S22 Ultra ngày 11/11/2026, xem [android/README.md](android/README.md).
 
 ## An toàn
 
