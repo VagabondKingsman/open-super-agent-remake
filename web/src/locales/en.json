@@ -1388,5 +1388,14 @@
   "改名": "Rename",
   "删除这个对话": "Delete this chat",
   "删除「{name}」？这个对话里的消息会一起删除。": "Delete “{name}”? The messages in this chat go with it.",
-  "删除对话": "Delete this chat"
+  "删除对话": "Delete this chat",
+  "编号": "ID",
+  "复制 ID": "Copy ID",
+  "已复制 ID {id}": "Copied ID {id}",
+  "复制失败": "Couldn't copy",
+  "标记未读": "Mark as unread",
+  "隐藏这个 Bot": "Hide this bot",
+  "显示这个 Bot": "Show this bot",
+  "编辑详情": "Edit details",
+  "已隐藏的 Bot": "Hidden bots"
 }

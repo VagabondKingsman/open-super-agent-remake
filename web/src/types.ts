@@ -3,11 +3,13 @@ export type Avatar = { shape: string; color: string; image?: string }
 export type Bot = {
   id: number; name: string; avatar: Avatar; instructions: string
   is_primary: boolean; created: number; chat_id: number
+  hidden?: boolean   // 从侧栏收起来，还在「已隐藏的 Bot」里
 }
 export type Chat = {
   id: number; kind: 'direct' | 'group'; title: string; bot_ids: number[]
   // pinned：置顶的时间（侧栏上面那排按它排，先置顶的在前），0 是没置顶。lead：群聊的协调者
   pinned: number; updated: number; preview: string; lead: number | null
+  marked_unread?: boolean   // 侧栏手动标的未读，打开对话后清掉
   image: string | null   // 群聊自己的头像图片；没有就用成员的头像拼
   threads?: number       // 下面有几个讨论串：有的话对话顶上显示“讨论串”按钮
 }

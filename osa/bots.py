@@ -21,6 +21,12 @@ if "seen" not in _cols:
     # 讨论串：你看到过的最后一条消息 id，之后 Bot 的回复算“新回复”。升级上来时，已有的回复都算看过
     conn.execute("alter table chats add column seen integer")
     conn.execute("update chats set seen=(select coalesce(max(id), 0) from messages where chat_id=chats.id) where kind='thread'")
+if "unread_mark" not in _cols:
+    # 用户在侧栏把这个对话标成未读。打开对话时清掉。和讨论串的 seen 不是一回事。
+    conn.execute("alter table chats add column unread_mark integer not null default 0")
+_bot_cols = {r[1] for r in conn.execute("pragma table_info(bots)")}
+if "hidden" not in _bot_cols:
+    conn.execute("alter table bots add column hidden integer not null default 0")
 conn.execute("create index if not exists chats_thread on chats(parent, root)")
 conn.commit()
 
@@ -30,24 +36,27 @@ MAX_BOTS = 50
 GROUP_MIN, GROUP_MAX, MAX_GROUPS = 2, 6, 50
 
 
+_BOT_COLS = "id, name, avatar, instructions, is_primary, created, hidden"
+
+
 def _bot(row) -> dict:
-    i, name, avatar, instr, primary, created = row
+    i, name, avatar, instr, primary, created, hidden = row
     # 一个 Bot 可能不止一个私聊（脚本或将来的“新对话”会建）：Bot 自己的那个是最早建的那个，
     # 不加 order by 时 sqlite 返回哪一行不确定，点 Bot 可能落到测试用的私聊里（见 tests/test_bots_direct_chats.py）。
     chat = conn.execute("select id from chats where kind='direct' and bot_ids=? order by id limit 1",
                          (json.dumps([i]),)).fetchone()
     return {"id": i, "name": name, "avatar": json.loads(avatar or "{}"), "instructions": instr or "",
-            "is_primary": bool(primary), "created": created, "chat_id": chat[0] if chat else None}
+            "is_primary": bool(primary), "created": created, "chat_id": chat[0] if chat else None,
+            "hidden": bool(hidden)}
 
 
 def list_bots() -> list[dict]:
     return [_bot(r) for r in conn.execute(
-        "select id, name, avatar, instructions, is_primary, created from bots order by is_primary desc, id")]
+        f"select {_BOT_COLS} from bots order by is_primary desc, id")]
 
 
 def get(bot_id: int) -> dict | None:
-    r = conn.execute("select id, name, avatar, instructions, is_primary, created from bots where id=?",
-                     (bot_id,)).fetchone()
+    r = conn.execute(f"select {_BOT_COLS} from bots where id=?", (bot_id,)).fetchone()
     return _bot(r) if r else None
 
 
@@ -120,6 +129,8 @@ def update(bot_id: int, **fields) -> dict:
         conn.execute("update bots set instructions=? where id=?", (str(fields["instructions"])[:4000], bot_id))
     if fields.get("avatar"):
         conn.execute("update bots set avatar=? where id=?", (json.dumps(clean_avatar(fields["avatar"], bot_id)), bot_id))
+    if fields.get("hidden") is not None:
+        conn.execute("update bots set hidden=? where id=?", (1 if fields["hidden"] else 0, bot_id))
     conn.commit()
     avatars.gc()
     return get(bot_id)
@@ -161,16 +172,17 @@ def _delete_chat(chat_id: int):
         conn.execute("delete from chats where id=?", (i,))
 
 
-_CHAT_COLS = "id, kind, title, bot_ids, pinned, updated, lead, parent, root, image"
+_CHAT_COLS = "id, kind, title, bot_ids, pinned, updated, lead, parent, root, image, unread_mark"
 
 
 def _chat(row) -> dict:
-    i, kind, title, ids, pinned, updated, lead, parent, root, image = row
+    i, kind, title, ids, pinned, updated, lead, parent, root, image, unread_mark = row
     last = conn.execute("select content, role from messages where chat_id=? order by id desc limit 1", (i,)).fetchone()
     threads = 0 if kind == "thread" else \
         conn.execute("select count(*) from chats where kind='thread' and parent=?", (i,)).fetchone()[0]
     return {"id": i, "kind": kind, "title": title, "bot_ids": json.loads(ids or "[]"), "pinned": pinned or 0,
             "updated": updated, "preview": (last[0][:80] if last else ""), "lead": lead, "image": image,
+            "marked_unread": bool(unread_mark),
             "threads": threads}   # 下面有几个讨论串：有的话对话顶上显示“讨论串”按钮
 
 
@@ -188,6 +200,16 @@ def set_pinned(chat_id: int, pinned: bool) -> dict:
     if bool(c["pinned"]) != pinned:
         conn.execute("update chats set pinned=? where id=?", (time.time() if pinned else 0, chat_id))
         conn.commit()
+    return chat(chat_id)
+
+
+def set_unread_mark(chat_id: int, unread: bool) -> dict:
+    """侧栏「标记未读」。打开这个对话时前端再调一次把它清掉。"""
+    c = chat(chat_id)
+    if not c or c.get("parent"):
+        raise ValueError(i18n.t("没有这个对话"))
+    conn.execute("update chats set unread_mark=? where id=?", (1 if unread else 0, chat_id))
+    conn.commit()
     return chat(chat_id)
 
 

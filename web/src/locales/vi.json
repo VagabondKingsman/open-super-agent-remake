@@ -1220,5 +1220,14 @@
   "改名": "Đổi tên",
   "删除这个对话": "Xoá cuộc trò chuyện này",
   "删除「{name}」？这个对话里的消息会一起删除。": "Xoá “{name}”? Tin nhắn trong cuộc trò chuyện này sẽ mất theo.",
-  "删除对话": "Xoá cuộc trò chuyện này"
+  "删除对话": "Xoá cuộc trò chuyện này",
+  "编号": "ID",
+  "复制 ID": "Sao chép ID",
+  "已复制 ID {id}": "Đã sao chép ID {id}",
+  "复制失败": "Không sao chép được",
+  "标记未读": "Đánh dấu chưa đọc",
+  "隐藏这个 Bot": "Ẩn bot này",
+  "显示这个 Bot": "Hiện bot này",
+  "编辑详情": "Sửa chi tiết",
+  "已隐藏的 Bot": "Bot đã ẩn"
 }
