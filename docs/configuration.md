@@ -121,6 +121,7 @@ computer:
   height: 800
   idle_pause_s: 900      # 闲置多少秒后自动暂停
   instabox_template: agent-browser
+  ls_cache_s: 2           # 列目录缓存几秒（Instabox 上每个 exec 一个 API 来回；写、删时立刻清掉）
   instabox_machine: ""   # 使用已有的 Instabox 机器（免费版只能有一台）。写死了就不换机器：那台没了会直接报错
                          # 没写死时，账号里还有别的机器（或用这里建的机器）的话，现在这台没了会自动换过去（`metadata.role` 记下它现在是 primary）
 ```

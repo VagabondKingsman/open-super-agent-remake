@@ -146,6 +146,7 @@ computer:
                              # host：用这台电脑上装的 Chrome（单独的配置目录），不用 Docker；设置里也能换
   # choices: [local, instabox]   # 电脑面板里给哪几种（host / local / instabox），不写就是全部；比如服务器上不想用 Docker 就只写 [instabox]
   parallel: 3                # 几个任务可以同时用电脑，每个一个浏览器窗口，多了排队；电脑内存小就调小
+  ls_cache_s: 2              # 列目录的缓存秒数（Instabox 上每个 exec 一个 API 来回；写、删时立刻清掉）
   isolate_tasks: true        # Docker / Instabox 的电脑上每个任务一个浏览器 profile：cookie、登录状态互不可见（做完就丢）；
                              # 本机电脑（host）不隔离，因为那里的 Chrome 就是给你用你登录过的网站的
   width: 1280

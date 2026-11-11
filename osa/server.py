@@ -1065,17 +1065,26 @@ async def list_files(path: str = "", start: bool = False):
         p = library.norm(path)
     except ValueError as e:
         _err(e)
-    c = await _files_pc(start)
-    if not c:
-        return {"running": False, **(await computer.get().status()), "path": p, "root": library.root()}
+    c = computer.get()
+    if start:
+        c = await _files_pc(True)
+    # 不先问一遍电脑开没开：直接列（电脑没开的话下面再问，省一个来回——Instabox 上每个来回都要几百毫秒）
     try:
-        entries = await library.list_dir(c, p)
-        pinned = library.pins()
-        stats = await library.stat_many(c, pinned)
+        entries, pinned, stats = await _listing(c, p)
     except (ValueError, computer.ComputerError) as e:
-        _err(e)
+        st = await c.status()
+        if st["state"] == "running":
+            _err(e)                       # 电脑开着：目录不存在、命令出错，是真的出错
+        return {"running": False, **st, "path": p, "root": library.root()}   # 电脑没开：不替用户开，也不报错
     return {"running": True, "path": p, "root": library.root(), "entries": entries,
             "pins": [stats.get(x) or {"name": posixpath.basename(x), "path": x, "missing": True} for x in pinned]}
+
+
+async def _listing(c, p: str):
+    """列一个文件夹、顺便取置顶文件的现状。两个终端命令一起跑：等的时间是一次的，不是两次的。"""
+    pinned = library.pins()
+    entries, stats = await asyncio.gather(library.list_dir(c, p), library.stat_many(c, pinned))
+    return entries, pinned, stats
 
 
 @app.get("/api/files/download")

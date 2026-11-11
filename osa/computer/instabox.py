@@ -5,9 +5,12 @@
 """
 import asyncio
 import os
+import time
 import uuid
 import httpx
 import websockets
+
+from ..config import CFG
 from .. import i18n, vault
 from ..memory import conn
 from .base import Computer, ComputerError, ExecResult, check_enabled
@@ -78,6 +81,7 @@ class InstaboxComputer(Computer):
         self.idle_seconds = idle_seconds
         self._starting = asyncio.Lock()
         self._switch = asyncio.Lock()        # 换机器一次只做一次（几个动作同时发现机器没了）
+        self._ls_cache: dict = {}             # 目录列表：界面翻文件夹时同一个目录几秒内只问一次（见 ls）
         self.http = httpx.AsyncClient(base_url=API, timeout=httpx.Timeout(60, read=660))
 
     # 机器 id 存在数据库里，以后一直用同一台机器
@@ -235,6 +239,29 @@ class InstaboxComputer(Computer):
         mid = self.machine_id
         if mid and (await self.status())["state"] == "running":
             await self._wait_op(await self._req("POST", f"/v1/machines/{mid}/suspend", idem=True))
+
+    async def ls(self, path: str) -> list[dict]:
+        """列目录。这里每个 exec 都要一个 API 来回（几百毫秒到一秒），界面打开文件夹、上传前查重名都会来问，
+        所以同一个目录几秒内只问一次（computer.ls_cache_s，默认 2 秒）；写文件、删文件时清掉（见 write_bytes / rm）。"""
+        ttl = float((CFG.get("computer") or {}).get("ls_cache_s", 2) or 0)
+        key = (self.machine_id, path)
+        now = time.monotonic()
+        if ttl and (hit := self._ls_cache.get(key)) and now - hit[0] < ttl:
+            return [dict(e) for e in hit[1]]
+        out = await super().ls(path)
+        if ttl:
+            for k in [k for k, (ts, _) in self._ls_cache.items() if now - ts > 60]:
+                self._ls_cache.pop(k, None)     # 不攒着
+            self._ls_cache[key] = (now, out)
+        return [dict(e) for e in out]
+
+    async def write_bytes(self, path: str, data: bytes):
+        self._ls_cache.clear()
+        await super().write_bytes(path, data)
+
+    async def rm(self, path: str):
+        self._ls_cache.clear()
+        await super().rm(path)
 
     async def _wake_retry(self, fn):
         """机器空闲后会自己挂起：遇到 409 machine_not_running 就叫醒它，再做一次。
