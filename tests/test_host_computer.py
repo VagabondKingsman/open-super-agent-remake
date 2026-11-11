@@ -186,8 +186,12 @@ def test_default_rules():
     assert approvals.decide("browser_submit", "host")[0]
     assert approvals.decide("computer_write_file", "host")[0]
     assert approvals.decide("computer_shell", "host")[0]
-    for t in ("browser_upload", "browser_submit", "computer_write_file", "computer_shell"):
+    for t in ("browser_upload", "browser_submit", "computer_write_file"):
         assert not approvals.decide(t, "local")[0]      # Docker / Instabox 的电脑默认不问
+    assert approvals.decide("computer_shell", "local", {"cmd": "ls"}, task_id=3)[0]   # B1：每个任务的第一条命令问一次
+    approvals.shell_confirmed(3)
+    assert not approvals.decide("computer_shell", "local", {"cmd": "ls"}, task_id=3)[0]
+    approvals.end_task(3)
     rule = approvals.add_rule("browser_submit", "allow")
     sh = approvals.add_rule("computer_shell", "allow")
     try:

@@ -156,7 +156,8 @@ DESK_HINT = """
 
 def system_hint(c=None) -> str:
     c = c or get()
-    shell = "" if c.backend in HOSTS else "\n- Use computer_shell to download files, process data and run scripts."
+    shell = "" if c.backend in HOSTS else ("\n- Use computer_shell to download files, process data and run scripts. "
+                                          "The first command of a task is shown to the user for confirmation; after that the task runs them directly.")
     return _intro(c) + _BODY.replace("{shell}", shell)
 
 
@@ -285,9 +286,11 @@ async def _confirm(task, c, name: str, args: dict, key: str) -> str | None:
             return None
         tool, shown = "browser_submit", {"操作": info.get("what"), "页面": f"{info.get('title') or ''} | {info.get('url') or ''}"}
     if not approvals.decide(tool, c.backend, args if tool != "browser_submit" else shown,
-                            background=bool(getattr(task, "background", False)))[0]:
+                            background=bool(getattr(task, "background", False)), task_id=task.id)[0]:
         return None
     ok, note = await approvals.request(task, tool, shown)   # 终端：卡片上能“总是允许这个命令前缀”（approvals.resolve）
+    if ok and tool == "computer_shell":
+        approvals.shell_confirmed(task.id)   # 这个任务里后面的终端命令直接跑（B1）
     return None if ok else f"The user refused this action; it was not performed. {note}".strip()
 
 

@@ -48,8 +48,8 @@ class ExecResult:
         out = self.stdout + (("\n[stderr]\n" + self.stderr) if self.stderr.strip() else "")
         if len(out) > limit:
             out = out[:limit] + f"\n…（输出过长，截断了 {len(out) - limit} 字）"
-        tail = "（超时）" if self.timed_out else ""
-        return f"退出码 {self.exit_code}{tail}\n{out}".strip()
+        tail = i18n.t("（超时）") if self.timed_out else ""
+        return f"{i18n.t('退出码 {code}', code=self.exit_code)}{tail}\n{out}".strip()
 
 
 def keysym(key: str) -> str:
