@@ -400,6 +400,7 @@ def _history(task: Task, label: str) -> list:
 
 
 SHORTENED = "\n… (shortened to keep the context small; call the tool again if you need the rest)"
+OMITTED = "\n… (earlier result omitted; call the tool again if you need it)"
 
 
 def _compact_tools(msgs: list[dict]) -> int:
@@ -432,6 +433,21 @@ def _compact_tools(msgs: list[dict]) -> int:
             continue
         msgs[i]["content"] = c[:keep_chars] + SHORTENED
         cut += len(c) - keep_chars
+        total -= len(c) - len(msgs[i]["content"])
+        if total <= goal:
+            break
+    if total <= goal:
+        return cut
+    # C21：只截到 1500 字还到不了 goal —— 最近几条本身就比 goal 长（线上 5-8k 字的结果很常见），
+    # 于是每次只截得动新来的那一条，一步一个断点（实测 8000 字的结果：30 步里 14 次断）。
+    # 这里把最老的收成一行：一次痛到底，后面十几步都是原样追加。
+    tiny = int(lim.get("worker_tiny_tool_chars", 200) or 0)
+    for i in tools[:-keep] if keep else tools:
+        c = msgs[i].get("content") or ""
+        if c.endswith(OMITTED) or len(c) <= tiny + len(OMITTED):
+            continue
+        msgs[i]["content"] = c[:tiny] + OMITTED
+        cut += len(c) - len(msgs[i]["content"])
         total -= len(c) - len(msgs[i]["content"])
         if total <= goal:
             break

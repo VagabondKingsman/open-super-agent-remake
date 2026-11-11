@@ -63,6 +63,7 @@ limits:
   worker_keep_full_tools: 3   # 最近这么多条工具结果保持原样
   worker_old_tool_chars: 1500 # 更早的截到这么多字
   worker_compact_to_chars: 20000 # C18: 一次截到这个总量以下，给后面的步留余量（否则每一步都改前缀、都要重读整个 body）
+  worker_tiny_tool_chars: 200  # C21: 截到 1500 字还到不了 goal 时，更老的结果收成一行（前 200 字 + 标记）
   worker_result_chars: 8000   # 每条工具结果最多带这么多字进上下文（0 = 不限）
   watchdog_interval_s: 15
   approval_timeout_s: 1800   # 写操作等待确认的时限，超时按拒绝

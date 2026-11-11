@@ -34,7 +34,22 @@ def test_old_outputs_are_shortened_and_recent_ones_kept():
     keep = int(CFG["limits"].get("worker_keep_full_tools", 3))
     assert [len(t["content"]) > 4000 for t in tools[-keep:]] == [True] * keep
     assert all(len(t["content"]) < 2000 for t in tools[:-keep])
-    assert "shortened" in tools[0]["content"]
+    assert tools[0]["content"].rstrip().endswith("(earlier result omitted; call the tool again if you need it)") \
+        or "shortened" in tools[0]["content"]
+
+
+def test_huge_results_are_collapsed_so_later_steps_do_not_break():
+    """C21：5–8k 字的结果很常见（task_steps 里 163/364），最近三条本身就比 goal 长，
+    只截到 1500 字永远到不了 goal —— 那时最老的收成一行，一次到底，后面十几步都是原样追加。"""
+    goal = int(CFG["limits"].get("worker_compact_to_chars", 20000))
+    msgs = history(13, 5000)
+    worker._compact_tools(msgs)
+    total = sum(len(m["content"]) for m in msgs if m["role"] == "tool")
+    assert total <= goal
+    for step in range(3):        # 后面几步只追加，一个字都不改
+        msgs.append({"role": "assistant", "content": "", "tool_calls": [{"id": f"n{step}"}]})
+        msgs.append(tool(200 + step, 5000))
+        assert worker._compact_tools(msgs) == 0
 
 
 def test_compact_is_idempotent():
