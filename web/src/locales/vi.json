@@ -1212,5 +1212,8 @@
   "输入 {a} · 输出 {b} tokens": "{a} vào · {b} ra token",
   " · 首字 {s} 秒": " · chữ đầu {s}s",
   "（估算）": " (ước tính)",
-  " · 命中缓存 {n}": " · {n} đã cache"
+  " · 命中缓存 {n}": " · {n} đã cache",
+  "那台机器没了（会换一台）": "Máy đó không còn nữa (sẽ đổi sang máy khác)",
+  "等你交还电脑最多几秒": "Chờ bạn trả máy tối đa bao nhiêu giây",
+  "你接手电脑后，Bot 最多等这么久；超过就先把这一步放下、说给你听": "Sau khi bạn tiếp quản máy, Bot chờ tối đa chừng này; quá thì nó gác bước ấy lại và báo bạn"
 }

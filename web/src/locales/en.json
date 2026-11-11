@@ -1380,5 +1380,8 @@
   "输入 {a} · 输出 {b} tokens": "{a} in · {b} out tokens",
   " · 首字 {s} 秒": " · first word {s}s",
   "（估算）": " (estimated)",
-  " · 命中缓存 {n}": " · {n} cached"
+  " · 命中缓存 {n}": " · {n} cached",
+  "那台机器没了（会换一台）": "That machine is gone (a new one is on its way)",
+  "等你交还电脑最多几秒": "Seconds to wait for you to hand the computer back",
+  "你接手电脑后，Bot 最多等这么久；超过就先把这一步放下、说给你听": "After you take over the computer the Bot waits at most this long; past that it sets the step aside and tells you"
 }

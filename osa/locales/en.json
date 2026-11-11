@@ -1289,5 +1289,12 @@
   "（已选中）": "(checked)",
   "（屏幕外）": "(offscreen)",
   "{scroll}，视口高 {vh}": "{scroll}, viewport height {vh}",
-  "（更正：这一轮还没真的派出任务，上面说已经交给 worker 是不对的。）": "(Correction: nothing was actually dispatched in this turn; the claim above that the Worker had it is wrong.)"
+  "（更正：这一轮还没真的派出任务，上面说已经交给 worker 是不对的。）": "(Correction: nothing was actually dispatched in this turn; the claim above that the Worker had it is wrong.)",
+  "（超时）": "(timeout)",
+  "你还在用电脑，{n} 秒了，我先把这一步放下": "You have been using the computer ({n} s), so I'll set this step aside for now",
+  "你一直在用电脑（等了 {n} 秒），这一步先放下：等你交还以后我再继续": "You are still using the computer (waited {n} s); I'll set this step aside and continue once you hand it back",
+  "config.yaml 指定的电脑（{mid}）不在了，换不了：清空 computer.instabox_machine 或改成另一台": "The computer named in config.yaml ({mid}) is gone and there is no other to switch to: clear computer.instabox_machine or point it at another machine",
+  "那台机器已经没了": "That machine is gone",
+  "模型服务 {n} 秒没有响应（连接没能建起来）": "The model service did not answer within {n} s (the connection could not be opened)",
+  "(System: this turn has already cost {cost} — more than {factor}x the usual {usual}. Answer from what you have now; do not call any more tools.)": "(System: this turn has already cost {cost} — more than {factor}x the usual {usual}. Answer from what you have now; do not call any more tools.)"
 }
