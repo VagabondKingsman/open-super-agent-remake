@@ -18,6 +18,10 @@ Phần dưới là snapshot 10/11 và các mục bổ sung. Câu "chưa merge" t
 
 Đã merge [PR #54](https://github.com/VagabondKingsman/open-super-agent-remake/pull/54) tại `8bc4119`. ID bot là số gán lúc tạo (`bots._next_id`), hiện trong Chi tiết và sao chép được. Menu thanh bên thêm đánh dấu chưa đọc, ẩn, sửa chi tiết, xóa. Bot chính vẫn không xóa được.
 
+## Bổ sung · nút kết nối lại trên APK · cursor · 11/11/2026
+
+Nhánh `cursor/apk-reconnect-efeb`, chưa vào `i18n-vi`. Chấm đỏ là WebSocket `/ws` đóng. Nút chỉ hiện trên Android khi chấm đỏ. Bấm thì thử ngay trong 8 giây. Thành công chấm xanh, thất bại chấm đỏ, cả hai có dòng tự mất sau 2,5 giây. Không build APK mới: trang lấy từ server.
+
 # Trạng thái 10/11/2026
 
 Snapshot lúc 22:20 Asia/Saigon (UTC+7), viết sau khi PR #41 merge.

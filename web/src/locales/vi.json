@@ -1229,5 +1229,8 @@
   "隐藏这个 Bot": "Ẩn bot này",
   "显示这个 Bot": "Hiện bot này",
   "编辑详情": "Sửa chi tiết",
-  "已隐藏的 Bot": "Bot đã ẩn"
+  "已隐藏的 Bot": "Bot đã ẩn",
+  "重新连接": "Kết nối lại",
+  "已重新连上": "Đã kết nối lại",
+  "还是连不上这台服务器": "Vẫn không nối được server"
 }

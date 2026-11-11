@@ -33,6 +33,7 @@ export type Bridge = {
 
 export const desktop: Bridge | undefined = typeof window !== 'undefined' ? (window as any).osaDesktop : undefined
 export const phone = desktop?.platform === 'ios' || desktop?.platform === 'android'
+export const android = desktop?.platform === 'android'
 
 // 点到别的网站的链接：用系统浏览器打开，不在 App 的窗口里跳走。
 // 外壳分不清是页面跳转还是页面里的 iframe 在加载，所以由页面自己在点击时处理。

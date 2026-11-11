@@ -1397,5 +1397,8 @@
   "隐藏这个 Bot": "Hide this bot",
   "显示这个 Bot": "Show this bot",
   "编辑详情": "Edit details",
-  "已隐藏的 Bot": "Hidden bots"
+  "已隐藏的 Bot": "Hidden bots",
+  "重新连接": "Reconnect",
+  "已重新连上": "Connected again",
+  "还是连不上这台服务器": "Still can't reach this server"
 }

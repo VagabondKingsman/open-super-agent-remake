@@ -69,7 +69,10 @@ a { color: var(--link); text-decoration: none; } a:hover { text-decoration: unde
 .hidden-bots > .side-link { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 6px 8px; flex: none; }
 .hidden-list { overflow-y: auto; min-height: 0; }
 .head-actions .icon-btn.on { color: var(--fg); } .head-actions .icon-btn.on .icon { fill: currentColor; }   /* 已置顶：实心图钉 */
-.side-bottom { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-top: 1px solid var(--line); }
+.side-bottom { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-top: 1px solid var(--line); gap: 8px; }
+.side-conn { display: flex; align-items: center; gap: 8px; flex: none; }
+.conn-toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 80; max-width: calc(100vw - 32px); padding: 10px 14px; border-radius: 10px; background: var(--bg3); border: 1px solid var(--line); font-size: 14px; box-shadow: 0 8px 24px rgba(0,0,0,.35); }
+.conn-toast.ok { color: var(--good); } .conn-toast.bad { color: var(--bad); }
 .side-link { color: var(--fg2); font-size: 14px; } .side-link:hover { color: var(--fg); }
 .conn { width: 8px; height: 8px; border-radius: 50%; background: var(--bad); } .conn.on { background: var(--good); }
 
