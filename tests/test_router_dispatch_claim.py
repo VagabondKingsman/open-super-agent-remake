@@ -5,7 +5,7 @@ RETRO-01：每次 dispatch 后都对 meta.tasks 断言；每个测试用自己�
 import pytest
 
 from conftest import find, settle, until
-from fakellm import Call
+from fakellm import Call, HttpError
 from osa import bots, i18n, server
 
 
@@ -190,3 +190,41 @@ async def test_real_dispatch_in_the_same_turn_is_not_corrected(llm, events, make
     reply = _replies(bot)[-1]
     assert reply["meta"]["tasks"] and "claimed_dispatch" not in reply["meta"]
     assert "Đính chính" not in reply["content"]
+
+
+# ---- C11：修复轮把 dispatch 定为必调工具 ----
+
+async def test_corrective_round_forces_the_dispatch_tool(llm, events, make_bot, vi):
+    """模型先只回一句“Đã giao worker…”。修复轮要带 tool_choice，逼出一次真的 dispatch，而不是再陪它聊天。"""
+    bot = make_bot("ClaimH")
+    name = f"router:{bot['name']}"
+    llm.script(name, "Đã giao worker chạy run_code rồi.",
+               Call("dispatch", {"goal": "chạy run_code"}), "Đã giao thật.")
+    llm.script("worker", "xong")
+    await server.safe_handle(_chat(bot), "Giao worker chạy run_code")
+    await until(lambda: find(bot["chat_id"], kind="result"), what="kết quả task")
+    await settle()
+
+    reqs = llm.bodies("router", bot["name"])
+    assert reqs[1]["tool_choice"] == {"type": "function", "function": {"name": "dispatch"}}
+    assert "tool_choice" not in reqs[0] and "tool_choice" not in reqs[2]
+    assert len(find(bot["chat_id"], kind="dispatch")) == 1
+    assert _replies(bot)[-1]["meta"]["tasks"]
+
+
+async def test_service_that_rejects_tool_choice_falls_back(llm, events, make_bot, vi):
+    """有的服务不认 tool_choice：那一次 400 之后退回到普通的一轮，任务照样派出去。"""
+    bot = make_bot("ClaimI")
+    name = f"router:{bot['name']}"
+    llm.script(name, "Đã giao worker chạy run_code rồi.",
+               HttpError(400, {"error": {"message": "tool_choice is not supported"}}),
+               Call("dispatch", {"goal": "chạy run_code"}), "Đã giao thật.")
+    llm.script("worker", "xong")
+    await server.safe_handle(_chat(bot), "Giao worker chạy run_code")
+    await until(lambda: find(bot["chat_id"], kind="result"), what="kết quả task")
+    await settle()
+
+    reqs = llm.bodies("router", bot["name"])
+    assert reqs[1]["tool_choice"]["function"]["name"] == "dispatch"
+    assert "tool_choice" not in reqs[2]
+    assert len(_replies(bot)[-1]["meta"]["tasks"]) == 1

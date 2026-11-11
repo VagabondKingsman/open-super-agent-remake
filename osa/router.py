@@ -387,15 +387,21 @@ class Router:
         if c is not None and hasattr(c, "desk_release"):
             await c.desk_release(f"chat-{self.bot_id}")
 
-    async def _stream(self, client, model, msgs, sid: str, started: float, use_tools: bool = True):
-        """流式调用一次模型，边收边推送正文和思考过程。返回 (正文, 思考, 工具调用列表, finish_reason)。"""
+    async def _stream(self, client, model, msgs, sid: str, started: float, use_tools: bool = True,
+                      force_tool: str | None = None):
+        """流式调用一次模型，边收边推送正文和思考过程。返回 (正文, 思考, 工具调用列表, finish_reason)。
+
+        force_tool：这一轮必须调这个工具（OpenAI 的 tool_choice）。C11 用它逼出一次真的 dispatch。"""
         tools = self._tools()
         cid = self.chat["id"]
         kw = call_kwargs("router")
         def create():
+            extra = {}
+            if use_tools and force_tool:
+                extra["tool_choice"] = {"type": "function", "function": {"name": force_tool}}
             return providers.create_chat(
                 client, model=model, messages=msgs, stream=True, **({"tools": tools} if use_tools else {}),
-                stream_options={"include_usage": True}, **kw)
+                stream_options={"include_usage": True}, **extra, **kw)
         t0, first = time.monotonic(), None
         content, reasoning, calls, usage = "", "", {}, None
         finish = None
@@ -603,13 +609,15 @@ class Router:
         cap = memory.turn_cost_cap(factor=guard)
         self._turn_capped = None
         shown, thinking, shots, finish = "", "", [], None
-        async def rounds():
+        async def rounds(force_tool: str | None = None):
             """跑最多 10 轮工具调用。返回（轮数是否用完, 最后一段正文, 最后一段思考）。"""
             nonlocal shown, thinking, shots, finish
             rounds_used, content, reasoning = True, "", ""
-            for _ in range(10):
+            for i in range(10):
+                # 只在第一次调用上强制：收尾那轮再强制一次 dispatch，模型会又派一遍
                 content, reasoning, calls, finish = await self._stream(client, model, msgs, sid, started,
-                                                                      use_tools=not self._turn_capped)
+                                                                      use_tools=not self._turn_capped,
+                                                                      force_tool=force_tool if i == 0 else None)
                 shown += content
                 thinking += reasoning
                 if not calls:
@@ -662,7 +670,18 @@ class Router:
                 if not shown.endswith("\n"):
                     shown += "\n\n"
                     await self.emit({"type": "stream", "sid": sid, "delta": "\n\n"}, cid)
-                rounds_used, content, reasoning = await rounds()
+                before = shown
+                try:
+                    # C11：这一轮本来就是“去把活派出去”，直接把 dispatch 定为必调工具，别让模型又只回一句话。
+                    rounds_used, content, reasoning = await rounds(force_tool="dispatch")
+                except Exception as e:   # 有的服务不认 tool_choice：退回普通的一轮
+                    log.warning("forced dispatch round failed (%s); retrying with every tool", providers.brief(e))
+                    if shown != before:
+                        shown = before
+                        await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
+                        if before:
+                            await self.emit({"type": "stream", "sid": sid, "delta": before}, cid)
+                    rounds_used, content, reasoning = await rounds()
                 if not self._turn_tasks:
                     claimed_no_call = True
                     fix = i18n.t("（更正：这一轮还没真的派出任务，上面说已经交给 worker 是不对的。）")
