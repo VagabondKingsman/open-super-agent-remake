@@ -1,0 +1,28 @@
+id: e28_group_handoff_back_and_forth
+title: Hai Bot chuyền việc qua lại trong group — việc đi vòng Finder → Writer → Finder rồi mới xong
+area: multi-bot
+bots: [Finder, Writer]
+group: true
+script:
+  router:Finder:
+    - {call: handoff, args: {to: "$bot.Writer", request: "Viết tổng kết từ ba ý mình đã tìm"}}
+    - "Mình tìm được ba ý chính, chuyển Writer viết."
+    - "Số liệu mới nhất là 42. Writer viết tiếp nhé."
+  router:Writer:
+    - {call: handoff, args: {to: "$bot.Finder", request: "Cho mình số liệu mới nhất trước khi viết"}}
+    - "Cần số liệu mới nhất trước đã, hỏi lại Finder."
+input: {to: Finder, in: group, text: "Tìm ba ý chính rồi viết tổng kết, nhớ có số liệu"}
+expect:
+  tasks: 0
+  executed: [handoff]
+  messages:
+    - {chat: group, kind: handoff, text: "Viết tổng kết"}
+    - {chat: group, kind: handoff, text: "Cho mình số liệu mới nhất"}
+    - {chat: group, role: assistant, bot: Writer, text: "Cần số liệu mới nhất"}
+    - {chat: group, role: assistant, bot: Finder, text: "Số liệu mới nhất là 42"}
+  in_llm: ["Cho mình số liệu mới nhất trước khi viết"]
+  no_llm: []
+notes: |
+  Việc chuyền qua lại: Finder giao Writer, Writer giao lại Finder, Finder trả lời.
+  Kiểm tra là mỗi lần giao đều có ghi trong group và Bot sau nói tiếp ngay trong cùng một lượt,
+  không phải chờ người dùng gõ thêm.

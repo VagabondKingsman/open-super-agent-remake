@@ -4,16 +4,21 @@ providers:
   deepseek:
     base_url: https://api.deepseek.com
     api_key_env: DEEPSEEK_API_KEY      # 只写环境变量名，不写明文
+  xai:
+    base_url: https://api.x.ai/v1
+    api_key_env: XAI_API_KEY
   # ollama:
   #   base_url: http://localhost:11434/v1
   #   api_key_env: OLLAMA_API_KEY      # 可以是任意非空值
 
 roles:
-  router:   {provider: deepseek, model: deepseek-flash}
-  worker:   {provider: deepseek, model: deepseek-flash}
-  reviewer: {provider: deepseek, model: deepseek-flash}
-  filter:   {provider: deepseek, model: deepseek-flash}   # webhook 事件的 LLM 过滤，用便宜模型
+  router:   {provider: xai, model: grok-4.20-0309-non-reasoning, fallback: {model: grok-4.7}}
+  worker:   {provider: xai, model: grok-4.7, fallback: {model: grok-4.20-0309-non-reasoning}}
+  reviewer: {provider: xai, model: grok-4.7, fallback: {model: grok-4.20-0309-non-reasoning}}
+  filter:   {provider: xai, model: grok-4.20-0309-non-reasoning}   # webhook 事件的 LLM 过滤，用便宜模型
   # 每个角色还可以加：thinking: false（关闭思考模式，更快更便宜）、reasoning_effort: low/high/max
+  # fallback: {model: 备用模型, provider: 可选, 也可以写 thinking / reasoning_effort}：主模型的流连着两次
+  # 没有新内容（limits.stream_idle_s 用完一次、重来一次仍卡住）时，换它把这一轮做完，任务不会整个失败
 
 heavy:
   workers: 3                 # Heavy 模式研究员数量（类似 Grok Heavy）
@@ -54,11 +59,22 @@ limits:
   answer_continuations: 1     # 最终答案是空的，或 finish_reason=length 时，再要一次完整答案
   save_page_approval: false   # true：Worker 的 save_page 先等确认。命中“自动允许”规则时仍直接写
   task_timeout_s: 600
+  worker_compact_chars: 60000 # 任务里工具结果总长超过这么多字就把早先的截短（0 = 不截）
+  worker_keep_full_tools: 3   # 最近这么多条工具结果保持原样
+  worker_old_tool_chars: 1500 # 更早的截到这么多字
+  worker_compact_to_chars: 20000 # C18: 一次截到这个总量以下，给后面的步留余量（否则每一步都改前缀、都要重读整个 body）
+  worker_tiny_tool_chars: 200  # C21: 截到 1500 字还到不了 goal 时，更老的结果收成一行（前 200 字 + 标记）
+  worker_result_chars: 3000   # C22: 每条结果进上下文时截到这么多字（头 70% + 尾 30%，中间标出切了多少；0 = 不限）
+                               # 只改刚回来的那一条，正文因此总是上一次的原样延长，缓存整段命中：模拟 22 步 $0,1499 → $0,1180
   watchdog_interval_s: 15
   approval_timeout_s: 1800   # 写操作等待确认的时限，超时按拒绝
+  turn_cost_guard: 3.0          # 一轮比过去 7 天的中位数贵这么多倍就不再调工具（0 = 关掉），见 memory.turn_cost_cap
   daily_token_budget: 2000000
   provider_rate_retries: 1   # 普通 429（rate_limit_exceeded）按 Retry-After 再试几次。额度用尽不重试
   provider_retry_cap_s: 120  # Retry-After 最多等这么多秒
+  provider_head_s: 120        # 流式请求：连上、拿到响应头最多等这么多秒（客户端默认 600，比 no_progress_s 长）
+  no_progress_s: 300          # Watchdog：多久没有进展就取消任务。必须比流的各项上限长（头 120、第一块 170），
+                               # 否则流刚要重来，任务先没了——任务 247 就是这样（C20）。每次尝试模型都会重新计时
   provider_transient_retries: 5  # 408/409/5xx 再试几次（和 upstream 的 providers.RETRIES 一致）。0 表示不试
   # 流式调用开了以后（下面三行是代码里的默认值，要改就去掉 # ）：
   # stream_first_chunk_s: 170  # 等第一块最多几秒（想得久的模型第一块慢），要比 Watchdog 的 3 分钟短。0 表示不限
@@ -142,7 +158,10 @@ computer:
   backend: auto              # auto：桌面 App 里用 host，否则有 Instabox 的 API Key（电脑面板里填的或环境变量 INSTABOX_API_KEY）用 Instabox、没有用本地 Docker；也可以写 host / local / instabox；电脑面板里也能换
                              # host：用这台电脑上装的 Chrome（单独的配置目录），不用 Docker；设置里也能换
   # choices: [local, instabox]   # 电脑面板里给哪几种（host / local / instabox），不写就是全部；比如服务器上不想用 Docker 就只写 [instabox]
-  parallel: 3                # 几个任务可以同时用电脑，每个一个浏览器窗口（登录状态共用），多了排队；电脑内存小就调小
+  parallel: 3                # 几个任务可以同时用电脑，每个一个浏览器窗口，多了排队；电脑内存小就调小
+  ls_cache_s: 2              # 列目录的缓存秒数（Instabox 上每个 exec 一个 API 来回；写、删时立刻清掉）
+  isolate_tasks: true        # Docker / Instabox 的电脑上每个任务一个浏览器 profile：cookie、登录状态互不可见（做完就丢）；
+                             # 本机电脑（host）不隔离，因为那里的 Chrome 就是给你用你登录过的网站的
   width: 1280
   height: 800
   idle_pause_s: 900          # 闲置 15 分钟自动暂停（暂停时保留内存，恢复很快）

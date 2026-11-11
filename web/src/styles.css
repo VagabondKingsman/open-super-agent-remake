@@ -89,6 +89,7 @@ a { color: var(--link); text-decoration: none; } a:hover { text-decoration: unde
 .msg:hover .msg-actions { opacity: 1; }
 .ghost-btn { color: var(--fg3); font-size: 12px; padding: 2px 6px; border-radius: 6px; } .ghost-btn:hover { color: var(--fg); background: var(--bg3); }
 .thinking { margin-bottom: 6px; }
+.usage-note { color: var(--fg3); font-size: 11.5px; margin-top: 3px; cursor: default; font-variant-numeric: tabular-nums; }
 .thinking > button { color: var(--fg3); font-size: 13.5px; display: inline-flex; gap: 6px; align-items: center; }
 .thinking > button:hover { color: var(--fg2); }
 .thinking .chev { transition: transform .15s; display: inline-block; } .thinking.open .chev { transform: rotate(90deg); }
@@ -1218,3 +1219,16 @@ textarea.newbot-role.edit { display: block; width: 100%; max-height: 360px; resi
 .ev-multi .check { margin: 4px 0; font-size: 13px; }
 .ev-tag { margin: 0 6px 0 0; }
 .routine .warn { color: #d97706; }
+
+/* A3: Router 正在跑哪一步 */
+.tool-runs{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 8px}
+.tool-run{display:inline-flex;align-items:center;gap:6px;max-width:100%;padding:3px 8px;border:1px solid var(--line);
+  border-radius:999px;font-size:12px;color:var(--fg2);background:var(--bg2)}
+.tool-run b{font-weight:600;color:var(--fg)}
+.tool-run em{font-style:normal;color:var(--fg3);font-variant-numeric:tabular-nums}
+.tool-run.ok{border-color:color-mix(in srgb,var(--fg3) 50%,transparent)}
+.tool-run.err{border-color:var(--bad);color:var(--bad)}
+.tool-run .tool-brief{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px;color:var(--fg3)}
+.tool-spin{width:9px;height:9px;border-radius:50%;border:1.5px solid var(--fg3);border-top-color:transparent;
+  animation:toolspin .7s linear infinite}
+@keyframes toolspin{to{transform:rotate(360deg)}}

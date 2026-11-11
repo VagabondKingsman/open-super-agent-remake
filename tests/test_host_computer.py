@@ -182,12 +182,17 @@ def test_helper_debug_port_error_translated(monkeypatch):
 
 
 def test_default_rules():
+    approvals._vm_said.clear()   # 别的测试里确认过的任务不算在这里
     assert approvals.decide("browser_upload", "host")[0]
     assert approvals.decide("browser_submit", "host")[0]
     assert approvals.decide("computer_write_file", "host")[0]
     assert approvals.decide("computer_shell", "host")[0]
-    for t in ("browser_upload", "browser_submit", "computer_write_file", "computer_shell"):
+    for t in ("browser_upload", "browser_submit", "computer_write_file"):
         assert not approvals.decide(t, "local")[0]      # Docker / Instabox 的电脑默认不问
+    assert approvals.decide("computer_shell", "local", {"cmd": "ls"}, task_id=3)[0]   # B1：每个任务的第一条命令问一次
+    approvals.shell_confirmed(3)
+    assert not approvals.decide("computer_shell", "local", {"cmd": "ls"}, task_id=3)[0]
+    approvals.end_task(3)
     rule = approvals.add_rule("browser_submit", "allow")
     sh = approvals.add_rule("computer_shell", "allow")
     try:
@@ -326,8 +331,8 @@ def _real_chrome_skip_reason() -> str:
     flag = os.environ.get("OSA_TEST_CHROME")
     if flag == "1":
         return ""
-    if flag in ("0", ""):
-        return "OSA_TEST_CHROME=0"
+    if flag == "0":
+        return "OSA_TEST_CHROME=0"   # 明确关掉；没设就往下看环境能不能跑
     if "CI" in os.environ:
         return "CI runner: set OSA_TEST_CHROME=1 to force"
     if sys.platform.startswith("linux") and not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
@@ -387,3 +392,58 @@ async def test_real_chrome(tmp_path, monkeypatch):
                 break
             await asyncio.sleep(0.25)
         shutil.rmtree(tmp_path / "data", ignore_errors=True)
+
+
+def test_chrome_gate_opens_on_a_display(monkeypatch):
+    """A6：没设 OSA_TEST_CHROME 时不该一律跳过——有屏幕、有 Chrome 就跑。以前 "" 被当成“关”，
+    于是在有屏幕的机器上也永远 skip，真的浏览器路径没人测。"""
+    import importlib
+    monkeypatch.delenv("OSA_TEST_CHROME", raising=False)
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.setenv("DISPLAY", ":99")
+    monkeypatch.setattr(host, "chrome_path", lambda: "/usr/bin/google-chrome")
+    try:
+        mod = importlib.reload(sys.modules["test_host_computer"])
+        assert mod._real_chrome_skip_reason() == ""
+    finally:
+        monkeypatch.undo()
+        importlib.reload(sys.modules["test_host_computer"])
+
+
+COOKIE_PAGE = """<!doctype html><meta charset=utf-8><title>cookie</title><body><script>
+if (location.search.includes('set')) document.cookie = 'osa_iso=task1; path=/';
+document.body.textContent = 'cookies:[' + document.cookie + ']';
+</script></body>"""
+
+
+@pytest.mark.skipif(bool(_REAL_CHROME_SKIP), reason=_REAL_CHROME_SKIP or "skip")
+async def test_real_chrome_gives_each_task_its_own_profile(tmp_path, monkeypatch):
+    """B4 的真机检验：同一个 Chrome 里两个 profile，cookie 互不可见；任务做完 profile 就没了。"""
+    site = tmp_path / "site"
+    site.mkdir()
+    (site / "cookie.html").write_text(COOKIE_PAGE)
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), partial(SimpleHTTPRequestHandler, directory=str(site)))
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    url = f"http://127.0.0.1:{srv.server_port}/cookie.html"
+    monkeypatch.setattr(host, "DATA", tmp_path / "data")
+    monkeypatch.setitem(CFG, "computer", {**CFG["computer"], "enabled": True, "isolate_tasks": True})
+    c = host.HostComputer(0)
+    c.backend = "local"   # 隔离只对 Docker / Instabox 打开：这里借本机 Chrome 验证机制本身
+    try:
+        await c.start()
+        await c.claim("t1", "task 1")
+        await c.claim("t2", "task 2")
+        await c.browser("open", key="t1", url=url + "?set=1")
+        assert "osa_iso=task1" in (await c.browser("read", key="t1"))["text"]
+        await c.browser("open", key="t2", url=url)
+        other = (await c.browser("read", key="t2"))["text"]
+        assert c.contexts["t1"] and c.contexts["t2"] and c.contexts["t1"] != c.contexts["t2"]
+        assert "cookies:[]" in other, other          # 任务 2 看不见任务 1 的 cookie
+        await c.release("t1")
+        for _ in range(60):
+            if "t1" not in c.contexts:
+                break
+            await asyncio.sleep(0.1)
+        assert "t1" not in c.contexts                 # 做完就关掉
+    finally:
+        await c.pause()

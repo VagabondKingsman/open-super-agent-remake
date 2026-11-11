@@ -46,8 +46,11 @@ def _req_id(prefix: str) -> str:
 def decrypt(data: bytes, aeskey: str) -> bytes:
     """AES-256-CBC，IV 是密钥的前 16 字节，PKCS#7 按 32 字节补齐。"""
     key = base64.b64decode(aeskey + "=" * (-len(aeskey) % 4))
-    dec = Cipher(algorithms.AES(key), modes.CBC(key[:16])).decryptor()
-    out = dec.update(data) + dec.finalize()
+    try:
+        dec = Cipher(algorithms.AES(key), modes.CBC(key[:16])).decryptor()
+        out = dec.update(data) + dec.finalize()
+    except ValueError:   # 下了一半、或者根本不是这个密钥：给用户的话，不是 cryptography 的英文
+        raise ValueError(i18n.t("文件解密失败")) from None
     pad = out[-1] if out else 0
     if not 1 <= pad <= 32 or out[-pad:] != bytes([pad]) * pad:
         raise ValueError(i18n.t("文件解密失败"))

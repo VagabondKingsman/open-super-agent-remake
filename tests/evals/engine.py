@@ -258,6 +258,11 @@ class Run:
             lim[k] = memory.tokens_today() + int(v) if k == "daily_token_budget" else v
         self.mp.setitem(CFG, "limits", lim)
 
+    async def setup_roles(self, arg: dict):
+        """改角色的模型设置（比如给 worker 配一个备用模型）：只覆盖写出来的键。"""
+        for role, spec in arg.items():
+            self.mp.setitem(CFG["roles"], role, {**(CFG["roles"].get(role) or {}), **spec})
+
     async def setup_no_retry_pause(self, _):
         async def no_wait(attempt):
             pass
@@ -286,6 +291,7 @@ class Run:
         sleep = float(arg.get("sleep", 0))
         secret = arg.get("secret")
         returns = arg.get("returns", "ok")
+        size = int(arg.get("size", 0) or 0)          # C8: a big result, to see what the worker keeps in context
 
         async def fn(**kw):
             self.mcp_calls[name].append(kw)
@@ -293,6 +299,8 @@ class Run:
                 await asyncio.sleep(sleep)
             if len(self.mcp_calls[name]) <= fail_first:
                 raise RuntimeError(arg.get("error", "503 upstream unavailable"))
+            if size:
+                return f"blob-{len(self.mcp_calls[name])} " + "x" * size
             if secret:   # like an MCP server whose env has {vault:NAME}: resolved only when it runs
                 missing: list = []
                 from osa import mcp_hub
@@ -307,9 +315,17 @@ class Run:
         self.mcp_tool(name, fn, schema, confirm=bool(arg.get("confirm")))
 
     async def setup_host_listener(self, _):
-        """A TCP port open on the host's 127.0.0.1, so a sandbox escape to host loopback would actually connect."""
+        """A TCP port open on the host's 127.0.0.1, so a sandbox escape to host loopback would actually connect.
+
+        Only a client that first sends b"OSA" counts: this box also has a daemon (sprite-daemon) that probes every new
+        localhost port with HEAD / and a TLS hello, and counting those made the sandbox look leaky. """
         async def accept(reader, writer):
-            self.listener_hits += 1
+            try:
+                tag = await asyncio.wait_for(reader.readexactly(3), 1.0)
+            except Exception:
+                tag = b""
+            if tag == b"OSA":
+                self.listener_hits += 1
             writer.close()
         srv = await asyncio.start_server(accept, "127.0.0.1", 0)
         self.listener_port = srv.sockets[0].getsockname()[1]
@@ -511,6 +527,38 @@ class Run:
         u = self.usage()
         if "stream_errors" in e:
             want(u["errors"] == e["stream_errors"], f"failed model calls: want {e['stream_errors']}, got {u['errors']}")
+        for name in e.get("tool_frames") or []:
+            frames = [x for x in self.events.of("tool") if x.get("name") == name]
+            states = [f.get("state") for f in frames]
+            want("run" in states and "ok" in states,
+                 f"no run/ok frame for tool {name!r} (frames: {[(f.get('name'), f.get('state')) for f in frames]})")
+        if "turn_tools" in e:
+            chats = [b["chat_id"] for b in self.bots.values()] + ([self.group["id"]] if self.group else [])
+            rows = memory.conn.execute(
+                f"select meta from messages where role='assistant' and ts >= ? "
+                f"and chat_id in ({','.join('?' * len(chats))}) order by id",
+                [self.t0, *chats]).fetchall()
+            got = [[t.get("n") for t in ((json.loads(r[0] or "{}") or {}).get("usage") or {}).get("tools") or []]
+                   for r in rows]
+            want(got == e["turn_tools"], f"tools per turn: want {e['turn_tools']}, got {got}")
+        if e.get("turn_usage"):
+            chats = [b["chat_id"] for b in self.bots.values()] + ([self.group["id"]] if self.group else [])
+            rows = memory.conn.execute(
+                f"select meta from messages where role='assistant' and ts >= ? "
+                f"and chat_id in ({','.join('?' * len(chats))}) order by id desc limit 10",
+                [self.t0, *chats]).fetchall()
+            usage = [(json.loads(r[0] or "{}") or {}).get("usage") for r in rows]
+            want(any(u and (u.get("out") or 0) > 0 for u in usage),
+                 f"no reply carries this turn's usage (got {usage})")
+        if "worker_context_chars_max" in e:
+            worst = max((sum(len(json.dumps(m, ensure_ascii=False)) for m in b["messages"])
+                         for b in self.llm.bodies("worker")), default=0)
+            want(worst <= e["worker_context_chars_max"],
+                 f"worker context grew to {worst} chars (max {e['worker_context_chars_max']})")
+        if "models_used" in e:
+            used = {r[0] for r in memory.conn.execute("select model from llm_calls where ts >= ?", (self.t0,)).fetchall()}
+            for name in e["models_used"]:
+                want(name in used, f"model {name!r} never answered (used: {sorted(used)})")
         if "max_llm_calls" in e:
             want(len(self.llm.requests) <= e["max_llm_calls"], f"model calls {len(self.llm.requests)} > {e['max_llm_calls']}")
         want(not net.blocked, f"tried real network: {net.blocked}")

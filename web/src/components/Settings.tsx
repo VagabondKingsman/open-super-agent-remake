@@ -36,6 +36,7 @@ const LIMIT_NAMES: Record<string, [string, string]> = {
   worker_max_steps: [t('每个任务最多走几步'), t('一步 = 一次模型调用。电脑操作一步一个动作，要多给一些')],
   task_timeout_s: [t('任务最长跑多久（秒）'), t('超时后 Watchdog 自动取消')],
   approval_timeout_s: [t('后台任务等确认多久（秒）'), t('定时任务等你确认的时限，超时按拒绝处理')],
+  computer_wait_human_s: [t('等你交还电脑最多几秒'), t('你接手电脑后，Bot 最多等这么久；超过就先把这一步放下、说给你听')],
 }
 
 export default function Settings({ onClose, initial }: { onClose: () => void; initial?: string }) {

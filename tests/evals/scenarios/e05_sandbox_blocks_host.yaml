@@ -14,7 +14,7 @@ script:
     - call: run_code
       args:
         language: python
-        code: "import socket\ns=socket.socket();s.settimeout(1)\ntry:\n  s.connect(('127.0.0.1',$listener.port));print('NET OPEN')\nexcept OSError:\n  print('NET BLOCKED')\n"
+        code: "import socket\ns=socket.socket();s.settimeout(1)\ntry:\n  s.connect(('127.0.0.1',$listener.port));s.sendall(b'OSA');print('NET OPEN')\nexcept OSError:\n  print('NET BLOCKED')\n"
     - "Sandbox chặn mạng host."
 input: {to: Runner, text: "Thử sandbox"}
 expect:

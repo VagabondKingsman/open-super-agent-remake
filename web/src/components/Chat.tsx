@@ -10,6 +10,7 @@ import { ask } from './Dialog'
 import { Icon } from '../icons'
 import { Attachments, mediaUrl, splitMarks, type ViewerItem } from './Media'
 import { imagePrice, setAsAvatar } from './AvatarTools'
+import { formatUsd } from '../formatUsd'
 import { LinkEmbed, Linkify, textEmbeds } from './Embeds'
 import { cardFor, registerCard, type CardProps } from '../cards'
 import { McpAppView } from './Applet'
@@ -184,6 +185,32 @@ function ThreadsMenu({ chat, open, setOpen }: { chat: ChatT; open: boolean; setO
 const when = (ts: number) => new Date(ts * 1000).toDateString() === new Date().toDateString()
   ? time(ts) : new Date(ts * 1000).toLocaleDateString(locale, { month: 'numeric', day: 'numeric' })
 
+// A4：这一轮用了多少（token、费用、用时）。服务回了 usage 就在回复下面淡淡写一行，悬停看细的。
+const toks = (n: number) => n < 1000 ? String(n) : (n / 1000 >= 10 ? Math.round(n / 1000) : +(n / 1000).toFixed(1)) + 'k'
+function UsageNote({ u }: { u?: { in: number; out: number; cache?: number; cost: number; ttft?: number | null; sec?: number; est?: boolean } }) {
+  if (!u) return null
+  const line = '↑' + toks(u.in) + ' ↓' + toks(u.out) + ' · ' + formatUsd(u.cost) + (u.sec ? ' · ' + secs(u.sec) : '')
+  const tip = t('输入 {a} · 输出 {b} tokens', { a: String(u.in), b: String(u.out) })
+    + (u.cache ? t(' · 命中缓存 {n}', { n: String(u.cache) }) : '')
+    + (u.ttft ? t(' · 首字 {s} 秒', { s: (u.ttft / 1000).toFixed(1) }) : '') + (u.est ? t('（估算）') : '')
+  return <div className='usage-note' title={tip}>{line}</div>
+}
+
+// A4：这一轮调过的工具，存在回复里——重开对话也看得到走过哪几步（流式时由 StreamMessage 显示）
+function ToolRuns({ tools }: { tools?: { n: string; ms?: number; b?: string; err?: number }[] }) {
+  if (!tools || !tools.length) return null
+  return (
+    <div className='tool-runs'>
+      {tools.map((r, i) => (
+        <span key={i} className={'tool-run ' + (r.err ? 'err' : 'ok')} title={r.b || r.n}>
+          <b>{r.n}</b>
+          {r.ms !== undefined ? <em>{r.ms < 1000 ? r.ms + ' ms' : (r.ms / 1000).toFixed(1) + ' s'}</em> : null}
+        </span>
+      ))}
+    </div>
+  )
+}
+
 function BotMessage({ bot, m, children, showName, reply }: { bot?: Bot; m: Message; children?: React.ReactNode; showName?: boolean; reply?: Reply }) {
   return (
     <div className="msg bot">
@@ -191,10 +218,12 @@ function BotMessage({ bot, m, children, showName, reply }: { bot?: Bot; m: Messa
       <div className="msg-body">
         <Speaker bot={bot} show={showName} />
         <Thinking text={m.meta.thinking} seconds={m.meta.thought_s} />
+        <ToolRuns tools={m.meta.usage?.tools} />
         <Markdown text={m.content} embeds />
         <Attachments items={m.meta.attachments} />
         {children}
         <ThreadLink m={m} reply={reply} />
+        <UsageNote u={m.meta.usage} />
         <div className="msg-actions"><span>{time(m.ts)}</span><CopyBtn text={m.content} /><ReplyBtn m={m} reply={reply} /></div>
       </div>
     </div>
@@ -653,6 +682,18 @@ export function StreamMessage({ chat, chatId }: { chat: ChatT; chatId: number })
       <div className="msg-body">
         <Speaker bot={who} show={chat.kind === 'group'} />
         <Thinking text={stream.thinking} live={!stream.text} seconds={(Date.now() - stream.started) / 1000} />
+        {!!stream.tools?.length && (
+          <div className="tool-runs">
+            {stream.tools.map((r, i) => (
+              <span key={i} className={'tool-run ' + r.state} title={r.brief || r.name}>
+                <b>{r.name}</b>
+                {r.state === 'run' ? <i className="tool-spin" />
+                 : r.ms ? <em>{r.ms < 1000 ? r.ms + ' ms' : (r.ms / 1000).toFixed(1) + ' s'}</em> : null}
+                {r.brief ? <span className="tool-brief">{r.brief}</span> : null}
+              </span>
+            ))}
+          </div>
+        )}
         {stream.text ? <Markdown text={stream.text + ' ▍'} /> : !stream.thinking && <div className="typing"><i /><i /><i /></div>}
       </div>
     </div>

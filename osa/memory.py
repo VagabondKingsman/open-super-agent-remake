@@ -49,6 +49,10 @@ conn.execute("create index if not exists llm_calls_task on llm_calls(task_id)")
 if "estimated" not in {r[1] for r in conn.execute("pragma table_info(llm_calls)")}:
     conn.execute("alter table llm_calls add column estimated integer not null default 0")
 
+# 一次调用里最长的一段静默（毫秒）：首块到达前，或两块之间。stall 的 120 秒上限该多宽，靠这个数决定，不靠猜。
+if "silence_ms" not in {r[1] for r in conn.execute("pragma table_info(llm_calls)")}:
+    conn.execute("alter table llm_calls add column silence_ms integer")
+
 
 def _move_legacy_usage():
     r = conn.execute("select value from settings where key='llm_usage_moved'").fetchone()
@@ -87,10 +91,23 @@ def add(role: str, content: str, chat_id: int, bot_id: int | None = None, **meta
     return cur.lastrowid
 
 
+def _meta(raw) -> dict:
+    """消息的 meta 必须是对象：老记录、手改过的行可能是一段文字，别让它把整轮对话弄挂。
+
+    线上 11/11 16:54：对话 1 每发一条就报 'str' object has no attribute 'get'（读 meta["state"] 时），
+    用户的四句话一句都没得到回复 —— 一个坏行就把整段对话弄挂了。
+    """
+    try:
+        v = json.loads(raw or "{}")
+    except ValueError:
+        return {}
+    return v if isinstance(v, dict) else {}
+
+
 def update_meta(msg_id: int, **fields):
     row = conn.execute("select meta from messages where id=?", (msg_id,)).fetchone()
     if row:
-        meta = json.loads(row[0] or "{}") | fields
+        meta = _meta(row[0]) | fields
         conn.execute("update messages set meta=? where id=?", (json.dumps(meta, ensure_ascii=False), msg_id))
         conn.commit()
 
@@ -102,7 +119,7 @@ def page(chat_id: int, before: int | None = None, limit: int = 60) -> list[dict]
     rows = conn.execute("""select id, ts, role, content, meta, bot_id from messages
         where chat_id=? and id < ? order by id desc limit ?""", (chat_id, before or 1 << 62, limit)).fetchall()
     threads = bots.thread_summaries(chat_id, [r[0] for r in rows])
-    return [{"id": i, "ts": ts, "role": r, "content": c, "meta": json.loads(m or "{}"), "bot_id": b,
+    return [{"id": i, "ts": ts, "role": r, "content": c, "meta": _meta(m), "bot_id": b,
              **({"thread": threads[i]} if i in threads else {})}
             for i, ts, r, c, m, b in reversed(rows)]
 
@@ -188,6 +205,60 @@ def _pick_images(recent: list, limit: int) -> set[tuple[int, str]]:
     return out
 
 
+
+REMOVED_PREFIX = "Earlier turns were removed from context. Use recall(id) to fetch the original text:\n"
+
+
+
+
+def keep_tail(chat_id: int, tail: list[dict]) -> None:
+    """这一轮真正发出去的工具往返（assistant 的 tool_calls + 每条 tool 结果）记在最新那条用户消息上。
+
+    缓存认的是“这次请求是上次正文的延长”，所以上一轮发过的消息必须原样留下、这一轮再原样带上；
+    不记的话，带工具的一轮就让下一轮的前缀断在工具往返处，整段 17k 又要重算。
+    图片不算（一张截图几百 token，每轮带回来太贵），带图的那一轮前缀会断，值得。"""
+    row = conn.execute("select id, meta from messages where chat_id=? and role='user' order by id desc limit 1",
+                       (chat_id,)).fetchone()
+    if not row:
+        return
+    meta = json.loads(row[1] or "{}")
+    meta["tail"] = tail
+    conn.execute("update messages set meta=? where id=?", (json.dumps(meta, ensure_ascii=False), row[0]))
+    conn.commit()
+
+
+def remember_state(chat_id: int, bot_id: int, state: str) -> None:
+    """把这一轮发出去的状态记在最新那条用户消息上：下一轮原样带上，模型服务的缓存才认得这段前缀。
+
+    供应商的缓存不是“前缀相同就命中”，而是“这次请求是上一次请求正文的延长”。以前状态挂在最后一条上、
+    存库时不存，下一轮就不延长了 —— 实测每轮第一次调用只命中 7%（拿 17.9k 里的 1.07k）。
+    按 Bot 分开记：群聊里同一条用户消息会被好几个 Bot 各发一次，各自的“当前任务”不一样。"""
+    row = conn.execute("select id, meta from messages where chat_id=? and role='user' order by id desc limit 1",
+                       (chat_id,)).fetchone()
+    if not row:
+        return
+    meta = json.loads(row[1] or "{}")
+    states = meta.get("state") if isinstance(meta.get("state"), dict) else {}
+    if str(bot_id) in states:
+        return          # 同一条用户消息又醒了一次：保留当时发出去的那份，新状态接在后面
+    states[str(bot_id)] = state
+    meta["state"] = states
+    conn.execute("update messages set meta=? where id=?", (json.dumps(meta, ensure_ascii=False), row[0]))
+    conn.commit()
+
+
+def split_notice(msgs: list[dict]) -> tuple[list[dict], str]:
+    """取出开头的“更早的对话”索引：返回（剩下的历史, 索引文本）。
+
+    索引每轮都在长大。留在开头的话，模型服务的缓存从第一条 history 就对不上，后面整段都要重算
+    （实测：一轮的第一次调用只命中 6%，同一个 body 逐字不改能命中 99%）。所以 Router 把它挪到末尾的状态块里，
+    开头到上一轮为止的那段就能一直命中。"""
+    if msgs and msgs[0].get("role") == "system" and isinstance(msgs[0].get("content"), str) \
+            and msgs[0]["content"].startswith(REMOVED_PREFIX):
+        return msgs[1:], msgs[0]["content"]
+    return msgs, ""
+
+
 def context(chat_id: int, viewer: int | None = None, me: int | None = None, images: int = 0) -> list[dict]:
     """组装给 Router 的历史消息。viewer 是群聊里正在发言的 Bot：
     它自己的回复保持 assistant；别的 Bot 的发言、任务和交接都换成带名字的通知。私聊时 viewer 为空。
@@ -207,13 +278,13 @@ def context(chat_id: int, viewer: int | None = None, me: int | None = None, imag
     if old:
         def who(r, b):
             return name(b) if viewer is not None and r == "assistant" and b != viewer else r
-        index = "\n".join(f"#{i} [{who(r, b)}] {c[:60].replace(chr(10), ' ')}" for i, r, c, _, b in old[-200:])
-        msgs.append({"role": "system", "content": "Earlier turns were removed from context. Use recall(id) to fetch the original text:\n" + index})
+        # 索引现在会跟着状态一起存进消息里（见 remember_state），所以只写范围：200 行清单乘上每轮一次就太贵了
+        msgs.append({"role": "system", "content": REMOVED_PREFIX + f"#{old[0][0]}-#{old[-1][0]} ({len(old)} messages)"})
     # 讨论串从哪一条开始；开头已经移出上下文的话，标在留下的第一条前面
     at = max(split, cut) if split is not None else -1
     shown = _pick_images(recent, images) if images else set()
     for k, (mid, r, c, meta, b) in enumerate(recent, cut):
-        meta = json.loads(meta or "{}")
+        meta = _meta(meta)
         if k == at:
             note = THREAD_NOTE.format(root=root)
             if r == "user":
@@ -256,6 +327,11 @@ def context(chat_id: int, viewer: int | None = None, me: int | None = None, imag
             msgs.append({"role": "user", "content": f"(system notice: this is your earlier reply. It claimed task {ids} was dispatched, "
                                                     f"but no dispatch tool call was made and that task never existed. Do not repeat this; "
                                                     f"tasks start only by calling dispatch){c}"})
+        elif r == "assistant" and meta.get("claimed_dispatch"):
+            # C10：这条回复说已经交给 worker 了，那一轮其实没调 dispatch。改成通知形式，免得模型把“已经派出去了”当既成事实接着讲
+            msgs.append({"role": "user", "content": "(system notice: this is your earlier reply. It said the work had been handed to the Worker, "
+                                                    "but that turn never called the dispatch tool, so nothing was running. Tasks start only "
+                                                    "by calling dispatch)" + c})
         elif r == "assistant" and "reasoning" in meta:
             # DeepSeek 思考模式：请求带工具时，历史回复的 reasoning_content 必须原样传回
             m = {"role": "assistant", "content": c}
@@ -279,7 +355,13 @@ def context(chat_id: int, viewer: int | None = None, me: int | None = None, imag
                 from . import media
                 parts = [p for a in meta.get("attachments") or [] if (mid, a.get("media")) in shown
                          and (p := media.image_part(a["media"]))]
+            st = meta.get("state")     # 当时发出去的状态：原样带上（见 remember_state）
+            if isinstance(st, dict):    # C16 起按 Bot 分开记；更早的只存了一段文字
+                st = st.get(str(me))
+            if st:
+                c = str(c) + str(st)
             msgs.append({"role": "user", "content": [{"type": "text", "text": c}, *parts] if parts else c})
+            msgs.extend(meta.get("tail") or [])   # 这一轮之后发过的工具往返，原样放回（见 keep_tail）
     return msgs
 
 
@@ -327,9 +409,10 @@ WHO: ContextVar[dict | None] = ContextVar("osa_usage_who", default=None)
 def add_usage(role: str, model: str, *, task_id: int | None = None, provider: str | None = None,
               bot_id: int | None = None, chat_id: int | None = None, hit: int = 0, miss: int = 0, out: int = 0,
               cost: float = 0.0, ms: int | None = None, ttft: int | None = None, err: str = "",
-              estimated: bool = False):
+              estimated: bool = False, silence: int | None = None):
     """往 llm_calls 里记一行。bot_id / chat_id 不给就看 WHO，再不行从任务找回 Bot。
-    cost 是 USD。estimated=True：output 是取消时按已收到文字估的，不是服务商回的 usage。"""
+    cost 是 USD。estimated=True：output 是取消时按已收到文字估的，不是服务商回的 usage。
+    silence：这次调用里最长的一段静默（毫秒，见 providers.guard_stream）。"""
     who = WHO.get() or {}
     task_id = task_id if task_id is not None else who.get("task_id")
     bot_id = bot_id if bot_id is not None else who.get("bot_id")
@@ -339,10 +422,10 @@ def add_usage(role: str, model: str, *, task_id: int | None = None, provider: st
         if r:
             bot_id, chat_id = r[0], chat_id if chat_id is not None else r[1]
     conn.execute("""insert into llm_calls(ts, role, model, task_id, cache_hit, cache_miss, output, cost,
-        bot_id, chat_id, provider, ms, ttft, err, estimated) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        bot_id, chat_id, provider, ms, ttft, err, estimated, silence_ms) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                  (time.time(), role, model, task_id, hit, miss, out, cost, bot_id, chat_id, provider,
                   None if ms is None else int(ms), None if ttft is None else int(ttft), err or None,
-                  1 if estimated else 0))
+                  1 if estimated else 0, None if silence is None else int(silence)))
     conn.commit()
 
 
@@ -374,11 +457,12 @@ def streamed_output_text(content: str = "", reasoning: str = "", calls=None) -> 
 
 def record_usage(role: str, model: str, usage, task_id: int | None = None, provider: str | None = None,
                  bot_id: int | None = None, chat_id: int | None = None, ms: float | None = None, ttft: float | None = None,
-                 estimated: bool = False):
+                 estimated: bool = False, silence: float | None = None):
     """记录一次模型调用的 token 和费用（USD）。usage 是 OpenAI 格式的 usage 对象；provider 不给就按角色的配置。
-    ms / ttft：整次用时、第一个字出来的时间（毫秒），知道的话给。
+    ms / ttft：整次用时、第一个字出来的时间（毫秒），知道的话给。silence：最长的一段静默（毫秒）。
     服务没返回 usage 时：知道用时的（流式调用）照样记一次调用，token 和费用按 0；否则不记。
-    这是已记录的用量，不是服务商账单。estimated=True 时 output 来自 estimate_output_tokens，prompt 记 0。"""
+    这是已记录的用量，不是服务商账单。estimated=True 时 output 来自 estimate_output_tokens，prompt 记 0。
+    没记成（连 usage 和用时都没有）返回 None；记了就返回这一行（in / out / cost / ttft / est），调用方要合计时用。"""
     if usage is None and ms is None:
         return
     prompt = (usage.prompt_tokens or 0) if usage else 0
@@ -391,26 +475,67 @@ def record_usage(role: str, model: str, usage, task_id: int | None = None, provi
     provider = provider or (CFG["roles"].get(role) or {}).get("provider")
     cost = prices.cost(provider, model, hit, miss, out, _is_peak(time.time()))
     add_usage(role, model, task_id=task_id, provider=provider, bot_id=bot_id, chat_id=chat_id,
-              hit=hit, miss=miss, out=out, cost=cost, ms=ms, ttft=ttft, estimated=estimated)
+              hit=hit, miss=miss, out=out, cost=cost, ms=ms, ttft=ttft, estimated=estimated, silence=silence)
+    return {"in": prompt, "out": out, "cache": hit, "cost": cost, "ttft": ttft, "est": estimated}
 
 
 def record_error(role: str, model: str, error: str, task_id: int | None = None, provider: str | None = None,
-                 bot_id: int | None = None, chat_id: int | None = None, ms: float | None = None):
-    """一次没成功的模型调用（连不上、报错、超时）：记下原因，观测页据此算出错率。"""
+                 bot_id: int | None = None, chat_id: int | None = None, ms: float | None = None,
+                 silence: float | None = None):
+    """一次没成功的模型调用（连不上、报错、超时）：记下原因，观测页据此算出错率。
+    silence：卡住的时候就是等满的那个上限——它记下来，才知道 120 秒离“真静默”有多远。"""
     provider = provider or (CFG["roles"].get(role) or {}).get("provider")
     add_usage(role, model, task_id=task_id, provider=provider, bot_id=bot_id, chat_id=chat_id, ms=ms,
-              err=(error or "error")[:300])
+              err=(error or "error")[:300], silence=silence)
 
 
-def record_partial(role: str, model: str, usage, text: str, task_id: int | None = None, provider: str | None = None):
+def record_partial(role: str, model: str, usage, text: str, task_id: int | None = None, provider: str | None = None,
+                   silence: float | None = None):
     """流被取消时调用。有 usage 就照实记；没有就按已收到的文字估算，并标成 estimated。什么都没收到则不记。"""
     if usage is not None:
-        record_usage(role, model, usage, task_id, provider, estimated=False)
-        return
+        return record_usage(role, model, usage, task_id, provider, estimated=False, silence=silence)
     out = estimate_output_tokens(text)
     if not out:
         return
-    record_usage(role, model, _Tokens(0, out), task_id, provider, estimated=True)
+    return record_usage(role, model, _Tokens(0, out), task_id, provider, estimated=True)
+
+
+_cap_cache: tuple | None = None   # (什么时候过期, 参数, 平均, 条数)
+
+
+def turn_cost_cap(days: int = 7, factor: float = 3.0, floor: float = 0.01, least: int = 8):
+    """挡住突然贵的一轮：过去几天每条回复的常用费用（中位数）× factor。
+
+    基准取中位数而不是平均数（C7）：平均数会被跑飞的那几条本身抬高 —— 一条 $2 的回复混进
+    $0.04 的日常量里，7 天平均从 $0.04 涨到 $0.19，护栏自己就被那一条放松了五倍；中位数不晃。
+    实测（2026-11-11，14 条回复）：中位数 $0.0418，p90 $0.138，最大 $0.179；
+    3× 中位数 = $0.125，只在真正跑飞时开口。
+
+    返回 (cap, 中位数, 有费用的回复数)；回复太少（< least）或没开这个护栏就返回 None。
+    只看本条回复自己的用量（meta.usage.cost，A4 记的），不含任务。
+    """
+    if factor <= 0:
+        return None
+    global _cap_cache
+    now = time.time()
+    if _cap_cache and _cap_cache[0] > now and _cap_cache[1] == (days, floor, least):
+        base, n = _cap_cache[2], _cap_cache[3]
+        return (max(base * factor, floor), base, n) if n >= least else None
+    since = now - days * 86400
+    costs = []
+    for (meta,) in conn.execute("select meta from messages where role='assistant' and ts >= ? and meta like '%usage%'",
+                                (since,)):
+        c = (_meta(meta).get("usage") or {}).get("cost")
+        if c:
+            costs.append(float(c))
+    costs.sort()
+    n = len(costs)
+    base = (costs[n // 2] if n % 2 else (costs[n // 2 - 1] + costs[n // 2]) / 2) if n else 0.0
+    # 每一轮都查一遍太浪费（7 天的回复要扫一遍 meta）：一分钟内用同一个数
+    _cap_cache = (now + 60, (days, floor, least), base, n)
+    if n < least:
+        return None
+    return max(base * factor, floor), base, n
 
 
 def tokens_today() -> int:

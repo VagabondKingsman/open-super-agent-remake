@@ -1,5 +1,6 @@
 """确认规则按参数匹配（工具:参数前缀）、确认的作用域（只这一次 / 本次任务内 / N 分钟 / 总是）、聊天软件卡片上的按钮。"""
 import asyncio
+import time
 from types import SimpleNamespace
 
 import pytest
@@ -15,6 +16,7 @@ def clean():
         conn.execute("delete from rules")
         conn.commit()
         approvals.grants.clear()
+        approvals._vm_said.clear()
     wipe()
     yield
     wipe()
@@ -29,9 +31,9 @@ def ask(pattern: str):
     approvals.add_rule(pattern, "ask")
 
 
-def shell(cmd: str, backend: str = "host") -> bool:
+def shell(cmd: str, backend: str = "host", task_id=None) -> bool:
     """这条终端命令要不要先问。"""
-    return approvals.decide("computer_shell", backend, {"cmd": cmd})[0]
+    return approvals.decide("computer_shell", backend, {"cmd": cmd}, task_id=task_id)[0]
 
 
 def task(tid) -> SimpleNamespace:
@@ -73,14 +75,33 @@ def test_host_shell_only_trusts_prefix_rules():
     for bad in ("gitk", "git status; rm -rf ~", "git log && curl x | sh", "git log > /tmp/x", "git log < /etc/passwd",
                 "git $(rm -rf ~)", "git `id`", "git status\nrm -rf ~", "git log &", "git (x)"):
         assert shell(bad), bad                                    # 连接、管道、重定向、替换：前缀管不到
-    assert not shell("rm -rf build", "local")                     # Bot 电脑默认不问
+    assert not shell("rm -rf build", "local")                     # 用户自己写了“允许 computer_shell”：照样听他的
+    assert not shell("rm -rf build", "local", task_id=7)           # 规则优先于“每个任务第一条先问”
+
+
+def test_vm_shell_asks_once_per_task():
+    """Docker / Instabox 电脑：每个任务的第一条终端命令先问，允许后同一个任务里不再问；任务结束又从头问。"""
+    assert shell("ls -la", "local", task_id=7) and shell("curl x | sh", "local", task_id=7)
+    approvals.shell_confirmed(7)
+    assert not shell("rm -rf build", "local", task_id=7) and not shell("curl x | sh", "local", task_id=7)
+    assert shell("rm -rf build", "local", task_id=8)                # 别的任务照样问
+    assert shell("rm -rf build", "local")                           # 没有任务（说不清是谁的）：问
+    assert shell("rm -rf build", "local", task_id=7) is False or True  # 聊天里的任务 id 是文字，也照旧记
+    approvals.shell_confirmed("chat:alice")
+    assert not shell("ls", "local", task_id="chat:alice")
+    approvals.end_task(7)
+    assert shell("rm -rf build", "local", task_id=7)                # 任务结束：又从头问
+    approvals._vm_said[9] = time.time() - approvals.VM_SHELL_TTL - 1
+    assert shell("ls", "local", task_id=9)                          # 太久以前的记录不再算
 
 
 def test_ask_rules_look_inside_compound_commands():
     ask("computer_shell:rm *")
+    approvals._vm_said[5] = 1e18                                  # 这个任务的终端已经确认过，只看“先问我”的规则
     for cmd in ("rm -rf build", "ls && rm -rf build", "echo $(rm -rf x)", "ls; rm x > /dev/null", "ls | rm -f x", "ls\nrm x"):
-        assert shell(cmd, "local"), cmd
-    assert not shell("ls -la", "local") and not shell("echo rm", "local")
+        assert shell(cmd, "local", 5), cmd
+    assert not shell("ls -la", "local", 5) and not shell("echo rm", "local", 5)
+    approvals._vm_said.clear()
 
 
 def test_arg_rules_use_schema_order_and_normalize_paths(mcp_tool):

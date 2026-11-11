@@ -1,5 +1,6 @@
 """流开了之后卡住或断了（task #253：xAI 的流 3 分钟没有新块，Watchdog 把 8 分钟的任务取消了）：同一轮重来一次。"""
 import asyncio
+import time
 
 import httpx
 import openai
@@ -102,7 +103,13 @@ async def test_stalled_stream_retried_once_and_task_goes_on(fast_idle):
     assert len(err) == 1
 
 
-async def test_stall_every_time_gives_up_after_retries(fast_idle):
+def no_fallback(monkeypatch, role: str):
+    """这个角色不配备用模型：只看原来的重试行为。"""
+    monkeypatch.setitem(CFG["roles"], role, {k: v for k, v in CFG["roles"][role].items() if k != "fallback"})
+
+
+async def test_stall_every_time_gives_up_after_retries(fast_idle, monkeypatch):
+    no_fallback(monkeypatch, "worker")
     client = Client(STALL)
     with pytest.raises(providers.StreamStalled):
         await _reply(9302, client)
@@ -125,6 +132,7 @@ async def test_quota_error_mid_stream_not_retried(fast_idle):
 
 
 async def test_retries_zero_keeps_old_behaviour(monkeypatch):
+    no_fallback(monkeypatch, "worker")
     monkeypatch.setitem(CFG, "limits", {**CFG["limits"], "stream_idle_s": 0.2, "stream_first_chunk_s": 0.2,
                                          "stream_retries": 0})
     client = Client(STALL, OK)
@@ -133,10 +141,13 @@ async def test_retries_zero_keeps_old_behaviour(monkeypatch):
     assert client.calls == 1
 
 
-def test_idle_limit_shorter_than_watchdog():
-    """Watchdog 3 分钟没进展就取消任务；流的空闲上限、第一块的上限都必须更短，重来才有机会。"""
-    assert 0 < providers.stream_idle_s() < 180
-    assert providers.stream_idle_s() <= providers.stream_first_chunk_s() < 180
+def test_stall_limits_leave_room_before_the_watchdog():
+    """流的每项上限都必须比 Watchdog 的“没有进展”短，重来才有机会；还要留出余量。
+
+    任务 247：Watchdog 189 秒就取消了，而等第一块的上限是 170 秒——重来刚起步就被收走。"""
+    from osa.watchdog import no_progress_s
+    assert 0 < providers.stream_idle_s() <= providers.stream_first_chunk_s()
+    assert providers.stream_first_chunk_s() + 60 <= no_progress_s()
 
 
 # F1：想得久的模型第一块来得慢，不算卡住；第一块之后才按 stream_idle_s 算
@@ -168,6 +179,30 @@ async def test_guard_stream_explicit_limits():
         [c async for c in providers.guard_stream(s, idle_s=0.1, first_s=5)]
 
 
+# C24：每次调用记下最长的一段静默——上限该多宽要看真静默，而不是每回都按 120 秒猜
+async def test_guard_stream_reports_the_longest_silence():
+    stats: dict = {}
+    s = Stream([("sleep", 0.1), Chunk(Delta(content="x")), ("sleep", 0.25), Chunk(Delta(content="y"))])
+    [c async for c in providers.guard_stream(s, idle_s=1, first_s=1, stats=stats)]
+    assert 200 <= stats["silence"] <= 400   # 0.25 秒的空档，不是总用时
+
+
+async def test_guard_stream_records_the_limit_when_it_stalls():
+    stats: dict = {}
+    s = Stream([Chunk(Delta(content="x")), ("sleep", 0.3), Chunk(Delta(content="y"))])
+    with pytest.raises(providers.StreamStalled):
+        [c async for c in providers.guard_stream(s, idle_s=0.1, first_s=5, stats=stats)]
+    assert stats["silence"] == 100   # 等满的那个上限：卡住的这次就是它
+
+
+async def test_stalled_reply_writes_the_silence_into_the_call_record(fast_idle):
+    client = Client(STALL, OK)
+    await _reply(9320, client)
+    hit, miss, sil, err = memory.conn.execute(
+        "select cache_hit, cache_miss, silence_ms, err from llm_calls where task_id=9320 order by id limit 1").fetchone()
+    assert err and sil and sil >= 150   # 0.2 秒的上限（fast_idle）就是记下的静默
+
+
 # F3：重来之前等一会儿（2–5 秒，带随机）
 async def test_worker_retry_waits_before_calling_again(fast_idle):
     client = Client(STALL, OK)
@@ -190,6 +225,42 @@ async def test_retry_pause_uses_delay(monkeypatch):
     monkeypatch.setattr(providers.asyncio, "sleep", fake_sleep)
     await providers.retry_pause(1)
     assert len(waited) == 1 and 2.0 <= waited[0] <= 3.0
+
+
+# C9：主模型连着卡住、重来也没用，就换 roles.<role>.fallback 的备用模型把这一轮做完，而不是让任务失败
+def _backup_provider(monkeypatch, role: str, model: str):
+    """给这个角色配一个备用模型，走一个单独的假服务，好分辨请求落到哪个模型上。"""
+    monkeypatch.setitem(CFG["providers"], "backup", {"base_url": "http://backup.llm/v1", "api_key_env": "BACKUP_KEY"})
+    monkeypatch.setitem(CFG["roles"], role, {**CFG["roles"][role], "fallback": {"provider": "backup", "model": model}})
+
+
+async def test_worker_stalls_twice_then_backup_model_finishes_the_round(fast_idle, monkeypatch):
+    _backup_provider(monkeypatch, "worker", "backup-model")
+    main, backup = Client(STALL), Client(OK)
+    monkeypatch.setattr(providers, "client", lambda name, timeout=None: backup if name == "backup" else main)
+    task, msg = await _reply(9311, main)
+    assert msg["content"] == "xong" and main.calls == 2 and backup.calls == 1
+    ok = [r[0] for r in memory.conn.execute("select model from llm_calls where task_id=9311 and err is null")]
+    assert "backup-model" in ok   # 用量记在真正答话的那个模型上
+    notes = [s["title"] for s in tasklog.steps(9311) if s["kind"] == "note"]
+    assert len(notes) == 2 and "backup-model" in notes[-1]
+
+
+async def test_backup_model_stalling_too_gives_up(fast_idle, monkeypatch):
+    _backup_provider(monkeypatch, "worker", "backup-model")
+    main, backup = Client(STALL), Client(STALL)
+    monkeypatch.setattr(providers, "client", lambda name, timeout=None: backup if name == "backup" else main)
+    with pytest.raises(providers.StreamStalled):
+        await _reply(9312, main)
+    assert main.calls == 2 and backup.calls == 1   # 备用模型只试一次，不跟着无限重来
+
+
+async def test_fallback_equal_to_primary_is_ignored(fast_idle, monkeypatch):
+    monkeypatch.setitem(CFG["roles"], "worker", {**CFG["roles"]["worker"], "fallback": {"model": "fake-model"}})
+    client = Client(STALL)
+    with pytest.raises(providers.StreamStalled):
+        await _reply(9313, client)
+    assert client.calls == 2
 
 
 # F2：作废那一次的用量也要记
@@ -259,3 +330,95 @@ def test_config_yaml_documents_stream_defaults(monkeypatch):
     monkeypatch.setitem(CFG, "limits", {k: v for k, v in CFG["limits"].items() if not k.startswith("stream_")})
     assert got == {"stream_first_chunk_s": providers.stream_first_chunk_s(), "stream_idle_s": providers.stream_idle_s(),
                    "stream_retries": providers.stream_retries()}
+
+
+async def test_a_connection_that_never_opens_is_a_stall_not_a_hang(monkeypatch):
+    """任务 212：连接卡住时 create_chat 一直等（客户端默认 600 秒），Watchdog 3 分钟就把任务取消，
+    一个模型调用都没发出去。现在连接阶段也有上限，超了就是“流卡住”，可以重来、可以换备用模型。"""
+    from types import SimpleNamespace
+    monkeypatch.setitem(CFG["limits"], "provider_head_s", 0.05)
+
+    async def slow(**kw):
+        await asyncio.sleep(0.5)
+        return "ok"
+
+    client = SimpleNamespace(base_url="https://example.invalid/v1",
+                             chat=SimpleNamespace(completions=SimpleNamespace(create=slow)))
+    with pytest.raises(providers.StreamStalled) as e:
+        await providers.create_chat(client, model="m", messages=[], stream=True)
+    assert providers.retry_midstream(e.value) is True          # 值得重来
+
+    # 非流式请求不受这个上限约束：整段回答本来就要等
+    assert await providers.create_chat(client, model="m", messages=[]) == "ok"
+
+
+async def test_reply_retries_a_connection_that_never_opened(monkeypatch):
+    """_reply 把“连接没建起来”当成这一轮没成：重来一次，成了就把任务做完，不留给 Watchdog 取消。"""
+    from types import SimpleNamespace
+    monkeypatch.setitem(CFG["limits"], "provider_head_s", 0.05)
+    calls = []
+
+    async def create(**kw):
+        calls.append(1)
+        if len(calls) == 1:
+            await asyncio.sleep(0.5)          # 第一次连接卡住
+        return Stream([Chunk(Delta(content="好的"))])
+
+    client = SimpleNamespace(base_url="https://example.invalid/v1",
+                             chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    task = Task(id=9001, goal="x", mode="single", bot_id=1, chat_id=1, approval_chat_id=1)
+    log = tasklog.Log(task, "probe")
+    msg = await worker._reply(task, log, "worker", client, "m", [{"role": "user", "content": "hi"}])
+    assert len(calls) == 2 and (msg.get("content") or "").startswith("好的")
+
+
+class Stubborn:
+    """取消也不理的流：第一次取消它照旧等下去，只有事件循环收尾的第二次取消才让它结束。
+
+    线上任务 247 就是这样：响应头 200 之后 189 秒没有一块，等第一块的 170 秒界限一次也没触发。
+    原因在 asyncio.wait_for：超时后它还要等被取消的任务真正结束。"""
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        cancels = 0
+        while True:
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                cancels += 1
+                if cancels > 1:        # 第一次取消照旧不理；事件循环收尾时的第二次就让它结束
+                    raise StopAsyncIteration from None
+
+
+async def test_stream_that_ignores_cancel_still_times_out():
+    t0 = time.monotonic()
+    with pytest.raises(providers.StreamStalled):
+        [c async for c in providers.guard_stream(Stubborn(), first_s=0.05)]
+    assert time.monotonic() - t0 < 0.25   # 界限是 0.05 秒，不是它自己愿意停下的 0.3 秒
+
+
+async def test_create_that_ignores_cancel_still_times_out(monkeypatch):
+    monkeypatch.setitem(CFG, "limits", {**CFG["limits"], "provider_head_s": 0.05})
+
+    class Hang:
+        def __init__(self):
+            self.chat = type("Chat", (), {})()
+            self.chat.completions = type("Completions", (), {})()
+            self.chat.completions.create = self._create
+
+        async def _create(self, **kwargs):
+            cancels = 0
+            while True:
+                try:
+                    await asyncio.Event().wait()
+                except asyncio.CancelledError:
+                    cancels += 1
+                    if cancels > 1:
+                        return None
+
+    t0 = time.monotonic()
+    with pytest.raises(providers.StreamStalled):
+        await providers.create_chat(Hang(), model="m", messages=[], stream=True)
+    assert time.monotonic() - t0 < 0.25

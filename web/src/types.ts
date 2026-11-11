@@ -73,7 +73,8 @@ export type Approval = {
   editable?: string[]   // 能在卡片上直接改的参数（args 里的键），同意时把改过的一起发回去
   edited?: string[]     // 同意时改过的
 }
-export type Stream = { sid: string; text: string; thinking: string; started: number; bot_id: number }
+export type ToolRun = { name: string; state: 'run' | 'ok' | 'err'; brief?: string; ms?: number; at: number }
+export type Stream = { sid: string; text: string; thinking: string; started: number; bot_id: number; tools?: ToolRun[] }
 // 模型服务：一个兼容 OpenAI 的接口地址加一个密钥。source：config.yaml 里写的，还是界面上加的
 export type Provider = {
   name: string; title: string; preset: string; base_url: string; source: 'config' | 'ui'

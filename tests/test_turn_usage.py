@@ -1,0 +1,86 @@
+"""A4：每条回复在 meta 里带上这一轮用了多少——in/out 个 token、费用（美元）、整轮用时，以及第一个字多久出来（ttft）。
+界面在回复下面淡淡写一行；数据源就是记账用的 llm_calls，这里断言两边对得上。假模型，无密钥。"""
+import pytest
+
+from conftest import find, settle
+from osa import memory, server
+
+
+def test_record_usage_returns_what_it_wrote(monkeypatch):
+    u = memory.record_usage("router", "m", None, ms=1200, ttft=300)
+    assert u == {"in": 0, "out": 0, "cache": 0, "cost": 0.0, "ttft": 300, "est": False}
+    assert memory.record_usage("router", "m", None) is None   # 没有 usage 也没有用时：没记，返回 None
+
+
+async def test_reply_meta_carries_turn_usage(llm, events, make_bot):
+    bot = make_bot("UsageA")
+    llm.script(f"router:{bot['name']}", "xong")
+    await server.safe_handle(bot_chat(bot), "chào")
+    await settle()
+    reply = find(bot["chat_id"], role="assistant")[-1]
+    u = reply["meta"]["usage"]
+    assert u["in"] == 100, "fakellm 的默认 usage：prompt 100"
+    assert u["out"] == 10
+    assert u["cost"] >= 0 and u["sec"] >= 0
+    assert isinstance(u["ttft"], int) and u["ttft"] >= 0
+    assert not u.get("est")
+
+
+async def test_usage_adds_up_over_tool_rounds(llm, events, make_bot):
+    from fakellm import Call
+    bot = make_bot("UsageB")
+    llm.script(f"router:{bot['name']}", Call("list_tasks", {}), "xong")
+    await server.safe_handle(bot_chat(bot), "có việc gì?")
+    await settle()
+    reply = find(bot["chat_id"], role="assistant")[-1]
+    u = reply["meta"]["usage"]
+    assert u["in"] == 200 and u["out"] == 20   # 两轮模型调用，每轮 100/10
+
+
+def bot_chat(bot):
+    from osa import bots
+    return bots.chat(bot["chat_id"])
+
+
+async def test_messages_api_returns_usage_meta(llm, events, make_bot):
+    """/api/chats/{id}/messages 里每条回复都带着 meta.usage —— 前端刷新后就是从这里取。"""
+    from starlette.testclient import TestClient
+    from osa import server
+
+    bot = make_bot("UsageC")
+    llm.script(f"router:{bot['name']}", "xong")
+    await server.safe_handle(bot_chat(bot), "chào")
+    await settle()
+    c = TestClient(server.app, base_url="http://127.0.0.1:8765")
+    rows = c.get(f"/api/chats/{bot['chat_id']}/messages").json()
+    rows = rows["messages"] if isinstance(rows, dict) else rows
+    u = [m for m in rows if m["role"] == "assistant"][-1]["meta"]["usage"]
+    assert {"in", "out", "cache", "cost", "ttft", "sec"} <= set(u)
+
+
+async def test_tool_runs_land_in_meta(llm, events, make_bot):
+    """A4b：这一轮调过哪个工具、用了多久，也记在回复里 —— 重开对话还看得见走过哪几步。"""
+    from fakellm import Call
+
+    bot = make_bot("UsageD")
+    llm.script(f"router:{bot['name']}", Call("list_tasks", {}), "xong")
+    await server.safe_handle(bot_chat(bot), "có việc gì?")
+    await settle()
+    tools = find(bot["chat_id"], role="assistant")[-1]["meta"]["usage"]["tools"]
+    assert [t["n"] for t in tools] == ["list_tasks"] and tools[0]["ms"] >= 0
+
+
+async def test_tools_are_this_turn_only(llm, events, make_bot):
+    """C6：上一轮调过的工具不能跟到下一轮 —— 实测线上每条回复的工具清单都在累加（04:51 一个，
+    06:43 变成 28 个），回复下面的 chip 和 meta 一起越滚越长。"""
+    from fakellm import Call
+
+    bot = make_bot("UsageE")
+    llm.script(f"router:{bot['name']}", Call("list_tasks", {}), "xong", "xong nữa")
+    await server.safe_handle(bot_chat(bot), "có việc gì?")
+    await settle()
+    await server.safe_handle(bot_chat(bot), "cảm ơn")
+    await settle()
+    first, second = find(bot["chat_id"], role="assistant")[-2:]
+    assert [t["n"] for t in first["meta"]["usage"]["tools"]] == ["list_tasks"]
+    assert "tools" not in second["meta"]["usage"], second["meta"]["usage"]

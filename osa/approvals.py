@@ -122,6 +122,7 @@ BG_ASK = {"computer_shell", "computer_write_file"}
 ASK = {"generate_image"}   # 默认每次都问的（画图要花钱）；点“总是允许”后不再问
 HOSTS = ("host", "linked")   # 用户自己的电脑（同 computer.base.HOSTS；这里不 import computer）
 SHELL = "computer_shell"
+VM_SHELL_TTL = 6 * 3600   # Docker / Instabox 电脑：一个任务确认过终端后，这么久之内不再问（聊天里的“任务”不会结束）
 UNSAFE = re.compile(r"[;&|<>`$()\n\r]")         # 终端命令里有这些（连接、管道、重定向、替换）就不按前缀放行
 _PARTS = re.compile(r"[;&|\n\r]+|\$\(|[`()]")   # “先问我”的规则把命令按这些切开，哪一段命中都问
 MAX_MINUTES = 24 * 60
@@ -177,7 +178,8 @@ def _asks(pattern: str, tool: str, value: str | None) -> bool:
     return False
 
 
-def decide(tool: str, backend: str | None = None, args: dict | None = None, background: bool = False) -> tuple[bool, str]:
+def decide(tool: str, backend: str | None = None, args: dict | None = None, background: bool = False,
+           task_id=None) -> tuple[bool, str]:
     """返回 (是否要确认, 原因)。规则用通配符匹配工具全名（filesystem__*）或“工具:参数”（见文件开头）。
     backend：电脑工具在哪种电脑上用。args：这次调用的参数，“工具:参数”的规则要用。
     background: the call comes from a background task (routine / webhook); see BG_ASK."""
@@ -192,6 +194,12 @@ def decide(tool: str, backend: str | None = None, args: dict | None = None, back
             return False, f"规则「{r['pattern']}」自动允许"
     if host_shell:
         return True, "本机电脑的终端每条命令都要确认"
+    if tool == SHELL:   # Docker / Instabox 电脑：这个任务的第一条命令先给你看一眼，之后同一个任务里不再问
+        if background:
+            return True, "后台任务在电脑里执行命令、写文件要确认"
+        if vm_shell_said(task_id):
+            return False, "这个任务已经确认过终端命令"
+        return True, "每个任务的第一条终端命令先确认"
     if tool in PC_TOOLS:
         if background and tool in BG_ASK:
             return True, "后台任务在电脑里执行命令、写文件要确认"
@@ -213,6 +221,23 @@ def granted(task_id, tool: str, value: str | None) -> bool:
 def end_task(task_id):
     """任务结束：它的“本次任务内允许”清掉。"""
     grants[:] = [g for g in grants if g["task_id"] is None or g["task_id"] != task_id]
+    _vm_said.pop(task_id, None)
+
+
+# Docker / Instabox 电脑的终端：每个任务的第一条命令问一次（见 decide）；点了允许就记在这里
+_vm_said: dict = {}
+
+
+def shell_confirmed(task_id):
+    """用户允许了终端命令：这个任务里后面的不再问（Docker / Instabox 电脑；见 decide）。"""
+    _vm_said[task_id] = time.time()
+
+
+def vm_shell_said(task_id) -> bool:
+    now = time.time()
+    for k, v in [(k, v) for k, v in _vm_said.items() if now - v > VM_SHELL_TTL]:
+        _vm_said.pop(k, None)
+    return task_id is not None and task_id in _vm_said
 
 
 def first_word(cmd: str | None) -> str:

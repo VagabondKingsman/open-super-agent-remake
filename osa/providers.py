@@ -21,7 +21,7 @@ import openai
 from openai import AsyncOpenAI
 from . import i18n, vault
 from .config import CFG
-from .memory import conn
+from .memory import conn, db_path
 
 log = logging.getLogger(__name__)
 BASE = copy.deepcopy(CFG.get("providers") or {})   # config.yaml 里写的
@@ -286,12 +286,58 @@ def remember_effort_reject(base: str, model: str, effort: str):
         conn.commit()
 
 
+def dump_prompt(kwargs: dict) -> None:
+    """OSA_PROMPT_DUMP (or a "prompt-dump" file in the data dir) points at a directory: every request's
+    exact body goes to its own .json file.
+
+    For cache-hit work: two requests can be compared piece by piece instead of guessed at.
+    The key rides in a header, not in kwargs, so nothing secret is written."""
+    d = os.environ.get("OSA_PROMPT_DUMP")
+    if not d:
+        marker = db_path.parent / "prompt-dump"
+        if not marker.exists():
+            return
+        d = marker.read_text(encoding="utf-8").strip() or str(db_path.parent / "prompts")
+    try:
+        os.makedirs(d, exist_ok=True)
+        name = re.sub(r"[^\w.-]", "_", f"{time.time():.3f}-{kwargs.get('model', 'model')}") + ".json"
+        with open(os.path.join(d, name), "w", encoding="utf-8") as f:
+            json.dump({"ts": time.time(), **{k: v for k, v in kwargs.items() if k != "stream"}}, f, ensure_ascii=False)
+    except Exception:   # noqa: BLE001 - recording must never break the request
+        log.warning("prompt dump failed", exc_info=True)
+
+
+def _quiet(task: asyncio.Future) -> None:
+    """取走没人等的任务的异常，免得循环最后喊一句 "exception was never retrieved"。"""
+    if not task.cancelled():
+        task.exception()
+
+
+async def _bounded(aw, seconds: float, text: str):
+    """等一个 awaitable 最多 seconds 秒，到点抛 StreamStalled —— 它拒不配合取消也拦不住我们。
+
+    asyncio.wait_for 超时后还要等被取消的任务真正结束；流对象取消时若还占着连接，它就永远不结束，
+    于是“等第一块 170 秒”一次也没触发（线上任务 247：响应头 200 之后 189 秒没有一块，Watchdog 先
+    把任务取消了，llm_calls 里连一行都没有）。asyncio.wait 到点就返回，被丢下的任务自己结束。
+    """
+    if seconds <= 0:
+        return await aw
+    task = asyncio.ensure_future(aw)
+    done, _ = await asyncio.wait({task}, timeout=seconds)
+    if not done:
+        task.cancel()
+        task.add_done_callback(_quiet)
+        raise StreamStalled(text) from None
+    return task.result()
+
+
 async def create_chat(client, **kwargs):
     """流式或非流式补全。额度类错误立刻抛出，不重试。普通 429 按 Retry-After 等，次数有上限。
 
     客户端自带的重试会把日额度 429 再打几遍，这里关掉，改由上面的分类决定。
     408/409/5xx 仍按 limits.provider_transient_retries 再试，避免把短暂故障变成任务失败。
     """
+    dump_prompt(kwargs)
     rate_retries = max(0, int(CFG["limits"].get("provider_rate_retries", 1) or 0))
     transient_retries = max(0, int(CFG["limits"].get("provider_transient_retries", RETRIES) or 0))
     cap = max(0.0, float(CFG["limits"].get("provider_retry_cap_s", 120) or 0))
@@ -300,17 +346,23 @@ async def create_chat(client, **kwargs):
     base = str(getattr(client, "base_url", "") or "")
     if kwargs.get("reasoning_effort") and effort_rejected(base, kwargs.get("model", ""), kwargs["reasoning_effort"]):
         kwargs.pop("reasoning_effort")   # 以前这个模型就不认这个思考强度：直接不带
+    async def open_stream():
+        """流式请求：连接/响应头也就等 provider_head_s 秒，卡住当成流中途卡住（可以重来、可以换备用模型）。"""
+        head = provider_head_s() if kwargs.get("stream") else 0
+        return await _bounded(caller.chat.completions.create(**kwargs), head,
+                              i18n.t("模型服务 {n} 秒没有响应（连接没能建起来）", n=f"{head:g}"))
+
     rate_attempt = transient_attempt = 0
     while True:
         try:
-            return await caller.chat.completions.create(**kwargs)
+            return await open_stream()
         except openai.BadRequestError as e:
             # 有的模型不认 reasoning_effort（比如 xAI 不收 max，有的推理模型什么强度都不收）：去掉再试一次，记下来以后不带
             effort = kwargs.pop("reasoning_effort", None)
             if not effort:
                 raise
             try:
-                r = await caller.chat.completions.create(**kwargs)
+                r = await open_stream()
             except Exception:
                 raise e from None
             remember_effort_reject(base, kwargs.get("model", ""), effort)
@@ -352,6 +404,14 @@ def stream_first_chunk_s() -> float:
     return max(0.0, float(CFG["limits"].get("stream_first_chunk_s", 170) or 0))
 
 
+def provider_head_s() -> float:
+    """流式请求：连上服务、拿到响应头最多等几秒（默认 120）。0 表示不限。
+
+    客户端自己的默认超时是 600 秒，比 Watchdog 的 3 分钟还长：连接卡住时任务先被 Watchdog 取消，
+    一个模型调用都没发出去（线上任务 212 就是这样，3 分钟无进展、0 步）。"""
+    return max(0.0, float(CFG["limits"].get("provider_head_s", 120) or 0))
+
+
 def stream_retries() -> int:
     """流中途卡住或断了（服务忙、连接断）时，同一轮再调几次。"""
     return max(0, int(CFG["limits"].get("stream_retries", 1) or 0))
@@ -368,26 +428,37 @@ async def retry_pause(attempt: int):
     await asyncio.sleep(stream_retry_delay(attempt))
 
 
-async def guard_stream(stream, idle_s: float | None = None, first_s: float | None = None):
-    """包住流式响应：第一块超过 first_s 秒、之后两块之间超过 idle_s 秒，就关掉流，抛 StreamStalled。"""
+async def guard_stream(stream, idle_s: float | None = None, first_s: float | None = None,
+                       stats: dict | None = None):
+    """包住流式响应：第一块超过 first_s 秒、之后两块之间超过 idle_s 秒，就关掉流，抛 StreamStalled。
+
+    stats 给了就填 stats["silence"]：这次调用里最长的一段静默（毫秒）。卡住的那次记的就是等满的上限。
+    这个数写进 llm_calls：上限该多宽，得看真静默有多长，而不是每回都按 120 秒猜。"""
     idle = stream_idle_s() if idle_s is None else idle_s
     first = stream_first_chunk_s() if first_s is None else first_s
     it = stream.__aiter__()
     got = False
+    at = time.monotonic()
     while True:
         wait = idle if got else first
         try:
-            chunk = await (asyncio.wait_for(it.__anext__(), wait) if wait > 0 else it.__anext__())
+            chunk = await _bounded(it.__anext__(), wait, i18n.t("模型 {n} 秒没有输出新内容", n=f"{wait:g}"))
         except StopAsyncIteration:
             return
-        except asyncio.TimeoutError:
+        except StreamStalled:
+            if stats is not None:
+                stats["silence"] = max(stats.get("silence") or 0, int(wait * 1000))
             close = getattr(stream, "close", None) or getattr(stream, "aclose", None)
             if close:
                 try:
                     await close()
                 except Exception:
                     pass
-            raise StreamStalled(i18n.t("模型 {n} 秒没有输出新内容", n=int(wait))) from None
+            raise
+        now = time.monotonic()
+        if stats is not None:
+            stats["silence"] = max(stats.get("silence") or 0, int((now - at) * 1000))
+        at = now
         got = True
         yield chunk
 

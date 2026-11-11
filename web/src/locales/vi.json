@@ -1208,5 +1208,12 @@
   "外观": "Giao diện",
   "费用按各个模型的单价估算（设置 → 模型）。任务的过程只留 90 天，更早的工具调用统计不到。时间按这台设备的时区。": "Chi phí ước tính theo đơn giá từng model (Cài đặt → Model). Quá trình tác vụ chỉ giữ 90 ngày, lời gọi công cụ cũ hơn không được tính. Giờ theo múi giờ của thiết bị này.",
   "思考：中等": "Suy nghĩ: vừa",
-  "思考：很多": "Suy nghĩ: rất nhiều"
+  "思考：很多": "Suy nghĩ: rất nhiều",
+  "输入 {a} · 输出 {b} tokens": "{a} vào · {b} ra token",
+  " · 首字 {s} 秒": " · chữ đầu {s}s",
+  "（估算）": " (ước tính)",
+  " · 命中缓存 {n}": " · {n} đã cache",
+  "那台机器没了（会换一台）": "Máy đó không còn nữa (sẽ đổi sang máy khác)",
+  "等你交还电脑最多几秒": "Chờ bạn trả máy tối đa bao nhiêu giây",
+  "你接手电脑后，Bot 最多等这么久；超过就先把这一步放下、说给你听": "Sau khi bạn tiếp quản máy, Bot chờ tối đa chừng này; quá thì nó gác bước ấy lại và báo bạn"
 }
