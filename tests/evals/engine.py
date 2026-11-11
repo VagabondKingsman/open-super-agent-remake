@@ -511,6 +511,20 @@ class Run:
         u = self.usage()
         if "stream_errors" in e:
             want(u["errors"] == e["stream_errors"], f"failed model calls: want {e['stream_errors']}, got {u['errors']}")
+        for name in e.get("tool_frames") or []:
+            frames = [x for x in self.events.of("tool") if x.get("name") == name]
+            states = [f.get("state") for f in frames]
+            want("run" in states and "ok" in states,
+                 f"no run/ok frame for tool {name!r} (frames: {[(f.get('name'), f.get('state')) for f in frames]})")
+        if e.get("turn_usage"):
+            chats = [b["chat_id"] for b in self.bots.values()] + ([self.group["id"]] if self.group else [])
+            rows = memory.conn.execute(
+                f"select meta from messages where role='assistant' and ts >= ? "
+                f"and chat_id in ({','.join('?' * len(chats))}) order by id desc limit 10",
+                [self.t0, *chats]).fetchall()
+            usage = [(json.loads(r[0] or "{}") or {}).get("usage") for r in rows]
+            want(any(u and (u.get("out") or 0) > 0 for u in usage),
+                 f"no reply carries this turn's usage (got {usage})")
         if "max_llm_calls" in e:
             want(len(self.llm.requests) <= e["max_llm_calls"], f"model calls {len(self.llm.requests)} > {e['max_llm_calls']}")
         want(not net.blocked, f"tried real network: {net.blocked}")

@@ -1,0 +1,18 @@
+id: e29_turn_usage_recorded
+title: Mỗi câu trả lời ghi lại lượng dùng của cả lượt — dưới tin nhắn hiện token và tiền (A4)
+area: observe
+bots: [Meter]
+script:
+  router:Meter:
+    - {call: quick_code, args: {code: "print(17 * 23)"}}
+    - "17 × 23 = 391."
+input: {to: Meter, text: "17*23 bằng mấy? Tính bằng code cho chắc"}
+expect:
+  tasks: 0
+  executed: [quick_code]
+  turn_usage: true
+  messages:
+    - {chat: Meter, role: assistant, text: "391"}
+notes: |
+  Lượt có hai lần gọi model (gọi tool rồi trả lời): meta.usage của tin nhắn cuối phải có
+  token ra > 0. Trước A4 chỉ lượt cuối được ghi, dòng dưới câu trả lời thiếu token.

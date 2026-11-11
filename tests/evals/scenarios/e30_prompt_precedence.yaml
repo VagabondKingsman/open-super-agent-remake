@@ -1,0 +1,17 @@
+id: e30_prompt_precedence
+title: Người dùng bảo đừng dùng tool thì chỉ trả lời — lời người dùng thắng lời dặn trong prompt (A2)
+area: prompt
+bots: [Quick]
+script:
+  router:Quick:
+    - "17 × 23 = 391."
+input: {to: Quick, text: "17*23 bằng mấy? Đừng dùng tool, tính nhẩm thôi"}
+expect:
+  tasks: 0
+  not_executed: [quick_code]
+  in_llm: ["Unless this turn is one where the user told you not to use a tool"]
+  messages:
+    - {chat: Quick, role: assistant, text: "391"}
+notes: |
+  Prompt dặn tính bằng quick_code; câu này bảo đừng. Prompt phải nói rõ lời người dùng thắng,
+  nếu không model lưỡng lự rồi tự nhắc đến mâu thuẫn trong phần suy nghĩ.
