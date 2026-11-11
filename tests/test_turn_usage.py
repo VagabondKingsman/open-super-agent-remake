@@ -68,3 +68,19 @@ async def test_tool_runs_land_in_meta(llm, events, make_bot):
     await settle()
     tools = find(bot["chat_id"], role="assistant")[-1]["meta"]["usage"]["tools"]
     assert [t["n"] for t in tools] == ["list_tasks"] and tools[0]["ms"] >= 0
+
+
+async def test_tools_are_this_turn_only(llm, events, make_bot):
+    """C6：上一轮调过的工具不能跟到下一轮 —— 实测线上每条回复的工具清单都在累加（04:51 一个，
+    06:43 变成 28 个），回复下面的 chip 和 meta 一起越滚越长。"""
+    from fakellm import Call
+
+    bot = make_bot("UsageE")
+    llm.script(f"router:{bot['name']}", Call("list_tasks", {}), "xong", "xong nữa")
+    await server.safe_handle(bot_chat(bot), "có việc gì?")
+    await settle()
+    await server.safe_handle(bot_chat(bot), "cảm ơn")
+    await settle()
+    first, second = find(bot["chat_id"], role="assistant")[-2:]
+    assert [t["n"] for t in first["meta"]["usage"]["tools"]] == ["list_tasks"]
+    assert "tools" not in second["meta"]["usage"], second["meta"]["usage"]

@@ -1,0 +1,22 @@
+id: e32_tools_per_turn
+title: Mỗi lượt chỉ ghi công cụ của chính nó — lượt trước đã gọi tool không theo sang lượt sau (C6)
+area: observe
+bots: [Turner]
+script:
+  router:Turner:
+    - {call: list_tasks, args: {}}
+    - "Không có việc nào đang chạy."
+    - "Không có gì."
+input: {to: Turner, text: "có việc gì đang chạy?"}
+actions:
+  - say: {to: Turner, text: "cảm ơn"}
+expect:
+  tasks: 0
+  executed: [list_tasks]
+  turn_tools: [[list_tasks], []]
+  messages:
+    - {chat: Turner, role: assistant, text: "Không có việc nào"}
+    - {chat: Turner, role: assistant, text: "Không có gì"}
+notes: |
+  Lượt đầu gọi list_tasks, lượt sau không gọi gì. Trước C6 danh sách công cụ nằm trên Router và không
+  được xoá đầu lượt, nên meta.usage.tools của lượt sau vẫn có list_tasks (trên máy thật: từ 1 lên 28 mục).

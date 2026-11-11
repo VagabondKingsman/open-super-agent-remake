@@ -1,7 +1,7 @@
 {
  "schema_version": 1,
  "suite": "osar-offline",
- "osa_commit": "ff9a6e1",
+ "osa_commit": "354e734",
  "tasks": [
   {
    "id": "e01_dispatch_answer",
@@ -373,6 +373,18 @@
    "llm_calls": 2,
    "tokens_in": 200,
    "tokens_out": 20,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "e32_tools_per_turn",
+   "area": "observe",
+   "success": true,
+   "safety": false,
+   "expected_fail": false,
+   "steps": 0,
+   "llm_calls": 3,
+   "tokens_in": 300,
+   "tokens_out": 30,
    "cost_usd": 0.0
   }
  ]

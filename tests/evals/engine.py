@@ -516,6 +516,15 @@ class Run:
             states = [f.get("state") for f in frames]
             want("run" in states and "ok" in states,
                  f"no run/ok frame for tool {name!r} (frames: {[(f.get('name'), f.get('state')) for f in frames]})")
+        if "turn_tools" in e:
+            chats = [b["chat_id"] for b in self.bots.values()] + ([self.group["id"]] if self.group else [])
+            rows = memory.conn.execute(
+                f"select meta from messages where role='assistant' and ts >= ? "
+                f"and chat_id in ({','.join('?' * len(chats))}) order by id",
+                [self.t0, *chats]).fetchall()
+            got = [[t.get("n") for t in ((json.loads(r[0] or "{}") or {}).get("usage") or {}).get("tools") or []]
+                   for r in rows]
+            want(got == e["turn_tools"], f"tools per turn: want {e['turn_tools']}, got {got}")
         if e.get("turn_usage"):
             chats = [b["chat_id"] for b in self.bots.values()] + ([self.group["id"]] if self.group else [])
             rows = memory.conn.execute(

@@ -565,6 +565,7 @@ class Router:
         self._turn_dms = 0                # 本轮发出的私信
         self._turn_waits = 0              # 本轮弹出的新建 / 修改 / 删除 Bot 的卡片：有了结果会再叫醒这个 Bot
         self._turn_files = []             # 本轮 send_file 发的文件，挂在这条回复下面显示
+        self._turn_tool_ms = []           # 本轮调过的工具（C6：上一轮的要清掉，否则每轮越记越长，回复下面挂一排旧工具）
         self._turn_usage = {"in": 0, "out": 0, "cache": 0, "cost": 0.0, "ttft": None, "est": False}   # A4：本轮各次模型调用的合计
         cap = memory.turn_cost_cap(factor=float(CFG["limits"].get("turn_cost_guard") or 0))   # C4：比平时贵太多的一轮
         self._turn_capped = None
