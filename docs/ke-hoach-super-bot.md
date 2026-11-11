@@ -222,6 +222,14 @@ Tức C18 một mình gần như không đổi; cái ăn tiền là tầng thứ
 thì bản cũ nhất thu còn `worker_tiny_tool_chars` (200) + một dòng. Test: history 13×5000 ký tự →
 tổng sau khi nén ≤ goal, và ba bước sau không đổi một chữ.
 
+Đo lại trên bản chạy thật (task #257, cùng hình dạng với #251 — mỗi bước một kết quả ~8k ký tự):
+body 65 323 → 34 640 ký tự khi nén (trước C21: 65 567 → 47 897), **3 lần đứt trong 22 bước**
+(trước: 5 trong 20), phần trả cho những lần đứt 77 079 token = $0,144, tức 30% tiền của task
+(trước: 75k token, 37%). Sàn của tầng hai là `keep × kết quả` = 3 × 8000 = 24 000 ký tự, vẫn
+cao hơn goal 20 000 — muốn xuống nữa phải giảm `worker_keep_full_tools`, đổi lại model mất mấy
+kết quả gần nhất; chưa làm vì 3 bước gần nhất là thứ model hay dùng nhất. Task cũng chạy hết
+22 bước và trả lời, không bị hủy — C20 giữ đúng.
+
 ## Rủi ro & lối thoát
 
 - Sửa prompt (A2) có thể đổi "tính cách" bot → giữ song song 1 turn mẫu trước/sau, so 5 câu trả lời.
