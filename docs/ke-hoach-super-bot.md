@@ -61,7 +61,7 @@ Chi phí tuần (báo cáo đầu tiên): 5,97 $ · 191 lần gọi · 5 lỗi �
 
 1. ✅ **Cổng eval bắt buộc:** `tests/evals` (27 scenario) chạy trong mọi lần sửa; thêm 1 scenario cho mỗi lỗi thật đã sửa (bắt đầu từ A2–A4).
 2. ✅ **Sinh scenario từ log:** `scripts/scenario_from_log.py` (5 test) —  script đọc `osa.log` + `tasklog` → đề xuất scenario mới cho lỗi lặp ≥ 2 lần.
-3. ✅ **Self-check trước khi trả lời:** C3 — 回复里“8 lần / 150 dòng / 3 steps”这类数，只在本轮工具结果或看得见的上下文里出现过才算有出处；对不上就给模型一轮机会按工具结果改，仍对不上就记在 `meta.self_check`。C12 把真时钟放进状态块。最初: **Self-check trước khi trả lời:** dùng `verification.py` cho turn có số liệu/đường dẫn; sai → tự sửa 1 lần (đã có `verification_repair_attempts`).
+3. ✅ **Self-check trước khi trả lời:** C3 — số mà câu trả lời nêu ra (“8 lần”, “150 dòng”, “3 steps”) chỉ được coi là có thật khi nó xuất hiện trong kết quả tool của lượt này hoặc trong ngữ cảnh lượt đó đọc được; không khớp thì cho model một lượt sửa theo kết quả tool, vẫn không khớp thì ghi `meta.self_check`. C12 đặt giờ thật vào khối trạng thái mỗi lượt để câu “mấy giờ” không còn bịa.
 4. ✅ **Ngân sách & hồi quy chi phí:** `memory.turn_cost_cap` + `router` dừng gọi tool khi một lượt > 3× **trung vị** 7 ngày (`limits.turn_cost_guard`, 5 test);  theo dõi `$/turn` từ A4.
    C7 (sau khi đọc số thật): trung vị thay trung bình — một lượt chạy lố tự nó đẩy trung bình lên
    (một lượt $2 trong 12 lượt $0,04 làm trung bình từ $0,04 lên $0,20) nên ngưỡng 2× trung bình
