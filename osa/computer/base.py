@@ -93,6 +93,7 @@ class Computer:
         self.watch: str | None = None            # 你点了“看这个”的任务：画面固定在它的窗口上
         self.chat_windows: dict[str, dict] = {}  # 对话里直接操作用的窗口：chat-<Bot id> -> {"window", "browser", "at"}
         self.asking: dict = {}                   # 正在“请你帮忙”的任务 id -> key（Heavy 的几个研究员共用一个任务 id）
+        self.progress = None                     # 当前这次调用的进度说明（tools.call 挂上来）：等用户交还、等机器开起来时让人看得见
         self._free = asyncio.Condition()
         self._assign = asyncio.Lock()            # 一次只给一个任务挑窗口，免得两个挑中同一个空窗口
         self._helper = asyncio.Lock()
@@ -253,11 +254,22 @@ class Computer:
         self.controller = "bot"
         self._handback.set()
 
-    async def wait_for_control(self, timeout: float = 1800) -> bool:
-        """用户接手期间等用户交还。返回这次是不是真的等过。"""
+    async def wait_for_control(self, timeout: float | None = None) -> bool:
+        """用户接手期间等用户交还。返回这次是不是真的等过。
+        不会一声不响地等下去：超过 limits.computer_wait_human_s（默认 120 秒）就说一声、报错，
+        Bot 于是能把“你还在用电脑”说给用户，而不是任务卡片上一直挂着。"""
         if self._handback.is_set():
             return False
-        await asyncio.wait_for(self._handback.wait(), timeout)
+        limit = float(timeout or CFG["limits"].get("computer_wait_human_s", 120) or 120)
+        try:
+            await asyncio.wait_for(self._handback.wait(), limit)
+        except asyncio.TimeoutError:
+            if self.progress:
+                try:
+                    await self.progress(i18n.t("你还在用电脑，{n} 秒了，我先把这一步放下", n=int(limit)))
+                except Exception:
+                    pass   # 进度喊不出去不影响报错
+            raise ComputerError(i18n.t("你一直在用电脑（等了 {n} 秒），这一步先放下：等你交还以后我再继续", n=int(limit))) from None
         return True
 
     # ---------- 真实的屏幕（截全屏给对话里看、你接手时从网页打字） ----------

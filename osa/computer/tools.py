@@ -295,9 +295,18 @@ async def _confirm(task, c, name: str, args: dict, key: str) -> str | None:
 
 
 async def call(task, name: str, args: dict, notify_progress, key: str = "") -> tuple[str, bytes | None]:
-    """执行一个电脑工具，返回 (给模型的文字, 可选截图)。key 是谁在用：任务的 CLAIM，对话里直接操作的是 chat-<Bot id>。"""
-    from .. import approvals
+    """执行一个电脑工具，返回 (给模型的文字, 可选截图)。key 是谁在用：任务的 CLAIM，对话里直接操作的是 chat-<Bot id>。
+    执行期间把进程说明挂在电脑上：等用户交还、等机器开起来的时候，任务卡片上看得见在等什么（见 base.wait_for_control）。"""
     c = get()
+    prev, c.progress = getattr(c, "progress", None), notify_progress
+    try:
+        return await _call(task, c, name, args, notify_progress, key)
+    finally:
+        c.progress = prev
+
+
+async def _call(task, c, name: str, args: dict, notify_progress, key: str = "") -> tuple[str, bytes | None]:
+    from .. import approvals
     key = key or CLAIM.get() or str(task.id)
     if name in DESKTOP:
         await notify_progress(_progress_label(name, args))

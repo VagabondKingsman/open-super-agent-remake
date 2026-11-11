@@ -182,6 +182,7 @@ def test_helper_debug_port_error_translated(monkeypatch):
 
 
 def test_default_rules():
+    approvals._vm_said.clear()   # 别的测试里确认过的任务不算在这里
     assert approvals.decide("browser_upload", "host")[0]
     assert approvals.decide("browser_submit", "host")[0]
     assert approvals.decide("computer_write_file", "host")[0]
