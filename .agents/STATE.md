@@ -1,10 +1,11 @@
 # Trạng thái hiện tại · 11/11/2026
 
-Snapshot sau release Android `v1.0` và sau khi S22 Ultra đăng nhập được. Phiên mới phải `git fetch origin` và `git rev-parse origin/i18n-vi` lại. SHA mới hơn thì đọc log mới hơn file này.
+Snapshot sau merge PR #50 và #51, 11/11/2026 23:16 Asia/Saigon. Phiên mới phải `git fetch origin` và `git rev-parse origin/i18n-vi` lại. SHA mới hơn thì đọc log mới hơn file này.
 
 ## Base
 
-- `origin/i18n-vi` đã merge [PR #47](https://github.com/VagabondKingsman/open-super-agent-remake/pull/47) tại `3c631a363382509fd7b96a648e1f46b5f11b67dc`. Head lúc merge `9b931f6`.
+- `origin/i18n-vi` = `14449fd3aa68581a49ec31fee12d61e803364acf`, merge [PR #51](https://github.com/VagabondKingsman/open-super-agent-remake/pull/51). Head lúc merge `6e550b0`.
+- Cùng ngày, trước #51: [PR #50](https://github.com/VagabondKingsman/open-super-agent-remake/pull/50) merge `30dfb24` (head `fa0372d`). [PR #49](https://github.com/VagabondKingsman/open-super-agent-remake/pull/49) merge `887fd7d`. [PR #48](https://github.com/VagabondKingsman/open-super-agent-remake/pull/48) merge `c0fc919`. [PR #47](https://github.com/VagabondKingsman/open-super-agent-remake/pull/47) merge `3c631a3` (head `9b931f6`).
 - Version sản phẩm `0.17.0`, nền upstream v0.17.0 (`ec02547`). Tag APK `v1.0` không đổi version Python.
 - APK arm64 debug: SHA-256 `e3cb6a28d4df9917342be429bb50ebf4ba4fc52fa0c73407b183ac93d65df58d`. Release <https://github.com/VagabondKingsman/open-super-agent-remake/releases/tag/v1.0>.
 - `main` trên GitHub vẫn `a30e3cc`. Luôn làm trên `i18n-vi` (AUDIT-F11, chờ người có quyền repo).
@@ -76,6 +77,15 @@ Chạy trên nhánh `fix/audit-f1-f12` trước khi xuất patch. Cây của `5a
 - `docs/docker.md` giờ là tiếng Việt, lần merge upstream sau sẽ xung đột ở file này.
 - Script giữ VM thiếu `Idempotency-Key` (mục trên).
 - Việc cũ còn chờ: OSA-001, OSA-002, OSA-007, OSA-016, OSA-017, OSA-018, OSA-019, OSA-020, E2E-OPEN trên [BOARD](BOARD.md).
+
+## Bổ sung · merge PR #50 và #51 · cursor · 11/11/2026
+
+Royan giao audit hai PR đang mở trên `i18n-vi`, chạy test, không lỗi thì merge.
+
+- #50 `cursor/audit-abc-cache`, head `fa0372d`. Pytest máy này: 1152 passed, 1 skipped (1:51). `python -m osa.i18n` thoát 0, thừa 3 khóa backend (cảnh báo, không fail). CI backend/frontend/docker đã xanh trước merge. Merge commit `30dfb24`, 23:09 Asia/Saigon.
+- #51 `cursor/direct-chat-label` đứng trên `887fd7d`, đè changelog, locale và `Chat.tsx` với #50. Pytest riêng: 913 passed, 1 skipped. Sau khi #50 vào `i18n-vi`, GitHub báo conflict. Merge `origin/i18n-vi` vào nhánh, giữ cả hai bên, commit `6e550b0`. Pytest cây ghép: 1157 passed, 1 skipped. Web `npm test` 43/43, `tsc --noEmit` sạch. Merge commit `14449fd`, 23:16 Asia/Saigon.
+- Không có key trong diff. `scripts/net-fast.sh`, `tailnet-serve.sh`, `tailscale-up.sh` là script máy boxes: `/home/boxes`, hostname `osa`, đọc `TS_AUTHKEY` từ `.env`. Không chạy chúng ở nơi khác.
+- APK `v1.0` không đổi. Không gọi model trả phí trong phiên này. PR #50 ghi một lần đo grok thật khoảng 0,5 USD đã chạy trước đó, không nằm trong commit.
 
 ## Bổ sung · OSA-040 Android văng khi nối · cursor · 11/11/2026
 

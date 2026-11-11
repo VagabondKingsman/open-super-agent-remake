@@ -17,7 +17,16 @@ Repo: `VagabondKingsman/open-super-agent-remake`. Base: `i18n-vi`. Upstream `kad
 
 ## Head hiện tại
 
-Đối chiếu 11/11/2026, sau khi Royan xác nhận S22 Ultra đăng nhập được: `origin/i18n-vi` đã có merge [PR #47](https://github.com/VagabondKingsman/open-super-agent-remake/pull/47) tại `3c631a363382509fd7b96a648e1f46b5f11b67dc`, head lúc merge `9b931f6`. Version sản phẩm vẫn `0.17.0`. Tag APK Android là `v1.0`. Phiên sau chạy `git fetch` và `git rev-parse origin/i18n-vi`. SHA mới hơn thì đọc log mới hơn.
+Đối chiếu 11/11/2026 23:16 Asia/Saigon, sau merge [PR #51](https://github.com/VagabondKingsman/open-super-agent-remake/pull/51): `origin/i18n-vi` = `14449fd3aa68581a49ec31fee12d61e803364acf`.
+
+Cùng ngày, trước đó:
+
+- [PR #50](https://github.com/VagabondKingsman/open-super-agent-remake/pull/50) merge `30dfb242e5a50724198d2ae9cd40f3629cc4c410`, head `fa0372d`.
+- [PR #49](https://github.com/VagabondKingsman/open-super-agent-remake/pull/49) merge `887fd7d`.
+- [PR #48](https://github.com/VagabondKingsman/open-super-agent-remake/pull/48) merge `c0fc919`.
+- [PR #47](https://github.com/VagabondKingsman/open-super-agent-remake/pull/47) merge `3c631a3`, head `9b931f6`.
+
+Version sản phẩm vẫn `0.17.0`. Tag APK Android vẫn `v1.0`, không build lại. Phiên sau chạy `git fetch` và `git rev-parse origin/i18n-vi`. SHA mới hơn thì đọc log mới hơn.
 
 Release: <https://github.com/VagabondKingsman/open-super-agent-remake/releases/tag/v1.0>. File `OpenSuperAgent-v1.0-arm64-debug.apk`, SHA-256 `e3cb6a28d4df9917342be429bb50ebf4ba4fc52fa0c73407b183ac93d65df58d`. Ký debug, arm64, `resources.arsc` không nén.
 
@@ -132,6 +141,8 @@ Bảng dưới là việc đã vào `i18n-vi` hoặc đã có bằng chứng tr�
 | OSA-037 | Trang nổi cùng server, shortcut số chờ duyệt | PR #34 |
 | OSA-038 | Bỏ xfail e27 sau P0-2 | PR #45, merge `dac00da` |
 | OSA-040 | Hết văng lúc nối và lúc đăng nhập | PR #47, merge `3c631a3`, head `9b931f6` |
+| AUDIT-ABC | Usage từng lượt, tool trên stream, stall, cắt cache, trần chi phí | PR #50, merge `30dfb24`, head `fa0372d` |
+| CHAT-LABEL | Hai chat của một bot tách tên; chat phụ đổi tên và xóa được | PR #51, merge `14449fd`, head `6e550b0` |
 | EVAL-SUITE, P0-2 | 27 kịch bản eval, chỉ user duyệt thẻ | PR #44, #43 |
 | AUDIT-F1–F13 trừ F11 | Stream, cửa sổ, script, backup | PR #41 |
 
@@ -144,6 +155,10 @@ OSA-040, việc đã thấy và đã sửa:
 - S22 Ultra, 11/11/2026: đăng nhập `http://<máy>.<tailnet>.ts.net/`, thấy AutoBot và Nova, Cài đặt hiện đúng tên server.
 
 PR #46 (`hoplite/osa-039-android-s22`) đã đóng ngày 11/11/2026 theo câu của Royan. Nó đụng `lib.rs` và `setup/index.html` sau PR #47. Bản đó còn chấp nhận mọi chứng chỉ LAN. Không nằm trong APK đã cài. Không merge.
+
+PR #50 và #51 đè `CHANGELOG.md`, locale en/vi và `web/src/components/Chat.tsx`. Merge #50 trước. #51 nhận `i18n-vi` mới bằng merge commit `6e550b0` (giữ cả hai changelog và cả hai bộ khóa dịch), rồi merge vào `i18n-vi` tại `14449fd`. Pytest trên cây đã ghép: 1157 passed, 1 skipped. `npm test` web 43/43, `tsc --noEmit` sạch. `python -m osa.i18n` thoát 0. Chi tiết ở [log](log/2026-11-11-cursor-merge-50-51.md).
+
+Script trong PR #50 (`scripts/net-fast.sh`, `tailnet-serve.sh`, `tailscale-up.sh`) gắn đường `/home/boxes` và hostname `osa`. Chúng đọc `TS_AUTHKEY` từ `.env` lúc chạy. Diff không chứa key. Không chạy các script đó trên máy khác.
 
 ## Còn lại
 
