@@ -18,7 +18,7 @@ bản đang chạy ở `boxes.dev` (86 module / 27 202 dòng / 150 route / 909 t
 | A | A0–A7 ✅ | suite 1 051 → 1 099 test |
 | B | B1–B9 ✅ | test kênh 92, nhóm 13, teach 13, memory 8; 3 bug thật (xem commit B8/B9) |
 | C | C1, C2, C4, C5, C6, C7 ✅ · C3 đã có sẵn (`verification_repair_attempts`) | 32 scenario (thêm e28–e32) |
-| D | C6 ✅ (mỗi lượt chỉ ghi công cụ của nó) · C7 ✅ (ngưỡng cost_guard theo trung vị) · C8 ✅ (chặn kết quả tool cũ trong worker) | 2 lỗi thật tìm từ dữ liệu live; chi phí worker là chỗ tốn nhất |
+| D | C6 ✅ (mỗi lượt chỉ ghi công cụ của nó) · C7 ✅ (ngưỡng cost_guard theo trung vị) · C8 ✅ (chặn kết quả tool cũ trong worker) · C18–C21 ✅ (cache của worker, đo rồi sửa hai lần) | 2 lỗi thật tìm từ dữ liệu live; chi phí worker là chỗ tốn nhất |
 
 Chi phí tuần (báo cáo đầu tiên): 5,97 $ · 191 lần gọi · 5 lỗi · ttft 2 336 ms · cache 66 %.
 
@@ -162,6 +162,65 @@ và Watchdog hủy task trước khi bất cứ thứ gì kịp xảy ra. `strea
 Request không stream thì không áp (cả câu trả lời vốn dài). Test: client giả treo → `StreamStalled` trong
 khoảng 0,05 s (không treo), `retry_midstream` = True; `_reply` gọi lại lần hai và trả lời được.
 Chỗ này trước đó cũng không có test nào — “kết nối treo” là lỗ hổng cuối cùng của đường ổn định (A1–A7).
+
+### C18: đo lại trên task thật (11/11, sau khi lên bản chạy)
+
+Đo bằng body ghi nguyên văn (`printf '<thư mục>' > $OSA_DATA_DIR/prompt-dump`) rồi so từng cặp
+body liền nhau trong cùng task — không đoán qua cache_hit. Sáu task thật (#234, #235, #236, #243,
+#247, #251):
+
+- Bốn task ngắn (#234–#236 hai lần gọi, #243 năm lần): body sau là phần mở rộng nguyên văn của body
+trước, 0 lần đứt do code. Riêng lần gọi cuối của #243 nhà cung cấp vẫn tính là miss (trúng 1152
+token) dù body nối tiếp — “trượt” không phải lúc nào cũng do ta. Probe riêng (`scripts/cache_extend_probe.py`,
+8 bước nối tiếp, không có app nào ở giữa): bước 3 trượt, 7 bước còn lại trúng 66–88%.
+- #247 (9 lần gọi): 7 lần nối tiếp, đúng 1 lần đứt ở chỗ nén (body 65 526 → 41 438 ký tự),
+giá $0,048 = 23 459 token miss. Đó là giá của một lần nén.
+- #251 (20 bước, kết quả ~8k ký tự): 17 lần nối tiếp, 5 lần đứt, cả 5 đều là nén; sau mỗi lần
+nén body vẫn còn 47 897 ký tự — 3 kết quả mới nhất cộng 10 bản đã cắt 1500 vẫn trên ngưỡng, nên
+5 bước sau lại nén (xem C21).
+- So với trước C18: 22/120 lần gọi giữa task (18%) chỉ trúng 1152 token; sau C18: 7/37 (19%).
+Tỉ lệ **không giảm**, vì cái đắt nhất chính là lần nén — C18 chỉ đổi nhịp nén, không bỏ được nó.
+- Đo lại bất cứ lúc nào: `.venv/bin/python scripts/worker_cache.py [--since TS]` (cột `1152-only`
+là số lần cả body bị đọc lại) và `--bodies <thư mục>` (chỗ đứt đầu tiên, kèm hai tin để so).
+
+### C20: một task chết trong im lặng — lần thứ hai
+
+Task #247 sau lần gọi thứ 8: x.ai trả header 200 lúc 11:36:17, rồi **189 giây không một khối nào**.
+`task_steps` không có dòng nào, `llm_calls` cũng không, cuối cùng Watchdog hủy vì “3 分钟没有进展”.
+Đúng cái đã gặp ở #212 (C19), nhưng lần này có bằng chứng: mọi giới hạn (header 120, khối đầu 170
+giây) đều **đã** nằm trong khoảng 189 giây đó mà không cái nào nổ.
+
+Lý do: `guard_stream` bọc từng khối bằng `asyncio.wait_for`. Khi hết giờ, `wait_for` hủy task rồi
+**chờ task đó kết thúc thật sự**; một stream còn giữ kết nối mà nuốt luôn `CancelledError` thì không
+bao giờ kết thúc — giới hạn thành vô nghĩa. Thử trực tiếp: stream nuốt `CancelledError` → code cũ
+treo vô hạn, code mới nổ đúng ở 0,05 giây.
+
+Đã sửa: `providers._bounded()` dùng `asyncio.wait` — hết giờ là đi tiếp, task bị bỏ lại tự kết thúc
+(loại hết warning). Dùng cho cả giai đoạn kết nối (C19) và từng khối của stream. Thêm
+`limits.no_progress_s = 300` (trước là 180 viết cứng trong watchdog): mọi giới hạn của stream phải
+ngắn hơn nó và còn dư địa, và mỗi lần thử gọi model đều tính lại mốc tiến triển.
+Test: 2 test mới (stream nuốt `CancelledError`, client treo ở create); suite 1141 passed / 3 skipped,
+evals 35/35. Trên bản chạy thật, #251 gặp đúng một lần kết nối treo 121 giây → `StreamStalled`,
+thử lại, chạy tiếp tới hết (hai dòng 0/0 token rồi body nối tiếp) — không còn cảnh cả task bị hủy.
+
+### C21: nén hai tầng (mô phỏng trước, sửa sau)
+
+C18 cắt một lần cho tới `worker_compact_to_chars` = 20000 — nhưng goal tính trên tổng工具结果, mà
+**3 kết quả mới nhất** đã 24 000 ký tự (kết quả 5–8k rất phổ biến: 163/364 dòng `task_steps`), nên
+sau khi cắt hết mức body vẫn trên ngưỡng: mỗi bước chỉ cắt được cái mới đến → một bước một断点.
+
+Mô phỏng (`scripts/compact_sim.py`, phân bố độ dài lấy từ `task_steps`, giá thật hit 0,50 /
+miss 2,02 $/Mtok, 30 bước/task):
+
+| kết quả mỗi bước | C8 cũ | C18 | hai tầng (C21) |
+|---|---|---|---|
+| 8000 ký tự | 14,0 lần đứt, $0,4215 | 14,0, $0,4215 | **5,0, $0,3122** |
+| 3000 ký tự | 2,0, $0,2382 | 2,0, $0,2382 | **1,0, $0,2056** |
+| Phân bố thật | 1,8, $0,2429 | 1,9, $0,2375 | **1,5, $0,2156** |
+
+Tức C18 một mình gần như không đổi; cái ăn tiền là tầng thứ hai: đã cắt 1500 mà vẫn trên goal
+thì bản cũ nhất thu còn `worker_tiny_tool_chars` (200) + một dòng. Test: history 13×5000 ký tự →
+tổng sau khi nén ≤ goal, và ba bước sau không đổi một chữ.
 
 ## Rủi ro & lối thoát
 
