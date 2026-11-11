@@ -89,10 +89,10 @@ Chi phí tuần (báo cáo đầu tiên): 5,97 $ · 191 lần gọi · 5 lỗi �
 
 | Chỉ số | Hiện (đo 2026-11-11) | Mục tiêu vòng A | Vòng B |
 |---|---|---|---|
-| ttft turn thường | 2,27 s (báo cáo tuần, router) | ≤ 1,8 s | ≤ 1,2 s |
+| ttft turn thường | 0,66–1,8 s (đo 11/11 sau C14/C15; trước đó 2,27 s) | ≤ 1,8 s | ≤ 1,2 s |
 | Chữ đầu turn `17*23` | 11,4 s (2 tool, đáp 391) | ≤ 4 s | ≤ 3 s |
 | Frame tool trên `/ws` | có, 1–2 mỗi lượt gọi tool | ≥ 2/turn có tool | đủ bước + approval |
-| Chi phí/turn | trong `meta.usage`; tuần này 242 lượt = $6,93 | có trong `meta` | dashboard |
+| Chi phí/turn | trong `meta.usage`; tuần này 242 lượt = $6,93. Sau C14/C15: $0,010–0,012 mỗi lượt router (trước: $0,026) | có trong `meta` | dashboard |
 | Test | 1 129 | ≥ 938 | ≥ 1 000 |
 | Op computer (snapshot) | 0,44 s | giữ | ≤ 0,4 s |
 | Lỗi gọi model / 7 ngày | 5 | 0 | 0 |
@@ -102,6 +102,20 @@ Chi phí tuần (báo cáo đầu tiên): 5,97 $ · 191 lần gọi · 5 lỗi �
 nên mọi lượt đều chạy bằng model đắt + suy luận sâu: 6,92 $ trong tuần gần như toàn bộ rơi vào grok-4.7, và "chữ đầu"
 là chữ đầu của phần suy luận, không phải của câu trả lời. Muốn so với mục tiêu ttft thì hạ `reasoning_effort` hoặc
 bỏ thinking cho router rồi đo lại; chưa làm vì đó là lựa chọn của operator.
+
+### C13–C15: cache của nhà cung cấp (đo 11/11)
+
+Cache không phải “tiền tố giống nhau là trúng”: nó phục vụ khi **request này là phần mở rộng nguyên văn của một
+request đã gửi**. Đo trực tiếp (`scripts/cache_probe.py`): sửa một chữ ở đầu → 1152/7584 token; sửa ở cuối → 7552/7584.
+Vì thế mỗi lượt trước đây trả tiền gần như cả 17–18k token đầu vào: lần gọi đầu mỗi lượt trúng 5–8%.
+
+Đã sửa: khối “Earlier turns were removed…” (lớn thêm mỗi lượt) dời vào khối trạng thái ở cuối; trạng thái đã gửi
+được lưu nguyên văn vào chính tin nhắn đó (`memory.remember_state`); các vòng gọi tool (assistant `tool_calls` +
+kết quả `tool`) cũng được lưu và gửi lại đúng thứ tự (`memory.keep_tail`). Hai test giữ tính chất “body sau là phần
+mở rộng của body trước”, kể cả lượt có tool. Đo lại trên chat thật: các body nối tiếp nhau 100%; lần gọi trong cùng
+lượt trúng 99–100%, lần gọi đầu lượt trúng 96–100% với khoảng một nửa số lượt — nửa còn lại vẫn 5–6% dù body nối
+tiếp đúng (chưa rõ lý do, còn mở). Prompt lớn dần vì mỗi lượt mang theo state (~440 ký tự) và các vòng tool của
+lượt trước; cửa sổ `memory.inline_messages` vẫn cắt đều nên có chặn trên.
 
 ## Rủi ro & lối thoát
 

@@ -344,6 +344,15 @@ class Router:
                          "content": content, "meta": meta, "bot_id": self.bot_id}}, cid)
         return mid
 
+    def _keep_tail(self, extra: list[dict]) -> None:
+        """把将要发送的工具往返记到库里：下一轮的正文才是这一轮的延长，缓存才认（见 memory.keep_tail）。"""
+        for m in extra:
+            if m.get("role") == "user" and isinstance(m.get("content"), list):
+                continue          # 截图：留在这一轮就好
+            self._turn_tail.append(m)
+        if extra and self.chat:
+            memory.keep_tail(self.chat["id"], self._turn_tail)
+
     def _over_budget(self) -> bool:
         return memory.tokens_today() > CFG["limits"]["daily_token_budget"]
 
@@ -605,6 +614,7 @@ class Router:
                            images=media.MODEL_IMAGES if see else 0))   # C13: 索引挪到状态块，开头才是稳定的前缀
         if removed:
             state += "\n\n" + removed
+        memory.remember_state(cid, state)   # C14：原样存下这一轮的状态，下一轮的正文才是它的延长
         msgs = [{"role": "system", "content": system}] + with_state(history, state)
         self._turn_context = "\n".join(str(m.get("content") or "") for m in msgs)
         sid, started = f"s{time.time_ns()}", time.time()
@@ -625,7 +635,11 @@ class Router:
             """跑最多 10 轮工具调用。返回（轮数是否用完, 最后一段正文, 最后一段思考）。"""
             nonlocal shown, thinking, shots, finish
             rounds_used, content, reasoning = True, "", ""
+            mark = len(msgs)      # 上一轮之后新加进 msgs 的，就是这次请求要发出去的；它们得留下来（C15）
+            self._turn_tail: list[dict] = []
             for i in range(10):
+                self._keep_tail(msgs[mark:])
+                mark = len(msgs)
                 # 只在第一次调用上强制：收尾那轮再强制一次 dispatch，模型会又派一遍
                 content, reasoning, calls, finish = await self._stream(client, model, msgs, sid, started,
                                                                       use_tools=not self._turn_capped,

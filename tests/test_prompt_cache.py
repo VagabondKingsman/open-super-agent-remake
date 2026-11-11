@@ -80,7 +80,8 @@ async def test_removed_index_rides_in_the_state_not_the_head(llm, events, make_b
 
 
 async def test_each_turn_extends_the_previous_body(llm, events, make_bot, monkeypatch):
-    """两轮之间（同样的窗口内），除了最后一条，发出去的内容逐字相同 —— 缓存靠的就是这个前缀。"""
+    """C14: 这一轮的正文要整段包住上一轮的正文（逐字），缓存才会命中 —— 供应商认的是“延长”，
+    不是“前缀大致相同”。状态跟着它那条用户消息一起存下来，就是为此。"""
     monkeypatch.setitem(CFG["memory"], "inline_messages", 4)
     a = make_bot("Prefixy")
     for i in range(6):
@@ -88,6 +89,36 @@ async def test_each_turn_extends_the_previous_body(llm, events, make_bot, monkey
         await server.safe_handle(bots.chat(a["chat_id"]), f"问 {i}")
     bodies = [b["messages"] for b in llm.bodies("router", "Prefixy")]
     a1, a2 = bodies[4], bodies[5]          # 第 5、6 轮：窗口的分界（每隔 n 条才挪一次）这两轮没挪
-    assert a1[:-1] == a2[:len(a1) - 1]     # 上一轮发过的（除了挂着状态的最后一条）原样是这一轮的前缀
-    assert a1[-1]["content"].startswith("问 4") and "(The text below is system-attached" in a1[-1]["content"]
-    assert a2[len(a1) - 1]["content"] == "问 4"   # 这一轮里它不再是最后一条，状态已经拿掉
+    assert a2[:len(a1)] == a1              # 上一轮的正文原样是这一轮的开头
+    assert "system-attached" in a1[-1]["content"]     # 状态挂在它那条用户消息上
+    assert a1[-1]["content"].startswith("问 4")
+    assert a2[len(a1) - 1] == a1[-1]                   # 下一轮里那条消息一字不差地还在
+
+
+async def test_stored_state_is_not_overwritten_on_a_second_wake(make_bot):
+    """同一条用户消息又醒一次（定时任务、回信）：留着当时发出去的那份，否则前缀就断了。"""
+    a = make_bot("Wakey")
+    cid = a["chat_id"]
+    memory.conn.execute("insert into messages(ts, role, content, meta, chat_id, bot_id) values(?,?,?,?,?,?)",
+                        (0, "user", "一条", "{}", cid, a["id"]))
+    memory.conn.commit()
+    memory.remember_state(cid, "STATE A")
+    memory.remember_state(cid, "STATE B")
+    body = memory.context(cid, me=a["id"])
+    assert body[-1]["content"].endswith("STATE A")
+
+
+async def test_a_tool_turn_chains_into_the_next_turn(llm, events, make_bot, monkeypatch):
+    """C15: 带工具的一轮也要把“上一轮发出去的正文”原样留给下一轮 —— assistant 的 tool_calls 和 tool 结果
+    都记在那条用户消息上（memory.keep_tail），否则下一轮的前缀断在工具往返处，17k 全部重算。"""
+    from fakellm import Call
+    monkeypatch.setitem(CFG["memory"], "inline_messages", 4)
+    a = make_bot("Chainy")
+    llm.script(f"router:{a['name']}", Call("quick_code", {"code": "print(7)"}), "答 0")
+    await server.safe_handle(bots.chat(a["chat_id"]), "问 0")
+    llm.script(f"router:{a['name']}", "答 1")
+    await server.safe_handle(bots.chat(a["chat_id"]), "问 1")
+    bodies = [b["messages"] for b in llm.bodies("router", a["name"])]
+    tool_body = next(b for b in bodies if any(m.get("tool_calls") for m in b))
+    assert any(m["role"] == "tool" for m in tool_body), "这一轮应该有工具往返"
+    assert bodies[-1][:len(tool_body)] == tool_body   # 上一轮发过的整段（含工具往返）原样是这一轮的开头

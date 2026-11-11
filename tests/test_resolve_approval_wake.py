@@ -119,7 +119,7 @@ async def test_group_mention_then_handoff_only_mention_can_resolve(llm, events, 
     assert await req_a == (True, "")
     assert aid_a not in approvals.pending
     tools = [m for m in llm.bodies("router", b["name"])[-1]["messages"] if m["role"] == "tool"]
-    assert tools and i18n.t(REFUSAL) in tools[0]["content"]
+    assert tools and any(i18n.t(REFUSAL) in m["content"] for m in tools)
     assert aid_b in approvals.pending and not approvals.pending[aid_b]["future"].done()
     approvals.resolve(aid_b, False)
     assert await req_b == (False, "")

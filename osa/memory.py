@@ -192,6 +192,41 @@ def _pick_images(recent: list, limit: int) -> set[tuple[int, str]]:
 REMOVED_PREFIX = "Earlier turns were removed from context. Use recall(id) to fetch the original text:\n"
 
 
+
+
+def keep_tail(chat_id: int, tail: list[dict]) -> None:
+    """这一轮真正发出去的工具往返（assistant 的 tool_calls + 每条 tool 结果）记在最新那条用户消息上。
+
+    缓存认的是“这次请求是上次正文的延长”，所以上一轮发过的消息必须原样留下、这一轮再原样带上；
+    不记的话，带工具的一轮就让下一轮的前缀断在工具往返处，整段 17k 又要重算。
+    图片不算（一张截图几百 token，每轮带回来太贵），带图的那一轮前缀会断，值得。"""
+    row = conn.execute("select id, meta from messages where chat_id=? and role='user' order by id desc limit 1",
+                       (chat_id,)).fetchone()
+    if not row:
+        return
+    meta = json.loads(row[1] or "{}")
+    meta["tail"] = tail
+    conn.execute("update messages set meta=? where id=?", (json.dumps(meta, ensure_ascii=False), row[0]))
+    conn.commit()
+
+
+def remember_state(chat_id: int, state: str) -> None:
+    """把这一轮发出去的状态记在最新那条用户消息上：下一轮原样带上，模型服务的缓存才认得这段前缀。
+
+    供应商的缓存不是“前缀相同就命中”，而是“这次请求是上一次请求正文的延长”。以前状态挂在最后一条上、
+    存库时不存，下一轮就不延长了 —— 实测每轮第一次调用只命中 7%（拿 17.9k 里的 1.07k）。"""
+    row = conn.execute("select id, meta from messages where chat_id=? and role='user' order by id desc limit 1",
+                       (chat_id,)).fetchone()
+    if not row:
+        return
+    meta = json.loads(row[1] or "{}")
+    if meta.get("state"):
+        return          # 同一条用户消息又醒了一次：保留当时发出去的那份，新状态接在后面
+    meta["state"] = state
+    conn.execute("update messages set meta=? where id=?", (json.dumps(meta, ensure_ascii=False), row[0]))
+    conn.commit()
+
+
 def split_notice(msgs: list[dict]) -> tuple[list[dict], str]:
     """取出开头的“更早的对话”索引：返回（剩下的历史, 索引文本）。
 
@@ -223,8 +258,8 @@ def context(chat_id: int, viewer: int | None = None, me: int | None = None, imag
     if old:
         def who(r, b):
             return name(b) if viewer is not None and r == "assistant" and b != viewer else r
-        index = "\n".join(f"#{i} [{who(r, b)}] {c[:60].replace(chr(10), ' ')}" for i, r, c, _, b in old[-200:])
-        msgs.append({"role": "system", "content": REMOVED_PREFIX + index})
+        # 索引现在会跟着状态一起存进消息里（见 remember_state），所以只写范围：200 行清单乘上每轮一次就太贵了
+        msgs.append({"role": "system", "content": REMOVED_PREFIX + f"#{old[0][0]}-#{old[-1][0]} ({len(old)} messages)"})
     # 讨论串从哪一条开始；开头已经移出上下文的话，标在留下的第一条前面
     at = max(split, cut) if split is not None else -1
     shown = _pick_images(recent, images) if images else set()
@@ -300,7 +335,10 @@ def context(chat_id: int, viewer: int | None = None, me: int | None = None, imag
                 from . import media
                 parts = [p for a in meta.get("attachments") or [] if (mid, a.get("media")) in shown
                          and (p := media.image_part(a["media"]))]
+            if meta.get("state"):     # 当时发出去的状态：原样带上，前缀才连得上（见 remember_state）
+                c = str(c) + meta["state"]
             msgs.append({"role": "user", "content": [{"type": "text", "text": c}, *parts] if parts else c})
+            msgs.extend(meta.get("tail") or [])   # 这一轮之后发过的工具往返，原样放回（见 keep_tail）
     return msgs
 
 
