@@ -114,8 +114,20 @@ Vì thế mỗi lượt trước đây trả tiền gần như cả 17–18k tok
 kết quả `tool`) cũng được lưu và gửi lại đúng thứ tự (`memory.keep_tail`). Hai test giữ tính chất “body sau là phần
 mở rộng của body trước”, kể cả lượt có tool. Đo lại trên chat thật: các body nối tiếp nhau 100%; lần gọi trong cùng
 lượt trúng 99–100%; lần gọi đầu lượt trúng 95–100% ở phần lớn lượt (đo sau C16: 4/5 lượt, ttft 0,6–2,2 s,
-0,013–0,014 $ mỗi lượt router; lượt còn lại 5% — thỉnh thoảng vẫn trượt dù body nối tiếp đúng, chưa rõ lý do). Prompt lớn dần vì mỗi lượt mang theo state (~440 ký tự) và các vòng tool của
+0,013–0,014 $ mỗi lượt router; lượt còn lại 5% — thỉnh thoảng vẫn trượt dù body nối tiếp đúng, chưa rõ lý do — đo ra ở dưới). Prompt lớn dần vì mỗi lượt mang theo state (~440 ký tự) và các vòng tool của
 lượt trước; cửa sổ `memory.inline_messages` vẫn cắt đều nên có chặn trên.
+
+**5% còn lại là cửa sổ trượt, không phải lỗi nhà cung cấp (C17).** `memory.context` chỉ dời mốc cắt một lần mỗi
+`n = memory.inline_messages` = 20 tin (`cut = (len-n)//n*n`), nên phần lớn lượt là phần mở rộng của lượt trước;
+lượt đúng lúc mốc nhảy thì tin đầu tiên đổi, phần sau system prompt trượt hết — vì thế mọi lần trượt đều báo
+trúng đúng 1152 token, bằng riêng system prompt. Giá: ~0,02 $ mỗi lần nhảy (đọc lại body ở giá miss 2,02 $/Mtok
+thay vì 0,50 $/Mtok — hai giá này suy ra từ hai lần gọi đã đo), khoảng 1 lần mỗi 10 lượt.
+Mô phỏng lại 76 lượt của chat 1 (giá thật ở trên, token ước theo ký tự) cho n = 6…24 và vài chính sách cắt theo
+ngân sách: $/lượt giảm khi cửa sổ nhỏ (n=6: 0,0010 $; n=16: 0,0015 $; n=20: 0,0015 $; n=24: 0,0017 $) nhưng cửa sổ
+nhỏ thì bot thấy ít lịch sử hơn, và mọi chính sách cắt theo ngân sách đều đắt hơn. n=20 đã nằm trên đoạn phẳng của
+đường cong → giữ nguyên: đây là chỗ đã tối ưu, không phải chỗ còn nợ.
+Cách đo lần sau (đừng đoán): `printf '<thư mục>' > $OSA_DATA_DIR/prompt-dump` bật ghi nguyên văn từng body, chạy
+một lượt có tool, rồi so từng cặp body liền nhau — tìm ra đúng tin đầu tiên khác nhau.
 
 ## Rủi ro & lối thoát
 
