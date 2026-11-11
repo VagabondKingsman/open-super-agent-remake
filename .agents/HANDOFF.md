@@ -143,7 +143,7 @@ OSA-040, việc đã thấy và đã sửa:
 - Emulator API 34 x86_64: nối HTTP, mở lại, địa chỉ chết, không FATAL.
 - S22 Ultra, 11/11/2026: đăng nhập `http://máy.ts.net/`, thấy AutoBot và Nova, Cài đặt hiện đúng tên server.
 
-PR #46 (`hoplite/osa-039-android-s22`) vẫn mở. Đụng `lib.rs` và `setup/index.html` sau PR #47. Bản đó còn chấp nhận mọi chứng chỉ LAN. Không nằm trong APK đã cài. Chưa merge.
+PR #46 (`hoplite/osa-039-android-s22`) đã đóng ngày 11/11/2026 theo câu của Royan. Nó đụng `lib.rs` và `setup/index.html` sau PR #47. Bản đó còn chấp nhận mọi chứng chỉ LAN. Không nằm trong APK đã cài. Không merge.
 
 ## Còn lại
 

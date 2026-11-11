@@ -8,7 +8,7 @@
 ## Đã làm
 
 1. `android/README.md`, một mục trong `README.md`, một mục trong `docs/huong-dan-vi.md`: cách cài APK, địa chỉ HTTP, những lỗi đã hết.
-2. `.agents/HANDOFF.md`, `STATE.md`, `BOARD.md`: OSA-040 Done, bảng việc đã xử lý tới 11/11, PR #46 vẫn mở vì đụng file và có bản nhận mọi chứng chỉ LAN.
+2. `.agents/HANDOFF.md`, `STATE.md`, `BOARD.md`: OSA-040 Done, bảng việc đã xử lý tới 11/11. PR #46 đóng sau đó, không merge, vì đụng file và có bản nhận mọi chứng chỉ LAN.
 3. Tag `v1.0` và GitHub Release gắn APK arm64 debug. SHA-256 file `e3cb6a28d4df9917342be429bb50ebf4ba4fc52fa0c73407b183ac93d65df58d`.
 
 ## Evidence
