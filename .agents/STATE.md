@@ -9,7 +9,7 @@ Snapshot sau release Android `v1.0` và sau khi S22 Ultra đăng nhập được
 - APK arm64 debug: SHA-256 `e3cb6a28d4df9917342be429bb50ebf4ba4fc52fa0c73407b183ac93d65df58d`. Release <https://github.com/VagabondKingsman/open-super-agent-remake/releases/tag/v1.0>.
 - `main` trên GitHub vẫn `a30e3cc`. Luôn làm trên `i18n-vi` (AUDIT-F11, chờ người có quyền repo).
 - CI PR #47 trên `9b931f6`: backend, frontend, docker SUCCESS. `cargo test --lib` trong `android/src-tauri`: 10 passed. Lần chạy có cache nên cờ `--offline` cũng qua. Máy mới bỏ cờ đó để Cargo tải crate.
-- S22 Ultra 11/11/2026: nối `http://máy.ts.net/`, đăng nhập, thấy AutoBot và Nova.
+- S22 Ultra 11/11/2026: nối `http://<máy>.<tailnet>.ts.net/`, đăng nhập, thấy AutoBot và Nova.
 
 Phần dưới là snapshot 10/11 và các mục bổ sung. Câu "chưa merge" trong đó là lúc viết.
 

@@ -2,7 +2,7 @@
 
 - Khoảng 13:52 Asia/Saigon (UTC+7).
 - Base đã merge PR #47 tại `3c631a3`, head `9b931f6`.
-- Royan xác nhận S22 Ultra đăng nhập được: thấy AutoBot, Nova, Cài đặt ghi `máy.ts.net`.
+- Royan xác nhận S22 Ultra đăng nhập được: thấy AutoBot, Nova, Cài đặt ghi tên MagicDNS dạng `<máy>.<tailnet>.ts.net`.
 - Skill Flow: osa-dev → ai-work-method → vibecode-kit → unslop-vi.
 
 ## Đã làm

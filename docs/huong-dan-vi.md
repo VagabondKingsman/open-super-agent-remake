@@ -134,9 +134,9 @@ Không mở VNC/CDP ra public, không chạy `cdp_helper.py` trực tiếp trên
 
 OSA chạy trên server. Điện thoại chỉ mở trang web đó. File cài và cách dùng nằm ở [android/README.md](../android/README.md). Release [v1.0](https://github.com/VagabondKingsman/open-super-agent-remake/releases/tag/v1.0) là APK debug arm64, ký khóa debug.
 
-Nhập `http://IP:cổng` hoặc tên Tailscale `http://máy.ts.net/`. App kiểm `GET /manifest.json` trước khi mở trang. Sai địa chỉ thì ở lại màn hình nhập. Đăng nhập là form `POST /login` của server. Sau khi vào, Cài đặt có nút Đổi máy chủ.
+Nhập `http://IP:cổng` hoặc tên Tailscale `http://<máy>.<tailnet>.ts.net/`. App kiểm `GET /manifest.json` trước khi mở trang. Sai địa chỉ thì ở lại màn hình nhập. Đăng nhập là form `POST /login` của server. Sau khi vào, Cài đặt có nút Đổi máy chủ.
 
-Ngày 11/11/2026, Samsung Galaxy S22 Ultra nối `http://máy.ts.net/`, đăng nhập, và mở được chat AutoBot cùng Nova.
+Ngày 11/11/2026, Samsung Galaxy S22 Ultra nối `http://<máy>.<tailnet>.ts.net/`, đăng nhập, và mở được chat AutoBot cùng Nova.
 
 ## Kênh chat, thư viện và backup
 

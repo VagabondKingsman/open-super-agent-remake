@@ -8,7 +8,7 @@ Bản arm64 để cài thử nằm ở release `v1.0`:
 
 <https://github.com/VagabondKingsman/open-super-agent-remake/releases/tag/v1.0>
 
-File `OpenSuperAgent-v1.0-arm64-debug.apk`. Ký bằng khóa debug của Android, không phải bản cửa hàng. Máy cần Android 7 trở lên và CPU arm64. Gỡ app cũ trước khi cài. Server trên LAN hoặc Tailscale nhập `http://máy:8765`, ví dụ `http://máy.ts.net/`. Đừng thêm `https://` nếu server không có chứng chỉ mà WebView tin.
+File `OpenSuperAgent-v1.0-arm64-debug.apk`. Ký bằng khóa debug của Android, không phải bản cửa hàng. Máy cần Android 7 trở lên và CPU arm64. Gỡ app cũ trước khi cài. Server trên LAN hoặc Tailscale nhập `http://máy:8765`, ví dụ `http://<máy>.<tailnet>.ts.net/`. Đừng thêm `https://` nếu server không có chứng chỉ mà WebView tin.
 
 Đã kiểm trên Samsung Galaxy S22 Ultra ngày 11/11/2026: nối server, đăng nhập, vào được chat của AutoBot và Nova. Cài đặt hiện đúng tên server và có nút Đổi máy chủ.
 
