@@ -228,7 +228,8 @@ def test_use_skill_tool(bot):
 
 
 async def test_router_uses_skill(llm, events, bot):
-    """Router 觉得某个技能管这件事时自己 use_skill 取做法；系统提示词里技能列表还是只有名字和描述。"""
+    """Router 觉得某个技能管这件事时自己 use_skill 取做法。技能清单在状态块（正文末尾）里，
+    仍然只有名字和描述：正文放在系统提示词里的话，装一个技能就让整个前缀重算（C25）。"""
     b = bot("Skilly")
     skills.save(b["id"], "日报", "1. 看今天的任务\n2. 写三条要点", "写日报", files={"scripts/stat.py": "print('统计')"})
     llm.script("router:Skilly", Call("use_skill", {"name": "日报"}), "写好了")
@@ -236,7 +237,9 @@ async def test_router_uses_skill(llm, events, bot):
     await until(lambda: len(llm.bodies("router", "Skilly")) == 2, what="第二次请求")
     first, second = llm.bodies("router", "Skilly")
     system = first["messages"][0]["content"]
-    assert "use_skill" in system and "- /日报: 写日报" in system and "看今天的任务" not in system
+    state = first["messages"][-1]["content"]
+    assert "use_skill" in system                       # 头里只说“用 use_skill”，清单在末尾
+    assert "- /日报: 写日报" in state and "看今天的任务" not in state
     assert "use_skill" in {t["function"]["name"] for t in first["tools"]}
     tool_msg = next(m for m in second["messages"] if m["role"] == "tool")
     assert "2. 写三条要点" in tool_msg["content"] and "print('统计')" in tool_msg["content"]

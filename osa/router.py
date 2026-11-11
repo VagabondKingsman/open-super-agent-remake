@@ -87,15 +87,13 @@ You talk with the user in this chat. You do not research things yourself. Instea
 {bot_rule}- When a new instruction conflicts with a running task (for example they changed what to do), call cancel_task on the old task first.
 Today is {date}.
 
-Tools the background Worker can use right now. Use this list when deciding whether a task is possible:
-{capabilities}
+The tools the background Worker can use right now are listed at the end of this message, under "What a task can do". Read that list when deciding whether a task is possible.
 
 Other bots. Call message_bot when you need their help. This is every bot that exists right now; trust this list.
 A bot mentioned in memory or earlier chat but missing here was never created or has been deleted. Do not treat it as existing:
 {others}
 
-Your skills. The user calls them with /name:
-{skills}
+Your skills (the user calls them with /name) are listed at the end of this message under "Your skills".
 
 Your routines and events:
 {routines}
@@ -117,13 +115,19 @@ STATE_PROMPT = """
 (The text below is system-attached current state. It is refreshed every turn and is not the user speaking.)
 Now: {now} (server clock, UTC). Any time or date you state comes from this line or from a tool you called in this turn; do not estimate one.
 Current tasks (a task exists only if you called the dispatch tool; writing "dispatched task #N" without calling it starts nothing):
-{tasks}
+{tasks}{ledger}
 
 Write operations waiting for the user. When they agree or refuse in chat, call resolve_approval. If the meaning is unclear, ask before deciding for them:
 {approvals}
 
 Tools you can use in this turn. This list decides what you can do: if you said earlier in the chat that you "can't" or "have no such tool", it may not have existed then; if it is here now, use it:
-{tools}{memories}{removed}{turn}"""
+{tools}
+
+What a task can do (the background Worker's tools). This is where the capability list lives now, so the top of the prompt stays the same every turn:
+{capabilities}
+
+Your skills. The user calls them with /name:
+{skills}{memories}{removed}{turn}"""
 
 # B1：回复里“#数字”旁边出现这些词，就当它在说派了这个任务
 FAKE_DISPATCH_RE = re.compile(r"#(\d{1,9})\b")
@@ -297,6 +301,17 @@ def with_state(history: list[dict], state: str) -> list[dict]:
     if history and history[-1]["role"] == "user" and isinstance(history[-1].get("content"), list):   # 带图片的消息：接一段文字
         return history[:-1] + [{**history[-1], "content": history[-1]["content"] + [{"type": "text", "text": state.lstrip()}]}]
     return history + [{"role": "user", "content": state.lstrip()}]
+
+
+def _skill_tag(bot_id: int) -> str:
+    """群成员后面那句“会什么”：它装了的技能名（C25）。别的 Bot 据此知道该把哪类活交给谁。
+    只列名字，不列正文：它在系统提示词里，越稳定越好。"""
+    try:
+        names = [s["name"] for s in skills.list_for(bot_id)][:6]
+    except Exception:
+        log.exception("读技能列表失败（bot %s）", bot_id)
+        return ""
+    return f" [skills: {', '.join(names)}]" if names else ""
 
 
 def runtime(bot_id: int) -> "Router":
@@ -560,12 +575,33 @@ class Router:
                 role = (m["instructions"] or "No written role; infer it from the group chat.").replace("\n", " ")[:120]
                 you = " (you)" if i == self.bot_id else ""
                 coord = " (coordinator)" if i == chat["lead"] else ""
-                lines.append(f"- {m['name']}{you}{coord}: {role}")
+                lines.append(f"- {m['name']}{you}{coord}: {role}{_skill_tag(i)}")
         lead = ("You coordinate this group. You take messages where the user @-mentioned nobody. Answer when you can. "
                 "When someone else is a better fit, handoff to that bot (you can hand off to several), then briefly tell the user who is doing what.") \
             if chat["lead"] == self.bot_id else \
             "You speak when the user @-mentions you, or when another bot hands work to you."
         return GROUP_PROMPT.format(title=chat["title"], members="\n".join(lines), lead=lead)
+
+    def _group_ledger(self) -> str:
+        """群里这一轮谁在做什么：所有成员在这个群里的任务，不只是自己的。
+
+        C25：没有它，两个 Bot 各干一份、或者一人等另一人时都不知道对方在跑什么。它每轮都在变，
+        所以放在状态块里（正文末尾），系统提示词那段前缀才能一直逐字相同、命中缓存。"""
+        if self.chat.get("kind") != "group":
+            return ""
+        now = time.time()
+        rows = [t for t in TASKS.values() if t.chat_id == self.chat["id"] and t.bot_id in self.chat["bot_ids"]
+                and (t.status == "running" or now - t.last_progress < 600)]
+        if not rows:
+            return ""
+        lines = []
+        for t in sorted(rows, key=lambda x: x.id):
+            who = "you" if t.bot_id == self.bot_id else ((bots.get(t.bot_id) or {}).get("name") or "a deleted bot")
+            last = (t.last_action or "").replace("\n", " ")[:60]
+            lines.append(f"- #{t.id} {who}: {t.goal[:60]} [{t.status}, steps={t.steps}"
+                         + (f", last: {last}" if last else "") + "]")
+        return ("\nThis room's work in flight (every member's tasks, not only yours; do not start the same work again):\n"
+                + "\n".join(lines))
 
     def _turn_block(self) -> str:
         woke = self.turn.get("woke")
@@ -612,8 +648,10 @@ class Router:
             attach_rule=ATTACH_SEE if see else ATTACH_BLIND) + verification.HINT + local_checks.runtime_hint() + skillpacks.runtime_hint(self.bot_id) + i18n.model_hint()
         recent = memories.turn_block(self.bot_id, related)
         state = STATE_PROMPT.format(now=time.strftime("%Y-%m-%d %H:%M:%SZ", time.gmtime()),
-                                   tasks=self._task_list(), approvals=approvals.summary(self.bot_id),
+                                   tasks=self._task_list(), ledger=self._group_ledger(),
+                                   approvals=approvals.summary(self.bot_id),
                                     tools=", ".join(t["function"]["name"] for t in self._tools()),
+                                    capabilities=self._capabilities(), skills=skills.summary(self.bot_id),
                                     memories="\n\n" + recent if recent else "", removed="", turn=self._turn_block())
         self._turn_context = ""            # C3：这一轮看得见的上下文（含用户这条），数有出处就不啰嗦
         history, removed = memory.split_notice(

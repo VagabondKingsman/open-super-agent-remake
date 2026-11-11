@@ -9,6 +9,7 @@
   "Bot ID 或 Secret 不对，或者机器人的 API 模式没选“长连接”（{error}）": "Wrong Bot ID or Secret, or the bot's API mode isn't set to \"long connection\" ({error})",
   "Bot 不存在": "Bot not found",
   "Bot 们这一轮已经说了 {n} 次，先停一下，等你发话。": "The bots have spoken {n} times this round. Pausing until you say something.",
+  "Bot 们这一轮已经用了 ${usd}、{sec} 秒，先停一下，等你发话。": "The bots have spent ${usd} and {sec} seconds this round. Pausing until you say something.",
   "Bot 已删除": "Bot deleted",
   "Bot 用的 Chrome 没开": "The bots' Chrome isn't open",
   "Client ID 或 Client Secret 不对（{error}）": "Wrong Client ID or Client Secret ({error})",

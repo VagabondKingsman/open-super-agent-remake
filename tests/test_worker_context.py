@@ -7,6 +7,33 @@ from osa import worker
 from osa.config import CFG
 
 
+def test_a_result_cap_uses_the_whole_room_while_there_is_some(monkeypatch):
+    """C23：地方够用时一个字也不少给（worker_result_chars 就是上限）。"""
+    monkeypatch.setitem(CFG["limits"], "worker_compact_chars", 60000)
+    monkeypatch.setitem(CFG["limits"], "worker_result_chars", 3000)
+    assert worker._result_cap(0, 20, CFG["limits"]) == 3000
+
+
+def test_the_cap_shrinks_as_the_task_fills_so_no_step_rewrites_the_prefix(monkeypatch):
+    """C23：线上任务 314 在第 5 次调用时正文被 _compact_tools 改了一次，30k 全部重读。
+    结果按“还剩多少地方、还剩几步”截短之后，每一步的正文都只是上一步的延长，一次都不改。"""
+    monkeypatch.setitem(CFG["limits"], "worker_compact_chars", 20000)
+    monkeypatch.setitem(CFG["limits"], "worker_result_chars", 3000)
+    monkeypatch.setitem(CFG["limits"], "worker_tiny_tool_chars", 200)
+    lim = CFG["limits"]
+    msgs = history(0, 0)
+    spent = 0
+    for step in range(20):
+        cap = worker._result_cap(spent, 20 - step, lim)
+        text = worker._cut_result("y" * 5000, cap)
+        msgs.append({"role": "assistant", "content": "", "tool_calls": [{"id": f"c{step}"}]})
+        msgs.append({"role": "tool", "tool_call_id": f"c{step}", "content": text})
+        spent += len(text)
+        assert worker._compact_tools(msgs) == 0, f"第 {step} 步改了前面的前缀"
+    assert 0 < spent <= 20000
+from osa.config import CFG
+
+
 def tool(i: int, size: int) -> dict:
     return {"role": "tool", "tool_call_id": f"c{i}", "content": f"out {i}: " + "x" * size}
 

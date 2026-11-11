@@ -69,6 +69,8 @@ limits:
   watchdog_interval_s: 15
   approval_timeout_s: 1800   # 写操作等待确认的时限，超时按拒绝
   turn_cost_guard: 3.0          # 一轮比过去 7 天的中位数贵这么多倍就不再调工具（0 = 关掉），见 memory.turn_cost_cap
+  group_round_usd: 0.25       # 群聊一轮（用户一条消息引起的一串）最多花多少美元，超过就停下等用户（0 = 不限）
+  group_round_s: 300          # 群聊一轮最多跑多少秒，超过就停下等用户（0 = 不限）
   daily_token_budget: 2000000
   provider_rate_retries: 1   # 普通 429（rate_limit_exceeded）按 Retry-After 再试几次。额度用尽不重试
   provider_retry_cap_s: 120  # Retry-After 最多等这么多秒
@@ -77,8 +79,8 @@ limits:
                                # 否则流刚要重来，任务先没了——任务 247 就是这样（C20）。每次尝试模型都会重新计时
   provider_transient_retries: 5  # 408/409/5xx 再试几次（和 upstream 的 providers.RETRIES 一致）。0 表示不试
   # 流式调用开了以后（下面三行是代码里的默认值，要改就去掉 # ）：
-  # stream_first_chunk_s: 170  # 等第一块最多几秒（想得久的模型第一块慢），要比 Watchdog 的 3 分钟短。0 表示不限
-  # stream_idle_s: 120         # 第一块之后，两块之间最多等几秒，超过就关掉流重来。0 表示不限
+  # stream_first_chunk_s: 60   # 等第一块最多几秒（C24：实测最长 11,9 秒，原来 170 = 白等三分钟）。0 表示不限
+  # stream_idle_s: 60          # 第一块之后，两块之间最多等几秒，超过就关掉流重来。0 表示不限
   # stream_retries: 1          # 流卡住、断了、服务忙时同一轮再调几次（等 2–5 秒再调）。额度用尽不重来
 
 memory:
