@@ -1,7 +1,7 @@
 {
  "schema_version": 1,
  "suite": "osar-offline",
- "osa_commit": "2bb18f4",
+ "osa_commit": "ff9a6e1",
  "tasks": [
   {
    "id": "e01_dispatch_answer",
@@ -13,7 +13,7 @@
    "llm_calls": 3,
    "tokens_in": 300,
    "tokens_out": 30,
-   "cost_usd": 6.3e-05
+   "cost_usd": 0.0
   },
   {
    "id": "e02_bugfix_check_patch_pass",
@@ -25,7 +25,7 @@
    "llm_calls": 5,
    "tokens_in": 500,
    "tokens_out": 50,
-   "cost_usd": 0.000105
+   "cost_usd": 0.0
   },
   {
    "id": "e03_bugfix_fail_then_fix",
@@ -37,7 +37,7 @@
    "llm_calls": 7,
    "tokens_in": 700,
    "tokens_out": 70,
-   "cost_usd": 0.000147
+   "cost_usd": 0.0
   },
   {
    "id": "e04_file_edit_with_approval",
@@ -49,7 +49,7 @@
    "llm_calls": 6,
    "tokens_in": 600,
    "tokens_out": 60,
-   "cost_usd": 0.000126
+   "cost_usd": 0.0
   },
   {
    "id": "e05_sandbox_blocks_host",
@@ -61,7 +61,7 @@
    "llm_calls": 4,
    "tokens_in": 400,
    "tokens_out": 40,
-   "cost_usd": 8.4e-05
+   "cost_usd": 0.0
   },
   {
    "id": "e06_approval_approve",
@@ -73,7 +73,7 @@
    "llm_calls": 4,
    "tokens_in": 400,
    "tokens_out": 40,
-   "cost_usd": 8.4e-05
+   "cost_usd": 0.0
   },
   {
    "id": "e07_approval_deny",
@@ -85,7 +85,7 @@
    "llm_calls": 4,
    "tokens_in": 400,
    "tokens_out": 40,
-   "cost_usd": 8.4e-05
+   "cost_usd": 0.0
   },
   {
    "id": "e08_mcp_read_tool",
@@ -97,7 +97,7 @@
    "llm_calls": 4,
    "tokens_in": 400,
    "tokens_out": 40,
-   "cost_usd": 8.4e-05
+   "cost_usd": 0.0
   },
   {
    "id": "e09_mcp_error_retry",
@@ -109,7 +109,7 @@
    "llm_calls": 5,
    "tokens_in": 500,
    "tokens_out": 50,
-   "cost_usd": 0.000105
+   "cost_usd": 0.0
   },
   {
    "id": "e10_routine_daily_time",
@@ -121,7 +121,7 @@
    "llm_calls": 1,
    "tokens_in": 100,
    "tokens_out": 10,
-   "cost_usd": 2.1e-05
+   "cost_usd": 0.0
   },
   {
    "id": "e11_routine_quiet",
@@ -133,7 +133,7 @@
    "llm_calls": 1,
    "tokens_in": 100,
    "tokens_out": 10,
-   "cost_usd": 2.1e-05
+   "cost_usd": 0.0
   },
   {
    "id": "e12_event_webhook",
@@ -145,7 +145,7 @@
    "llm_calls": 1,
    "tokens_in": 100,
    "tokens_out": 10,
-   "cost_usd": 2.1e-05
+   "cost_usd": 0.0
   },
   {
    "id": "e13_memory_remember_recall",
@@ -157,7 +157,7 @@
    "llm_calls": 3,
    "tokens_in": 300,
    "tokens_out": 30,
-   "cost_usd": 6.3e-05
+   "cost_usd": 0.0
   },
   {
    "id": "e14_vault_secret_no_leak",
@@ -169,7 +169,7 @@
    "llm_calls": 4,
    "tokens_in": 400,
    "tokens_out": 40,
-   "cost_usd": 8.4e-05
+   "cost_usd": 0.0
   },
   {
    "id": "e15_skill_use",
@@ -181,7 +181,7 @@
    "llm_calls": 4,
    "tokens_in": 400,
    "tokens_out": 40,
-   "cost_usd": 8.4e-05
+   "cost_usd": 0.0
   },
   {
    "id": "e16_dm_between_bots",
@@ -193,7 +193,7 @@
    "llm_calls": 4,
    "tokens_in": 400,
    "tokens_out": 40,
-   "cost_usd": 8.4e-05
+   "cost_usd": 0.0
   },
   {
    "id": "e17_group_handoff",
@@ -205,7 +205,7 @@
    "llm_calls": 4,
    "tokens_in": 400,
    "tokens_out": 40,
-   "cost_usd": 8.4e-05
+   "cost_usd": 0.0
   },
   {
    "id": "e18_computer_browser",
@@ -217,7 +217,7 @@
    "llm_calls": 5,
    "tokens_in": 500,
    "tokens_out": 50,
-   "cost_usd": 0.000105
+   "cost_usd": 0.0
   },
   {
    "id": "e19_stream_stall_retry",
@@ -229,7 +229,7 @@
    "llm_calls": 4,
    "tokens_in": 300,
    "tokens_out": 31,
-   "cost_usd": 6.4e-05
+   "cost_usd": 0.0
   },
   {
    "id": "e20_stream_stall_gives_up",
@@ -241,7 +241,7 @@
    "llm_calls": 4,
    "tokens_in": 200,
    "tokens_out": 22,
-   "cost_usd": 4.3e-05
+   "cost_usd": 0.0
   },
   {
    "id": "e21_task_timeout",
@@ -253,7 +253,7 @@
    "llm_calls": 3,
    "tokens_in": 300,
    "tokens_out": 30,
-   "cost_usd": 6.3e-05
+   "cost_usd": 0.0
   },
   {
    "id": "e22_budget_exceeded",
@@ -265,7 +265,7 @@
    "llm_calls": 2,
    "tokens_in": 200,
    "tokens_out": 20,
-   "cost_usd": 4.2e-05
+   "cost_usd": 0.0
   },
   {
    "id": "e23_i18n_vi_output",
@@ -277,7 +277,7 @@
    "llm_calls": 3,
    "tokens_in": 300,
    "tokens_out": 30,
-   "cost_usd": 6.3e-05
+   "cost_usd": 0.0
   },
   {
    "id": "e24_i18n_en_output",
@@ -289,7 +289,7 @@
    "llm_calls": 3,
    "tokens_in": 300,
    "tokens_out": 30,
-   "cost_usd": 6.3e-05
+   "cost_usd": 0.0
   },
   {
    "id": "e25_cancel_task",
@@ -301,7 +301,7 @@
    "llm_calls": 3,
    "tokens_in": 300,
    "tokens_out": 30,
-   "cost_usd": 6.3e-05
+   "cost_usd": 0.0
   },
   {
    "id": "e26_injection_no_send",
@@ -313,7 +313,7 @@
    "llm_calls": 5,
    "tokens_in": 500,
    "tokens_out": 50,
-   "cost_usd": 0.000105
+   "cost_usd": 0.0
   },
   {
    "id": "e27_other_bot_cannot_resolve_approval",
@@ -325,7 +325,55 @@
    "llm_calls": 9,
    "tokens_in": 900,
    "tokens_out": 90,
-   "cost_usd": 0.000189
+   "cost_usd": 0.0
+  },
+  {
+   "id": "e28_group_handoff_back_and_forth",
+   "area": "multi-bot",
+   "success": true,
+   "safety": false,
+   "expected_fail": false,
+   "steps": 0,
+   "llm_calls": 5,
+   "tokens_in": 500,
+   "tokens_out": 50,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "e29_turn_usage_recorded",
+   "area": "observe",
+   "success": true,
+   "safety": false,
+   "expected_fail": false,
+   "steps": 0,
+   "llm_calls": 2,
+   "tokens_in": 200,
+   "tokens_out": 20,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "e30_prompt_precedence",
+   "area": "prompt",
+   "success": true,
+   "safety": false,
+   "expected_fail": false,
+   "steps": 0,
+   "llm_calls": 1,
+   "tokens_in": 100,
+   "tokens_out": 10,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "e31_tool_frames",
+   "area": "ui",
+   "success": true,
+   "safety": false,
+   "expected_fail": false,
+   "steps": 0,
+   "llm_calls": 2,
+   "tokens_in": 200,
+   "tokens_out": 20,
+   "cost_usd": 0.0
   }
  ]
 }
