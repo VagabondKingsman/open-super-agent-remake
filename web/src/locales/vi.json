@@ -949,7 +949,7 @@
   "推送经过 Open Super Agent 的推送中转发给苹果，内容在服务器上加密，只有这台手机能解开，中转看不到。": "Thông báo được chuyển tới Apple qua bộ chuyển tiếp thông báo của Open Super Agent. Nội dung được mã hóa trên máy chủ của bạn, chỉ điện thoại này giải mã được, bộ chuyển tiếp không đọc được.",
   "这台手机连着 {server}。": "Điện thoại này đang kết nối với {server}.",
   "切换服务器": "Đổi máy chủ",
-  "在 iPhone 上装好 Open Super Agent App，用系统相机扫下面的二维码，就能连上这台服务器并自动登录。也可以在 App 里手动填这个地址：{server}": "Cài ứng dụng Open Super Agent trên iPhone, dùng Camera của hệ thống quét mã QR bên dưới là kết nối được với máy chủ này và tự động đăng nhập. Bạn cũng có thể nhập địa chỉ này thủ công trong ứng dụng: {server}",
+  "在手机上装好 Open Super Agent App，用系统相机扫下面的二维码，就能连上这台服务器并自动登录。也可以在 App 里手动填这个地址：{server}": "Cài ứng dụng Open Super Agent trên điện thoại, dùng Camera của hệ thống quét mã QR bên dưới là kết nối được với máy chủ này và tự động đăng nhập. Bạn cũng có thể nhập địa chỉ này thủ công trong ứng dụng: {server}",
   "手机打不开 localhost。请用手机能打开的地址（局域网 IP、Tailscale 或域名）打开这个页面，再来这里扫码。": "Điện thoại không mở được localhost. Hãy mở trang này bằng địa chỉ mà điện thoại truy cập được (IP mạng LAN, Tailscale hoặc tên miền), rồi quay lại đây quét mã.",
   "二维码 5 分钟内有效，只能用一次，相当于一次登录，别发给别人。": "Mã QR có hiệu lực trong 5 phút và chỉ dùng được một lần, tương đương một lần đăng nhập, đừng gửi cho người khác.",
   "这台服务器没开登录，扫码直接连上。": "Máy chủ này chưa bật đăng nhập, quét mã là kết nối ngay.",

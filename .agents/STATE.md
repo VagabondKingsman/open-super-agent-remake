@@ -1,6 +1,6 @@
 # Trạng thái hiện tại · 11/11/2026
 
-Snapshot sau merge PR #50 và #51, 11/11/2026 23:16 Asia/Saigon. Phiên mới phải `git fetch origin` và `git rev-parse origin/i18n-vi` lại. SHA mới hơn thì đọc log mới hơn file này.
+Snapshot sau merge PR #52 (`18a0306`) và sau câu hướng dẫn ứng dụng điện thoại bỏ chữ iPhone. Phiên mới phải `git fetch origin` và `git rev-parse origin/i18n-vi` lại. SHA mới hơn thì đọc log mới hơn file này.
 
 ## Base
 

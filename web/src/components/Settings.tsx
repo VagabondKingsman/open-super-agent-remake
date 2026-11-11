@@ -320,7 +320,7 @@ function PhoneNotifications() {
   )
 }
 
-// 手机 App：电脑上显示二维码，用 iPhone 相机一扫就连上这台服务器并登录；App 里显示连着哪台服务器
+// 手机 App：电脑上显示二维码，用手机相机一扫就连上这台服务器并登录；App 里显示连着哪台服务器
 function MobileApp() {
   const [pair, setPair] = useState<{ ticket: string; expires_in: number } | null>(null)
   const [err, setErr] = useState('')
@@ -341,7 +341,7 @@ function MobileApp() {
   )
   return (
     <div>
-      <p className="muted">{t('在 iPhone 上装好 Open Super Agent App，用系统相机扫下面的二维码，就能连上这台服务器并自动登录。也可以在 App 里手动填这个地址：{server}', { server: location.origin })}</p>
+      <p className="muted">{t('在手机上装好 Open Super Agent App，用系统相机扫下面的二维码，就能连上这台服务器并自动登录。也可以在 App 里手动填这个地址：{server}', { server: location.origin })}</p>
       {local ? <p className="error-line">{t('手机打不开 localhost。请用手机能打开的地址（局域网 IP、Tailscale 或域名）打开这个页面，再来这里扫码。')}</p>
         : err ? <p className="error-line">{err}</p>
         : link && <QrCode text={link} />}
