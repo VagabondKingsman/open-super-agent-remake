@@ -1215,5 +1215,10 @@
   " · 命中缓存 {n}": " · {n} đã cache",
   "那台机器没了（会换一台）": "Máy đó không còn nữa (sẽ đổi sang máy khác)",
   "等你交还电脑最多几秒": "Chờ bạn trả máy tối đa bao nhiêu giây",
-  "你接手电脑后，Bot 最多等这么久；超过就先把这一步放下、说给你听": "Sau khi bạn tiếp quản máy, Bot chờ tối đa chừng này; quá thì nó gác bước ấy lại và báo bạn"
+  "你接手电脑后，Bot 最多等这么久；超过就先把这一步放下、说给你听": "Sau khi bạn tiếp quản máy, Bot chờ tối đa chừng này; quá thì nó gác bước ấy lại và báo bạn",
+  "这个对话叫什么？（留空 = 跟着 Bot 的名字）": "Đặt tên cho cuộc trò chuyện này? (để trống = theo tên Bot)",
+  "改名": "Đổi tên",
+  "删除这个对话": "Xoá cuộc trò chuyện này",
+  "删除「{name}」？这个对话里的消息会一起删除。": "Xoá “{name}”? Tin nhắn trong cuộc trò chuyện này sẽ mất theo.",
+  "删除对话": "Xoá cuộc trò chuyện này"
 }

@@ -1296,5 +1296,7 @@
   "config.yaml 指定的电脑（{mid}）不在了，换不了：清空 computer.instabox_machine 或改成另一台": "The computer named in config.yaml ({mid}) is gone and there is no other to switch to: clear computer.instabox_machine or point it at another machine",
   "那台机器已经没了": "That machine is gone",
   "模型服务 {n} 秒没有响应（连接没能建起来）": "The model service did not answer within {n} s (the connection could not be opened)",
-  "(System: this turn has already cost {cost} — more than {factor}x the usual {usual}. Answer from what you have now; do not call any more tools.)": "(System: this turn has already cost {cost} — more than {factor}x the usual {usual}. Answer from what you have now; do not call any more tools.)"
+  "(System: this turn has already cost {cost} — more than {factor}x the usual {usual}. Answer from what you have now; do not call any more tools.)": "(System: this turn has already cost {cost} — more than {factor}x the usual {usual}. Answer from what you have now; do not call any more tools.)",
+  "这是 Bot 自己的私聊，随 Bot 一起删除": "This is the bot's own chat; it goes away with the bot",
+  "对话已删除": "The chat was deleted"
 }

@@ -357,14 +357,18 @@ async def pin_chat(chat_id: int, data: dict = Body(...)):
 
 @app.delete("/api/chats/{chat_id}")
 async def delete_group(chat_id: int):
+    """删群聊，或删 Bot 自己的那个之外的一个私聊；Bot 自己的私聊随 Bot 一起删（见 bots.delete）。"""
     chat = bots.chat(chat_id)
-    if not chat or chat["kind"] != "group" or chat.get("parent"):
+    if not chat or chat.get("parent"):
         raise HTTPException(400, i18n.t("只能删除群聊；Bot 的私聊随 Bot 一起删除"))
     inside = {chat_id, *bots.thread_ids(chat_id)}   # 群里的讨论串一起删
     for t in list(rt.TASKS.values()):
         if t.chat_id in inside and t.status == "running":
-            rt.cancel(t.id, i18n.t("群聊已删除"))
-    bots.delete_group(chat_id)
+            rt.cancel(t.id, i18n.t("对话已删除") if chat["kind"] == "direct" else i18n.t("群聊已删除"))
+    try:
+        bots.delete_chat(chat_id)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from None
     for i in inside:
         groups.forget(i)
     channels.chat_removed(chat_id)

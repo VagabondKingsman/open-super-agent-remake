@@ -5,13 +5,13 @@ import { createRoot } from 'react-dom/client'
 import { t } from '../i18n'
 import { useBack } from '../swipe'
 
-type Req = { text: string; ok: string; cancel?: string; danger?: boolean; resolve: (ok: boolean) => void }
+type Req = { text: string; ok: string; cancel?: string; danger?: boolean; input?: string; resolve: (ok: boolean | string | null) => void }
 
 let queue: Req[] = []
 const subs = new Set<() => void>()
 let mounted = false
 
-function open(r: Omit<Req, 'resolve'>): Promise<boolean> {
+function open(r: Omit<Req, 'resolve'>): Promise<any> {
   if (!mounted) {
     mounted = true
     const el = document.createElement('div')
@@ -28,16 +28,21 @@ export const ask = (text: string, o: { ok?: string; danger?: boolean } = {}) =>
 /** 告诉你一件事，只有一个按钮。 */
 export const notice = (text: string) => open({ text, ok: t('好的') }).then(() => undefined)
 
-function close(r: Req, ok: boolean) {
+/** 问一句、要一段文字（改名、起标题）。确认得到写的那段（可以是空字符串），取消得到 null。 */
+export const askText = (text: string, value = '', o: { ok?: string; cancel?: string } = {}) =>
+  open({ text, ok: o.ok || t('好的'), cancel: o.cancel || t('取消'), input: value })
+
+function close(r: Req, ok: boolean, text?: string) {
   queue = queue.filter(x => x !== r)
   subs.forEach(f => f())
-  r.resolve(ok)
+  r.resolve(r.input === undefined ? ok : ok ? (text ?? r.input) : null)
 }
 
 function Host() {
   const q = useSyncExternalStore(f => { subs.add(f); return () => { subs.delete(f) } }, () => queue)
   const r = q[0]
   const root = useRef<HTMLDivElement>(null)
+  const input = useRef<HTMLInputElement>(null)
   useBack(() => r && close(r, false), root, !!r)
   useEffect(() => {
     if (!r) return
@@ -53,9 +58,14 @@ function Host() {
     <div className="modal-bg dialog-bg" ref={root} onMouseDown={e => e.target === e.currentTarget && close(r, false)}>
       <div className="modal small dialog" role="alertdialog" aria-modal="true">
         <p className="dialog-text">{r.text}</p>
+        {r.input !== undefined && (
+          <input className="input" ref={input} defaultValue={r.input} autoFocus maxLength={60}
+                 onKeyDown={e => { if (e.key === 'Enter') close(r, true, (e.target as HTMLInputElement).value) }} />
+        )}
         <div className="modal-actions">
           {r.cancel && <button className="btn" onClick={() => close(r, false)}>{r.cancel}</button>}
-          <button className={'btn ' + (r.danger ? 'danger' : 'primary')} autoFocus onClick={() => close(r, true)}>{r.ok}</button>
+          <button className={'btn ' + (r.danger ? 'danger' : 'primary')} autoFocus={r.input === undefined}
+                  onClick={() => close(r, true, input.current?.value ?? '')}>{r.ok}</button>
         </div>
       </div>
     </div>

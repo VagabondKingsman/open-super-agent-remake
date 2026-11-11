@@ -1227,5 +1227,7 @@
   "config.yaml 指定的电脑（{mid}）不在了，换不了：清空 computer.instabox_machine 或改成另一台": "Máy ghi trong config.yaml ({mid}) không còn và không đổi sang máy khác được: xoá computer.instabox_machine hoặc trỏ sang máy khác",
   "那台机器已经没了": "Máy đó không còn nữa",
   "模型服务 {n} 秒没有响应（连接没能建起来）": "Dịch vụ model không trả lời trong {n} giây (không mở được kết nối)",
-  "(System: this turn has already cost {cost} — more than {factor}x the usual {usual}. Answer from what you have now; do not call any more tools.)": "(Hệ thống: lượt này đã tốn {cost} — hơn {factor} lần mức thường {usual}. Trả lời bằng những gì đang có; đừng gọi thêm công cụ.)"
+  "(System: this turn has already cost {cost} — more than {factor}x the usual {usual}. Answer from what you have now; do not call any more tools.)": "(Hệ thống: lượt này đã tốn {cost} — hơn {factor} lần mức thường {usual}. Trả lời bằng những gì đang có; đừng gọi thêm công cụ.)",
+  "这是 Bot 自己的私聊，随 Bot 一起删除": "Đây là cuộc trò chuyện của chính Bot; nó mất đi cùng Bot",
+  "对话已删除": "Cuộc trò chuyện đã bị xoá"
 }

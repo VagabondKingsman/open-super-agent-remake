@@ -1383,5 +1383,10 @@
   " · 命中缓存 {n}": " · {n} cached",
   "那台机器没了（会换一台）": "That machine is gone (a new one is on its way)",
   "等你交还电脑最多几秒": "Seconds to wait for you to hand the computer back",
-  "你接手电脑后，Bot 最多等这么久；超过就先把这一步放下、说给你听": "After you take over the computer the Bot waits at most this long; past that it sets the step aside and tells you"
+  "你接手电脑后，Bot 最多等这么久；超过就先把这一步放下、说给你听": "After you take over the computer the Bot waits at most this long; past that it sets the step aside and tells you",
+  "这个对话叫什么？（留空 = 跟着 Bot 的名字）": "What is this chat called? (leave empty to follow the bot's name)",
+  "改名": "Rename",
+  "删除这个对话": "Delete this chat",
+  "删除「{name}」？这个对话里的消息会一起删除。": "Delete “{name}”? The messages in this chat go with it.",
+  "删除对话": "Delete this chat"
 }
