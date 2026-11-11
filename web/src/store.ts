@@ -159,9 +159,27 @@ export async function pinChat(chatId: number, pinned: boolean) {
   catch (e: any) { notice(e.message); refreshLists() }
 }
 
+export async function markChatUnread(chatId: number) {
+  set(s => ({ chats: s.chats.map(c => c.id === chatId ? { ...c, marked_unread: true } : c) }))
+  try { await api(`/api/chats/${chatId}/unread`, { method: 'POST', body: { unread: true } }) }
+  catch (e: any) { notice(e.message); refreshLists() }
+}
+
+export async function setBotHidden(botId: number, hidden: boolean) {
+  set(s => ({ bots: s.bots.map(b => b.id === botId ? { ...b, hidden } : b) }))
+  try { await api(`/api/bots/${botId}`, { method: 'PATCH', body: { hidden } }) }
+  catch (e: any) { notice(e.message); refreshLists() }
+}
+
 export async function openChat(chatId: number) {
   localStorage.setItem('osa.active', String(chatId))
-  set(s => ({ active: chatId, view: 'chat', unread: { ...s.unread, [chatId]: 0 }, thread: s.active === chatId ? s.thread : null }))
+  const marked = state.chats.some(c => c.id === chatId && c.marked_unread)
+  set(s => ({
+    active: chatId, view: 'chat', unread: { ...s.unread, [chatId]: 0 },
+    chats: marked ? s.chats.map(c => c.id === chatId ? { ...c, marked_unread: false } : c) : s.chats,
+    thread: s.active === chatId ? s.thread : null,
+  }))
+  if (marked) api(`/api/chats/${chatId}/unread`, { method: 'POST', body: { unread: false } }).catch(() => {})
   await loadChat(chatId)
 }
 

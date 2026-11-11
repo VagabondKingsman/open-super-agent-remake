@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
-import type { MouseEvent } from 'react'
-import { api, openApps, openChat, openLibrary, openObserve, pinChat, refreshLists, useStore } from '../store'
+import { useEffect, useRef, useState } from 'react'
+import type { MouseEvent, PointerEvent } from 'react'
+import { api, markChatUnread, openApps, openChat, openLibrary, openObserve, pinChat, refreshLists, setBotHidden, useStore } from '../store'
 import { t } from '../i18n'
 import { chatLabel } from '../chatLabel'
+import { copyText } from '../copyText'
 import { ask, askText, notice } from './Dialog'
 import type { Chat } from '../types'
 import BotAvatar from './BotAvatar'
@@ -22,7 +23,11 @@ export default function Sidebar({ onNewBot, onNewGroup, onSettings, onClose }: {
   const connected = useStore(s => s.connected)
   const view = useStore(s => s.view)
   const [menu, setMenu] = useState(false)
-  const [ctx, setCtx] = useState<{ chat: Chat; x: number; y: number } | null>(null)   // 右键菜单
+  const [ctx, setCtx] = useState<{ chat: Chat; x: number; y: number } | null>(null)   // 右键 / 长按菜单
+  const [showHidden, setShowHidden] = useState(false)
+  const hold = useRef<{ timer: number | null; x: number; y: number }>({ timer: null, x: 0, y: 0 })
+  const skipClick = useRef(false)
+  const clearHold = () => { if (hold.current.timer !== null) { window.clearTimeout(hold.current.timer); hold.current.timer = null } }
 
   // 右键菜单：点别处、按 Esc、滚动、窗口变化都关掉
   useEffect(() => {
@@ -42,6 +47,7 @@ export default function Sidebar({ onNewBot, onNewGroup, onSettings, onClose }: {
       window.removeEventListener('scroll', close, true)
     }
   }, [ctx])
+  useEffect(() => () => { if (hold.current.timer !== null) window.clearTimeout(hold.current.timer) }, [])
 
   // 一个对话在侧栏里要显示的东西；Bot 已经没了的私聊不显示
   const info = (c: Chat) => {
@@ -58,19 +64,42 @@ export default function Sidebar({ onNewBot, onNewGroup, onSettings, onClose }: {
     }
   }
   const open = (c: Chat) => { openChat(c.id); onClose() }
-  const onMenu = (c: Chat) => (e: MouseEvent) => { e.preventDefault(); setCtx({ chat: c, x: e.clientX, y: e.clientY }) }
+  const showMenu = (c: Chat, x: number, y: number) => { skipClick.current = true; setCtx({ chat: c, x, y }) }
+  const onMenu = (c: Chat) => (e: MouseEvent) => { e.preventDefault(); clearHold(); showMenu(c, e.clientX, e.clientY) }
+  const onHoldStart = (c: Chat) => (e: PointerEvent) => {
+    if (e.button !== 0) return
+    clearHold()
+    hold.current.x = e.clientX
+    hold.current.y = e.clientY
+    const x = e.clientX, y = e.clientY
+    hold.current.timer = window.setTimeout(() => { hold.current.timer = null; showMenu(c, x, y) }, 480)
+  }
+  const onHoldMove = (e: PointerEvent) => {
+    if (hold.current.timer === null) return
+    if (Math.hypot(e.clientX - hold.current.x, e.clientY - hold.current.y) > 10) clearHold()
+  }
+  const onItemClick = (c: Chat) => () => { if (skipClick.current) { skipClick.current = false; return } open(c) }
+  const press = (c: Chat) => ({
+    onClick: onItemClick(c), onContextMenu: onMenu(c),
+    onPointerDown: onHoldStart(c), onPointerMove: onHoldMove, onPointerUp: clearHold, onPointerCancel: clearHold,
+  })
   // Bot 自己的那个私聊：随 Bot 一起删（服务端也拦着），菜单里不给“删除”
   const isBotChat = (c: Chat) => bots.find(b => b.id === c.bot_ids[0])?.chat_id === c.id
   // 讨论串里的新回复也算在对话上：看过那个讨论串才去掉（只打开对话不算）
   const news = (c: Chat) => Object.values(threads).filter(x => x.parent === c.id && x.unread > 0)
-  const count = (c: Chat) => (unread[c.id] || 0) + news(c).reduce((n, x) => n + x.unread, 0)
+  const count = (c: Chat) => {
+    const n = (unread[c.id] || 0) + news(c).reduce((a, x) => a + x.unread, 0)
+    return n || (c.marked_unread ? 1 : 0)
+  }
   const badge = (c: Chat, needs: boolean) => needs ? <span className="badge warn">!</span> : count(c) ? <span className="badge">{count(c)}</span> : null
   // 预览显示最新的动静：讨论串里的新回复比主对话的最后一条还新时，显示那条回复
   const preview = (c: Chat) => {
     const th = news(c).sort((a, b) => (b.last || 0) - (a.last || 0))[0]
     return th?.preview && (th.last || 0) >= c.updated ? '💬 ' + plain(th.preview) : plain(c.preview)
   }
-  const pins = chats.filter(c => c.pinned).sort((a, b) => a.pinned - b.pinned)
+  const hiddenBot = (c: Chat) => c.kind === 'direct' && !!bots.find(b => b.chat_id === c.id && b.hidden)
+  const pins = chats.filter(c => c.pinned && !hiddenBot(c)).sort((a, b) => a.pinned - b.pinned)
+  const hidden = bots.filter(b => b.hidden)
 
   return (
     <aside className="sidebar">
@@ -101,7 +130,7 @@ export default function Sidebar({ onNewBot, onNewGroup, onSettings, onClose }: {
             const x = info(c)
             if (!x) return null
             return (
-              <button key={c.id} className={'pin-item' + (x.isActive ? ' active' : '')} title={x.name} onClick={() => open(c)} onContextMenu={onMenu(c)}>
+              <button key={c.id} className={'pin-item' + (x.isActive ? ' active' : '')} title={x.name} {...press(c)}>
                 <span className="pin-av">
                   {x.group ? <GroupFace image={c.image} bots={x.members} size={34} stack={24} /> : <BotAvatar avatar={x.bot!.avatar} size={34} busy={x.busy} />}
                   {badge(c, x.needs)}
@@ -115,10 +144,10 @@ export default function Sidebar({ onNewBot, onNewGroup, onSettings, onClose }: {
       <nav className="chat-list">
         {chats.map(c => {
           const x = info(c)
-          if (!x) return null
+          if (!x || hiddenBot(c)) return null
           const { group, members, bot } = x
           return (
-            <button key={c.id} className={'chat-item' + (x.isActive ? ' active' : '')} onClick={() => open(c)} onContextMenu={onMenu(c)}>
+            <button key={c.id} className={'chat-item' + (x.isActive ? ' active' : '')} {...press(c)}>
               {group ? <span className="ci-group"><GroupFace image={c.image} bots={members} size={34} stack={24} /></span> : <BotAvatar avatar={bot!.avatar} size={34} busy={x.busy} />}
               <div className="ci-text">
                 <div className="ci-name">{x.name}{bot?.is_primary && <span className="star">★</span>}{group && <span className="ci-count">{members.length}</span>}</div>
@@ -129,10 +158,50 @@ export default function Sidebar({ onNewBot, onNewGroup, onSettings, onClose }: {
           )
         })}
       </nav>
+      {hidden.length > 0 && (
+        <div className="hidden-bots">
+          <button className="side-link" onClick={() => setShowHidden(v => !v)}>{t('已隐藏的 Bot')} ({hidden.length})</button>
+          {showHidden && hidden.map(b => {
+            const c = chats.find(x => x.id === b.chat_id)
+            if (!c) return null
+            return (
+              <button key={b.id} className="chat-item" {...press(c)}>
+                <BotAvatar avatar={b.avatar} size={34} />
+                <div className="ci-text"><div className="ci-name">{b.name}</div></div>
+              </button>
+            )
+          })}
+        </div>
+      )}
       {ctx && (
-        <div className="menu ctx-menu" style={{ left: Math.min(ctx.x, innerWidth - 180), top: Math.min(ctx.y, innerHeight - 56) }}
+        <div className="menu ctx-menu" style={{ left: Math.min(ctx.x, innerWidth - 220), top: Math.min(ctx.y, innerHeight - 320) }}
              onPointerDown={e => e.stopPropagation()}>
           <button onClick={() => { pinChat(ctx.chat.id, !ctx.chat.pinned); setCtx(null) }}>{ctx.chat.pinned ? t('取消置顶') : t('置顶')}</button>
+          <button onClick={() => { markChatUnread(ctx.chat.id); setCtx(null) }}>{t('标记未读')}</button>
+          {isBotChat(ctx.chat) && (() => {
+            const bot = bots.find(b => b.chat_id === ctx.chat.id)!
+            return (
+              <>
+                <button onClick={async () => {
+                  setCtx(null)
+                  const ok = await copyText(String(bot.id))
+                  await notice(ok ? t('已复制 ID {id}', { id: bot.id }) : t('复制失败'))
+                }}>{t('复制 ID')}</button>
+                <button onClick={() => { setBotHidden(bot.id, !bot.hidden); setCtx(null) }}>{bot.hidden ? t('显示这个 Bot') : t('隐藏这个 Bot')}</button>
+                <button onClick={() => {
+                  setCtx(null)
+                  window.dispatchEvent(new CustomEvent('osa-open-bot', { detail: { botId: bot.id, tab: 'details' } }))
+                  onClose()
+                }}>{t('编辑详情')}</button>
+                <button className="danger" onClick={async () => {
+                  setCtx(null)
+                  if (!(await ask(t('删除「{name}」？它的对话记录也会一起删除，无法恢复。', { name: bot.name }), { ok: t('删除'), danger: true }))) return
+                  try { await api(`/api/bots/${bot.id}`, { method: 'DELETE' }) }
+                  catch (e: any) { await notice(e.message) }
+                }}>{t('删除这个 Bot')}</button>
+              </>
+            )
+          })()}
           {/* 一个 Bot 可以不止一个私聊：给它起个名字（空 = 跟着 Bot 的名字），不要的那个能删（Bot 自己的那个随 Bot） */}
           {ctx.chat.kind === 'direct' && (
             <button onClick={async () => {

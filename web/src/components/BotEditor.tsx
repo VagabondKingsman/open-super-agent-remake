@@ -6,6 +6,7 @@ import BotAvatar, { SHAPE_NAMES } from './BotAvatar'
 import { ShareTemplate, TemplateInstall, TemplatePicker, type TemplatePreview } from './Templates'
 import { Lazy } from '../lazy'
 import { ask } from './Dialog'
+import { copyText } from '../copyText'
 import { AvatarImageTools, botPrompt } from './AvatarTools'
 import { useBack } from '../swipe'
 import { isEnter } from '../keys'
@@ -125,7 +126,13 @@ function BotPanelInner({ bot, tasks, onClose }: { bot: Bot; tasks: any[]; onClos
   const [avatar, setAvatar] = useState(bot.avatar)
   const [editAvatar, setEditAvatar] = useState(false)
   const [msg, setMsg] = useState('')
+  const [copied, setCopied] = useState(false)
   const dirty = name !== bot.name || instr !== bot.instructions || JSON.stringify(avatar) !== JSON.stringify(bot.avatar)
+  const copyId = async () => {
+    const ok = await copyText(String(bot.id))
+    if (!ok) { setMsg(t('复制失败')); return }
+    setCopied(true); setTimeout(() => setCopied(false), 1200)
+  }
   const running = tasks.filter(x => x.status === 'running')
 
   const save = async () => {
@@ -142,6 +149,12 @@ function BotPanelInner({ bot, tasks, onClose }: { bot: Bot; tasks: any[]; onClos
         <button className="panel-avatar" onClick={() => setEditAvatar(!editAvatar)} title={t('修改头像')}><BotAvatar avatar={avatar} size={72} /></button>
         {editAvatar && <AvatarPicker avatar={avatar} onChange={setAvatar} prompt={botPrompt(name, instr)} />}
         <label className="field">{t('名字')}<input value={name} maxLength={40} onChange={e => setName(e.target.value)} /></label>
+        <label className="field">{t('编号')}
+          <span className="id-line">
+            <input readOnly value={String(bot.id)} onFocus={e => e.currentTarget.select()} />
+            <button className="btn" type="button" onClick={copyId}>{copied ? t('已复制') : t('复制 ID')}</button>
+          </span>
+        </label>
         <label className="field">{t('职责与要求')}
           <textarea rows={5} value={instr} placeholder={t('可以留空，直接在对话里交代。这里写的内容每次都会告诉 Bot。')} onChange={e => setInstr(e.target.value)} />
         </label>

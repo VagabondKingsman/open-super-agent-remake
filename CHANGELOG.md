@@ -4,6 +4,7 @@
 
 ## [未发布]
 ### remake
+- 侧栏里右键或长按一个 Bot：复制它的编号、标成未读、从列表里隐藏、打开详情、删除。详情页也能复制编号。编号是创建时分配的数字，删过的不再复用。
 - 两个“同名 Bot”其实是同一个 Bot 的两个私聊（`cursor/direct-chat-label`）：
   - 侧栏和对话标题改为**对话自己的名字**区分：私聊的名字仍是 Bot 的名字，但对话自带一个不同的标题时显示成 `Nova · scratch-nova`（`web/src/chatLabel.ts`，`web/tests/chat-label.cjs`）。之前直接写 `bot.name`，同一 Bot 的两个私聊一模一样，分不出哪个是哪个。
   - `bots._bot()` 取 Bot 的私聊时按 `id` 取最早的（`order by id limit 1`）：以前没有 order by，有第二个私聊时“Bot 的私聊”是哪一个是随机的，点 Bot 可能进到别的对话。
