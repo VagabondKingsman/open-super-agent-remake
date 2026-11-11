@@ -47,6 +47,7 @@ SDK, NDK 29.0.14206865, emulator, image `aosp_atd` API 34 x86_64. `/dev/kvm` m�
 | Địa chỉ chết `http://10.0.2.2:1` | PASS | Ở lại `http://tauri.localhost/`. Hiện lỗi connection refused. pid 2113 không đổi. Không FATAL |
 | APK debug arm64 | PASS file, chưa chạy | `lib/arm64-v8a`, `resources.arsc` Stored, zipalign 4 exit 0, apksigner v2. SHA-256 `ac5b12a3e9d1850578c1f4398e6ef4e8b86450ee4aac10df7747a876ad7ac8f5` |
 | Điện thoại S22 | NOT_CHECKED | Không có máy |
+| Probe cũ không ghi đè probe mới | PASS | Codex P1 trên PR #47. `ProbeGate`: lượt sau `bump` thì lượt trước `is_current` false. `cargo test --lib`: 10 passed. Emulator không chạy lại cho mục này |
 
 - Paid usage: 0.
 - Không đụng DB thật, không gửi channel.

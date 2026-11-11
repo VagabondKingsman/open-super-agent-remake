@@ -44,6 +44,7 @@ pub struct State {
     error: Mutex<String>,
     next: Mutex<Option<String>>,
     checking: Mutex<bool>,
+    probe: Mutex<connect::ProbeGate>,
 }
 
 fn state(app: &AppHandle) -> tauri::State<'_, State> {
@@ -66,18 +67,44 @@ fn server_pattern(origin: &Url) -> String {
     format!("{}{UI_PATHS}", origin.origin().ascii_serialization())
 }
 
+fn bump_probe(app: &AppHandle) -> u64 {
+    let st = state(app);
+    let gen = st.probe.lock().unwrap().bump();
+    *st.checking.lock().unwrap() = false;
+    gen
+}
+
+/// Apply only while `gen` is still the latest probe. Holds the gate for the whole apply.
+fn apply_current(app: &AppHandle, gen: u64, apply: impl FnOnce()) -> bool {
+    let st = state(app);
+    let gate = st.probe.lock().unwrap();
+    if !gate.is_current(gen) {
+        return false;
+    }
+    apply();
+    true
+}
+
 fn begin_probe(app: &AppHandle, origin: Url, ticket: String) {
-    *state(app).checking.lock().unwrap() = true;
+    let gen = bump_probe(app);
+    {
+        let st = state(app);
+        let gate = st.probe.lock().unwrap();
+        if gate.is_current(gen) {
+            *st.checking.lock().unwrap() = true;
+        }
+    }
     let app = app.clone();
     std::thread::spawn(move || {
         let result = connect::probe(&origin);
-        let st = state(&app);
-        match result {
+        if !apply_current(&app, gen, || match result {
             Ok(()) => finish_connect(&app, origin, &ticket),
             Err(e) => {
-                *st.error.lock().unwrap() = e;
+                *state(&app).error.lock().unwrap() = e;
                 show_setup(&app, "");
             }
+        }) {
+            return;
         }
     });
 }
@@ -126,9 +153,9 @@ fn open_server(app: &AppHandle, origin: Url, first: Option<Url>) {
 fn on_pair(app: &AppHandle, pair: Pair) {
     let configured = state(app).cfg.lock().unwrap().url.clone().and_then(|u| connect::normalize(&u));
     if configured.as_ref().is_some_and(|c| c.origin() != pair.server.origin()) {
+        bump_probe(app);
         *state(app).pair.lock().unwrap() = Some(pair);
         *state(app).next.lock().unwrap() = None;
-        *state(app).checking.lock().unwrap() = false;
         return;
     }
     begin_probe(app, pair.server, pair.ticket);
@@ -151,21 +178,36 @@ fn setup_state(app: AppHandle) -> Value {
 #[tauri::command(async)]
 fn choose_remote(app: AppHandle, url: String) -> Result<(), String> {
     let origin = connect::normalize(&url).ok_or_else(|| "Địa chỉ chưa đúng. Ví dụ http://192.168.1.10:8765".to_string())?;
-    connect::probe(&origin)?;
-    finish_connect(&app, origin, "");
-    Ok(())
+    let gen = bump_probe(&app);
+    let result = connect::probe(&origin);
+    let mut outcome = Ok(());
+    if !apply_current(&app, gen, || match result {
+        Ok(()) => finish_connect(&app, origin, ""),
+        Err(e) => outcome = Err(e),
+    }) {
+        return Ok(());
+    }
+    outcome
 }
 
 #[tauri::command(async)]
 fn confirm_pair(app: AppHandle) -> Result<(), String> {
     let pair = state(&app).pair.lock().unwrap().take().ok_or("no pending pair")?;
-    connect::probe(&pair.server)?;
-    finish_connect(&app, pair.server, &pair.ticket);
-    Ok(())
+    let gen = bump_probe(&app);
+    let result = connect::probe(&pair.server);
+    let mut outcome = Ok(());
+    if !apply_current(&app, gen, || match &result {
+        Ok(()) => finish_connect(&app, pair.server, &pair.ticket),
+        Err(e) => outcome = Err(e.clone()),
+    }) {
+        return Ok(());
+    }
+    outcome
 }
 
 #[tauri::command]
 fn cancel_pair(app: AppHandle) {
+    bump_probe(&app);
     state(&app).pair.lock().unwrap().take();
     let configured = state(&app).cfg.lock().unwrap().url.clone().and_then(|u| connect::normalize(&u));
     if let Some(origin) = configured {
@@ -184,6 +226,7 @@ fn android_open_external(app: AppHandle, url: String) {
 
 #[tauri::command]
 fn android_switch_server(app: AppHandle) {
+    bump_probe(&app);
     {
         let st = state(&app);
         let mut cfg = st.cfg.lock().unwrap();
@@ -288,6 +331,7 @@ pub fn run() {
                 error: Mutex::new(String::new()),
                 next: Mutex::new(None),
                 checking: Mutex::new(false),
+                probe: Mutex::new(connect::ProbeGate::default()),
             });
             let handle = app.handle().clone();
             build_main(&handle)?;

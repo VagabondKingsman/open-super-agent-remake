@@ -45,6 +45,23 @@ pub fn ticket_url(origin: &Url, ticket: &str) -> Url {
     u
 }
 
+/// One generation per connect attempt. A slower probe must not apply after a newer one.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ProbeGate {
+    gen: u64,
+}
+
+impl ProbeGate {
+    pub fn bump(&mut self) -> u64 {
+        self.gen = self.gen.wrapping_add(1);
+        self.gen
+    }
+
+    pub fn is_current(&self, gen: u64) -> bool {
+        self.gen == gen
+    }
+}
+
 /// GET `/manifest.json`. A transport or TLS failure is an error string.
 /// A panic inside the HTTP stack becomes that same error, so the process stays up.
 pub fn probe(origin: &Url) -> Result<(), String> {
@@ -144,6 +161,15 @@ mod tests {
             rx.recv().unwrap();
         }
         worker.join().unwrap().unwrap();
+    }
+
+    #[test]
+    fn stale_probe_does_not_apply() {
+        let mut gate = ProbeGate::default();
+        let saved = gate.bump();
+        let typed = gate.bump();
+        assert!(!gate.is_current(saved));
+        assert!(gate.is_current(typed));
     }
 
     #[test]
