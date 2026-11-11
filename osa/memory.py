@@ -49,6 +49,10 @@ conn.execute("create index if not exists llm_calls_task on llm_calls(task_id)")
 if "estimated" not in {r[1] for r in conn.execute("pragma table_info(llm_calls)")}:
     conn.execute("alter table llm_calls add column estimated integer not null default 0")
 
+# 一次调用里最长的一段静默（毫秒）：首块到达前，或两块之间。stall 的 120 秒上限该多宽，靠这个数决定，不靠猜。
+if "silence_ms" not in {r[1] for r in conn.execute("pragma table_info(llm_calls)")}:
+    conn.execute("alter table llm_calls add column silence_ms integer")
+
 
 def _move_legacy_usage():
     r = conn.execute("select value from settings where key='llm_usage_moved'").fetchone()
@@ -405,9 +409,10 @@ WHO: ContextVar[dict | None] = ContextVar("osa_usage_who", default=None)
 def add_usage(role: str, model: str, *, task_id: int | None = None, provider: str | None = None,
               bot_id: int | None = None, chat_id: int | None = None, hit: int = 0, miss: int = 0, out: int = 0,
               cost: float = 0.0, ms: int | None = None, ttft: int | None = None, err: str = "",
-              estimated: bool = False):
+              estimated: bool = False, silence: int | None = None):
     """往 llm_calls 里记一行。bot_id / chat_id 不给就看 WHO，再不行从任务找回 Bot。
-    cost 是 USD。estimated=True：output 是取消时按已收到文字估的，不是服务商回的 usage。"""
+    cost 是 USD。estimated=True：output 是取消时按已收到文字估的，不是服务商回的 usage。
+    silence：这次调用里最长的一段静默（毫秒，见 providers.guard_stream）。"""
     who = WHO.get() or {}
     task_id = task_id if task_id is not None else who.get("task_id")
     bot_id = bot_id if bot_id is not None else who.get("bot_id")
@@ -417,10 +422,10 @@ def add_usage(role: str, model: str, *, task_id: int | None = None, provider: st
         if r:
             bot_id, chat_id = r[0], chat_id if chat_id is not None else r[1]
     conn.execute("""insert into llm_calls(ts, role, model, task_id, cache_hit, cache_miss, output, cost,
-        bot_id, chat_id, provider, ms, ttft, err, estimated) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        bot_id, chat_id, provider, ms, ttft, err, estimated, silence_ms) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                  (time.time(), role, model, task_id, hit, miss, out, cost, bot_id, chat_id, provider,
                   None if ms is None else int(ms), None if ttft is None else int(ttft), err or None,
-                  1 if estimated else 0))
+                  1 if estimated else 0, None if silence is None else int(silence)))
     conn.commit()
 
 
@@ -452,9 +457,9 @@ def streamed_output_text(content: str = "", reasoning: str = "", calls=None) -> 
 
 def record_usage(role: str, model: str, usage, task_id: int | None = None, provider: str | None = None,
                  bot_id: int | None = None, chat_id: int | None = None, ms: float | None = None, ttft: float | None = None,
-                 estimated: bool = False):
+                 estimated: bool = False, silence: float | None = None):
     """记录一次模型调用的 token 和费用（USD）。usage 是 OpenAI 格式的 usage 对象；provider 不给就按角色的配置。
-    ms / ttft：整次用时、第一个字出来的时间（毫秒），知道的话给。
+    ms / ttft：整次用时、第一个字出来的时间（毫秒），知道的话给。silence：最长的一段静默（毫秒）。
     服务没返回 usage 时：知道用时的（流式调用）照样记一次调用，token 和费用按 0；否则不记。
     这是已记录的用量，不是服务商账单。estimated=True 时 output 来自 estimate_output_tokens，prompt 记 0。
     没记成（连 usage 和用时都没有）返回 None；记了就返回这一行（in / out / cost / ttft / est），调用方要合计时用。"""
@@ -470,22 +475,25 @@ def record_usage(role: str, model: str, usage, task_id: int | None = None, provi
     provider = provider or (CFG["roles"].get(role) or {}).get("provider")
     cost = prices.cost(provider, model, hit, miss, out, _is_peak(time.time()))
     add_usage(role, model, task_id=task_id, provider=provider, bot_id=bot_id, chat_id=chat_id,
-              hit=hit, miss=miss, out=out, cost=cost, ms=ms, ttft=ttft, estimated=estimated)
+              hit=hit, miss=miss, out=out, cost=cost, ms=ms, ttft=ttft, estimated=estimated, silence=silence)
     return {"in": prompt, "out": out, "cache": hit, "cost": cost, "ttft": ttft, "est": estimated}
 
 
 def record_error(role: str, model: str, error: str, task_id: int | None = None, provider: str | None = None,
-                 bot_id: int | None = None, chat_id: int | None = None, ms: float | None = None):
-    """一次没成功的模型调用（连不上、报错、超时）：记下原因，观测页据此算出错率。"""
+                 bot_id: int | None = None, chat_id: int | None = None, ms: float | None = None,
+                 silence: float | None = None):
+    """一次没成功的模型调用（连不上、报错、超时）：记下原因，观测页据此算出错率。
+    silence：卡住的时候就是等满的那个上限——它记下来，才知道 120 秒离“真静默”有多远。"""
     provider = provider or (CFG["roles"].get(role) or {}).get("provider")
     add_usage(role, model, task_id=task_id, provider=provider, bot_id=bot_id, chat_id=chat_id, ms=ms,
-              err=(error or "error")[:300])
+              err=(error or "error")[:300], silence=silence)
 
 
-def record_partial(role: str, model: str, usage, text: str, task_id: int | None = None, provider: str | None = None):
+def record_partial(role: str, model: str, usage, text: str, task_id: int | None = None, provider: str | None = None,
+                   silence: float | None = None):
     """流被取消时调用。有 usage 就照实记；没有就按已收到的文字估算，并标成 estimated。什么都没收到则不记。"""
     if usage is not None:
-        return record_usage(role, model, usage, task_id, provider, estimated=False)
+        return record_usage(role, model, usage, task_id, provider, estimated=False, silence=silence)
     out = estimate_output_tokens(text)
     if not out:
         return

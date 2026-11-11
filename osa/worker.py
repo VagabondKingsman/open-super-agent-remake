@@ -181,8 +181,9 @@ async def _reply_once(task: Task, log: tasklog.Log, role: str, client, model: st
             text = await log.start("text")
         await log.append(text, piece)
 
+    stats: dict = {}   # guard_stream 填：这次调用里最长的一段静默（见 providers.guard_stream）
     try:
-        async for chunk in providers.guard_stream(stream):
+        async for chunk in providers.guard_stream(stream, stats=stats):
             task.last_progress = time.time()   # 还在出字就算有进展，Watchdog 不会当成卡住
             if getattr(chunk, "usage", None):
                 usage = chunk.usage
@@ -214,17 +215,20 @@ async def _reply_once(task: Task, log: tasklog.Log, role: str, client, model: st
                     c["name"] += tc.function.name or ""
                     c["args"] += tc.function.arguments or ""
         memory.record_usage(role, model, usage, task.id, bot_id=task.bot_id, chat_id=task.chat_id,
-                            ms=(time.monotonic() - t0) * 1000, ttft=None if first is None else (first - t0) * 1000)
+                            ms=(time.monotonic() - t0) * 1000, ttft=None if first is None else (first - t0) * 1000,
+                            silence=stats.get("silence"))
         recorded = True
     except asyncio.CancelledError:
         if not recorded:
-            memory.record_partial(role, model, usage, memory.streamed_output_text(content, reasoning, calls), task.id)
+            memory.record_partial(role, model, usage, memory.streamed_output_text(content, reasoning, calls), task.id,
+                                  silence=stats.get("silence"))
         raise
     except Exception as e:
         memory.record_error(role, model, providers.brief(e), task.id, bot_id=task.bot_id, chat_id=task.chat_id,
-                            ms=(time.monotonic() - t0) * 1000)
+                            ms=(time.monotonic() - t0) * 1000, silence=stats.get("silence"))
         # 作废的这一轮也花了 token：有 usage 照实记，没有就按已收到的文字估算
-        memory.record_partial(role, model, usage, memory.streamed_output_text(content, reasoning, calls), task.id)
+        memory.record_partial(role, model, usage, memory.streamed_output_text(content, reasoning, calls), task.id,
+                              silence=stats.get("silence"))
         for s in (think, text):   # 这一轮作废：没收完的思考、正文标成出错，别一直显示“进行中”
             if s and s["status"] == "running":
                 await log.finish(s, status="error")

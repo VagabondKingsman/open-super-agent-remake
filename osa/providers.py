@@ -428,12 +428,17 @@ async def retry_pause(attempt: int):
     await asyncio.sleep(stream_retry_delay(attempt))
 
 
-async def guard_stream(stream, idle_s: float | None = None, first_s: float | None = None):
-    """包住流式响应：第一块超过 first_s 秒、之后两块之间超过 idle_s 秒，就关掉流，抛 StreamStalled。"""
+async def guard_stream(stream, idle_s: float | None = None, first_s: float | None = None,
+                       stats: dict | None = None):
+    """包住流式响应：第一块超过 first_s 秒、之后两块之间超过 idle_s 秒，就关掉流，抛 StreamStalled。
+
+    stats 给了就填 stats["silence"]：这次调用里最长的一段静默（毫秒）。卡住的那次记的就是等满的上限。
+    这个数写进 llm_calls：上限该多宽，得看真静默有多长，而不是每回都按 120 秒猜。"""
     idle = stream_idle_s() if idle_s is None else idle_s
     first = stream_first_chunk_s() if first_s is None else first_s
     it = stream.__aiter__()
     got = False
+    at = time.monotonic()
     while True:
         wait = idle if got else first
         try:
@@ -441,6 +446,8 @@ async def guard_stream(stream, idle_s: float | None = None, first_s: float | Non
         except StopAsyncIteration:
             return
         except StreamStalled:
+            if stats is not None:
+                stats["silence"] = max(stats.get("silence") or 0, int(wait * 1000))
             close = getattr(stream, "close", None) or getattr(stream, "aclose", None)
             if close:
                 try:
@@ -448,6 +455,10 @@ async def guard_stream(stream, idle_s: float | None = None, first_s: float | Non
                 except Exception:
                     pass
             raise
+        now = time.monotonic()
+        if stats is not None:
+            stats["silence"] = max(stats.get("silence") or 0, int((now - at) * 1000))
+        at = now
         got = True
         yield chunk
 

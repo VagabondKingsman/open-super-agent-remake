@@ -179,6 +179,30 @@ async def test_guard_stream_explicit_limits():
         [c async for c in providers.guard_stream(s, idle_s=0.1, first_s=5)]
 
 
+# C24：每次调用记下最长的一段静默——上限该多宽要看真静默，而不是每回都按 120 秒猜
+async def test_guard_stream_reports_the_longest_silence():
+    stats: dict = {}
+    s = Stream([("sleep", 0.1), Chunk(Delta(content="x")), ("sleep", 0.25), Chunk(Delta(content="y"))])
+    [c async for c in providers.guard_stream(s, idle_s=1, first_s=1, stats=stats)]
+    assert 200 <= stats["silence"] <= 400   # 0.25 秒的空档，不是总用时
+
+
+async def test_guard_stream_records_the_limit_when_it_stalls():
+    stats: dict = {}
+    s = Stream([Chunk(Delta(content="x")), ("sleep", 0.3), Chunk(Delta(content="y"))])
+    with pytest.raises(providers.StreamStalled):
+        [c async for c in providers.guard_stream(s, idle_s=0.1, first_s=5, stats=stats)]
+    assert stats["silence"] == 100   # 等满的那个上限：卡住的这次就是它
+
+
+async def test_stalled_reply_writes_the_silence_into_the_call_record(fast_idle):
+    client = Client(STALL, OK)
+    await _reply(9320, client)
+    hit, miss, sil, err = memory.conn.execute(
+        "select cache_hit, cache_miss, silence_ms, err from llm_calls where task_id=9320 order by id limit 1").fetchone()
+    assert err and sil and sil >= 150   # 0.2 秒的上限（fast_idle）就是记下的静默
+
+
 # F3：重来之前等一会儿（2–5 秒，带随机）
 async def test_worker_retry_waits_before_calling_again(fast_idle):
     client = Client(STALL, OK)
