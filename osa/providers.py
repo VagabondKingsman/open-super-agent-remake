@@ -21,7 +21,7 @@ import openai
 from openai import AsyncOpenAI
 from . import i18n, vault
 from .config import CFG
-from .memory import conn
+from .memory import conn, db_path
 
 log = logging.getLogger(__name__)
 BASE = copy.deepcopy(CFG.get("providers") or {})   # config.yaml 里写的
@@ -286,12 +286,34 @@ def remember_effort_reject(base: str, model: str, effort: str):
         conn.commit()
 
 
+def dump_prompt(kwargs: dict) -> None:
+    """OSA_PROMPT_DUMP (or a "prompt-dump" file in the data dir) points at a directory: every request's
+    exact body goes to its own .json file.
+
+    For cache-hit work: two requests can be compared piece by piece instead of guessed at.
+    The key rides in a header, not in kwargs, so nothing secret is written."""
+    d = os.environ.get("OSA_PROMPT_DUMP")
+    if not d:
+        marker = db_path.parent / "prompt-dump"
+        if not marker.exists():
+            return
+        d = marker.read_text(encoding="utf-8").strip() or str(db_path.parent / "prompts")
+    try:
+        os.makedirs(d, exist_ok=True)
+        name = re.sub(r"[^\w.-]", "_", f"{time.time():.3f}-{kwargs.get('model', 'model')}") + ".json"
+        with open(os.path.join(d, name), "w", encoding="utf-8") as f:
+            json.dump({"ts": time.time(), **{k: v for k, v in kwargs.items() if k != "stream"}}, f, ensure_ascii=False)
+    except Exception:   # noqa: BLE001 - recording must never break the request
+        log.warning("prompt dump failed", exc_info=True)
+
+
 async def create_chat(client, **kwargs):
     """流式或非流式补全。额度类错误立刻抛出，不重试。普通 429 按 Retry-After 等，次数有上限。
 
     客户端自带的重试会把日额度 429 再打几遍，这里关掉，改由上面的分类决定。
     408/409/5xx 仍按 limits.provider_transient_retries 再试，避免把短暂故障变成任务失败。
     """
+    dump_prompt(kwargs)
     rate_retries = max(0, int(CFG["limits"].get("provider_rate_retries", 1) or 0))
     transient_retries = max(0, int(CFG["limits"].get("provider_transient_retries", RETRIES) or 0))
     cap = max(0.0, float(CFG["limits"].get("provider_retry_cap_s", 120) or 0))

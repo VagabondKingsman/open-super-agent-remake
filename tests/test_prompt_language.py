@@ -162,7 +162,7 @@ def test_prompt_format_fields_are_closed():
     router.ROUTER_PROMPT.format(
         name="N", instructions="I", date="2026-11-07", capabilities="c", others="o",
         skills="s", routines="r", memories="m", group="", attach_rule="a", bot_rule="b")
-    router.STATE_PROMPT.format(now="2026-11-11 08:11:47Z", tasks="t", approvals="a", tools="x, y", memories="", turn="")
+    router.STATE_PROMPT.format(now="2026-11-11 08:11:47Z", tasks="t", approvals="a", tools="x, y", memories="", removed="", turn="")
     router.GROUP_PROMPT.format(title="T", members="M", lead="L")
     router.DM_TURN.format(name="N")
     router.REPLY_OWED.format(owed="O", name="N")

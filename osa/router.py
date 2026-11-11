@@ -123,7 +123,7 @@ Write operations waiting for the user. When they agree or refuse in chat, call r
 {approvals}
 
 Tools you can use in this turn. This list decides what you can do: if you said earlier in the chat that you "can't" or "have no such tool", it may not have existed then; if it is here now, use it:
-{tools}{memories}{turn}"""
+{tools}{memories}{removed}{turn}"""
 
 # B1：回复里“#数字”旁边出现这些词，就当它在说派了这个任务
 FAKE_DISPATCH_RE = re.compile(r"#(\d{1,9})\b")
@@ -598,11 +598,14 @@ class Router:
         state = STATE_PROMPT.format(now=time.strftime("%Y-%m-%d %H:%M:%SZ", time.gmtime()),
                                    tasks=self._task_list(), approvals=approvals.summary(self.bot_id),
                                     tools=", ".join(t["function"]["name"] for t in self._tools()),
-                                    memories="\n\n" + recent if recent else "", turn=self._turn_block())
+                                    memories="\n\n" + recent if recent else "", removed="", turn=self._turn_block())
         self._turn_context = ""            # C3：这一轮看得见的上下文（含用户这条），数有出处就不啰嗦
-        msgs = [{"role": "system", "content": system}] + with_state(
+        history, removed = memory.split_notice(
             memory.context(cid, self.bot_id if chat["kind"] == "group" else None, me=self.bot_id,
-                           images=media.MODEL_IMAGES if see else 0), state)
+                           images=media.MODEL_IMAGES if see else 0))   # C13: 索引挪到状态块，开头才是稳定的前缀
+        if removed:
+            state += "\n\n" + removed
+        msgs = [{"role": "system", "content": system}] + with_state(history, state)
         self._turn_context = "\n".join(str(m.get("content") or "") for m in msgs)
         sid, started = f"s{time.time_ns()}", time.time()
         self._turn_tasks = []             # 本轮派发的任务，挂在这条回复下面显示

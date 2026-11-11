@@ -61,3 +61,33 @@ async def test_state_block_carries_the_server_clock(llm, events, make_bot):
     state = body["messages"][-1]["content"]
     assert re.search(r"Now: \d{4}-\d\d-\d\d \d\d:\d\d:\d\dZ \(server clock, UTC\)", state), state[-400:]
     assert "Now:" not in body["messages"][0]["content"]      # 缓存的前缀里没有会变的东西
+
+
+async def test_removed_index_rides_in_the_state_not_the_head(llm, events, make_bot, monkeypatch):
+    """C13: “更早的对话”的索引每轮都在长。它要是留在 history 的第一条，缓存从那里就断了：
+    实测一轮的第一次调用只命中 6%，而同一个 body 不改能命中 99%。"""
+    monkeypatch.setitem(CFG["memory"], "inline_messages", 4)
+    a = make_bot("Indexy")
+    for i in range(6):
+        llm.script("router:Indexy", f"回 {i}")
+        await server.safe_handle(bots.chat(a["chat_id"]), f"第 {i} 条")
+    body = llm.bodies("router", "Indexy")[-1]["messages"]
+    assert body[0]["role"] == "system"
+    assert "Earlier turns were removed from context" not in body[0]["content"]
+    assert all(m["role"] != "system" for m in body[1:]), "history 开头不该再有 system 通知"
+    assert "Earlier turns were removed from context" in body[-1]["content"]   # 索引在最后一条里
+    assert body[-1]["content"].startswith("第 5 条")
+
+
+async def test_each_turn_extends_the_previous_body(llm, events, make_bot, monkeypatch):
+    """两轮之间（同样的窗口内），除了最后一条，发出去的内容逐字相同 —— 缓存靠的就是这个前缀。"""
+    monkeypatch.setitem(CFG["memory"], "inline_messages", 4)
+    a = make_bot("Prefixy")
+    for i in range(6):
+        llm.script("router:Prefixy", f"答 {i}")
+        await server.safe_handle(bots.chat(a["chat_id"]), f"问 {i}")
+    bodies = [b["messages"] for b in llm.bodies("router", "Prefixy")]
+    a1, a2 = bodies[4], bodies[5]          # 第 5、6 轮：窗口的分界（每隔 n 条才挪一次）这两轮没挪
+    assert a1[:-1] == a2[:len(a1) - 1]     # 上一轮发过的（除了挂着状态的最后一条）原样是这一轮的前缀
+    assert a1[-1]["content"].startswith("问 4") and "(The text below is system-attached" in a1[-1]["content"]
+    assert a2[len(a1) - 1]["content"] == "问 4"   # 这一轮里它不再是最后一条，状态已经拿掉

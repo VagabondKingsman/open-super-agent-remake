@@ -188,6 +188,22 @@ def _pick_images(recent: list, limit: int) -> set[tuple[int, str]]:
     return out
 
 
+
+REMOVED_PREFIX = "Earlier turns were removed from context. Use recall(id) to fetch the original text:\n"
+
+
+def split_notice(msgs: list[dict]) -> tuple[list[dict], str]:
+    """取出开头的“更早的对话”索引：返回（剩下的历史, 索引文本）。
+
+    索引每轮都在长大。留在开头的话，模型服务的缓存从第一条 history 就对不上，后面整段都要重算
+    （实测：一轮的第一次调用只命中 6%，同一个 body 逐字不改能命中 99%）。所以 Router 把它挪到末尾的状态块里，
+    开头到上一轮为止的那段就能一直命中。"""
+    if msgs and msgs[0].get("role") == "system" and isinstance(msgs[0].get("content"), str) \
+            and msgs[0]["content"].startswith(REMOVED_PREFIX):
+        return msgs[1:], msgs[0]["content"]
+    return msgs, ""
+
+
 def context(chat_id: int, viewer: int | None = None, me: int | None = None, images: int = 0) -> list[dict]:
     """组装给 Router 的历史消息。viewer 是群聊里正在发言的 Bot：
     它自己的回复保持 assistant；别的 Bot 的发言、任务和交接都换成带名字的通知。私聊时 viewer 为空。
@@ -208,7 +224,7 @@ def context(chat_id: int, viewer: int | None = None, me: int | None = None, imag
         def who(r, b):
             return name(b) if viewer is not None and r == "assistant" and b != viewer else r
         index = "\n".join(f"#{i} [{who(r, b)}] {c[:60].replace(chr(10), ' ')}" for i, r, c, _, b in old[-200:])
-        msgs.append({"role": "system", "content": "Earlier turns were removed from context. Use recall(id) to fetch the original text:\n" + index})
+        msgs.append({"role": "system", "content": REMOVED_PREFIX + index})
     # 讨论串从哪一条开始；开头已经移出上下文的话，标在留下的第一条前面
     at = max(split, cut) if split is not None else -1
     shown = _pick_images(recent, images) if images else set()
