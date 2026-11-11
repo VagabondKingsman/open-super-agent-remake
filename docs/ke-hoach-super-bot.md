@@ -69,6 +69,20 @@ Chi phí tuần (báo cáo đầu tiên): 5,97 $ · 191 lần gọi · 5 lỗi �
    p90 $0,138, cao nhất $0,179 → ngưỡng $0,125, chỉ mở khi thật sự lệch.
 5. ✅ **Báo cáo tuần:** `scripts/weekly_report.py` (5 test) —  1 trang từ `/api/observe` + eval: ttft, tok/s, success, $, lỗi mới.
 
+6. ✅ **Mỗi lượt chỉ ghi tool của lượt đó:** C6 — `_turn_tool_ms` được làm mới đầu lượt; trước đó mỗi lượt lại
+   mang theo danh sách tool của lượt trước, dài dần (thấy trong `meta` của bản chạy thật).
+7. ✅ **Task dài không gửi lại mọi tool result:** C8 — `worker._compact_tools` nén các bước cũ, giữ bước gần nhất đầy đủ.
+8. ✅ **Model treo thì đổi sang model dự phòng:** C9 — `roles.<role>.fallback`; stream đứt hai lần liền thì lượt đó
+   chạy tiếp trên model dự phòng thay vì báo lỗi (một lần cho mỗi lượt, ghi vào log).
+9. ✅ **“Đã giao worker rồi” mà không gọi dispatch:** C10 — bắt được cả khi câu không kèm `#N`, dựa trên chính
+   hai lượt thật ở chat 1 (#118, #120); sửa một lượt, vẫn không giao thì nối câu đính chính + `meta.claimed_dispatch`.
+10. ✅ **Lượt sửa phải thật sự gọi dispatch:** C11 — vòng sửa gửi `tool_choice` buộc gọi `dispatch` (chỉ request
+    đầu của vòng; service không nhận `tool_choice` thì lùi về vòng thường). Chat 1 (94 tin) trước đó trả lời bằng lời
+    ba lần liền; sau C11 giao ngay lượt đầu.
+11. ✅ **Giờ thật trong lượt:** C12 — khối trạng thái mỗi lượt mở bằng giờ server (UTC). Trước đó hỏi “mấy giờ”
+    thì bot bịa 12:20 UTC trong khi máy đang 08:11, và còn nói đã gọi `quick_code` mà không gọi.
+
+
 ---
 
 ## KPI (đo được, hiện tại → mục tiêu)
