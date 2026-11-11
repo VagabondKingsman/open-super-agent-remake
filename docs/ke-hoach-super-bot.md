@@ -113,8 +113,8 @@ Vì thế mỗi lượt trước đây trả tiền gần như cả 17–18k tok
 được lưu nguyên văn vào chính tin nhắn đó (`memory.remember_state`); các vòng gọi tool (assistant `tool_calls` +
 kết quả `tool`) cũng được lưu và gửi lại đúng thứ tự (`memory.keep_tail`). Hai test giữ tính chất “body sau là phần
 mở rộng của body trước”, kể cả lượt có tool. Đo lại trên chat thật: các body nối tiếp nhau 100%; lần gọi trong cùng
-lượt trúng 99–100%, lần gọi đầu lượt trúng 96–100% với khoảng một nửa số lượt — nửa còn lại vẫn 5–6% dù body nối
-tiếp đúng (chưa rõ lý do, còn mở). Prompt lớn dần vì mỗi lượt mang theo state (~440 ký tự) và các vòng tool của
+lượt trúng 99–100%; lần gọi đầu lượt trúng 95–100% ở phần lớn lượt (đo sau C16: 4/5 lượt, ttft 0,6–2,2 s,
+0,013–0,014 $ mỗi lượt router; lượt còn lại 5% — thỉnh thoảng vẫn trượt dù body nối tiếp đúng, chưa rõ lý do). Prompt lớn dần vì mỗi lượt mang theo state (~440 ký tự) và các vòng tool của
 lượt trước; cửa sổ `memory.inline_messages` vẫn cắt đều nên có chặn trên.
 
 ## Rủi ro & lối thoát
