@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { MouseEvent } from 'react'
 import { openApps, openChat, openLibrary, openObserve, pinChat, useStore } from '../store'
 import { t } from '../i18n'
+import { chatLabel } from '../chatLabel'
 import type { Chat } from '../types'
 import BotAvatar from './BotAvatar'
 import { GroupFace } from './Chat'
@@ -48,7 +49,7 @@ export default function Sidebar({ onNewBot, onNewGroup, onSettings, onClose }: {
     const bot = group ? undefined : members[0]
     if (!group && !bot) return null
     return {
-      group, members, bot, name: group ? c.title : bot!.name,
+      group, members, bot, name: chatLabel(c, bots),
       isActive: c.id === active && view === 'chat',
       busy: Object.values(tasks).some(t => t.chat_id === c.id && t.status === 'running'),
       needs: Object.values(approvals).some(a => a.chat_id === c.id && a.status === 'pending'),

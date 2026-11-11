@@ -32,7 +32,10 @@ GROUP_MIN, GROUP_MAX, MAX_GROUPS = 2, 6, 50
 
 def _bot(row) -> dict:
     i, name, avatar, instr, primary, created = row
-    chat = conn.execute("select id from chats where kind='direct' and bot_ids=?", (json.dumps([i]),)).fetchone()
+    # 一个 Bot 可能不止一个私聊（脚本或将来的“新对话”会建）：Bot 自己的那个是最早建的那个，
+    # 不加 order by 时 sqlite 返回哪一行不确定，点 Bot 可能落到测试用的私聊里（见 tests/test_bots_direct_chats.py）。
+    chat = conn.execute("select id from chats where kind='direct' and bot_ids=? order by id limit 1",
+                         (json.dumps([i]),)).fetchone()
     return {"id": i, "name": name, "avatar": json.loads(avatar or "{}"), "instructions": instr or "",
             "is_primary": bool(primary), "created": created, "chat_id": chat[0] if chat else None}
 
@@ -108,8 +111,11 @@ def update(bot_id: int, **fields) -> dict:
     """改名字、职责、头像（没给或给 None 的不改）。改名字时私聊的标题跟着改。"""
     if fields.get("name") is not None:
         name = str(fields["name"]).strip()[:40] or i18n.t("未命名")
+        old = conn.execute("select name from bots where id=?", (bot_id,)).fetchone()
         conn.execute("update bots set name=? where id=?", (name, bot_id))
-        conn.execute("update chats set title=? where kind='direct' and bot_ids=?", (name, json.dumps([bot_id])))
+        # 只改还跟着旧名字走的私聊：用户自己起过名字的那个（“scratch-nova”）不该被改名冲掉
+        conn.execute("update chats set title=? where kind='direct' and bot_ids=? and title=?",
+                     (name, json.dumps([bot_id]), old[0] if old else name))
     if fields.get("instructions") is not None:
         conn.execute("update bots set instructions=? where id=?", (str(fields["instructions"])[:4000], bot_id))
     if fields.get("avatar"):

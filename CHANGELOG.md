@@ -4,6 +4,10 @@
 
 ## [未发布]
 ### remake
+- 两个“同名 Bot”其实是同一个 Bot 的两个私聊（`cursor/direct-chat-label`）：
+  - 侧栏和对话标题改为**对话自己的名字**区分：私聊的名字仍是 Bot 的名字，但对话自带一个不同的标题时显示成 `Nova · scratch-nova`（`web/src/chatLabel.ts`，`web/tests/chat-label.cjs`）。之前直接写 `bot.name`，同一 Bot 的两个私聊一模一样，分不出哪个是哪个。
+  - `bots._bot()` 取 Bot 的私聊时按 `id` 取最早的（`order by id limit 1`）：以前没有 order by，有第二个私聊时“Bot 的私聊”是哪一个是随机的，点 Bot 可能进到别的对话。
+  - 改 Bot 名字只改还跟着旧名字走的私聊，用户自己起过名的私聊不被冲掉。
 - Android v1.0 (11/11/2026, PR #47, merge `3c631a3`): vỏ arm64 mở server HTTP, đăng nhập được trên S22 Ultra. Hết văng lúc nối (`add_capability` thiếu manifest app) và lúc sau mật khẩu (`setBadge` để exception JNI rồi thread detach). File cài ở release `v1.0`. Không phải bản Play, ký khóa debug.
 - 审计修复 AUDIT-F1–F12（`fix/audit-f1-f12`）：
   - F1：流的第一块单独限时（`limits.stream_first_chunk_s`，默认 170 秒），`stream_idle_s` 只算第一块之后两块之间，想得久的模型不再在出第一个字之前被当成卡住。

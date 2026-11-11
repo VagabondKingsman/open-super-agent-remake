@@ -12,6 +12,7 @@ import { Attachments, mediaUrl, splitMarks, type ViewerItem } from './Media'
 import { imagePrice, setAsAvatar } from './AvatarTools'
 import { LinkEmbed, Linkify, textEmbeds } from './Embeds'
 import { cardFor, registerCard, type CardProps } from '../cards'
+import { chatLabel } from '../chatLabel'
 import { McpAppView } from './Applet'
 import type { AppView } from '../mcpapp'
 
@@ -736,7 +737,7 @@ export default function Chat({ onToggleDetails }: { onToggleDetails: () => void 
   if (!group && !bot) return <main className="chat empty-main" />
   const lead = botOf(chat.lead)
   const empty = messages && messages.length === 0 && !stream
-  const title = group ? chat.title : bot!.name
+  const title = chatLabel(chat, allBots)
   const starters = group && members.length >= 2
     ? [t('@所有人 先各自介绍一下你们能做什么'), t('@{a} 查一下今天的 AI 新闻，查完交给 @{b} 写一段 100 字的总结', { a: members[0].name, b: members[1].name })]
     : STARTERS
