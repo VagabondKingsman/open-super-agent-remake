@@ -1213,5 +1213,6 @@
   "已准备好，重启服务后换上（原来的数据库会留一份）。": "Đã sẵn sàng. Khởi động lại dịch vụ để dùng bản này (cơ sở dữ liệu cũ vẫn được giữ một bản).",
   "已导出到 {dst}": "Đã xuất ra {dst}",
   "有 {n} 个密钥解不开（主密钥换过），没有带上：{names}": "{n} khóa bí mật không giải mã được (khóa chính đã đổi) nên không được đưa vào: {names}",
-  "未设置 OSA_PASSWORD：网页不用登录就能访问，只能在本机或内网使用": "Chưa đặt OSA_PASSWORD: trang web không cần đăng nhập, chỉ dùng trên máy này hoặc mạng nội bộ"
+  "未设置 OSA_PASSWORD：网页不用登录就能访问，只能在本机或内网使用": "Chưa đặt OSA_PASSWORD: trang web không cần đăng nhập, chỉ dùng trên máy này hoặc mạng nội bộ",
+  "没有这个接口": "Không có endpoint này"
 }

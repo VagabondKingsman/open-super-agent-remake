@@ -378,7 +378,8 @@ def record_usage(role: str, model: str, usage, task_id: int | None = None, provi
     """记录一次模型调用的 token 和费用（USD）。usage 是 OpenAI 格式的 usage 对象；provider 不给就按角色的配置。
     ms / ttft：整次用时、第一个字出来的时间（毫秒），知道的话给。
     服务没返回 usage 时：知道用时的（流式调用）照样记一次调用，token 和费用按 0；否则不记。
-    这是已记录的用量，不是服务商账单。estimated=True 时 output 来自 estimate_output_tokens，prompt 记 0。"""
+    这是已记录的用量，不是服务商账单。estimated=True 时 output 来自 estimate_output_tokens，prompt 记 0。
+    没记成（连 usage 和用时都没有）返回 None；记了就返回这一行（in / out / cost / ttft / est），调用方要合计时用。"""
     if usage is None and ms is None:
         return
     prompt = (usage.prompt_tokens or 0) if usage else 0
@@ -392,6 +393,7 @@ def record_usage(role: str, model: str, usage, task_id: int | None = None, provi
     cost = prices.cost(provider, model, hit, miss, out, _is_peak(time.time()))
     add_usage(role, model, task_id=task_id, provider=provider, bot_id=bot_id, chat_id=chat_id,
               hit=hit, miss=miss, out=out, cost=cost, ms=ms, ttft=ttft, estimated=estimated)
+    return {"in": prompt, "out": out, "cost": cost, "ttft": ttft, "est": estimated}
 
 
 def record_error(role: str, model: str, error: str, task_id: int | None = None, provider: str | None = None,
@@ -405,12 +407,11 @@ def record_error(role: str, model: str, error: str, task_id: int | None = None, 
 def record_partial(role: str, model: str, usage, text: str, task_id: int | None = None, provider: str | None = None):
     """流被取消时调用。有 usage 就照实记；没有就按已收到的文字估算，并标成 estimated。什么都没收到则不记。"""
     if usage is not None:
-        record_usage(role, model, usage, task_id, provider, estimated=False)
-        return
+        return record_usage(role, model, usage, task_id, provider, estimated=False)
     out = estimate_output_tokens(text)
     if not out:
         return
-    record_usage(role, model, _Tokens(0, out), task_id, provider, estimated=True)
+    return record_usage(role, model, _Tokens(0, out), task_id, provider, estimated=True)
 
 
 def tokens_today() -> int:

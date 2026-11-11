@@ -422,7 +422,8 @@ class Router:
                 except Exception as e:
                     memory.record_error("router", model, providers.brief(e), ms=(time.monotonic() - t0) * 1000)
                     # 作废的这次也花了 token：有 usage 照实记，没有就按已收到的文字估算
-                    memory.record_partial("router", model, usage, memory.streamed_output_text(content, reasoning, calls))
+                    self._count_usage(memory.record_partial("router", model, usage,
+                                                           memory.streamed_output_text(content, reasoning, calls)))
                     # 流中途卡住或断了，而且还没推送正文、没收到工具调用：重来一次。已经推送了正文就不重来，免得界面上重复
                     # 开流之前的错 create_chat 已经按规则重试过了，这里只管流开了之后的
                     if stream is not None and attempt < providers.stream_retries() and sent == 0 and not calls \
@@ -436,12 +437,13 @@ class Router:
                         t0 = time.monotonic()
                         continue
                     raise
-            memory.record_usage("router", model, usage, ms=(time.monotonic() - t0) * 1000,
-                                ttft=None if first is None else (first - t0) * 1000)
+            self._count_usage(memory.record_usage("router", model, usage, ms=(time.monotonic() - t0) * 1000,
+                                                 ttft=None if first is None else (first - t0) * 1000))
             recorded = True
         except asyncio.CancelledError:
             if not recorded:
-                memory.record_partial("router", model, usage, memory.streamed_output_text(content, reasoning, calls))
+                self._count_usage(memory.record_partial("router", model, usage,
+                                                       memory.streamed_output_text(content, reasoning, calls)))
             raise
         content, leaked = dsml.split(content)
         if len(content) > sent:   # 压着的结尾不是标记，或者标记后面还有话
@@ -449,6 +451,29 @@ class Router:
         if calls or not use_tools:
             leaked = []
         return content, reasoning, [calls[k] for k in sorted(calls)] or leaked, finish
+
+    def _count_usage(self, u: dict | None):
+        """A4：把一次模型调用的用量加进这一轮。回复下面显示这一轮花了多少 token、多少钱、第一个字多久出来。"""
+        if not u:
+            return
+        t = getattr(self, "_turn_usage", None)
+        if t is None:   # _stream 也可能没经过 _think 被单独调用（测试、探针）
+            t = self._turn_usage = {"in": 0, "out": 0, "cost": 0.0, "ttft": None, "est": False}
+        t["in"] += u.get("in") or 0
+        t["out"] += u.get("out") or 0
+        t["cost"] += u.get("cost") or 0.0
+        t["est"] = t["est"] or bool(u.get("est"))
+        if t["ttft"] is None and u.get("ttft") is not None:
+            t["ttft"] = round(u["ttft"])   # 这一轮第一次开口的时间（带工具的轮次只看第一次）
+
+    def _usage_meta(self, started: float) -> dict | None:
+        """这一轮的用量，挂在回复的 meta 上：in / out 个 token，cost 美元，ttft 第一个字的毫秒，sec 整轮秒数。
+        服务没回 usage（token 全 0）就返回 None，不带空字段。"""
+        t = getattr(self, "_turn_usage", None) or {}
+        if not t.get("in") and not t.get("out"):
+            return None
+        return {"in": t["in"], "out": t["out"], "cost": round(t["cost"], 6), "ttft": t["ttft"],
+                "sec": round(time.time() - started, 1), **({"est": True} if t["est"] else {})}
 
     def _tools(self) -> list[dict]:
         """这一轮给模型的工具（self.chat 是本轮的对话）。"""
@@ -529,6 +554,7 @@ class Router:
         self._turn_dms = 0                # 本轮发出的私信
         self._turn_waits = 0              # 本轮弹出的新建 / 修改 / 删除 Bot 的卡片：有了结果会再叫醒这个 Bot
         self._turn_files = []             # 本轮 send_file 发的文件，挂在这条回复下面显示
+        self._turn_usage = {"in": 0, "out": 0, "cost": 0.0, "ttft": None, "est": False}   # A4：本轮各次模型调用的合计
         shown, thinking, shots, finish = "", "", [], None
         async def rounds():
             """跑最多 10 轮工具调用。返回（轮数是否用完, 最后一段正文, 最后一段思考）。"""
@@ -600,8 +626,10 @@ class Router:
         finally:
             await self.emit({"type": "stream_end", "sid": sid}, cid)
         flag = langcheck.record(shown, woke["text"] if woke else (last[0] if last else ""), f"chat {cid}")
+        usage_meta = self._usage_meta(started)
         await self.add("assistant", shown.strip(), cid, reasoning=reasoning, thinking=thinking,
                        thought_s=round(time.time() - started, 1), sid=sid, tasks=self._turn_tasks,
+                       **({"usage": usage_meta} if usage_meta else {}),
                        **({"lang_flag": flag} if flag else {}),
                        **({"fabricated_task_ids": fake} if fake else {}),
                        **({"attachments": self._turn_files} if self._turn_files else {}))

@@ -1376,5 +1376,8 @@
   "外观": "Appearance",
   "费用按各个模型的单价估算（设置 → 模型）。任务的过程只留 90 天，更早的工具调用统计不到。时间按这台设备的时区。": "Costs are estimated from each model's price (Settings → Models). Task steps are kept for 90 days, so older tool calls aren't counted. Times are in this device's time zone.",
   "思考：中等": "Thinking: medium",
-  "思考：很多": "Thinking: extra high"
+  "思考：很多": "Thinking: extra high",
+  "输入 {a} · 输出 {b} tokens": "{a} in · {b} out tokens",
+  " · 首字 {s} 秒": " · first word {s}s",
+  "（估算）": " (estimated)"
 }
