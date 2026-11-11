@@ -137,6 +137,19 @@ def test_two_bots_in_a_group_keep_their_own_state(make_bot):
     assert memory.context(g["id"], viewer=b["id"], me=b["id"])[-1]["content"].endswith("STATE-B")
 
 
+def test_a_meta_that_is_not_an_object_does_not_kill_the_turn(make_bot):
+    """11/11 16:54：一条 meta 只是普通字符串的消息，让整个对话每一轮都报 'str' object has no attribute 'get'，
+    用户连发四句一句都没得到回复。现在坏行当空 meta 处理，对话照常。"""
+    a = make_bot("BadMeta")
+    cid = a["chat_id"]
+    memory.conn.execute("insert into messages(ts, role, content, meta, chat_id, bot_id) values(?,?,?,?,?,?)",
+                        (0, "user", "một dòng hỏng", '"chỉ là một chuỗi"', cid, a["id"]))
+    memory.conn.commit()
+    ctx = memory.context(cid, me=a["id"])
+    assert ctx[-1]["content"].startswith("một dòng hỏng")
+    assert all(isinstance(m["meta"], dict) for m in memory.page(cid))
+
+
 def test_a_state_written_before_c16_is_still_read(make_bot):
     """C16 之前存的是纯字符串：老消息还要照常渲染，不能整个对话报错。"""
     a = make_bot("Oldy")

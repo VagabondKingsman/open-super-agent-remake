@@ -268,6 +268,19 @@ Một phát hiện phụ khi chạy thật: `run_code` chạy trong sandbox nên
 làm việc và hệ thống). Task bảo worker đọc repo sẽ trả lời “file not found” — đúng thiết kế cách ly, nhưng cần
 biết khi giao việc cho worker về chính repo này.
 
+### C23: một dòng meta hỏng làm cả đoạn hội thoại câm
+
+11/11 16:54, `logs/osa.log`: “对话 1 出错” bốn lần liền, mỗi lần cùng một chỗ —
+`memory.context` đọc `meta.get("state")` mà `meta` là một **chuỗi** (`'str' object has no attribute 'get'`).
+Hậu quả: người dùng gửi bốn câu, không câu nào có trả lời; lượt nào cũng chết trước khi gọi model.
+
+Vì sao chuỗi: `meta` lấy từ cột `messages.meta` rồi `json.loads`, mà cột đó không có ràng buộc gì —
+một dòng cũ/hand-edit để giá trị JSON không phải object (ví dụ `"chỉ là một chuỗi"`) là đủ.
+
+Sửa: một chỗ duy nhất `memory._meta(raw)` — parse hỏng hay không phải object thì trả `{}`; dùng ở
+`context`, `page`, `update_meta`, và chỗ đọc `usage` trong báo cáo chi phí. Test: một dòng meta là chuỗi →
+`context` vẫn dựng xong, `page` trả meta object.
+
 ## Rủi ro & lối thoát
 
 - Sửa prompt (A2) có thể đổi "tính cách" bot → giữ song song 1 turn mẫu trước/sau, so 5 câu trả lời.

@@ -87,10 +87,23 @@ def add(role: str, content: str, chat_id: int, bot_id: int | None = None, **meta
     return cur.lastrowid
 
 
+def _meta(raw) -> dict:
+    """消息的 meta 必须是对象：老记录、手改过的行可能是一段文字，别让它把整轮对话弄挂。
+
+    线上 11/11 16:54：对话 1 每发一条就报 'str' object has no attribute 'get'（读 meta["state"] 时），
+    用户的四句话一句都没得到回复 —— 一个坏行就把整段对话弄挂了。
+    """
+    try:
+        v = json.loads(raw or "{}")
+    except ValueError:
+        return {}
+    return v if isinstance(v, dict) else {}
+
+
 def update_meta(msg_id: int, **fields):
     row = conn.execute("select meta from messages where id=?", (msg_id,)).fetchone()
     if row:
-        meta = json.loads(row[0] or "{}") | fields
+        meta = _meta(row[0]) | fields
         conn.execute("update messages set meta=? where id=?", (json.dumps(meta, ensure_ascii=False), msg_id))
         conn.commit()
 
@@ -102,7 +115,7 @@ def page(chat_id: int, before: int | None = None, limit: int = 60) -> list[dict]
     rows = conn.execute("""select id, ts, role, content, meta, bot_id from messages
         where chat_id=? and id < ? order by id desc limit ?""", (chat_id, before or 1 << 62, limit)).fetchall()
     threads = bots.thread_summaries(chat_id, [r[0] for r in rows])
-    return [{"id": i, "ts": ts, "role": r, "content": c, "meta": json.loads(m or "{}"), "bot_id": b,
+    return [{"id": i, "ts": ts, "role": r, "content": c, "meta": _meta(m), "bot_id": b,
              **({"thread": threads[i]} if i in threads else {})}
             for i, ts, r, c, m, b in reversed(rows)]
 
@@ -267,7 +280,7 @@ def context(chat_id: int, viewer: int | None = None, me: int | None = None, imag
     at = max(split, cut) if split is not None else -1
     shown = _pick_images(recent, images) if images else set()
     for k, (mid, r, c, meta, b) in enumerate(recent, cut):
-        meta = json.loads(meta or "{}")
+        meta = _meta(meta)
         if k == at:
             note = THREAD_NOTE.format(root=root)
             if r == "user":
@@ -504,10 +517,7 @@ def turn_cost_cap(days: int = 7, factor: float = 3.0, floor: float = 0.01, least
     costs = []
     for (meta,) in conn.execute("select meta from messages where role='assistant' and ts >= ? and meta like '%usage%'",
                                 (since,)):
-        try:
-            c = (json.loads(meta or "{}").get("usage") or {}).get("cost")
-        except ValueError:
-            continue
+        c = (_meta(meta).get("usage") or {}).get("cost")
         if c:
             costs.append(float(c))
     costs.sort()
