@@ -525,11 +525,15 @@ def image_message(png: bytes, caption: str | None = None, coords: bool | None = 
         {"type": "image_url", "image_url": {"url": "data:image/png;base64," + base64.b64encode(png).decode()}}]}
 
 
-def prune_images(msgs: list[dict], keep: int = 2):
-    """只保留最近 keep 张截图，更早的换成文字，避免上下文越来越长。"""
-    seen = 0
-    for m in reversed(msgs):
-        if isinstance(m.get("content"), list) and any(p.get("type") == "image_url" for p in m["content"]):
-            seen += 1
-            if seen > keep:
-                m["content"] = "(an earlier screenshot was omitted)"
+def prune_images(msgs: list[dict], keep: int = 2, batch: int = 4) -> int:
+    """只保留最近 keep 张截图，更早的换成文字，避免上下文越来越长。
+
+    C18：要换就多攒几张一起换（到 keep + batch 张才动手）。每来一张新截图就换掉一张的话，前面已经发出去
+    的消息每步都变，模型服务的缓存每一步都落空、整段重读；多留几张只多花几张图的 token。"""
+    pics = [m for m in msgs
+            if isinstance(m.get("content"), list) and any(p.get("type") == "image_url" for p in m["content"])]
+    if len(pics) <= keep + batch:
+        return 0
+    for m in pics[:-keep] if keep else pics:
+        m["content"] = "(an earlier screenshot was omitted)"
+    return len(pics) - keep

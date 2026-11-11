@@ -62,6 +62,8 @@ limits:
   worker_compact_chars: 60000 # 任务里工具结果总长超过这么多字就把早先的截短（0 = 不截）
   worker_keep_full_tools: 3   # 最近这么多条工具结果保持原样
   worker_old_tool_chars: 1500 # 更早的截到这么多字
+  worker_compact_to_chars: 20000 # C18: 一次截到这个总量以下，给后面的步留余量（否则每一步都改前缀、都要重读整个 body）
+  worker_result_chars: 8000   # 每条工具结果最多带这么多字进上下文（0 = 不限）
   watchdog_interval_s: 15
   approval_timeout_s: 1800   # 写操作等待确认的时限，超时按拒绝
   turn_cost_guard: 3.0          # 一轮比过去 7 天的中位数贵这么多倍就不再调工具（0 = 关掉），见 memory.turn_cost_cap

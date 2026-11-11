@@ -50,3 +50,48 @@ def test_only_the_long_ones_are_touched():
     msgs.append({"role": "tool", "tool_call_id": "short", "content": "ok"})
     worker._compact_tools(msgs)
     assert msgs[-1]["content"] == "ok"
+
+def test_a_pass_leaves_headroom_so_later_steps_keep_the_cache(monkeypatch):
+    """C18：一次截短要截到目标以下。否则下一步又超、又截一条，每一步都改了前缀，
+    模型服务的缓存每一步都落空（线上任务 106、102 就是这样）。"""
+    monkeypatch.setitem(CFG["limits"], "worker_compact_chars", 20000)
+    monkeypatch.setitem(CFG["limits"], "worker_compact_to_chars", 8000)
+    monkeypatch.setitem(CFG["limits"], "worker_keep_full_tools", 2)
+    monkeypatch.setitem(CFG["limits"], "worker_old_tool_chars", 500)
+    msgs = history(12, 3000)                      # 12 × 3005 = 36060 字
+    assert worker._compact_tools(msgs) > 0
+    total = sum(len(m["content"]) for m in msgs if m["role"] == "tool")
+    assert total < 20000                           # 阈值以下，留出了余量
+    for step in range(2):                          # 后面两步：历史一个字都不该动
+        msgs.append({"role": "assistant", "content": "", "tool_calls": [{"id": f"n{step}"}]})
+        msgs.append(tool(100 + step, 3000))
+        assert worker._compact_tools(msgs) == 0, "下一步不该再改前缀"
+
+
+def test_a_shortened_result_is_not_shortened_twice(monkeypatch):
+    monkeypatch.setitem(CFG["limits"], "worker_compact_chars", 4000)
+    monkeypatch.setitem(CFG["limits"], "worker_compact_to_chars", 1000)
+    monkeypatch.setitem(CFG["limits"], "worker_keep_full_tools", 1)
+    monkeypatch.setitem(CFG["limits"], "worker_old_tool_chars", 100)
+    msgs = history(6, 2000)
+    worker._compact_tools(msgs)
+    first = [m["content"] for m in msgs if m["role"] == "tool"]
+    assert all(c.endswith(worker.SHORTENED) for c in first[:-1])     # 早的截短，标记只出现一次
+    assert not any(c.endswith(worker.SHORTENED + worker.SHORTENED) for c in first)
+    assert first[-1] == tool(5, 2000)["content"]                     # 最近一条保持原样
+
+
+def test_screenshots_are_dropped_in_batches_not_one_by_one():
+    """C18：每来一张新截图就换掉一张，等于每一步都改前缀。攒够一批再换。"""
+    from osa.computer import tools as ctools
+    msgs = []
+    for i in range(4):                                   # 前几张：一张都不动
+        msgs.append({"role": "user", "content": [{"type": "image_url", "image_url": {"url": f"p{i}"}}]})
+        assert ctools.prune_images(msgs, keep=2, batch=4) == 0
+    for i in range(4, 7):                                # 第 7 张到了才动手，且只留最近 2 张
+        msgs.append({"role": "user", "content": [{"type": "image_url", "image_url": {"url": f"p{i}"}}]})
+        ctools.prune_images(msgs, keep=2, batch=4)
+    pics = [m for m in msgs if isinstance(m["content"], list)]
+    assert len(pics) == 2
+    assert pics[-1]["content"][0]["image_url"]["url"] == "p6"
+    assert msgs[0]["content"] == "(an earlier screenshot was omitted)"

@@ -396,33 +396,42 @@ def _history(task: Task, label: str) -> list:
     return task.repeat_history.setdefault(label or "", [])
 
 
+SHORTENED = "\n… (shortened to keep the context small; call the tool again if you need the rest)"
+
+
 def _compact_tools(msgs: list[dict]) -> int:
-    """C8：任务跑久了，早先的工具结果把每一步的上下文撑大。
+    """C8/C18：任务跑久了，早先的工具结果把每一步的上下文撑大。
 
     线上（2026-11-11）worker 平均每次调用发 49k token：一次任务 30 步，每步都把前面所有工具
     结果重发一遍。这里只留最近 worker_keep_full_tools 条完整，其余截到 worker_old_tool_chars 字；
     总量不到 worker_compact_chars 就一个字不动 —— 改了前缀，模型服务的缓存那一次就要全部重读。
+
+    C18：一次要截到 worker_compact_to_chars 以下，给后面的步留出余量。原来截完总量几乎还在阈值边上，
+    下一步又来一条结果、又超、又截一条：于是**每一步**都改了前缀，每一步都重读整个 body（实测任务 106、
+    102 里就是这样，连续几次调用只命中 1152 token）。留出余量后，一次截短换来后面若干步都命中。
     返回截掉的字数。
     """
     lim = CFG["limits"]
     keep = int(lim.get("worker_keep_full_tools", 3) or 0)
     keep_chars = int(lim.get("worker_old_tool_chars", 1500) or 0)
     compact_at = int(lim.get("worker_compact_chars", 60000) or 0)
+    goal = int(lim.get("worker_compact_to_chars", 20000) or 0) or compact_at // 3
     if not compact_at or keep_chars <= 0:
         return 0
-    long_ones = [i for i, m in enumerate(msgs)
-                 if m.get("role") == "tool" and len(m.get("content") or "") > keep_chars]
-    if len(long_ones) <= keep:
-        return 0
-    total = sum(len(msgs[i]["content"]) for i in long_ones)
+    tools = [i for i, m in enumerate(msgs) if m.get("role") == "tool"]
+    total = sum(len(msgs[i].get("content") or "") for i in tools)
     if total <= compact_at:
         return 0
     cut = 0
-    for i in long_ones[:-keep] if keep else long_ones:
-        c = msgs[i]["content"]
-        if len(c) > keep_chars:
-            msgs[i]["content"] = c[:keep_chars] + "\n… (shortened to keep the context small; call the tool again if you need the rest)"
-            cut += len(c) - keep_chars
+    for i in tools[:-keep] if keep else tools:
+        c = msgs[i].get("content") or ""
+        if len(c) <= keep_chars or c.endswith(SHORTENED):
+            continue
+        msgs[i]["content"] = c[:keep_chars] + SHORTENED
+        cut += len(c) - keep_chars
+        total -= len(c) - len(msgs[i]["content"])
+        if total <= goal:
+            break
     return cut
 
 
@@ -477,7 +486,8 @@ async def _run_worker(task: Task, goal: str, label: str = "") -> str:
         history = _history(task, label)
         ran, blocked = await _run_calls(task, log, m["tool_calls"], env, history)
         for call, (out, got) in zip(m["tool_calls"], ran):
-            msgs.append({"role": "tool", "tool_call_id": call["id"], "content": out[:8000]})
+            cap = int(CFG["limits"].get("worker_result_chars", 8000) or 0)
+            msgs.append({"role": "tool", "tool_call_id": call["id"], "content": out[:cap] if cap else out})
             shots += got
         if not label:
             task.recent_calls = list(history)
