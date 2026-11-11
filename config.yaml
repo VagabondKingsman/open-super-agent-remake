@@ -64,7 +64,8 @@ limits:
   worker_old_tool_chars: 1500 # 更早的截到这么多字
   worker_compact_to_chars: 20000 # C18: 一次截到这个总量以下，给后面的步留余量（否则每一步都改前缀、都要重读整个 body）
   worker_tiny_tool_chars: 200  # C21: 截到 1500 字还到不了 goal 时，更老的结果收成一行（前 200 字 + 标记）
-  worker_result_chars: 8000   # 每条工具结果最多带这么多字进上下文（0 = 不限）
+  worker_result_chars: 3000   # C22: 每条结果进上下文时截到这么多字（头 70% + 尾 30%，中间标出切了多少；0 = 不限）
+                               # 只改刚回来的那一条，正文因此总是上一次的原样延长，缓存整段命中：模拟 22 步 $0,1499 → $0,1180
   watchdog_interval_s: 15
   approval_timeout_s: 1800   # 写操作等待确认的时限，超时按拒绝
   turn_cost_guard: 3.0          # 一轮比过去 7 天的中位数贵这么多倍就不再调工具（0 = 关掉），见 memory.turn_cost_cap

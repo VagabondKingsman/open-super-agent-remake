@@ -88,6 +88,23 @@ def tiered_cut(msgs):
             break
 
 
+CAP = 2000
+
+
+def cap_cut(msgs):
+    """C22候选：新结果一到就截，永不改已经发出去的正文 —— 正文因此永远是“原样延长”。"""
+    i = len(msgs) - 1
+    c = msgs[i]["content"]
+    if len(c) > CAP:
+        msgs[i]["content"] = c[:CAP] + MARK
+
+
+def cap_tiered(msgs):
+    """C22 落地版：新结果一到就截（不改旧正文），总量真的很大时才退回 C21 的两层压缩。"""
+    cap_cut(msgs)
+    tiered_cut(msgs)
+
+
 def run(policy, steps, rng):
     msgs = [{"role": "system", "content": "x" * SYSTEM_CHARS},
             {"role": "user", "content": "y" * GOAL_CHARS}]
@@ -113,6 +130,15 @@ def run(policy, steps, rng):
     return breaks, cost, miss_tokens
 
 
+def one(name, policy, tasks, steps):
+    rng = random.Random(7)
+    rows = [run(policy, steps, rng) for _ in range(tasks)]
+    breaks = sum(r[0] for r in rows) / tasks
+    cost = sum(r[1] for r in rows) / tasks
+    miss = sum(r[2] for r in rows) / tasks
+    print(f"{name:<20} breaks/task {breaks:5.1f}   miss {miss:8.0f} tok   ${cost:6.4f}/task")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--tasks", type=int, default=200)
@@ -121,13 +147,27 @@ def main():
     a = ap.parse_args()
     global FIXED
     FIXED = a.fixed
-    for name, policy in (("C8  cũ", old_cut), ("C18 hiện tại", new_cut), ("C21 hai tầng", tiered_cut)):
-        rng = random.Random(7)
-        rows = [run(policy, a.steps, rng) for _ in range(a.tasks)]
-        breaks = sum(r[0] for r in rows) / a.tasks
-        cost = sum(r[1] for r in rows) / a.tasks
-        miss = sum(r[2] for r in rows) / a.tasks
-        print(f"{name:<14} breaks/task {breaks:5.1f}   miss {miss:8.0f} tok   ${cost:6.4f}/task")
+    one("C8  cũ", old_cut, a.tasks, a.steps)
+    one("C18 một tầng", new_cut, a.tasks, a.steps)
+    one("C21 hai tầng", tiered_cut, a.tasks, a.steps)
+    global CAP
+    print("  -- KEEP quyết định sàn của tầng 2 (KEEP × kết quả dài nhất) --")
+    for k in (1, 2, 3, 4, 5):
+        global KEEP
+        KEEP = k
+        tiered_cut.__globals__["KEEP"] = k
+        one(f"C21 KEEP={k}", tiered_cut, a.tasks, a.steps)
+    print("  -- cắt ngay khi thêm vào, không bao giờ sửa lại --")
+    for cap in (1000, 2000, 3000, 4000, 6000):
+        cap_cut.__globals__["CAP"] = cap
+        one(f"C22 cap={cap}", cap_cut, a.tasks, a.steps)
+    print("  -- cap=3000 + nén dự phòng khi thân bài thật lớn --")
+    cap_cut.__globals__["CAP"] = 3000
+    for at in (60000, 100000, 150000, 250000):
+        cs_globals = cap_tiered.__globals__
+        cs_globals["COMPACT_AT"] = at
+        one(f"C22 cap=3000 at={at // 1000}k", cap_tiered, a.tasks, a.steps)
+    cs_globals["COMPACT_AT"] = 60000
 
 
 if __name__ == "__main__":

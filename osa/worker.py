@@ -401,6 +401,23 @@ def _history(task: Task, label: str) -> list:
 
 SHORTENED = "\n… (shortened to keep the context small; call the tool again if you need the rest)"
 OMITTED = "\n… (earlier result omitted; call the tool again if you need it)"
+CUT = "\n… ({n} chars cut here; call the tool again, or narrow the command, if you need the middle) …\n"
+
+
+def _cut_result(out: str, cap: int) -> str:
+    """C22：结果一到就截短，头尾都留。
+
+    只改“刚回来的这一条”，所以下一次请求的正文永远是这一次的原样延长 —— 模型服务整段命中缓存。
+    而 _compact_tools 改的是已经发出去的结果：改哪一条，就从那一条起把整个 body 重读一遍（4 倍价钱）。
+    模拟（scripts/compact_sim.py，30 步、真实结果尺寸、真实单价）：每个任务 1,5 次断点、$0,2155
+    → 0 次断点、$0,1938（cap=3000）。留尾是因为命令的错通常写在最后几行，只留头会把 traceback 的
+    尾巴切掉，模型只好把同一条命令再跑一遍。
+    """
+    if not cap or cap < 400 or len(out) <= cap:
+        return out
+    tail = max(200, cap * 3 // 10)
+    head = cap - tail
+    return out[:head] + CUT.format(n=len(out) - cap) + out[-tail:]
 
 
 def _compact_tools(msgs: list[dict]) -> int:
@@ -505,8 +522,8 @@ async def _run_worker(task: Task, goal: str, label: str = "") -> str:
         history = _history(task, label)
         ran, blocked = await _run_calls(task, log, m["tool_calls"], env, history)
         for call, (out, got) in zip(m["tool_calls"], ran):
-            cap = int(CFG["limits"].get("worker_result_chars", 8000) or 0)
-            msgs.append({"role": "tool", "tool_call_id": call["id"], "content": out[:cap] if cap else out})
+            cap = int(CFG["limits"].get("worker_result_chars", 3000) or 0)
+            msgs.append({"role": "tool", "tool_call_id": call["id"], "content": _cut_result(out, cap)})
             shots += got
         if not label:
             task.recent_calls = list(history)

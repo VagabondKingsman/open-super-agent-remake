@@ -186,7 +186,7 @@ là số lần cả body bị đọc lại) và `--bodies <thư mục>` (chỗ �
 ### C20: một task chết trong im lặng — lần thứ hai
 
 Task #247 sau lần gọi thứ 8: x.ai trả header 200 lúc 11:36:17, rồi **189 giây không một khối nào**.
-`task_steps` không có dòng nào, `llm_calls` cũng không, cuối cùng Watchdog hủy vì “3 分钟没有进展”.
+`task_steps` không có dòng nào, `llm_calls` cũng không, sau 3 phút Watchdog hủy vì “3 phút không có tiến triển”.
 Đúng cái đã gặp ở #212 (C19), nhưng lần này có bằng chứng: mọi giới hạn (header 120, khối đầu 170
 giây) đều **đã** nằm trong khoảng 189 giây đó mà không cái nào nổ.
 
@@ -205,9 +205,9 @@ thử lại, chạy tiếp tới hết (hai dòng 0/0 token rồi body nối ti�
 
 ### C21: nén hai tầng (mô phỏng trước, sửa sau)
 
-C18 cắt một lần cho tới `worker_compact_to_chars` = 20000 — nhưng goal tính trên tổng工具结果, mà
+C18 cắt một lần cho tới `worker_compact_to_chars` = 20000 — nhưng goal tính trên tổng kết quả tool, mà
 **3 kết quả mới nhất** đã 24 000 ký tự (kết quả 5–8k rất phổ biến: 163/364 dòng `task_steps`), nên
-sau khi cắt hết mức body vẫn trên ngưỡng: mỗi bước chỉ cắt được cái mới đến → một bước một断点.
+sau khi cắt hết mức body vẫn trên ngưỡng: mỗi bước chỉ cắt được cái mới đến → một bước một điểm đứt.
 
 Mô phỏng (`scripts/compact_sim.py`, phân bố độ dài lấy từ `task_steps`, giá thật hit 0,50 /
 miss 2,02 $/Mtok, 30 bước/task):
@@ -229,6 +229,39 @@ body 65 323 → 34 640 ký tự khi nén (trước C21: 65 567 → 47 897), **3 
 cao hơn goal 20 000 — muốn xuống nữa phải giảm `worker_keep_full_tools`, đổi lại model mất mấy
 kết quả gần nhất; chưa làm vì 3 bước gần nhất là thứ model hay dùng nhất. Task cũng chạy hết
 22 bước và trả lời, không bị hủy — C20 giữ đúng.
+
+### C22: cắt ở lúc thêm vào, không sửa lại lịch sử
+
+C21 còn 3 điểm đứt mỗi 22 bước, và một bảng quét cho thấy cái núm tôi định vặn không phải là núm ăn tiền:
+trong mô phỏng, `worker_keep_full_tools` từ 1 đến 5 cho cùng 1,5 điểm đứt/task ($0,2155 → $0,2196),
+vì sàn của tầng hai là `keep × kết quả` nên đổi keep gần như không đổi tổng. Cái quyết định là **điểm đứt**:
+mỗi lần sửa một tin đã gửi thì từ tin đó trở đi cả body bị đọc lại (giá miss gấp 4 lần hit).
+
+Vậy thử luật ngược lại: **chỉ cắt tin vừa mới về, không bao giờ sửa tin đã gửi** — body luôn là phần mở rộng
+nguyên văn của lần trước, nhà cung cấp phục vụ cả body từ cache, 0 điểm đứt. Mô phỏng (`compact_sim.py`,
+22 bước/task, phân bố độ dài thật, giá thật):
+
+| chính sách | điểm đứt/task | token miss | $/task |
+|---|---|---|---|
+| C21 hai tầng (hiện tại) | 0,9 | 25 520 | $0,1499 |
+| C22 cắt 2000 | 0 | 11 387 | **$0,0946** |
+| C22 cắt 3000 | 0 | 14 612 | **$0,1180** |
+| C22 cắt 4000 | 0 | 17 368 | $0,1381 |
+| C22 cắt 6000 | 0 | 21 735 | $0,1699 |
+
+Đã lấy cắt 3000 (`worker_result_chars`), vì đây là chỗ đánh đổi năng lực: model mất phần giữa của kết quả
+dài, đổi lại rẻ hơn 21% và mỗi kết quả còn thấy được cả **đuôi** — trước đây cắt 8000 chỉ giữ đầu, nên lỗi
+in ở cuối output (traceback) bị cắt mất và model phải chạy lại lệnh. Marker ghi rõ “cắt bao nhiêu ký tự ở giữa,
+cần thì gọi lại tool hoặc thu hẹp lệnh”. Tầng hai của C21 vẫn còn làm lưới an toàn cho task rất dài.
+
+Đo trên bản chạy thật: task #261 (6 lần gọi, thao tác máy ảo) và #265 (4 lần gọi, `run_code`), cả hai **không có
+lần nào chỉ hit 1152** ngoài lần đầu — body mỗi lần là phần mở rộng của lần trước, `cache_miss` đúng bằng
+kết quả mới (527, 1 172, 585 token). Test `tests/test_result_cap.py`: cắt giữ đầu + đuôi, đếm đúng số ký tự
+đã cắt, và tính chất cache (thêm một kết quả đã cắt không đổi một tin nào phía trước).
+
+Một phát hiện phụ khi chạy thật: `run_code` chạy trong sandbox nên **không thấy** `/home/boxes/osa` (chỉ có thư mục
+làm việc và hệ thống). Task bảo worker đọc repo sẽ trả lời “file not found” — đúng thiết kế cách ly, nhưng cần
+biết khi giao việc cho worker về chính repo này.
 
 ## Rủi ro & lối thoát
 
