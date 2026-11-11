@@ -129,6 +129,25 @@ nhỏ thì bot thấy ít lịch sử hơn, và mọi chính sách cắt theo ng
 Cách đo lần sau (đừng đoán): `printf '<thư mục>' > $OSA_DATA_DIR/prompt-dump` bật ghi nguyên văn từng body, chạy
 một lượt có tool, rồi so từng cặp body liền nhau — tìm ra đúng tin đầu tiên khác nhau.
 
+### C18: worker cũng phải giữ được cache (đo 11/11)
+
+Trong cùng một task, worker gọi model 5–30 lần, mỗi lần gửi lại toàn bộ lịch sử. Đo trên DB: 135 lần gọi
+worker đã tiêu 4,02 $ (hơn cả router), trong đó **1,03M token là miss (25%)**; riêng 21 lần gọi giữa task
+chỉ trúng 1152 token — 559k token miss, ~0,85 $ (21% tiền worker) trả cho việc đọc lại một body vừa gửi xong.
+
+Nguyên nhân: `_compact_tools` (C8) và `prune_images` cắt bớt lịch sử cũ, nhưng cắt *mỗi bước một ít*:
+- `_compact_tools` tính tổng chỉ trên các kết quả dài, mà bản đã cắt (1500 ký tự + dòng ghi chú) vẫn “dài”, nên
+  sau khi cắt xong tổng vẫn quanh ngưỡng 60k → bước sau lại vượt, lại cắt đúng một tin (cô lập “3 tin cuối” trượt
+  từng bước) → **bước nào cũng đổi tiền tố**.
+- `prune_images(keep=2)` thay ảnh cũ ngay khi có ảnh thứ 3 → mỗi ảnh mới là một lần đổi tiền tố.
+
+Đã sửa: cắt một lần cho tới khi tổng ≤ `worker_compact_to_chars` (mới, 20k) — một lần cắt đổi lấy nhiều bước
+trúng; ảnh chỉ thay khi đã có `keep + 4` tấm; thêm `worker_result_chars` (8000) thành cấu hình thay cho số 8000
+viết cứng. Test: một lần cắt phải để tổng dưới ngưỡng và hai bước sau không được đụng vào lịch sử; ảnh phải
+được thay theo lô; bản đã cắt không bị cắt hai lần.
+Đo lại sau khi có ~20 task mới: `select role, cache_hit, cache_miss from llm_calls where role='worker'` —
+mong đợi miss% của worker giảm từ 25% xuống dưới 15%, và không còn dãy lần gọi nào chỉ trúng 1152.
+
 ## Rủi ro & lối thoát
 
 - Sửa prompt (A2) có thể đổi "tính cách" bot → giữ song song 1 turn mẫu trước/sau, so 5 câu trả lời.
