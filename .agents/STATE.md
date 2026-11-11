@@ -14,6 +14,10 @@ Snapshot sau merge PR #50 và #51, 11/11/2026 23:16 Asia/Saigon. Phiên mới ph
 
 Phần dưới là snapshot 10/11 và các mục bổ sung. Câu "chưa merge" trong đó là lúc viết.
 
+## Bổ sung · menu bot · cursor · 11/11/2026
+
+Nhánh `cursor/bot-context-menu-efeb`, chưa vào `i18n-vi`. ID bot là số gán lúc tạo (`bots._next_id`), hiện trong Chi tiết và sao chép được. Menu thanh bên thêm đánh dấu chưa đọc, ẩn, sửa chi tiết, xóa. Bot chính vẫn không xóa được.
+
 # Trạng thái 10/11/2026
 
 Snapshot lúc 22:20 Asia/Saigon (UTC+7), viết sau khi PR #41 merge.

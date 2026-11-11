@@ -42,6 +42,7 @@ a { color: var(--link); text-decoration: none; } a:hover { text-decoration: unde
 .menu { position: absolute; right: 0; top: 36px; z-index: 20; background: var(--bg3); border: 1px solid var(--line); border-radius: 12px; padding: 6px; min-width: 170px; box-shadow: 0 12px 32px rgba(0,0,0,.35); }
 .menu button { display: flex; justify-content: space-between; width: 100%; text-align: left; padding: 8px 10px; border-radius: 8px; }
 .menu button:hover:not(:disabled) { background: var(--line); }
+.menu button.danger { color: var(--bad); }
 .soon { font-size: 11px; color: var(--fg3); }
 .chat-list { flex: 1; overflow-y: auto; padding: 4px 8px; }
 .chat-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; border-radius: 12px; text-align: left; }
@@ -60,7 +61,13 @@ a { color: var(--link); text-decoration: none; } a:hover { text-decoration: unde
 .pin-av .badge { position: absolute; top: -5px; right: -9px; box-shadow: 0 0 0 2px var(--bg2); }
 .pin-name { max-width: 100%; font-size: 11.5px; color: var(--fg2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pin-item.active .pin-name { color: var(--fg); }
-.ctx-menu { position: fixed; right: auto; z-index: 60; min-width: 140px; }
+.ctx-menu { position: fixed; right: auto; z-index: 60; min-width: 210px; }
+.chat-item, .pin-item { -webkit-touch-callout: none; }
+.id-line { display: flex; align-items: center; gap: 8px; }
+.id-line input { flex: 1; min-width: 0; }
+.hidden-bots { margin: 4px 8px 8px; display: flex; flex-direction: column; min-height: 0; max-height: 32vh; }
+.hidden-bots > .side-link { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 6px 8px; flex: none; }
+.hidden-list { overflow-y: auto; min-height: 0; }
 .head-actions .icon-btn.on { color: var(--fg); } .head-actions .icon-btn.on .icon { fill: currentColor; }   /* 已置顶：实心图钉 */
 .side-bottom { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-top: 1px solid var(--line); }
 .side-link { color: var(--fg2); font-size: 14px; } .side-link:hover { color: var(--fg); }

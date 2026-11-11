@@ -355,6 +355,17 @@ async def pin_chat(chat_id: int, data: dict = Body(...)):
     return c
 
 
+@app.post("/api/chats/{chat_id}/unread")
+async def mark_chat_unread(chat_id: int, data: dict = Body(...)):
+    """{"unread": true|false}。侧栏把这个对话标成未读，或打开时清掉。"""
+    try:
+        c = bots.set_unread_mark(chat_id, bool(data.get("unread")))
+    except ValueError as e:
+        _err(e)
+    await broadcast({"type": "bots_changed"})
+    return c
+
+
 @app.delete("/api/chats/{chat_id}")
 async def delete_group(chat_id: int):
     """删群聊，或删 Bot 自己的那个之外的一个私聊；Bot 自己的私聊随 Bot 一起删（见 bots.delete）。"""
