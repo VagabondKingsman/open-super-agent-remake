@@ -128,9 +128,28 @@ Tools you can use in this turn. This list decides what you can do: if you said e
 FAKE_DISPATCH_RE = re.compile(r"#(\d{1,9})\b")
 SENTENCE_RE = re.compile(r"(?<=[.!?])\s+|[\n。！？；;]")
 CLAIM_WORDS = re.compile(r"派|任务|giao|tác vụ|nhiệm vụ|dispatch|task|assign", re.I)
+# C10: B1 only looks when the reply carries a "#N", and live missed two claims without one (chat 1, messages 118
+# "Đã giao worker chạy…" and 120 "Đã gọi `dispatch`": neither turn called a single tool, tasks was empty).
+# A sentence that says the work was already handed to the Worker (or that dispatch was called), with no task number,
+# no negation, and no task dispatched this turn: treat it as a claim about something that did not happen — give one
+# round with tools; if it still dispatches nothing, append a correction.
+DISPATCH_CLAIM_RE = re.compile(
+    r"已(?:经)?(?:派发|派出|派给|派好|派了|派)"
+    r"|(?:派发|派|交给|转给|让)(?:给|了)?\s*(?:worker|后台任务|后台)"
+    r"|đã\s*(?:gọi\s*`?dispatch`?|(?:giao|đưa|chuyển|đẩy)(?:\s*(?:việc|tác vụ|cho|sang|worker))?|dispatch)"
+    r"|\b(?:i(?:'ve| have)?|have|has|already)\s*(?:just\s*)?(?:dispatched|assigned|handed)"
+    r"|\bsent\s+(?:it|this|the\s+(?:task|work|job))\s+(?:to\s+)?(?:the\s+)?(?:worker|background)",
+    re.I)
+# "chưa giao" "还没有派" "haven't dispatched" say nothing was dispatched, so they are not claims
+DISPATCH_UNCLAIMED_RE = re.compile(r"chưa|không|haven't|hasn't|didn't|did not|没有|没|还不|尚未|not yet", re.I)
+# 同一句里已经在说结果回来了/做完了（“kết quả đã về”“已经完成”“the result is in”）：那是在讲之前真派过的任务
+DISPATCH_RESULT_RE = re.compile(r"kết quả|đã xong|hoàn thành|已完成|结果|finished|already done|result (?:is|was) (?:in|back)", re.I)
 FAKE_DISPATCH_NOTE = ("(System, not the user: your reply says task {ids} was dispatched, but you did not call the dispatch tool "
                       "in this turn and no such task exists. Saying it does not start anything. If the user wants this work done, "
                       "call dispatch now. Otherwise tell the user plainly that nothing was dispatched.)")
+CLAIM_NO_CALL_NOTE = ("(System, not the user: your reply says the work was already handed to the Worker — or that you called "
+                      "dispatch — but this turn made no dispatch tool call, so nothing is running. Saying it does not start "
+                      "anything. Call dispatch now with the goal, or tell the user plainly that nothing was dispatched yet.)")
 
 GROUP_PROMPT = """
 
@@ -634,6 +653,21 @@ class Router:
         await self.emit({"type": "stream_start", "sid": sid}, cid)
         try:
             rounds_used, content, reasoning = await rounds()
+            # C10：说“已经交给 worker 了”却没带任务号，而这一轮一次都没派（也没有正在跑的任务可以指）。
+            # 给一次带工具的机会真的去派；仍然没派就补一句更正，并在记录里标成通知。
+            claimed_no_call = False
+            if (not self._turn_tasks and not self.tasks and self._dispatch_claim_without_id(shown)):
+                msgs.append({"role": "assistant", "content": content, "reasoning_content": reasoning})
+                msgs.append({"role": "user", "content": CLAIM_NO_CALL_NOTE})
+                if not shown.endswith("\n"):
+                    shown += "\n\n"
+                    await self.emit({"type": "stream", "sid": sid, "delta": "\n\n"}, cid)
+                rounds_used, content, reasoning = await rounds()
+                if not self._turn_tasks:
+                    claimed_no_call = True
+                    fix = i18n.t("（更正：这一轮还没真的派出任务，上面说已经交给 worker 是不对的。）")
+                    shown = shown.rstrip() + "\n\n" + fix
+                    await self.emit({"type": "stream", "sid": sid, "delta": "\n\n" + fix}, cid)
             # B1：没派任务却说“已派发任务 #N”、而 #N 根本不存在。给一次带工具的机会真的去派；仍然没有就在后面补一句更正
             if not self._turn_tasks and (fake := self._fake_dispatch_ids(shown)):
                 msgs.append({"role": "assistant", "content": content, "reasoning_content": reasoning})
@@ -672,6 +706,7 @@ class Router:
                        **({"usage": usage_meta} if usage_meta else {}),
                        **({"lang_flag": flag} if flag else {}),
                        **({"fabricated_task_ids": fake} if fake else {}),
+                       **({"claimed_dispatch": True} if claimed_no_call else {}),
                        **({"cost_guard": self._turn_capped} if self._turn_capped else {}),
                        **({"attachments": self._turn_files} if self._turn_files else {}))
         return shown.strip()
@@ -694,6 +729,17 @@ class Router:
             ids).fetchall()
         real |= {r[0] for r in rows}
         return [i for i in ids if i not in real]
+
+    def _dispatch_claim_without_id(self, text: str) -> bool:
+        """C10：回复说“已经交给 worker / 已经调了 dispatch”，却没带任务号（带号的归 _fake_dispatch_ids 管）。
+        只看同一句话；否定句（“chưa giao”“还没有派”）和已经在讲结果的句子不算。"""
+        for sentence in SENTENCE_RE.split(text or ""):
+            if (FAKE_DISPATCH_RE.search(sentence) or DISPATCH_UNCLAIMED_RE.search(sentence)
+                    or DISPATCH_RESULT_RE.search(sentence)):
+                continue
+            if DISPATCH_CLAIM_RE.search(sentence):
+                return True
+        return False
 
 
     def _turn_woke(self) -> dict | None:

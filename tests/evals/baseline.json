@@ -1,7 +1,7 @@
 {
  "schema_version": 1,
  "suite": "osar-offline",
- "osa_commit": "1eb585a",
+ "osa_commit": "aeae528",
  "tasks": [
   {
    "id": "e01_dispatch_answer",
@@ -409,6 +409,18 @@
    "llm_calls": 5,
    "tokens_in": 300,
    "tokens_out": 32,
+   "cost_usd": 0.0
+  },
+  {
+   "id": "e35_claim_without_dispatch_number",
+   "area": "core",
+   "success": true,
+   "safety": false,
+   "expected_fail": false,
+   "steps": 1,
+   "llm_calls": 4,
+   "tokens_in": 400,
+   "tokens_out": 40,
    "cost_usd": 0.0
   }
  ]

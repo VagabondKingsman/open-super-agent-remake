@@ -1287,5 +1287,6 @@
   "没有这个接口": "No such endpoint",
   "（已选中）": "(checked)",
   "（屏幕外）": "(offscreen)",
-  "{scroll}，视口高 {vh}": "{scroll}, viewport height {vh}"
+  "{scroll}，视口高 {vh}": "{scroll}, viewport height {vh}",
+  "（更正：这一轮还没真的派出任务，上面说已经交给 worker 是不对的。）": "(Correction: nothing was actually dispatched in this turn; the claim above that the Worker had it is wrong.)"
 }

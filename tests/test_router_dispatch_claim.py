@@ -111,3 +111,82 @@ async def test_corrective_round_runs_only_once(llm, events, make_bot, vi):
     assert last["meta"]["tasks"] == [] and last["meta"]["fabricated_task_ids"] == [777]
     assert last["content"].rstrip().endswith(i18n.t("（更正：这一轮没有派出任务 {ids}，上面说已派发是不对的。）", ids="#777"))
     assert not find(bot["chat_id"], kind="dispatch")
+
+
+# ---- C10：没带任务号的“已经交给 worker 了” ----
+
+def test_detector_reads_the_three_languages():
+    """live 里漏掉的两条（chat 1 #118、#120）和它们的近亲；否定句、带 #N 的、已经在讲结果的都不算。"""
+    from osa.router import Router
+    claim = lambda t: Router._dispatch_claim_without_id(None, t)
+    for text in ["Đã giao worker chạy đủ 8 lần, mỗi lần in 150 dòng.",
+                 "Đã gọi `dispatch`. Worker sẽ chạy đủ 8 lần rồi tóm tắt.",
+                 "Mình đã chuyển việc này sang worker.",
+                 "Đã chuyển cho worker rồi.",
+                 "已交给 worker 了", "已派发，worker 正在跑",
+                 "I've dispatched it to the worker.", "Already dispatched, the worker is on it."]:
+        assert claim(text), text
+    for text in ["Chưa giao cho worker, để mình hỏi lại.",
+                 "Tôi sẽ giao worker chạy 8 lần.",
+                 "Tác vụ #12 đã giao xong.",
+                 "Đã giao worker, kết quả đã về rồi.",
+                 "Hôm nay là ngày 11 tháng 11, 17×23 = 391.",
+                 "已派发任务 #12"]:
+        assert not claim(text), text
+
+
+async def test_numberless_claim_gets_corrective_round_that_really_dispatches(llm, events, make_bot, vi):
+    """活还没派就说“Đã giao worker…”，修复轮真的调了 dispatch：不留更正句，记正常的 tasks。"""
+    bot = make_bot("ClaimE")
+    name = f"router:{bot['name']}"
+    llm.script(name, "Đã giao worker chạy 8 lần, mỗi lần in 150 dòng. Kết quả sẽ về khi xong.",
+               Call("dispatch", {"goal": "chạy run_code 8 lần"}), "Giờ đã giao thật.")
+    llm.script("worker", "xong")
+    await server.safe_handle(_chat(bot), "Giao cho worker: chạy run_code 8 lần")
+    await until(lambda: find(bot["chat_id"], kind="result"), what="kết quả task")
+    await settle()
+
+    reqs = llm.bodies("router", bot["name"])
+    assert len(reqs) == 3 and reqs[1].get("tools")          # 说是说、修复轮调 dispatch、再收尾
+    assert "no dispatch tool call" in reqs[1]["messages"][-1]["content"]
+    assert len(find(bot["chat_id"], kind="dispatch")) == 1
+    reply = _replies(bot)[-1]
+    assert reply["meta"]["tasks"] == [_dispatch_id(bot)]
+    assert "claimed_dispatch" not in reply["meta"]
+    assert "Đính chính" not in reply["content"]
+
+
+async def test_numberless_claim_twice_appends_correction_and_history_notice(llm, events, make_bot, vi):
+    bot = make_bot("ClaimF")
+    name = f"router:{bot['name']}"
+    llm.script(name, "Đã gọi `dispatch`. Worker sẽ chạy 8 lần rồi tóm tắt.",
+               "Đã giao worker rồi nhé.", "không được dùng tới")
+    await server.safe_handle(_chat(bot), "Giao cho worker: chạy run_code 8 lần")
+    await settle()
+
+    assert len(llm.bodies("router", bot["name"])) == 2      # 只修一次
+    last = _replies(bot)[-1]
+    assert last["meta"]["tasks"] == [] and last["meta"]["claimed_dispatch"] is True
+    assert last["content"].rstrip().endswith(i18n.t("（更正：这一轮还没真的派出任务，上面说已经交给 worker 是不对的。）"))
+    assert not find(bot["chat_id"], kind="dispatch")
+
+    llm.script(name, "Bạn cần gì nữa?")
+    await server.safe_handle(_chat(bot), "còn gì không")
+    await settle()
+    ctx = llm.bodies("router", bot["name"])[-1]["messages"]
+    assert not any(m["role"] == "assistant" and "never called the dispatch tool" in (m.get("content") or "") for m in ctx)
+    assert any(m["role"] == "user" and "never called the dispatch tool" in str(m.get("content")) for m in ctx)
+
+
+async def test_real_dispatch_in_the_same_turn_is_not_corrected(llm, events, make_bot, vi):
+    """同一轮真的派了任务，然后说“Đã giao worker chạy rồi”：不该再修一轮。"""
+    bot = make_bot("ClaimG")
+    llm.script(f"router:{bot['name']}", Call("dispatch", {"goal": "việc"}), "Đã giao worker chạy rồi.")
+    llm.script("worker", "xong")
+    await server.safe_handle(_chat(bot), "làm đi")
+    await until(lambda: find(bot["chat_id"], kind="result"), what="kết quả")
+    await settle()
+    assert len(llm.bodies("router", bot["name"])) == 2      # 调工具 + 收尾，没有修复轮
+    reply = _replies(bot)[-1]
+    assert reply["meta"]["tasks"] and "claimed_dispatch" not in reply["meta"]
+    assert "Đính chính" not in reply["content"]

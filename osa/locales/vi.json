@@ -1218,5 +1218,6 @@
   "没有这个接口": "Không có endpoint này",
   "（已选中）": "(đã chọn)",
   "（屏幕外）": "(ngoài màn hình)",
-  "{scroll}，视口高 {vh}": "{scroll}, cao {vh}"
+  "{scroll}，视口高 {vh}": "{scroll}, cao {vh}",
+  "（更正：这一轮还没真的派出任务，上面说已经交给 worker 是不对的。）": "(Đính chính: lượt này chưa thật sự giao tác vụ nào, câu nói ở trên rằng đã giao cho worker là sai.)"
 }

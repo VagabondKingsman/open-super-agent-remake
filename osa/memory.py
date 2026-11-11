@@ -256,6 +256,11 @@ def context(chat_id: int, viewer: int | None = None, me: int | None = None, imag
             msgs.append({"role": "user", "content": f"(system notice: this is your earlier reply. It claimed task {ids} was dispatched, "
                                                     f"but no dispatch tool call was made and that task never existed. Do not repeat this; "
                                                     f"tasks start only by calling dispatch){c}"})
+        elif r == "assistant" and meta.get("claimed_dispatch"):
+            # C10：这条回复说已经交给 worker 了，那一轮其实没调 dispatch。改成通知形式，免得模型把“已经派出去了”当既成事实接着讲
+            msgs.append({"role": "user", "content": "(system notice: this is your earlier reply. It said the work had been handed to the Worker, "
+                                                    "but that turn never called the dispatch tool, so nothing was running. Tasks start only "
+                                                    "by calling dispatch)" + c})
         elif r == "assistant" and "reasoning" in meta:
             # DeepSeek 思考模式：请求带工具时，历史回复的 reasoning_content 必须原样传回
             m = {"role": "assistant", "content": c}

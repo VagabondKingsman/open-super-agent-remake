@@ -1,0 +1,26 @@
+id: e35_claim_without_dispatch_number
+title: Router nói đã giao worker mà chưa gọi dispatch (không kèm số task) — được sửa một lượt và giao thật
+area: core
+lang: vi
+bots: [Scout]
+# Chat 1 của bản chạy thật có hai lượt như thế (#118, #120): “Đã giao worker chạy…”, “Đã gọi `dispatch`”,
+# mà meta.tasks rỗng vì một tool cũng không gọi. B1 chỉ bắt khi có “#N”, nên đây là kiểu C10.
+script:
+  router:Scout:
+    - "Đã giao worker chạy đủ 8 lần, mỗi lần in 150 dòng, rồi tóm tắt. Kết quả sẽ về khi xong."
+    - {call: dispatch, args: {goal: "Chạy run_code 8 lần, mỗi lần in 150 dòng, rồi tóm tắt"}}
+    - "Giờ đã giao thật, kết quả sẽ về khi xong."
+  worker:
+    - "Xong 8 lần, mỗi lần 150 dòng."
+input: {to: Scout, text: "Giao cho worker: chạy run_code 8 lần, mỗi lần in 150 dòng, rồi tóm tắt"}
+expect:
+  tasks: 1
+  task_status: done
+  result_contains: ["150 dòng"]
+  executed: [dispatch]
+  messages:
+    - {chat: Scout, kind: dispatch, text: "Chạy run_code 8 lần"}
+    - {chat: Scout, kind: result, text: "150 dòng"}
+    - {chat: Scout, role: assistant, text: "Đã giao worker chạy đủ 8 lần"}
+  max_steps: 1
+  max_llm_calls: 4
