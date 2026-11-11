@@ -1,6 +1,21 @@
-# Trạng thái hiện tại · 10/11/2026
+# Trạng thái hiện tại · 11/11/2026
 
-Snapshot lúc 22:20 Asia/Saigon (UTC+7), viết sau khi PR #41 merge. Phiên mới phải `git fetch origin` và `git rev-parse origin/i18n-vi` lại. SHA mới hơn thì đọc log mới hơn file này.
+Snapshot sau release Android `v1.0` và sau khi S22 Ultra đăng nhập được. Phiên mới phải `git fetch origin` và `git rev-parse origin/i18n-vi` lại. SHA mới hơn thì đọc log mới hơn file này.
+
+## Base
+
+- `origin/i18n-vi` đã merge [PR #47](https://github.com/VagabondKingsman/open-super-agent-remake/pull/47) tại `3c631a363382509fd7b96a648e1f46b5f11b67dc`. Head lúc merge `9b931f6`.
+- Version sản phẩm `0.17.0`, nền upstream v0.17.0 (`ec02547`). Tag APK `v1.0` không đổi version Python.
+- APK arm64 debug: SHA-256 `e3cb6a28d4df9917342be429bb50ebf4ba4fc52fa0c73407b183ac93d65df58d`. Release <https://github.com/VagabondKingsman/open-super-agent-remake/releases/tag/v1.0>.
+- `main` trên GitHub vẫn `a30e3cc`. Luôn làm trên `i18n-vi` (AUDIT-F11, chờ người có quyền repo).
+- CI PR #47 trên `9b931f6`: backend, frontend, docker SUCCESS. `cargo test --offline --lib` trong `android/src-tauri`: 10 passed.
+- S22 Ultra 11/11/2026: nối `http://osa.taila99125.ts.net/`, đăng nhập, thấy AutoBot và Nova.
+
+Phần dưới là snapshot 10/11 và các mục bổ sung. Câu "chưa merge" trong đó là lúc viết.
+
+# Trạng thái 10/11/2026
+
+Snapshot lúc 22:20 Asia/Saigon (UTC+7), viết sau khi PR #41 merge.
 
 Lịch sử STATE từ 07/11 tới trước phiên deep audit nằm nguyên văn ở [archive/STATE-2026-11-07-den-2026-11-10.md](archive/STATE-2026-11-07-den-2026-11-10.md). Các câu "chưa merge" trong đó là trạng thái lúc viết từng mục.
 
@@ -64,7 +79,7 @@ Chạy trên nhánh `fix/audit-f1-f12` trước khi xuất patch. Cây của `5a
 
 ## Bổ sung · OSA-040 Android văng khi nối · cursor · 11/11/2026
 
-Chưa merge. Branch `cursor/android-connect-crash-efeb`, base `dac00da`.
+Đã merge PR #47 tại `3c631a3`. Head `9b931f6`. S22 Ultra đăng nhập được ngày 11/11/2026. APK release `v1.0`, SHA-256 `e3cb6a28d4df9917342be429bb50ebf4ba4fc52fa0c73407b183ac93d65df58d`. Đoạn dưới là lúc đang làm, trước merge.
 
 Demo trên Linux (xvfb, WebKit): server giả `127.0.0.1:8799`. Lần đầu `add_capability` panic `UnknownManifest { key: "app manifest" }`, khóa ACL bị độc, luồng giao diện abort. Sau khi khai báo lệnh trong `build.rs` và capability `main-setup`, cùng demo ghi `GET /manifest.json` (ureq) rồi `GET /` (WebKit) và process không chết. `cargo test --offline --lib`: 9 passed.
 

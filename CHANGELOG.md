@@ -4,6 +4,7 @@
 
 ## [未发布]
 ### remake
+- Android v1.0 (11/11/2026, PR #47, merge `3c631a3`): vỏ arm64 mở server HTTP, đăng nhập được trên S22 Ultra. Hết văng lúc nối (`add_capability` thiếu manifest app) và lúc sau mật khẩu (`setBadge` để exception JNI rồi thread detach). File cài ở release `v1.0`. Không phải bản Play, ký khóa debug.
 - 审计修复 AUDIT-F1–F12（`fix/audit-f1-f12`）：
   - F1：流的第一块单独限时（`limits.stream_first_chunk_s`，默认 170 秒），`stream_idle_s` 只算第一块之后两块之间，想得久的模型不再在出第一个字之前被当成卡住。
   - F2：Router 重来前发 `stream` 的 `reset`，网页清掉已显示的思考，不再出现两遍；Worker 和 Router 作废那一次的用量照记（没有 usage 按文字估算，`estimated=1`）。

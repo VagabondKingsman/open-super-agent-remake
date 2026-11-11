@@ -17,7 +17,9 @@ Repo: `VagabondKingsman/open-super-agent-remake`. Base: `i18n-vi`. Upstream `kad
 
 ## Head hiện tại
 
-Đối chiếu 10/11/2026 22:20 Asia/Saigon: `origin/i18n-vi = 5a1e0e7`, merge [PR #41](https://github.com/VagabondKingsman/open-super-agent-remake/pull/41). Version `0.17.0`. CI trên PR #41 xanh cả ba job (backend, frontend, docker). Số test và trạng thái box ở [STATE](STATE.md). Phiên sau chạy `git fetch` và `git rev-parse origin/i18n-vi`. SHA mới hơn thì đọc log mới hơn.
+Đối chiếu 11/11/2026, sau khi Royan xác nhận S22 Ultra đăng nhập được: `origin/i18n-vi` đã có merge [PR #47](https://github.com/VagabondKingsman/open-super-agent-remake/pull/47) tại `3c631a363382509fd7b96a648e1f46b5f11b67dc`, head lúc merge `9b931f6`. Version sản phẩm vẫn `0.17.0`. Tag APK Android là `v1.0`. Phiên sau chạy `git fetch` và `git rev-parse origin/i18n-vi`. SHA mới hơn thì đọc log mới hơn.
+
+Release: <https://github.com/VagabondKingsman/open-super-agent-remake/releases/tag/v1.0>. File `OpenSuperAgent-v1.0-arm64-debug.apk`, SHA-256 `e3cb6a28d4df9917342be429bb50ebf4ba4fc52fa0c73407b183ac93d65df58d`. Ký debug, arm64, `resources.arsc` không nén.
 
 `main` là default branch trên GitHub nhưng đứng ở `a30e3cc` (AUDIT-F11, Tin Tin quyết), tổ tiên cũ của `i18n-vi`, không có `.agents/` hay `tests/`. Clone bằng `git clone -b i18n-vi`. Cloud agent hay checkout `main` theo mặc định, phải chuyển sang `i18n-vi` trước khi làm.
 
@@ -118,13 +120,36 @@ Việc đã vào code, rút từ log và từ code ở `c16e6bb`. Thay đổi t�
 
 Live OSA-011 đã có trong repo: [bằng chứng](evidence/osa-011-live-test/LIVE-TEST.md), head lúc chạy `f83e3cb`, Experiential, mọi model đuôi `:free`, cost ghi 0. Bốn lượt chat (vi, en, single, heavy) đều CJK 0. Báo cáo để trạng thái PARTIAL. 14 dòng usage, 116.236 token (`cache_hit` + `cache_miss` + `output`), vượt mục tiêu khoảng 100.000 nên không chạy routine. Guard harness cộng cột `input` thay vì `cache_hit` + `cache_miss`, phải sửa trước đợt sau. Harness dừng websocket vì regex 402 khớp offset 14025. Log server không có 402. `results.json` còn heavy `running` ở 60,38 giây. `summary.json` ghi heavy PASS 124 giây. Thư mục `raw/` không đưa vào git. Câu `NOT_CHECKED` trong log OSA-011 là lời lúc mở PR #13.
 
-## Còn lại
+## Đã xử lý, chốt 11/11/2026
 
-OSA-040 (chưa merge, [PR #47](https://github.com/VagabondKingsman/open-super-agent-remake/pull/47)): app Android văng lúc nối server. Nguyên nhân trên demo Linux là `add_capability` panic vì chưa có manifest app. Emulator x86_64 đã nối HTTP, mở lại, và địa chỉ chết mà không FATAL. APK arm64 đã ký, chưa cài điện thoại.
+Bảng dưới là việc đã vào `i18n-vi` hoặc đã có bằng chứng trên máy. Chi tiết lệnh và số test nằm ở log cùng ngày. Câu "chưa merge" trong log cũ là trạng thái lúc viết log đó.
+
+| ID | Kết quả | Bằng chứng |
+|---|---|---|
+| OSA-034 | Vỏ Android, nhớ server, QR pair | PR #31, #32 |
+| OSA-035 | Bỏ `navigate`, hết văng vì hàng đợi 8 chỗ | PR #32, giữ trong PR #47 |
+| OSA-036 | Nút Đổi server không gọi `navigate` | PR #33 |
+| OSA-037 | Trang nổi cùng server, shortcut số chờ duyệt | PR #34 |
+| OSA-038 | Bỏ xfail e27 sau P0-2 | PR #45, merge `dac00da` |
+| OSA-040 | Hết văng lúc nối và lúc đăng nhập | PR #47, merge `3c631a3`, head `9b931f6` |
+| EVAL-SUITE, P0-2 | 27 kịch bản eval, chỉ user duyệt thẻ | PR #44, #43 |
+| AUDIT-F1–F13 trừ F11 | Stream, cửa sổ, script, backup | PR #41 |
+
+OSA-040, việc đã thấy và đã sửa:
+
+- `add_capability` panic `UnknownManifest` vì chưa có manifest app, khóa ACL bị độc, process abort. Đã khai báo lệnh trong `build.rs` và capability `main-setup`.
+- Probe `/manifest.json` trước khi mở trang. Probe cũ không ghi đè probe mới (`ProbeGate`).
+- Sau mật khẩu, SPA gọi `setBadge`. JNI 0.21 không xóa exception. Thread detach thì process chết. `setCount` chạy trên UI thread, Rust gọi `exception_clear`.
+- Emulator API 34 x86_64: nối HTTP, mở lại, địa chỉ chết, không FATAL.
+- S22 Ultra, 11/11/2026: đăng nhập `http://osa.taila99125.ts.net/`, thấy AutoBot và Nova, Cài đặt hiện đúng tên server.
+
+PR #46 (`hoplite/osa-039-android-s22`) vẫn mở. Đụng `lib.rs` và `setup/index.html` sau PR #47. Bản đó còn chấp nhận mọi chứng chỉ LAN. Không nằm trong APK đã cài. Chưa merge.
+
+## Còn lại
 
 Code trên `i18n-vi` là v0.17.0. So với upstream `ec02547` không thiếu file trong `osa/`, `web/`, `tests/`, `desktop/`, `mobile/`. Khác biệt còn lại là của remake: tiếng Việt mặc định, prompt tiếng Anh, chi phí USD, AI Native, và các sửa bảo mật đã merge tới PR #25. Không có plugin. Không có trang Chi phí. `desktop/` và `mobile/` có trong cây, remake không build. Workflow đóng gói app Mac của upstream không có.
 
-Chưa kiểm trên máy thật: Docker Computer E2E, app Mac, điện thoại sau login. Đó là OSA-002 và OSA-007, chưa phải code thiếu.
+Đã kiểm trên điện thoại: vỏ Android arm64, đăng nhập S22 Ultra ngày 11/11/2026. Chưa kiểm trên máy thật: Docker Computer E2E, app Mac, và ma trận rộng 390px của OSA-007. Đó không phải code Android còn thiếu trong PR #47.
 
 Deep audit 10/11 ([log](log/2026-11-10-deep-audit-install.md)) tìm AUDIT-F1 tới F12. Live test lúc sửa tìm thêm F13. Tất cả đã sửa trong PR #41 ([log](log/2026-11-10-audit-fixes.md)), trừ F11 là việc của Tin Tin trên GitHub. Mục còn mở sau PR #41 là các dòng `OPEN-*` trên [BOARD](BOARD.md): đường gọi lại stream chưa xảy ra live, thông báo "0 giây", `docs/docker.md` sẽ xung đột khi merge upstream, các mục `NOT_CHECKED`, và script giữ VM thiếu `Idempotency-Key`.
 
