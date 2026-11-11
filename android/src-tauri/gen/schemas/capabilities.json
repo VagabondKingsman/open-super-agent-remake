@@ -1,1 +1,1 @@
-{}
+{"main-setup":{"identifier":"main-setup","description":"Local setup page. Remote servers get a separate capability at connect time.","local":true,"windows":["main"],"permissions":["core:default","opener:default","allow-setup-state","allow-choose-remote","allow-confirm-pair","allow-cancel-pair","allow-android-open-external","allow-android-switch-server","allow-android-open-sheet","allow-android-set-badge"]}}

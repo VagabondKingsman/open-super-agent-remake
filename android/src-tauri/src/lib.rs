@@ -7,7 +7,6 @@ mod store;
 use serde_json::{json, Value};
 use std::path::PathBuf;
 use std::sync::Mutex;
-use std::time::Duration;
 use tauri::ipc::CapabilityBuilder;
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_opener::OpenerExt;
@@ -44,6 +43,7 @@ pub struct State {
     pair: Mutex<Option<Pair>>,
     error: Mutex<String>,
     next: Mutex<Option<String>>,
+    checking: Mutex<bool>,
 }
 
 fn state(app: &AppHandle) -> tauri::State<'_, State> {
@@ -51,22 +51,47 @@ fn state(app: &AppHandle) -> tauri::State<'_, State> {
 }
 
 fn show_setup(app: &AppHandle, query: &str) {
-    *state(app).origin.lock().unwrap() = None;
+    let st = state(app);
+    *st.origin.lock().unwrap() = None;
+    st.next.lock().unwrap().take();
+    *st.checking.lock().unwrap() = false;
     let _ = query;
-    // The setup page reads setup_state and moves itself. navigate() goes
-    // through wry's Android queue, which holds 8 messages and then panics.
+    // The setup page reads setup_state and moves itself with location.replace.
+    // wry 0.57.2 android/main_pipe.rs uses a bounded(8) channel and blocking send.
+    // WebviewWindow::navigate posts onto that channel. The UI thread drains it,
+    // so a full channel on that thread never returns and Android kills the process.
 }
 
 fn server_pattern(origin: &Url) -> String {
     format!("{}{UI_PATHS}", origin.origin().ascii_serialization())
 }
 
-fn check_remote(origin: &Url) -> Result<(), String> {
-    let agent = ureq::AgentBuilder::new().timeout(Duration::from_secs(15)).build();
-    match agent.get(origin.join("/manifest.json").unwrap().as_str()).call() {
-        Ok(_) => Ok(()),
-        Err(e) => Err(format!("Can't reach this address: {e}")),
+fn begin_probe(app: &AppHandle, origin: Url, ticket: String) {
+    *state(app).checking.lock().unwrap() = true;
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let result = connect::probe(&origin);
+        let st = state(&app);
+        match result {
+            Ok(()) => finish_connect(&app, origin, &ticket),
+            Err(e) => {
+                *st.error.lock().unwrap() = e;
+                show_setup(&app, "");
+            }
+        }
+    });
+}
+
+fn finish_connect(app: &AppHandle, origin: Url, ticket: &str) {
+    {
+        let st = state(app);
+        let mut cfg = st.cfg.lock().unwrap();
+        cfg.url = Some(origin.origin().ascii_serialization());
+        store::save(&st.dir, &cfg);
     }
+    let first = (!ticket.is_empty()).then(|| connect::ticket_url(&origin, ticket));
+    open_server(app, origin, first);
+    *state(app).checking.lock().unwrap() = false;
 }
 
 fn grant(app: &AppHandle, origin: &Url) {
@@ -80,6 +105,7 @@ fn grant(app: &AppHandle, origin: &Url) {
         .remote(server_pattern(origin))
         .local(false)
         .window("main")
+        .permission("core:default")
         .permission("allow-android-open-external")
         .permission("allow-android-switch-server")
         .permission("allow-android-open-sheet")
@@ -96,33 +122,16 @@ fn open_server(app: &AppHandle, origin: Url, first: Option<Url>) {
     grant(app, &origin);
 }
 
-fn connect(app: &AppHandle, origin: Url, ticket: &str) -> Result<(), String> {
-    check_remote(&origin)?;
-    {
-        let st = state(app);
-        let mut cfg = st.cfg.lock().unwrap();
-        cfg.url = Some(origin.origin().ascii_serialization());
-        store::save(&st.dir, &cfg);
-    }
-    let first = (!ticket.is_empty()).then(|| connect::ticket_url(&origin, ticket));
-    open_server(app, origin, first);
-    Ok(())
-}
-
+#[cfg_attr(not(any(target_os = "macos", target_os = "ios", target_os = "android")), allow(dead_code))]
 fn on_pair(app: &AppHandle, pair: Pair) {
     let configured = state(app).cfg.lock().unwrap().url.clone().and_then(|u| connect::normalize(&u));
     if configured.as_ref().is_some_and(|c| c.origin() != pair.server.origin()) {
         *state(app).pair.lock().unwrap() = Some(pair);
         *state(app).next.lock().unwrap() = None;
+        *state(app).checking.lock().unwrap() = false;
         return;
     }
-    let app = app.clone();
-    std::thread::spawn(move || {
-        if let Err(e) = connect(&app, pair.server, &pair.ticket) {
-            *state(&app).error.lock().unwrap() = e;
-            show_setup(&app, "");
-        }
-    });
+    begin_probe(app, pair.server, pair.ticket);
 }
 
 #[tauri::command]
@@ -135,19 +144,24 @@ fn setup_state(app: AppHandle) -> Value {
         "error": st.error.lock().unwrap().clone(),
         "pair": pair.map(|p| p.server.origin().ascii_serialization()),
         "next": st.next.lock().unwrap().clone(),
+        "checking": *st.checking.lock().unwrap(),
     })
 }
 
 #[tauri::command(async)]
 fn choose_remote(app: AppHandle, url: String) -> Result<(), String> {
-    let origin = connect::normalize(&url).ok_or_else(|| "That address doesn't look right, e.g. https://osa.example.com".to_string())?;
-    connect(&app, origin, "")
+    let origin = connect::normalize(&url).ok_or_else(|| "Địa chỉ chưa đúng. Ví dụ http://192.168.1.10:8765".to_string())?;
+    connect::probe(&origin)?;
+    finish_connect(&app, origin, "");
+    Ok(())
 }
 
 #[tauri::command(async)]
 fn confirm_pair(app: AppHandle) -> Result<(), String> {
     let pair = state(&app).pair.lock().unwrap().take().ok_or("no pending pair")?;
-    connect(&app, pair.server, &pair.ticket)
+    connect::probe(&pair.server)?;
+    finish_connect(&app, pair.server, &pair.ticket);
+    Ok(())
 }
 
 #[tauri::command]
@@ -273,18 +287,29 @@ pub fn run() {
                 pair: Mutex::new(None),
                 error: Mutex::new(String::new()),
                 next: Mutex::new(None),
+                checking: Mutex::new(false),
             });
             let handle = app.handle().clone();
             build_main(&handle)?;
-            if let Some(origin) = saved.as_deref().and_then(connect::normalize) {
-                open_server(&handle, origin, None);
+            // Desktop demo: OSA_ANDROID_URL=http://127.0.0.1:port cargo run
+            // The Android binary ignores this so a device cannot be pointed at a hidden host.
+            let demo = if cfg!(target_os = "android") {
+                None
+            } else {
+                std::env::var("OSA_ANDROID_URL").ok()
+            };
+            let remembered = demo.as_deref().or(saved.as_deref()).and_then(connect::normalize);
+            if let Some(origin) = remembered {
+                begin_probe(&handle, origin, String::new());
             }
             Ok(())
         })
         .build(tauri::generate_context!())
         .expect("Open Super Agent Android failed to start")
         .run(|app, event| {
-            if let tauri::RunEvent::Opened { urls } = event {
+            // Opened exists only on macOS and mobile. A Linux demo build has no such variant.
+            #[cfg(any(target_os = "macos", target_os = "ios", target_os = "android"))]
+            if let tauri::RunEvent::Opened { urls } = &event {
                 for u in urls {
                     if let Ok(parsed) = Url::parse(u.as_str()) {
                         if let Some(pair) = connect::parse_pair(&parsed) {
@@ -293,5 +318,6 @@ pub fn run() {
                     }
                 }
             }
+            let _ = (app, event);
         });
 }

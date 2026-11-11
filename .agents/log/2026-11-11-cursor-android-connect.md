@@ -1,0 +1,39 @@
+# Phiên 2026-11-11 · cursor · OSA-040
+
+- Bắt đầu khoảng 12:16, kết thúc khoảng 12:40, Asia/Saigon (UTC+7).
+- Repo `VagabondKingsman/open-super-agent-remake`. Base `dac00da` (`i18n-vi`, merge PR #45). Branch `cursor/android-connect-crash-efeb`.
+- Việc: app Android tự văng khi nối server. Mô tả trong PR #32: hàng đợi webview 8 chỗ, `navigate` làm đầy, process chết, URL đã lưu nên lần mở sau cũng chết. Bản `49af947` đã bỏ `navigate` nhưng điện thoại chưa được kiểm.
+- Skill Flow: osa-dev → ai-work-method → vibecode-kit.
+
+## Đã thấy
+
+Demo Linux, `OSA_ANDROID_URL=http://127.0.0.1:8799`, xvfb, binary `android/src-tauri`. Probe ureq tới `/manifest.json` thì xong. Ngay sau đó process abort.
+
+Panic: `tauri-2.12.5/src/ipc/authority.rs:180`, `UnknownManifest { key: "app manifest" }`. `grant` gọi `add_capability` với `allow-android-*`. Các permission này thuộc manifest app, manifest đó không được nhúng. `unwrap` nổ trong lúc đang giữ khóa `runtime_authority`. Khóa bị độc. Luồng webview `lock().unwrap()` rồi abort.
+
+`wry 0.57.2` `android/main_pipe.rs` dùng `bounded(8)` và `send()` chặn. Code hiện không gọi `.navigate(`.
+
+## Đã sửa
+
+1. `build.rs` khai báo 8 lệnh. Build sinh permission `allow-*` / `deny-*` và nhúng `__app-acl__`.
+2. `capabilities/default.json` cho cửa sổ local `main`, để trang nhập địa chỉ vẫn gọi được lệnh sau khi có manifest app.
+3. Capability remote lúc nối thêm `core:default` và bốn lệnh `android_*`. Không đưa `choose_remote` cho trang server.
+4. Probe `/manifest.json` trước khi ghi URL và trước khi trang `location.replace`. Lỗi trả về chữ, không làm chết process. Lần mở lại cũng probe trước.
+5. `usesCleartextTraffic` mặc định `true`, vì server OSAR trên LAN là HTTP. Bản debug vốn đã bật.
+6. `RunEvent::Opened` chỉ biên dịch trên macOS và mobile, để bản demo Linux dựng được.
+
+## Evidence
+
+| AC | Kết quả | Bằng chứng |
+|---|---|---|
+| `cargo test --offline --lib` | PASS | 9 passed, 0 failed |
+| Probe từ chối cổng đóng, không panic | PASS | `probe_refused_is_an_error_not_a_panic` |
+| `http://192.168.1.10:8765` giữ HTTP | PASS | `explicit_http_stays_http` |
+| Không gọi `.navigate(` | PASS | `shell_does_not_call_webview_navigate` |
+| Send thứ 9 vào kênh 8 chỗ thì chặn | PASS | `ninth_pipe_send_blocks_until_drained` |
+| Demo nối server giả | PASS | Log `/tmp/osa-android-demo.log`: `GET /manifest.json` ua ureq, rồi `GET /` ua WebKit. Process còn sống, không còn dòng panic |
+| Panic trước khi sửa | FAIL rồi sửa | `UnknownManifest` trong `/tmp/osa-android-shell.log` của lần chạy đầu |
+| APK, emulator, điện thoại | NOT_CHECKED | Máy này không cài Android SDK. `/dev/kvm` có. Chưa build APK |
+
+- Paid usage: 0.
+- Không đụng DB thật, không gửi channel.

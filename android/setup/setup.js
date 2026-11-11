@@ -11,6 +11,11 @@ function showError(text) {
 
 async function paint() {
   const s = await invoke('setup_state')
+  if (s.checking) {
+    showError('Đang kiểm tra server…')
+    setTimeout(paint, 400)
+    return
+  }
   if (s.next) {
     location.replace(s.next)
     return
