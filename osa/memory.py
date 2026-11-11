@@ -393,7 +393,7 @@ def record_usage(role: str, model: str, usage, task_id: int | None = None, provi
     cost = prices.cost(provider, model, hit, miss, out, _is_peak(time.time()))
     add_usage(role, model, task_id=task_id, provider=provider, bot_id=bot_id, chat_id=chat_id,
               hit=hit, miss=miss, out=out, cost=cost, ms=ms, ttft=ttft, estimated=estimated)
-    return {"in": prompt, "out": out, "cost": cost, "ttft": ttft, "est": estimated}
+    return {"in": prompt, "out": out, "cache": hit, "cost": cost, "ttft": ttft, "est": estimated}
 
 
 def record_error(role: str, model: str, error: str, task_id: int | None = None, provider: str | None = None,

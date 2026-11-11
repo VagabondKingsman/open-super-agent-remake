@@ -8,7 +8,7 @@ from osa import memory, server
 
 def test_record_usage_returns_what_it_wrote(monkeypatch):
     u = memory.record_usage("router", "m", None, ms=1200, ttft=300)
-    assert u == {"in": 0, "out": 0, "cost": 0.0, "ttft": 300, "est": False}
+    assert u == {"in": 0, "out": 0, "cache": 0, "cost": 0.0, "ttft": 300, "est": False}
     assert memory.record_usage("router", "m", None) is None   # 没有 usage 也没有用时：没记，返回 None
 
 

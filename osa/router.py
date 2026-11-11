@@ -458,13 +458,22 @@ class Router:
             return
         t = getattr(self, "_turn_usage", None)
         if t is None:   # _stream 也可能没经过 _think 被单独调用（测试、探针）
-            t = self._turn_usage = {"in": 0, "out": 0, "cost": 0.0, "ttft": None, "est": False}
+            t = self._turn_usage = {"in": 0, "out": 0, "cache": 0, "cost": 0.0, "ttft": None, "est": False}
         t["in"] += u.get("in") or 0
         t["out"] += u.get("out") or 0
         t["cost"] += u.get("cost") or 0.0
         t["est"] = t["est"] or bool(u.get("est"))
+        t["cache"] += u.get("cache") or 0   # 命中前缀缓存的 token：便宜的那部分，和费用对得上
         if t["ttft"] is None and u.get("ttft") is not None:
             t["ttft"] = round(u["ttft"])   # 这一轮第一次开口的时间（带工具的轮次只看第一次）
+
+    def _count_tool(self, name: str, brief: str, t0: float, state: str = "ok"):
+        """A4：记下这一轮调过的工具和用时，挂在回复下面（重开对话也看得到走过哪几步）。"""
+        tools = getattr(self, "_turn_tool_ms", None)
+        if tools is None:
+            tools = self._turn_tool_ms = []
+        tools.append({"n": name, "ms": int((time.monotonic() - t0) * 1000),
+                      **({"b": brief} if brief else {}), **({"err": 1} if state == "err" else {})})
 
     def _usage_meta(self, started: float) -> dict | None:
         """这一轮的用量，挂在回复的 meta 上：in / out 个 token，cost 美元，ttft 第一个字的毫秒，sec 整轮秒数。
@@ -472,8 +481,10 @@ class Router:
         t = getattr(self, "_turn_usage", None) or {}
         if not t.get("in") and not t.get("out"):
             return None
-        return {"in": t["in"], "out": t["out"], "cost": round(t["cost"], 6), "ttft": t["ttft"],
-                "sec": round(time.time() - started, 1), **({"est": True} if t["est"] else {})}
+        return {"in": t["in"], "out": t["out"], "cache": t["cache"], "cost": round(t["cost"], 6),
+                "ttft": t["ttft"], "sec": round(time.time() - started, 1),
+                **({"est": True} if t["est"] else {}),
+                **({"tools": self._turn_tool_ms} if getattr(self, "_turn_tool_ms", None) else {})}
 
     def _tools(self) -> list[dict]:
         """这一轮给模型的工具（self.chat 是本轮的对话）。"""
@@ -554,7 +565,7 @@ class Router:
         self._turn_dms = 0                # 本轮发出的私信
         self._turn_waits = 0              # 本轮弹出的新建 / 修改 / 删除 Bot 的卡片：有了结果会再叫醒这个 Bot
         self._turn_files = []             # 本轮 send_file 发的文件，挂在这条回复下面显示
-        self._turn_usage = {"in": 0, "out": 0, "cost": 0.0, "ttft": None, "est": False}   # A4：本轮各次模型调用的合计
+        self._turn_usage = {"in": 0, "out": 0, "cache": 0, "cost": 0.0, "ttft": None, "est": False}   # A4：本轮各次模型调用的合计
         shown, thinking, shots, finish = "", "", [], None
         async def rounds():
             """跑最多 10 轮工具调用。返回（轮数是否用完, 最后一段正文, 最后一段思考）。"""
@@ -681,9 +692,11 @@ class Router:
         except Exception:
             await self.emit({"type": "tool", "name": name, "state": "err", "brief": brief,
                              "ms": int((time.monotonic() - t0) * 1000)}, cid)
+            self._count_tool(name, brief, t0, "err")
             raise
         await self.emit({"type": "tool", "name": name, "state": "ok", "brief": brief,
                          "ms": int((time.monotonic() - t0) * 1000)}, cid)
+        self._count_tool(name, brief, t0)
         if registry.listening("tool_done"):
             registry.fire("tool_done", scope="router", bot=self.bot, chat_id=self.chat["id"], task=None, name=name,
                           args=dict(args), result=out[0] if isinstance(out, tuple) else out, status="done")

@@ -1379,5 +1379,6 @@
   "思考：很多": "Thinking: extra high",
   "输入 {a} · 输出 {b} tokens": "{a} in · {b} out tokens",
   " · 首字 {s} 秒": " · first word {s}s",
-  "（估算）": " (estimated)"
+  "（估算）": " (estimated)",
+  " · 命中缓存 {n}": " · {n} cached"
 }
