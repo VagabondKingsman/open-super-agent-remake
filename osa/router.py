@@ -16,6 +16,18 @@ from .worker import IncompleteAnswer, Task, TaskFailed, run_worker, run_heavy
 
 log = logging.getLogger(__name__)
 
+def _tool_brief(args: dict) -> str:
+    """给界面看的一行参数摘要：取第一个像样的字符串，太长就截断。"""
+    for k in ("goal", "command", "cmd", "text", "url", "query", "q", "code", "path", "name"):
+        v = args.get(k)
+        if isinstance(v, str) and v.strip():
+            return (k + ": " if k not in ("command", "cmd", "url") else "") + v.strip().replace("\n", " ")[:80]
+    for v in args.values():
+        if isinstance(v, str) and v.strip():
+            return v.strip().replace("\n", " ")[:80]
+    return ""
+
+
 ROUTER_PROMPT = """You are "{name}", the user's AI teammate. {instructions}
 You talk with the user in this chat. You do not research things yourself. Instead:
 - Small talk, common knowledge, and questions you can answer directly: answer directly.
@@ -630,8 +642,20 @@ class Router:
         return None
 
     async def _tool(self, name: str, args: dict):
-        """调一个工具；调完发 tool_done 事件（只读，插件能看不能改，不等它们）。"""
-        out = await self._call_tool(name, args)
+        """调一个工具；调完发 tool_done 事件（只读，插件能看不能改，不等它们）。
+        同时在 /ws 上发 tool 帧：界面能看到“正在跑哪一步”，而不是一直转圈到答案出现。"""
+        cid = self.chat["id"]
+        brief = _tool_brief(args)
+        t0 = time.monotonic()
+        await self.emit({"type": "tool", "name": name, "state": "run", "brief": brief}, cid)
+        try:
+            out = await self._call_tool(name, args)
+        except Exception:
+            await self.emit({"type": "tool", "name": name, "state": "err", "brief": brief,
+                             "ms": int((time.monotonic() - t0) * 1000)}, cid)
+            raise
+        await self.emit({"type": "tool", "name": name, "state": "ok", "brief": brief,
+                         "ms": int((time.monotonic() - t0) * 1000)}, cid)
         if registry.listening("tool_done"):
             registry.fire("tool_done", scope="router", bot=self.bot, chat_id=self.chat["id"], task=None, name=name,
                           args=dict(args), result=out[0] if isinstance(out, tuple) else out, status="done")

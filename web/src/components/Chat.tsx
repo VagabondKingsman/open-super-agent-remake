@@ -653,6 +653,18 @@ export function StreamMessage({ chat, chatId }: { chat: ChatT; chatId: number })
       <div className="msg-body">
         <Speaker bot={who} show={chat.kind === 'group'} />
         <Thinking text={stream.thinking} live={!stream.text} seconds={(Date.now() - stream.started) / 1000} />
+        {!!stream.tools?.length && (
+          <div className="tool-runs">
+            {stream.tools.map((r, i) => (
+              <span key={i} className={'tool-run ' + r.state} title={r.brief || r.name}>
+                <b>{r.name}</b>
+                {r.state === 'run' ? <i className="tool-spin" />
+                 : r.ms ? <em>{r.ms < 1000 ? r.ms + ' ms' : (r.ms / 1000).toFixed(1) + ' s'}</em> : null}
+                {r.brief ? <span className="tool-brief">{r.brief}</span> : null}
+              </span>
+            ))}
+          </div>
+        )}
         {stream.text ? <Markdown text={stream.text + ' ▍'} /> : !stream.thinking && <div className="typing"><i /><i /><i /></div>}
       </div>
     </div>
