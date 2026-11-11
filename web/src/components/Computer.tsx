@@ -57,6 +57,7 @@ function TypeBar({ botId }: { botId: number }) {
 
 const STATE: Record<string, string> = {
   none: t('还没启动'), starting: t('启动中'), running: t('运行中'), paused: t('已暂停'), stopped: t('已停止'), error: t('出错了'), unavailable: t('无法使用'),
+  gone: t('那台机器没了（会换一台）'),
 }
 /** 用哪台电脑。
  *  App 自己独立运行时在三台里选：本机（这台 Mac 上 Bot 自己的 Chrome，能操作整个屏幕）、Docker 沙盒、云电脑（Instabox）。
