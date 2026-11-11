@@ -1,6 +1,6 @@
 # Bảng việc chung
 
-Cập nhật 10/11/2026 22:20, Asia/Saigon (UTC+7), base `5a1e0e7` (merge PR #41). GitHub PR + base mới là trạng thái phối hợp; file local chưa push không giữ chỗ ở tài khoản khác.
+Cập nhật 11/11/2026 23:16, Asia/Saigon (UTC+7), base `14449fd` (merge PR #51). Dòng ngày 10/11 bên dưới là snapshot cũ. GitHub PR + base mới là trạng thái phối hợp; file local chưa push không giữ chỗ ở tài khoản khác.
 
 ## Claim protocol
 
@@ -53,6 +53,8 @@ Cập nhật 10/11/2026 22:20, Asia/Saigon (UTC+7), base `5a1e0e7` (merge PR #41
 | OPEN-KEEPALIVE | Script giữ VM trên box: suspend/resume trả 400 thiếu `Idempotency-Key` | Script ngoài repo (`/workspace/instabox-keepalive/lease-keepalive.py`). 22:13 10/11 VM bị pause khi hết 480 phút và vào cooldown. Thêm header rồi kiểm qua một mốc 480 phút. | Chưa nhận · việc của box |
 | E2E-OPEN | Việc còn lại sau E2E 10/11 | Lỗi provider giữa stream đã sửa ở PR #37. Còn: thông báo B1 ghi "never existed" cả khi lượt sửa đã giao; "[新话题]" chưa dịch; Filter live, `cargo test` Android, APK `NOT_CHECKED`. | Chưa nhận |
 | OSA-040 | App Android văng khi nối server | Không gọi `navigate` (hàng đợi wry 8 chỗ). Probe `/manifest.json` trước khi `location.replace`. Manifest app có đủ permission nên `add_capability` không panic và không làm độc khóa ACL. HTTP được phép ở mọi build type. Demo Linux sống. Emulator x86_64 không FATAL. S22 Ultra 11/11 đăng nhập `http://<máy>.<tailnet>.ts.net/`, thấy AutoBot và Nova. APK `v1.0` SHA `e3cb6a28…f58d`. | Done · cursor / `cursor/android-connect-crash-efeb` · [PR #47](https://github.com/VagabondKingsman/open-super-agent-remake/pull/47) merge `3c631a3` |
+| AUDIT-ABC | Vòng A/B/C: usage, tool trên stream, stall, cache, trần chi phí | Pytest 1152 passed / 1 skipped trên head `fa0372d`. Eval nằm trong pytest. Chi tiết `docs/ke-hoach-super-bot.md`. | Done · cursor / `cursor/audit-abc-cache` · [PR #50](https://github.com/VagabondKingsman/open-super-agent-remake/pull/50) merge `30dfb24` |
+| CHAT-LABEL | Hai chat cùng một bot không còn trùng tên | Chat của bot là private chat `id` nhỏ nhất. Chat phụ đổi tên và xóa được. Cây ghép với #50: 1157 passed / 1 skipped, web 43/43. | Done · cursor / `cursor/direct-chat-label` · [PR #51](https://github.com/VagabondKingsman/open-super-agent-remake/pull/51) merge `14449fd` |
 | EVAL-SUITE | P0+ #5. Bộ eval offline chạy trong CI | 27 kịch bản. Đã merge [PR #44](https://github.com/VagabondKingsman/open-super-agent-remake/pull/44) tại `feeae4c`. e27 hết xfail sau P0-2. | Done · [PR #44](https://github.com/VagabondKingsman/open-super-agent-remake/pull/44) |
 | P0-2 | Chỉ người dùng mới duyệt được thẻ xác nhận | `resolve_approval` chỉ cho `origin=user`. Đã merge [PR #43](https://github.com/VagabondKingsman/open-super-agent-remake/pull/43) tại `b961870`. e27 PASS, đã bỏ xfail. | Done · [PR #43](https://github.com/VagabondKingsman/open-super-agent-remake/pull/43) |
 | P0PLUS-3 | P0+ #3. Trace và replay từng turn | Việc tiếp theo sau EVAL-SUITE. Điểm móc ghi trong log eval-suite. Bản cassette của SuperGrok Craft (`osa/cassette.py`, commit `4783db6`) chưa đưa vào, xem lại khi làm việc này. | Chưa nhận |
