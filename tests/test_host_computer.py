@@ -326,8 +326,8 @@ def _real_chrome_skip_reason() -> str:
     flag = os.environ.get("OSA_TEST_CHROME")
     if flag == "1":
         return ""
-    if flag in ("0", ""):
-        return "OSA_TEST_CHROME=0"
+    if flag == "0":
+        return "OSA_TEST_CHROME=0"   # 明确关掉；没设就往下看环境能不能跑
     if "CI" in os.environ:
         return "CI runner: set OSA_TEST_CHROME=1 to force"
     if sys.platform.startswith("linux") and not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
@@ -387,3 +387,19 @@ async def test_real_chrome(tmp_path, monkeypatch):
                 break
             await asyncio.sleep(0.25)
         shutil.rmtree(tmp_path / "data", ignore_errors=True)
+
+
+def test_chrome_gate_opens_on_a_display(monkeypatch):
+    """A6：没设 OSA_TEST_CHROME 时不该一律跳过——有屏幕、有 Chrome 就跑。以前 "" 被当成“关”，
+    于是在有屏幕的机器上也永远 skip，真的浏览器路径没人测。"""
+    import importlib
+    monkeypatch.delenv("OSA_TEST_CHROME", raising=False)
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.setenv("DISPLAY", ":99")
+    monkeypatch.setattr(host, "chrome_path", lambda: "/usr/bin/google-chrome")
+    try:
+        mod = importlib.reload(sys.modules["test_host_computer"])
+        assert mod._real_chrome_skip_reason() == ""
+    finally:
+        monkeypatch.undo()
+        importlib.reload(sys.modules["test_host_computer"])

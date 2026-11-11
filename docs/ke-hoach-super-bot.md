@@ -18,12 +18,12 @@ bản đang chạy ở `boxes.dev` (86 module / 27 202 dòng / 150 route / 909 t
 |---|---|---|---|---|---|
 | A0 | ✅ `/api/*` lạ trả JSON 404 | `server.py:1988` | đã làm | 3/3 path 404 JSON, test `test_audit_p0.py` | 0,2 |
 | A1 | ✅ VM ngủ → tự đánh thức | `computer/instabox.py:192` | `_wake_retry` cho `exec`/`read_bytes` | 409 không còn tới model; 4 test | 0,5 |
-| A2 | Prompt hết tự mâu thuẫn | `router.py` system prompt | bỏ câu cấm tool khi đã khuyến khích `quick_code`; một quy tắc duy nhất "trả lời trực tiếp nếu không cần máy" | turn `17*23`: thinking < 1,5 s, ttft < 4 s (đo lại 5 turn) | 1 |
-| A3 | `/ws` phát `tool` + `approval` frame | `router.py` (emit), `web/src/store` | frame `{type:"tool", id, name, args_brief, state:"run|ok|err"}`; frontend hiện chip trạng thái | turn có tool: ≥2 frame, UI thấy bước đang chạy; test ở `tests/test_ws_frames.py` | 2 |
-| A4 | Telemetry từng turn | `router.py` meta, `observe.py` | ghi `usage{tokens_in,out,cache}`, `cost_usd`, `ttft_ms`, `tool_ms[]` vào `meta` message | `/api/chats/1/messages` có đủ khoá; tổng khớp `/api/observe` ±1% | 1,5 |
-| A5 | `osa-smoke.sh` thành test | `scripts/`, `tests/` | `tests/test_fastsrv.py`: gzip round-trip + immutable + 304 | test chạy trong suite, không cần server thật | 0,5 |
-| A6 | CI bật display | `tests/test_host_computer.py:344` | thêm `xvfb-run -a` vào lệnh suite; sửa reason của gate `darwin` | **+27 test**, suite ~92 s | 0,3 |
-| A7 | Log về một chỗ | `server.py` logging | thêm handler ghi `osa.log` + `journalctl` thấy dòng app | `journalctl --user -u osa` có ≥1 dòng/request | 0,3 |
+| A2 | ✅ Prompt hết tự mâu thuẫn | `router.py` system prompt | bỏ câu cấm tool khi đã khuyến khích `quick_code`; một quy tắc duy nhất "trả lời trực tiếp nếu không cần máy" | turn `17*23`: thinking < 1,5 s, ttft < 4 s (đo lại 5 turn) | 1 |
+| A3 | ✅ `/ws` phát `tool` frame | `router.py:_tool`, `web/src/toolRun.ts` | frame `{type:"tool", name, state:"run|ok|err", brief, ms}`; chip `.tool-run` cập nhật tại chỗ | turn có tool: 2 frame; DOM có `quick_code 48 ms` (đo bằng Chrome headless); `web/tests/tool-run.cjs` | 2 |
+| A4 | ✅ Telemetry từng turn | `router.py:_count_usage/_usage_meta`, `web/src/Chat.tsx` | `meta.usage{in,out,cache,cost,ttft,sec,tools[{n,ms,b}]}`; dưới mỗi câu trả lời một dòng `↑in ↓out · $cost · thời gian`, hover xem cache/ttft; chip tool đã chạy giữ lại sau reload | `/api/chats/{id}/messages` có đủ khoá; 1 lượt 2 vòng = 2 dòng `llm_calls`, in/out/cost khớp tuyệt đối | 1,5 |
+| A5 | ✅ `osa-smoke.sh` thành test | `tests/test_fastsrv.py` | ASGI app gọi thẳng: gzip round-trip, immutable + etag, 304, Range/`..` rơi xuống StaticFiles, JSON tự nén | 10 test, không cần server thật (0,1 s) | 0,5 |
+| A6 | ✅ Suite tự bật display | `scripts/test.sh`, `tests/test_host_computer.py:326` | `scripts/test.sh` bọc `xvfb-run -a` khi không có `DISPLAY`; sửa gate: `OSA_TEST_CHROME` chưa đặt không còn bị coi là “tắt” | **+13 test** (930 pass / 1 skip, 93 s) | 0,3 |
+| A7 | ✅ Log về một chỗ | `server.py:LOG_FORMAT`, `scripts/osa-start.sh` | log app có `thời gian M logger: nội dung`; mỗi lần khởi động một dòng `osa <version> starting, data=…`; `osa-start.sh` ghi nối tiếp và chuyển `osa.log` > 20 MB thành `osa.log.1` | `logs/osa.log` có dòng khởi động + dòng app có giờ; `tests/test_logging.py` (7 test) | 0,3 |
 
 **Cổng ra vòng A:** suite ≥ 938 test xanh · 5 turn live có số ttft/tool · không còn 5xx trong 30 phút.
 

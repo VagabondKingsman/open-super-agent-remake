@@ -36,7 +36,8 @@ uv run uvicorn osa.server:app --reload --port 8765
 ## 自动化测试
 
 ```bash
-uv run pytest -q
+scripts/test.sh            # uv run pytest -q, bọc xvfb-run khi máy không có màn hình (để test Chrome thật cũng chạy)
+scripts/test.sh tests/test_fastsrv.py -x   # thêm tham số thì chuyển tiếp cho pytest
 ```
 
 测试只测框架，不调真的模型，也不碰真的电脑（`tests/conftest.py`）：

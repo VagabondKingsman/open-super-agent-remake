@@ -19,6 +19,10 @@ from fastapi.staticfiles import StaticFiles
 from starlette.background import BackgroundTask
 from . import backup
 backup.apply_pending()   # 确认过的恢复：在打开数据库之前换上
+# A7：应用自己的日志（警告、出错的对话、后台任务）和 uvicorn 的访问日志一起落到 logs/osa.log。
+# uvicorn 只给自己的 logger 配了格式，这里给其余的补上时间和来处，否则文件里只剩一句“对话 1 出错”，看不出什么时候、是谁。
+LOG_FORMAT = "%(asctime)s %(levelname).1s %(name)s: %(message)s"
+logging.basicConfig(level=os.environ.get("OSA_LOG_LEVEL", "INFO").upper(), format=LOG_FORMAT)
 from . import applets, approvals, auth, avatars, botadmin, bots, catalog, channels, computer, dm, events, groups, i18n, library, mcp_hub, media, memories, memory, push, router as rt, routines
 from . import mcpapps, observe, outputs, prices, providers, search, security, settings, skills, skillpacks, tasklog, teach, templates, unfurl, vault
 from . import worker as worker_mod
@@ -93,6 +97,7 @@ async def lifespan(app):
     if config.db_outside_data_dir():
         print(i18n.t("注意：设置了 OSA_DATA_DIR（{data}），但 memory.db 是绝对路径 {db}，数据库不在数据目录里。备份和迁移时别漏了它。",
                      data=config.DATA, db=config.DB_PATH), flush=True)
+    logging.getLogger("osa").info("osa %s starting, data=%s", backup.version() or "?", config.DATA)
     bots.ensure_default()
     tasklog.startup()   # 上次没做完的任务标成“已中断”，清掉太旧的任务过程
     settings.apply()
