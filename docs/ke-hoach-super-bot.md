@@ -281,6 +281,28 @@ Sửa: một chỗ duy nhất `memory._meta(raw)` — parse hỏng hay không ph
 `context`, `page`, `update_meta`, và chỗ đọc `usage` trong báo cáo chi phí. Test: một dòng meta là chuỗi →
 `context` vẫn dựng xong, `page` trả meta object.
 
+### C24: 120 秒的静默上限，先用数去量
+
+7 天内 6 次“模型 120 秒没有输出新内容”（1 次 router、5 次 worker），每次都要 120 秒 + 重来一次的代价。
+重来的那次往往十几秒就完事（任务 #90：卡 121,8 秒，重来 17,0 秒），所以卡住的那条流不是“在慢慢想”，
+是真的断了——但这件事只看 ms 和 ttft 分不出来：llm_calls 记了整次用时和第一个块的时间，没记中间安静了多久。
+
+所以先量（31e0b1d）：`providers.guard_stream` 把这次流里最长的一段静默填进 `stats["silence"]`
+（首块之前的等待，或两块之间最宽的空档），worker 与 router 把它写进 `llm_calls.silence_ms`，
+成功、取消、出错都写（出错那次记的就是等满的那个上限）。`scripts/silence_stats.py` 按角色打出分布与最接近上限的几次。
+**上限本身这一轮没有动**：等一天的数出来，再由分布决定 120 是放宽还是收紧。
+
+同时量到的一件事（同一批数据，未改代码）：聊天的每一轮第一次调用都是冷的（cache_hit 1152，miss 22–24k，$0,045/轮），
+同一轮里第二次调用（1 秒后）整份正文都命中。把两次真实请求的 body 存下来逐字比对：第二次是第一次的**逐字延长**；
+再把这两份 body 按顺序重放给服务商，第二份命中 23936 —— 说明 body 没问题，掉的是服务商那边的缓存（几分钟内过期）。
+所以“每轮省 $0,035”只能靠把冷的那一份变小：router 的请求里 35% 是 45 个工具的 schema（29,7k 字符 ≈ 8,1k token），
+系统提示词 26,6%（其中 86% 是 Bot 自己的指令，19,3k 字符），对话历史 38,3%。
+两轮的 system 逐字相同（比过），所以不是“有块每轮都变”，而是冷的那一份本身太大：
+下一步是让冷的那份变小（先从 45 个工具 schema 与 Bot 指令的排版下手），而不是再猜缓存。
+
+实测（同一份 body 连发两次）：在同一进程里立刻重发，第二次就全命中；跨轮（分钟级间隔）就冷。
+缓存 TTL 落在两分钟到四分钟之间——聊天是按人手的节奏一轮一轮来的，指望不上。
+
 ## Rủi ro & lối thoát
 
 - Sửa prompt (A2) có thể đổi "tính cách" bot → giữ song song 1 turn mẫu trước/sau, so 5 câu trả lời.
