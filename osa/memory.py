@@ -414,6 +414,40 @@ def record_partial(role: str, model: str, usage, text: str, task_id: int | None 
     return record_usage(role, model, _Tokens(0, out), task_id, provider, estimated=True)
 
 
+_cap_cache: tuple | None = None   # (什么时候过期, 参数, 平均, 条数)
+
+
+def turn_cost_cap(days: int = 7, factor: float = 2.0, floor: float = 0.01, least: int = 8):
+    """挡住突然贵的一轮：过去几天每条回复的平均费用 × factor。
+
+    返回 (cap, 平均, 有费用的回复数)；回复太少（< least）或没开这个护栏就返回 None。
+    只看本条回复自己的用量（meta.usage.cost，A4 记的），不含任务。
+    """
+    if factor <= 0:
+        return None
+    global _cap_cache
+    now = time.time()
+    if _cap_cache and _cap_cache[0] > now and _cap_cache[1] == (days, floor, least):
+        avg, n = _cap_cache[2], _cap_cache[3]
+        return (max(avg * factor, floor), avg, n) if n >= least else None
+    since = now - days * 86400
+    costs = []
+    for (meta,) in conn.execute("select meta from messages where role='assistant' and ts >= ? and meta like '%usage%'",
+                                (since,)):
+        try:
+            c = (json.loads(meta or "{}").get("usage") or {}).get("cost")
+        except ValueError:
+            continue
+        if c:
+            costs.append(float(c))
+    avg = sum(costs) / len(costs) if costs else 0.0
+    # 每一轮都查一遍太浪费（7 天的回复要扫一遍 meta）：一分钟内用同一个数
+    _cap_cache = (now + 60, (days, floor, least), avg, len(costs))
+    if len(costs) < least:
+        return None
+    return max(avg * factor, floor), avg, len(costs)
+
+
 def tokens_today() -> int:
     return conn.execute("select coalesce(sum(cache_hit+cache_miss+output),0) from llm_calls where ts > ?",
                         (time.time() - 86400,)).fetchone()[0]

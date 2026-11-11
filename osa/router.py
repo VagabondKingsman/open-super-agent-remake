@@ -566,13 +566,16 @@ class Router:
         self._turn_waits = 0              # 本轮弹出的新建 / 修改 / 删除 Bot 的卡片：有了结果会再叫醒这个 Bot
         self._turn_files = []             # 本轮 send_file 发的文件，挂在这条回复下面显示
         self._turn_usage = {"in": 0, "out": 0, "cache": 0, "cost": 0.0, "ttft": None, "est": False}   # A4：本轮各次模型调用的合计
+        cap = memory.turn_cost_cap(factor=float(CFG["limits"].get("turn_cost_guard") or 0))   # C4：比平时贵太多的一轮
+        self._turn_capped = None
         shown, thinking, shots, finish = "", "", [], None
         async def rounds():
             """跑最多 10 轮工具调用。返回（轮数是否用完, 最后一段正文, 最后一段思考）。"""
             nonlocal shown, thinking, shots, finish
             rounds_used, content, reasoning = True, "", ""
             for _ in range(10):
-                content, reasoning, calls, finish = await self._stream(client, model, msgs, sid, started)
+                content, reasoning, calls, finish = await self._stream(client, model, msgs, sid, started,
+                                                                      use_tools=not self._turn_capped)
                 shown += content
                 thinking += reasoning
                 if not calls:
@@ -596,6 +599,16 @@ class Router:
                     png, whole = shots[-1]
                     msgs.append(ctools.image_message(png, "the whole screen" if whole else (getattr(png, "caption", None) or "the current page"), coords=not whole))
                     shots = []
+                if cap and self._turn_capped is None and self._turn_usage["cost"] > cap[0]:
+                    # C4：这一轮已经花得比平时多一倍：不再调工具，用手上的资料回答
+                    self._turn_capped = {"cost": round(self._turn_usage["cost"], 6),
+                                         "cap": round(cap[0], 6), "avg": round(cap[1], 6), "turns": cap[2]}
+                    log.warning("turn cost %s over cap %s (avg %s of %s replies): answering without more tools",
+                                self._turn_capped["cost"], self._turn_capped["cap"], cap[1], cap[2])
+                    msgs.append({"role": "user", "content": i18n.t(
+                        "(System: this turn has already cost {cost} — more than twice the usual {avg}. "
+                        "Answer from what you have now; do not call any more tools.)",
+                        cost=self._turn_capped["cost"], avg=round(cap[1], 4))})
                 if shown and not shown.endswith("\n"):
                     shown += "\n\n"
                     await self.emit({"type": "stream", "sid": sid, "delta": "\n\n"}, cid)
@@ -643,6 +656,7 @@ class Router:
                        **({"usage": usage_meta} if usage_meta else {}),
                        **({"lang_flag": flag} if flag else {}),
                        **({"fabricated_task_ids": fake} if fake else {}),
+                       **({"cost_guard": self._turn_capped} if self._turn_capped else {}),
                        **({"attachments": self._turn_files} if self._turn_files else {}))
         return shown.strip()
 

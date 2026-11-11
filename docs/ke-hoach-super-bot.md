@@ -10,6 +10,17 @@ bản đang chạy ở `boxes.dev` (86 module / 27 202 dòng / 150 route / 909 t
 3. Không sửa quá 1 subsystem mỗi vòng; suite phải xanh (`pytest -q`) trước khi chuyển vòng.
 4. Không thêm phụ thuộc mới nếu thư viện chuẩn làm được.
 
+
+**Tiến độ (2026-11-11)**
+
+| vòng | xong | ghi chú |
+|---|---|---|
+| A | A0–A7 ✅ | suite 1 051 → 1 099 test |
+| B | B1–B9 ✅ | test kênh 92, nhóm 13, teach 13, memory 8; 3 bug thật (xem commit B8/B9) |
+| C | C1, C2, C4, C5 ✅ · C3 đã có sẵn (`verification_repair_attempts`) | scenario 34 (thêm e28–e31) |
+
+Chi phí tuần (báo cáo đầu tiên): 5,97 $ · 191 lần gọi · 5 lỗi · ttft 2 336 ms · cache 66 %.
+
 ---
 
 ## Vòng A — Ổn định & quan sát được (mục tiêu: 1 ngày)
@@ -33,25 +44,25 @@ bản đang chạy ở `boxes.dev` (86 module / 27 202 dòng / 150 route / 909 t
 
 | # | Việc | Neo | Nghiệm thu |
 |---|---|---|---|
-| B1 | `computer_shell` qua xác nhận trên mọi backend | `computer/tools.py` | VM: lệnh đầu mỗi task hỏi; `tasklog` ghi cmd + exit code; test giả lập |
-| B2 | VNC bền | `computer/instabox.py:open_vnc`, `down()` | `ping_interval=20`; rơi → `close(1011)`, client hiện "mất hình" < 2 s |
-| B3 | Không treo im lặng | `base.wait_for_control` | phát `notify_progress` + `ComputerError` sau 120 s (cấu hình được) |
-| B4 | Cách ly theo task | `computer.get(bot_id)` | mỗi task một profile Chromium; test 2 task không đọc được cookie của nhau |
-| B5 | Failover nhiều máy | `instabox.py` | 2 machine: máy chính chết → chuyển trong < 10 s, ghi `metadata.role` |
-| B6 | i18n cho snapshot | `cdp_helper.py:97` | chuỗi `(cuộn 0/10306, cao 669)`, 3 locale, test so khớp |
-| B7 | `ls()` nhanh | `instabox.py` | < 800 ms (hiện 3,5 s) |
-| B8 | Test 5 adapter kênh | `channels/*.py` (1 583 dòng, 0 test) | `FakeHTTP` phủ: pair, dedupe, gửi media, retry/rate-limit; ≥ 20 test |
-| B9 | Test nhóm/teach/memory-merge | `groups.py`, `teach.py`, `memory.py` | mỗi cái ≥ 5 test; scenario eval "2 bot chuyển việc cho nhau" |
+| B1 ✅ | `computer_shell` qua xác nhận trên mọi backend | `computer/tools.py` | VM: lệnh đầu mỗi task hỏi; `tasklog` ghi cmd + exit code; test giả lập |
+| B2 ✅ | VNC bền | `computer/instabox.py:open_vnc`, `down()` | `ping_interval=20`; rơi → `close(1011)`, client hiện "mất hình" < 2 s |
+| B3 ✅ | Không treo im lặng | `base.wait_for_control` | phát `notify_progress` + `ComputerError` sau 120 s (cấu hình được) |
+| B4 ✅ | Cách ly theo task | `computer.get(bot_id)` | mỗi task một profile Chromium; test 2 task không đọc được cookie của nhau |
+| B5 ✅ | Failover nhiều máy | `instabox.py` | 2 machine: máy chính chết → chuyển trong < 10 s, ghi `metadata.role` |
+| B6 ✅ | i18n cho snapshot | `cdp_helper.py:97` | chuỗi `(cuộn 0/10306, cao 669)`, 3 locale, test so khớp |
+| B7 ✅ | `ls()` nhanh | `instabox.py` | < 800 ms (hiện 3,5 s) |
+| B8 ✅ | Test 5 adapter kênh | `channels/*.py` (1 583 dòng, 0 test) | `FakeHTTP` phủ: pair, dedupe, gửi media, retry/rate-limit; ≥ 20 test |
+| B9 ✅ | Test nhóm/teach/memory-merge | `groups.py`, `teach.py`, `memory.py` | mỗi cái ≥ 5 test; scenario eval "2 bot chuyển việc cho nhau" |
 
 ---
 
 ## Vòng C — Vòng tự cải thiện (liên tục)
 
-1. **Cổng eval bắt buộc:** `tests/evals` (27 scenario) chạy trong mọi lần sửa; thêm 1 scenario cho mỗi lỗi thật đã sửa (bắt đầu từ A2–A4).
-2. **Sinh scenario từ log:** script đọc `osa.log` + `tasklog` → đề xuất scenario mới cho lỗi lặp ≥ 2 lần.
+1. ✅ **Cổng eval bắt buộc:** `tests/evals` (27 scenario) chạy trong mọi lần sửa; thêm 1 scenario cho mỗi lỗi thật đã sửa (bắt đầu từ A2–A4).
+2. ✅ **Sinh scenario từ log:** `scripts/scenario_from_log.py` (5 test) —  script đọc `osa.log` + `tasklog` → đề xuất scenario mới cho lỗi lặp ≥ 2 lần.
 3. **Self-check trước khi trả lời:** dùng `verification.py` cho turn có số liệu/đường dẫn; sai → tự sửa 1 lần (đã có `verification_repair_attempts`).
-4. **Ngân sách & hồi quy chi phí:** theo dõi `$/turn` từ A4; chặn khi vượt 2× trung bình 7 ngày.
-5. **Báo cáo tuần:** 1 trang từ `/api/observe` + eval: ttft, tok/s, success, $, lỗi mới.
+4. ✅ **Ngân sách & hồi quy chi phí:** `memory.turn_cost_cap` + `router` dừng gọi tool khi một lượt > 2× trung bình 7 ngày (`limits.turn_cost_guard`, 4 test);  theo dõi `$/turn` từ A4; chặn khi vượt 2× trung bình 7 ngày.
+5. ✅ **Báo cáo tuần:** `scripts/weekly_report.py` (5 test) —  1 trang từ `/api/observe` + eval: ttft, tok/s, success, $, lỗi mới.
 
 ---
 
