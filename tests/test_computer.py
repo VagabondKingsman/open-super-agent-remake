@@ -3,6 +3,7 @@ import asyncio
 
 import pytest
 
+from osa import approvals
 from osa.computer.base import Computer, ComputerError, ExecResult
 
 
@@ -226,3 +227,73 @@ def test_window_size_sent_off_host_only(monkeypatch):
     assert c._win("t1")["size"] == [1024, 600]
     c.backend = "host"
     assert "size" not in c._win("t1")
+
+
+async def test_waiting_for_you_does_not_hang_in_silence(monkeypatch):
+    """B3：你接手电脑后一直不交还，Bot 不会一声不响地挂着——到点喊一声、报错，让任务能说清在等什么。"""
+    from osa.config import CFG
+    monkeypatch.setitem(CFG["limits"], "computer_wait_human_s", 0.1)
+    said = []
+
+    async def say(text):
+        said.append(text)
+    c = FakeComputer()
+    c.progress = say
+    c.takeover()
+    with pytest.raises(ComputerError, match="你一直在用电脑"):
+        await c.wait_for_control()
+    assert said and "你还在用电脑" in said[0]
+
+    said.clear()
+    handed = asyncio.create_task(c.wait_for_control())
+    await asyncio.sleep(0.02)
+    c.handback()
+    assert await handed is True and not said      # 交还了：等过，但不唠叨
+
+    assert await c.wait_for_control() is False     # 没接手：不用等
+    monkeypatch.setitem(CFG["limits"], "computer_wait_human_s", 0)
+    c._handback.clear()
+    with pytest.raises(asyncio.TimeoutError):      # 配成 0 当然按默认 120 秒算，不会立刻报错
+        await asyncio.wait_for(c.wait_for_control(), 0.3)
+
+
+async def test_tool_calls_attach_progress_so_a_wait_is_visible(monkeypatch):
+    """B3 的另一半：进度说明真的挂到了电脑上（等用户交还、等机器开起来时才有东西可喊）。"""
+    from types import SimpleNamespace
+    from osa.computer import tools as ctools
+    c = FakeComputer()
+    monkeypatch.setattr(ctools, "get", lambda: c)
+    seen = []
+
+    async def exec_(cmd, timeout=120, stdin=None):
+        seen.append(c.progress)
+        return ExecResult(0, "ok\n", "")
+
+    async def progress(text):
+        pass
+
+    c.exec = exec_
+    approvals.shell_confirmed(3)   # B1：这个任务的终端已经确认过，不再弹卡片
+    task = SimpleNamespace(id=3, bot_id=1, chat_id=1, goal="g", background=False)
+    out, _ = await ctools.call(task, "computer_shell", {"cmd": "ls"}, progress)
+    assert out.startswith("退出码 0")
+    assert seen == [progress] and c.progress is None   # 执行期间挂着，执行完摘掉
+    approvals.end_task(3)
+
+
+def test_page_text_speaks_the_readers_language(monkeypatch):
+    """B6：页面信息（滚动到哪、视口多高、哪几个元素打了勾 / 在屏幕外）跟着界面语言走，三种语言都对得上。"""
+    from osa import i18n
+    from osa.computer.tools import page_text
+    d = {"title": "T", "url": "https://x", "elements": ['[1] button "B" (checked)', '[2] a "L" (offscreen)'],
+         "text": "body", "dialog": False, "scroll": "0/10306", "vh": 669}
+    want = {"zh": "（滚动 0/10306，视口高 669）", "en": "(scroll 0/10306, viewport height 669)",
+            "vi": "(cuộn 0/10306, cao 669)"}
+    marks = {"zh": ("（已选中）", "（屏幕外）"), "en": ("(checked)", "(offscreen)"), "vi": ("(đã chọn)", "(ngoài màn hình)")}
+    for lang in want:
+        monkeypatch.setattr(i18n, "_lang", lang)
+        out = page_text(d)
+        assert want[lang] in out and all(m in out for m in marks[lang]), (lang, out)
+    monkeypatch.setattr(i18n, "_lang", "vi")
+    assert "视口高" not in page_text(d) and "已选中" not in page_text(d)   # 不再漏中文
+    assert "0/10306" in page_text({**d, "vh": None})   # 老脚本没给 vh 也能排版

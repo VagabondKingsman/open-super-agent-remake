@@ -43,6 +43,14 @@ class StreamReply:
 
 
 @dataclass
+class Reply:
+    """一条非流式的回包：不 stream 的调用（记忆导入、演示草稿、事件过滤）拿它当 script。
+    不写 Reply 的照样按 SSE 回，和以前一样。"""
+    content: str = ""
+    calls: list = field(default_factory=list)
+
+
+@dataclass
 class Stall:
     """流开了、出了一块思考之后就卡住，直到客户端按 stream_idle_s 关掉它。"""
     reasoning: str = "..."
@@ -56,6 +64,20 @@ async def _stalled(reply: Stall):
 def _chunk(delta: dict, finish=None) -> dict:
     return {"id": "chatcmpl-fake", "object": "chat.completion.chunk", "created": 0, "model": "fake",
             "choices": [{"index": 0, "delta": delta, "finish_reason": finish}]}
+
+
+def _completion(reply: Reply) -> dict:
+    """把一条 Reply 装成普通的 chat.completion。"""
+    message = {"role": "assistant", "content": reply.content or None}
+    calls = list(reply.calls)
+    if calls:
+        message["tool_calls"] = [{"id": f"call_{i}", "type": "function",
+                                   "function": {"name": c.name, "arguments": json.dumps(c.args, ensure_ascii=False)}}
+                                  for i, c in enumerate(calls)]
+    return {"id": "chatcmpl-fake", "object": "chat.completion", "created": 0, "model": "fake",
+            "choices": [{"index": 0, "message": message, "finish_reason": "tool_calls" if calls else "stop"}],
+            "usage": {"prompt_tokens": 100, "completion_tokens": 10, "total_tokens": 110,
+                      "prompt_cache_hit_tokens": 0}}
 
 
 def _sse(reply) -> bytes:
@@ -162,9 +184,11 @@ class FakeLLM:
                     payload = reply.body if isinstance(reply.body, str) else json.dumps(reply.body)
                     headers = {"content-type": "application/json", **{str(k).lower(): str(v) for k, v in reply.headers.items()}}
                     return httpx.Response(reply.status, headers=headers, content=payload.encode())
+                if isinstance(reply, Reply):
+                    return httpx.Response(200, json=_completion(reply))
                 if isinstance(reply, Stall):
                     return httpx.Response(200, headers={"content-type": "text/event-stream"}, content=_stalled(reply))
-                if not body.get("tools") and not isinstance(reply, (str, StreamReply)):
+                if not body.get("tools") and not isinstance(reply, (str, StreamReply, Reply)):
                     reply = "（没给工具，只能回答）"
                 if isinstance(reply, StreamReply) and reply.calls and not body.get("tools"):
                     reply = "（没给工具，只能回答）"

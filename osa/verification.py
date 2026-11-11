@@ -213,3 +213,21 @@ SCHEMA = {"type": "function", "function": {"name": "verify_facts",
         "diffs": _items({"id": STR, "text": {"type": "string", "description": "Exact unified diff. Compute actual hunk counts from lines, not a self-reported sum. Does not apply or run code."}}, ["id", "text"]),
         "checklist": _items({"id": STR, "check_ids": {"type": "array", "items": STR, "description": "References computed check ids above. Empty/missing/manual refs stay NOT_CHECKED; cannot declare PASS."}}, ["id", "check_ids"])
     }}}}
+
+
+# C3：回复里“8 lần / 150 dòng / 3 steps”这类数，只有在本轮工具结果或用户这条消息里出现过才算有出处。
+CLAIMED_COUNT = re.compile(
+    r"(?<![\w.,])(\d{1,3}(?:[.,]\d{3})+|\d+)\s*"
+    r"(lần|dòng|bước|tác vụ|files?|lines?|steps?|tasks?)\b", re.I)
+
+
+def _bare(value: str) -> str:
+    return re.sub(r"[.,]", "", value)
+
+
+def count_claims(text: str, sources: str) -> list[str]:
+    """回复里带计数单位的数，减掉在 sources（本轮工具结果 + 用户这条消息）里出现过的，剩下的按原文返回。"""
+    seen = {_bare(m.group(0)) for m in re.finditer(r"\d{1,3}(?:[.,]\d{3})+|\d+", sources)}
+    found = [f"{m.group(1)} {m.group(2)}" for m in CLAIMED_COUNT.finditer(text or "")
+             if _bare(m.group(1)) not in seen]
+    return list(dict.fromkeys(found))

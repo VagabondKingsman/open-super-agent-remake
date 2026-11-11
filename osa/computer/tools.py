@@ -29,10 +29,17 @@ def page_text(d: dict) -> str:
             if d["offset"] + len(d["text"]) < d["total"] else ""
         return f"{d['title']} | {d['url']}\n{d['text']}{more}"
     els = "\n".join(d["elements"]) or i18n.t("（没有可操作元素）")
+    # 元素行里的记号在页面脚本里是英文（脚本不能 import 这里）：到这里才换成界面语言
+    for en, zh in (("checked", "（已选中）"), ("offscreen", "（屏幕外）")):
+        word = i18n.t(zh)
+        els = els.replace(f" ({en})", word if word.startswith("（") else f" {word}")
     if d.get("dialog"):
         els = i18n.t("（页面上有弹窗，下面只列弹窗里的元素；是登录、扫码或验证码就调用 ask_human）") + "\n" + els
+    scroll = d.get("scroll")
+    if d.get("vh"):   # 视口高度：判断“下面还有没有东西”要用
+        scroll = i18n.t("{scroll}，视口高 {vh}", scroll=scroll, vh=d["vh"])
     return i18n.t("当前页面：{title} | {url}（滚动 {scroll}）\n可操作元素：\n{els}\n\n正文开头：{text}",
-                  title=d["title"], url=d["url"], scroll=d["scroll"], els=els, text=d["text"][:1200])
+                  title=d["title"], url=d["url"], scroll=scroll, els=els, text=d["text"][:1200])
 
 
 def _fn(name, desc, props: dict, required: list[str] | None = None):
@@ -128,8 +135,9 @@ def schemas(c=None) -> list[dict]:
 
 def _intro(c) -> str:
     if c.backend not in HOSTS:
-        return """You have a computer (Linux + Chromium browser + terminal, shared with the other Bots). Your task has its own browser window;
-other tasks work in their own windows at the same time without interfering; login state and files are shared by all. Operate it with the browser_* / computer_* tools:"""
+        return """You have a computer (Linux + Chromium browser + terminal, shared with the other Bots). Your task has its own browser window
+(and its own browser profile: cookies and logins belong to this task, other tasks do not see them). Other tasks work in their own windows
+at the same time without interfering; files are shared by all. Operate it with the browser_* / computer_* tools:"""
     shell = ("- Terminal: computer_shell runs commands on the user's computer (the working directory is the working folder). Every command needs user confirmation (except command prefixes the user has \"always allowed\"; commands with ; && | $( or redirection are asked every time); use it only when necessary."
              if c.shell_enabled() else "- No terminal (the user has not turned it on). Download files with the browser; read and write files with computer_read_file / computer_write_file.")
     desk = DESK_HINT if c.desktop_enabled() else ""
@@ -156,7 +164,8 @@ DESK_HINT = """
 
 def system_hint(c=None) -> str:
     c = c or get()
-    shell = "" if c.backend in HOSTS else "\n- Use computer_shell to download files, process data and run scripts."
+    shell = "" if c.backend in HOSTS else ("\n- Use computer_shell to download files, process data and run scripts. "
+                                          "The first command of a task is shown to the user for confirmation; after that the task runs them directly.")
     return _intro(c) + _BODY.replace("{shell}", shell)
 
 
@@ -175,7 +184,8 @@ def capability(c=None) -> str:
                    "dispatch a task (the number of tool calls you have in this turn is limited)." if c.desktop_enabled() else ""))
     return ("Every background task can use a computer shared by all Bots (Linux desktop + Chromium browser + terminal); "
             "it can open web pages, click, type, act after logging in, upload and download files, and run scripts. Several tasks can use it at once, each in its own browser window, "
-            "sharing login state and files; tasks only queue when too many use it at once. The user can watch the screen live in the right panel.")
+            "each task with its own browser profile (its own cookies and logins), sharing files; tasks only queue when too many use it at once. "
+            "The user can watch the screen live in the right panel.")
 
 
 _BODY = """
@@ -285,16 +295,27 @@ async def _confirm(task, c, name: str, args: dict, key: str) -> str | None:
             return None
         tool, shown = "browser_submit", {"操作": info.get("what"), "页面": f"{info.get('title') or ''} | {info.get('url') or ''}"}
     if not approvals.decide(tool, c.backend, args if tool != "browser_submit" else shown,
-                            background=bool(getattr(task, "background", False)))[0]:
+                            background=bool(getattr(task, "background", False)), task_id=task.id)[0]:
         return None
     ok, note = await approvals.request(task, tool, shown)   # 终端：卡片上能“总是允许这个命令前缀”（approvals.resolve）
+    if ok and tool == "computer_shell":
+        approvals.shell_confirmed(task.id)   # 这个任务里后面的终端命令直接跑（B1）
     return None if ok else f"The user refused this action; it was not performed. {note}".strip()
 
 
 async def call(task, name: str, args: dict, notify_progress, key: str = "") -> tuple[str, bytes | None]:
-    """执行一个电脑工具，返回 (给模型的文字, 可选截图)。key 是谁在用：任务的 CLAIM，对话里直接操作的是 chat-<Bot id>。"""
-    from .. import approvals
+    """执行一个电脑工具，返回 (给模型的文字, 可选截图)。key 是谁在用：任务的 CLAIM，对话里直接操作的是 chat-<Bot id>。
+    执行期间把进程说明挂在电脑上：等用户交还、等机器开起来的时候，任务卡片上看得见在等什么（见 base.wait_for_control）。"""
     c = get()
+    prev, c.progress = getattr(c, "progress", None), notify_progress
+    try:
+        return await _call(task, c, name, args, notify_progress, key)
+    finally:
+        c.progress = prev
+
+
+async def _call(task, c, name: str, args: dict, notify_progress, key: str = "") -> tuple[str, bytes | None]:
+    from .. import approvals
     key = key or CLAIM.get() or str(task.id)
     if name in DESKTOP:
         await notify_progress(_progress_label(name, args))
@@ -504,11 +525,15 @@ def image_message(png: bytes, caption: str | None = None, coords: bool | None = 
         {"type": "image_url", "image_url": {"url": "data:image/png;base64," + base64.b64encode(png).decode()}}]}
 
 
-def prune_images(msgs: list[dict], keep: int = 2):
-    """只保留最近 keep 张截图，更早的换成文字，避免上下文越来越长。"""
-    seen = 0
-    for m in reversed(msgs):
-        if isinstance(m.get("content"), list) and any(p.get("type") == "image_url" for p in m["content"]):
-            seen += 1
-            if seen > keep:
-                m["content"] = "(an earlier screenshot was omitted)"
+def prune_images(msgs: list[dict], keep: int = 2, batch: int = 4) -> int:
+    """只保留最近 keep 张截图，更早的换成文字，避免上下文越来越长。
+
+    C18：要换就多攒几张一起换（到 keep + batch 张才动手）。每来一张新截图就换掉一张的话，前面已经发出去
+    的消息每步都变，模型服务的缓存每一步都落空、整段重读；多留几张只多花几张图的 token。"""
+    pics = [m for m in msgs
+            if isinstance(m.get("content"), list) and any(p.get("type") == "image_url" for p in m["content"])]
+    if len(pics) <= keep + batch:
+        return 0
+    for m in pics[:-keep] if keep else pics:
+        m["content"] = "(an earlier screenshot was omitted)"
+    return len(pics) - keep

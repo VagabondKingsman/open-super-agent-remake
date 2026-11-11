@@ -9,6 +9,15 @@
   - `bots._bot()` 取 Bot 的私聊时按 `id` 取最早的（`order by id limit 1`）：以前没有 order by，有第二个私聊时“Bot 的私聊”是哪一个是随机的，点 Bot 可能进到别的对话。
   - 改 Bot 名字只改还跟着旧名字走的私聊，用户自己起过名的私聊不被冲掉。
   - 私聊能改名了：右键菜单“改名”（`PATCH /api/chats/{id}` 现在接受私聊的 title，空标题 = 跟着 Bot 的名字走），不需要的私聊能删（`DELETE`）；Bot 自己的那个私聊仍然随 Bot 一起删（删它会返回 400）。改名用新的 `askText()` 输入对话框，和 `ask()`/`notice()` 共用同一个队列。
+- 审计 → super bot（vòng A/B/C，`cursor/audit-abc-cache`，细节与每次实测在 `docs/ke-hoach-super-bot.md`）：
+  - 看得见：每轮回复在 `meta` 里记下这一轮的用量（A4）；工具调用逐条出现在聊天流里（A3）；卡住的连接、卡住的流都变成一次可重来的 stall，而不是 3 分钟后整个任务被取消（C19、C20）；任务过程里一步一步留下命令和退出码（B1）。
+  - 钱：worker 在**结果到达时**就截断（头 70% + 尾 30%），正文永远是上一次的逐字延长，任务中途不再断缓存——22 步的任务：断 3 次 → 0 次，同样的步模拟 $0.1499 → $0.1180（C21、C22）；重复工具结果、每轮只记自己用过的工具（C6、C8）；一轮比平时贵 3× 就停止再调工具，基准是 7 天**中位数**（C4、C7）。
+  - 对得上：回复里说的数字必须来自这一轮工具结果或本轮上下文，否则给模型一轮按结果改正（C3）；这一轮自带服务器真实时间，"几点了"不再现编（C12）；说了"已派给 worker"却真的没调 dispatch 会被抓到并补正（C10、C11）。
+  - 稳：流/连接有独立上限，模型卡住就重来、再不行换备用模型（C9）；两个任务各用一份 Chromium profile，互看不到 cookie（B4）；在用着的机器消失就换一台（B5）；VNC 掉线 2 秒内给出"掉线"并在重连后继续（B2）；用户接手电脑时不再静静卡住（B3）。
+  - 一处坏数据不再弄哑整段对话：`meta` 不是对象就按空对象读（C23，11/11 16:54 四条消息无回复的现场）。
+  - 新记录：`llm_calls.silence_ms` 记每次调用最长的一段静默，`scripts/silence_stats.py` 看分布——120 秒的 stall 上限下一步按它来定，而不是猜（C24）。
+  - 翻译：本分支新增的界面与报错串都有 en/vi（`python -m osa.i18n` 通过）。
+  - 测试 907 → 1150（目标分支 `i18n-vi` 本轮 907 通过 / 2 跳过）；eval 35 个场景全过，基线取自 `origin/i18n-vi`。
 - Android v1.0 (11/11/2026, PR #47, merge `3c631a3`): vỏ arm64 mở server HTTP, đăng nhập được trên S22 Ultra. Hết văng lúc nối (`add_capability` thiếu manifest app) và lúc sau mật khẩu (`setBadge` để exception JNI rồi thread detach). File cài ở release `v1.0`. Không phải bản Play, ký khóa debug.
 - 审计修复 AUDIT-F1–F12（`fix/audit-f1-f12`）：
   - F1：流的第一块单独限时（`limits.stream_first_chunk_s`，默认 170 秒），`stream_idle_s` 只算第一块之后两块之间，想得久的模型不再在出第一个字之前被当成卡住。

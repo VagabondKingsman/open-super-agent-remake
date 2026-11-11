@@ -8,7 +8,7 @@ import time
 import logging
 import openai
 from .computer import tools as ctools
-from .config import CFG, call_kwargs, client_for
+from .config import CFG, call_kwargs, client_for, fallback_for
 from . import approvals, botadmin, bots, dm, dsml, i18n, langcheck, local_checks, media, memories, memory, providers, registry, routines, skillpacks, skills, tasklog, verification
 from . import builtin  # noqa: F401  导入即注册内置工具
 from . import worker as worker_mod
@@ -16,10 +16,28 @@ from .worker import IncompleteAnswer, Task, TaskFailed, run_worker, run_heavy
 
 log = logging.getLogger(__name__)
 
+def _times(x: float) -> str:
+    """2.0 → "2"，2.5 → "2.5"：写进给模型看的那句话里的倍数。"""
+    return f"{x:g}"
+
+
+def _tool_brief(args: dict) -> str:
+    """给界面看的一行参数摘要：取第一个像样的字符串，太长就截断。"""
+    for k in ("goal", "command", "cmd", "text", "url", "query", "q", "code", "path", "name"):
+        v = args.get(k)
+        if isinstance(v, str) and v.strip():
+            return (k + ": " if k not in ("command", "cmd", "url") else "") + v.strip().replace("\n", " ")[:80]
+    for v in args.values():
+        if isinstance(v, str) and v.strip():
+            return v.strip().replace("\n", " ")[:80]
+    return ""
+
+
 ROUTER_PROMPT = """You are "{name}", the user's AI teammate. {instructions}
 You talk with the user in this chat. You do not research things yourself. Instead:
 - Small talk, common knowledge, and questions you can answer directly: answer directly.
-- Small things that must be exact (arithmetic, unit conversion, dates and weekdays, time zones): when you have quick_code, run a short Python snippet with it. Do not compute in your head.
+- The latest message from the user wins over these defaults: if they ask for a one-line answer, or say not to use a tool this turn, do exactly that.
+- Small things that must be exact (arithmetic, unit conversion, dates and weekdays, time zones): when you have quick_code, run a short Python snippet with it. Do not compute in your head. (Unless this turn is one where the user told you not to use a tool: then just answer.)
   Work that processes files, needs the network, or runs long: dispatch it (the background Worker can run code in a sandbox).
 - Anything that needs a web lookup or multi-step research: call dispatch to send it to a background Worker, then briefly tell the user it has started (they can keep chatting).
   Use mode=heavy for hard or high-stakes judgments (several Workers draft in parallel and a reviewer merges them; this costs more). Use single otherwise.
@@ -97,6 +115,7 @@ ATTACH_SEE = ('- "[附件] path" in a message is a file the user uploaded to the
 STATE_PROMPT = """
 
 (The text below is system-attached current state. It is refreshed every turn and is not the user speaking.)
+Now: {now} (server clock, UTC). Any time or date you state comes from this line or from a tool you called in this turn; do not estimate one.
 Current tasks (a task exists only if you called the dispatch tool; writing "dispatched task #N" without calling it starts nothing):
 {tasks}
 
@@ -104,15 +123,37 @@ Write operations waiting for the user. When they agree or refuse in chat, call r
 {approvals}
 
 Tools you can use in this turn. This list decides what you can do: if you said earlier in the chat that you "can't" or "have no such tool", it may not have existed then; if it is here now, use it:
-{tools}{memories}{turn}"""
+{tools}{memories}{removed}{turn}"""
 
 # B1：回复里“#数字”旁边出现这些词，就当它在说派了这个任务
 FAKE_DISPATCH_RE = re.compile(r"#(\d{1,9})\b")
 SENTENCE_RE = re.compile(r"(?<=[.!?])\s+|[\n。！？；;]")
 CLAIM_WORDS = re.compile(r"派|任务|giao|tác vụ|nhiệm vụ|dispatch|task|assign", re.I)
+# C10: B1 only looks when the reply carries a "#N", and live missed two claims without one (chat 1, messages 118
+# "Đã giao worker chạy…" and 120 "Đã gọi `dispatch`": neither turn called a single tool, tasks was empty).
+# A sentence that says the work was already handed to the Worker (or that dispatch was called), with no task number,
+# no negation, and no task dispatched this turn: treat it as a claim about something that did not happen — give one
+# round with tools; if it still dispatches nothing, append a correction.
+DISPATCH_CLAIM_RE = re.compile(
+    r"已(?:经)?(?:派发|派出|派给|派好|派了|派)"
+    r"|(?:派发|派|交给|转给|让)(?:给|了)?\s*(?:worker|后台任务|后台)"
+    r"|đã\s*(?:gọi\s*`?dispatch`?|(?:giao|đưa|chuyển|đẩy)(?:\s*(?:việc|tác vụ|cho|sang|worker))?|dispatch)"
+    r"|\b(?:i(?:'ve| have)?|have|has|already)\s*(?:just\s*)?(?:dispatched|assigned|handed)"
+    r"|\bsent\s+(?:it|this|the\s+(?:task|work|job))\s+(?:to\s+)?(?:the\s+)?(?:worker|background)",
+    re.I)
+# "chưa giao" "还没有派" "haven't dispatched" say nothing was dispatched, so they are not claims
+DISPATCH_UNCLAIMED_RE = re.compile(r"chưa|không|haven't|hasn't|didn't|did not|没有|没|还不|尚未|not yet", re.I)
+# 同一句里已经在说结果回来了/做完了（“kết quả đã về”“已经完成”“the result is in”）：那是在讲之前真派过的任务
+DISPATCH_RESULT_RE = re.compile(r"kết quả|đã xong|hoàn thành|已完成|结果|finished|already done|result (?:is|was) (?:in|back)", re.I)
 FAKE_DISPATCH_NOTE = ("(System, not the user: your reply says task {ids} was dispatched, but you did not call the dispatch tool "
                       "in this turn and no such task exists. Saying it does not start anything. If the user wants this work done, "
                       "call dispatch now. Otherwise tell the user plainly that nothing was dispatched.)")
+SELF_CHECK_NOTE = ("(System, not the user: your reply states {claims}, but nothing this turn gave that number — "
+                  "not a tool result, not the user's message. Re-read the tool results above and restate with the "
+                  "number they show, call a tool to get it, or say it is unknown.)")
+CLAIM_NO_CALL_NOTE = ("(System, not the user: your reply says the work was already handed to the Worker — or that you called "
+                      "dispatch — but this turn made no dispatch tool call, so nothing is running. Saying it does not start "
+                      "anything. Call dispatch now with the goal, or tell the user plainly that nothing was dispatched yet.)")
 
 GROUP_PROMPT = """
 
@@ -303,6 +344,15 @@ class Router:
                          "content": content, "meta": meta, "bot_id": self.bot_id}}, cid)
         return mid
 
+    def _keep_tail(self, extra: list[dict]) -> None:
+        """把将要发送的工具往返记到库里：下一轮的正文才是这一轮的延长，缓存才认（见 memory.keep_tail）。"""
+        for m in extra:
+            if m.get("role") == "user" and isinstance(m.get("content"), list):
+                continue          # 截图：留在这一轮就好
+            self._turn_tail.append(m)
+        if extra and self.chat:
+            memory.keep_tail(self.chat["id"], self._turn_tail)
+
     def _over_budget(self) -> bool:
         return memory.tokens_today() > CFG["limits"]["daily_token_budget"]
 
@@ -350,23 +400,31 @@ class Router:
         if c is not None and hasattr(c, "desk_release"):
             await c.desk_release(f"chat-{self.bot_id}")
 
-    async def _stream(self, client, model, msgs, sid: str, started: float, use_tools: bool = True):
-        """流式调用一次模型，边收边推送正文和思考过程。返回 (正文, 思考, 工具调用列表, finish_reason)。"""
+    async def _stream(self, client, model, msgs, sid: str, started: float, use_tools: bool = True,
+                      force_tool: str | None = None):
+        """流式调用一次模型，边收边推送正文和思考过程。返回 (正文, 思考, 工具调用列表, finish_reason)。
+
+        force_tool：这一轮必须调这个工具（OpenAI 的 tool_choice）。C11 用它逼出一次真的 dispatch。"""
         tools = self._tools()
         cid = self.chat["id"]
+        kw = call_kwargs("router")
         def create():
+            extra = {}
+            if use_tools and force_tool:
+                extra["tool_choice"] = {"type": "function", "function": {"name": force_tool}}
             return providers.create_chat(
                 client, model=model, messages=msgs, stream=True, **({"tools": tools} if use_tools else {}),
-                stream_options={"include_usage": True}, **call_kwargs("router"))
+                stream_options={"include_usage": True}, **extra, **kw)
         t0, first = time.monotonic(), None
         content, reasoning, calls, usage = "", "", {}, None
         finish = None
         recorded = False
         sent = 0   # 正文推送到哪了：DeepSeek 写进正文的工具调用（见 dsml.py）不推送
         try:
-            attempt = 0
+            attempt, fell_back = 0, False
             while True:
                 stream = None
+                stats: dict = {}   # guard_stream 填：这次流里最长的一段静默（见 providers.guard_stream）
                 try:
                     try:
                         stream = await create()
@@ -377,7 +435,7 @@ class Router:
                         r = CFG["roles"]["router"]
                         media.remember_test(r["provider"], r["model"], "no")
                         stream = await create()
-                    async for chunk in providers.guard_stream(stream):
+                    async for chunk in providers.guard_stream(stream, stats=stats):
                         if getattr(chunk, "usage", None):
                             usage = chunk.usage
                         if not chunk.choices:
@@ -407,28 +465,43 @@ class Router:
                                 c["args"] += tc.function.arguments or ""
                     break
                 except Exception as e:
-                    memory.record_error("router", model, providers.brief(e), ms=(time.monotonic() - t0) * 1000)
+                    memory.record_error("router", model, providers.brief(e), ms=(time.monotonic() - t0) * 1000,
+                                        silence=stats.get("silence"))
                     # 作废的这次也花了 token：有 usage 照实记，没有就按已收到的文字估算
-                    memory.record_partial("router", model, usage, memory.streamed_output_text(content, reasoning, calls))
+                    self._count_usage(memory.record_partial("router", model, usage,
+                                                           memory.streamed_output_text(content, reasoning, calls),
+                                                           silence=stats.get("silence")))
                     # 流中途卡住或断了，而且还没推送正文、没收到工具调用：重来一次。已经推送了正文就不重来，免得界面上重复
-                    # 开流之前的错 create_chat 已经按规则重试过了，这里只管流开了之后的
-                    if stream is not None and attempt < providers.stream_retries() and sent == 0 and not calls \
-                            and providers.retry_midstream(e):
+                    # 开流之前的错 create_chat 已经按规则重试过了，这里只管流开了之后的。重来还是不行，而且这个角色配了
+                    # 备用模型（roles.<role>.fallback），就换备用模型把这一轮说完
+                    if sent or calls or not providers.retry_midstream(e) or (stream is None and not isinstance(e, providers.StreamStalled)):
+                        # 开流之前的错 create_chat 已经按规则重试过了；只有“连接卡住”是这里新加的那个上限，值得再来一次
+                        raise
+                    if attempt < providers.stream_retries():
                         attempt += 1
                         log.warning("router stream failed mid-way (%s); retrying", providers.brief(e))
-                        if reasoning or content:   # 界面上已经显示的思考清掉，免得重来后同一段思考出现两遍
-                            await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
-                        content, reasoning, usage, finish, first = "", "", None, None, None
-                        await providers.retry_pause(attempt)
-                        t0 = time.monotonic()
-                        continue
-                    raise
-            memory.record_usage("router", model, usage, ms=(time.monotonic() - t0) * 1000,
-                                ttft=None if first is None else (first - t0) * 1000)
+                    elif not fell_back and (fb := fallback_for("router", model)):
+                        client, model, kw = fb
+                        fell_back = True   # 备用模型只试一次
+                        log.warning("router stream failed twice (%s); continuing on %s", providers.brief(e), model)
+                    else:
+                        raise
+                    if reasoning or content:   # 界面上已经显示的思考清掉，免得重来后同一段思考出现两遍
+                        await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
+                    content, reasoning, usage, finish, first = "", "", None, None, None
+                    stats = {}   # 重来的这次另算静默
+                    await providers.retry_pause(attempt)
+                    t0 = time.monotonic()
+                    continue
+            self._count_usage(memory.record_usage("router", model, usage, ms=(time.monotonic() - t0) * 1000,
+                                                 ttft=None if first is None else (first - t0) * 1000,
+                                                 silence=stats.get("silence")))
             recorded = True
         except asyncio.CancelledError:
             if not recorded:
-                memory.record_partial("router", model, usage, memory.streamed_output_text(content, reasoning, calls))
+                self._count_usage(memory.record_partial("router", model, usage,
+                                                       memory.streamed_output_text(content, reasoning, calls),
+                                                       silence=stats.get("silence")))
             raise
         content, leaked = dsml.split(content)
         if len(content) > sent:   # 压着的结尾不是标记，或者标记后面还有话
@@ -436,6 +509,40 @@ class Router:
         if calls or not use_tools:
             leaked = []
         return content, reasoning, [calls[k] for k in sorted(calls)] or leaked, finish
+
+    def _count_usage(self, u: dict | None):
+        """A4：把一次模型调用的用量加进这一轮。回复下面显示这一轮花了多少 token、多少钱、第一个字多久出来。"""
+        if not u:
+            return
+        t = getattr(self, "_turn_usage", None)
+        if t is None:   # _stream 也可能没经过 _think 被单独调用（测试、探针）
+            t = self._turn_usage = {"in": 0, "out": 0, "cache": 0, "cost": 0.0, "ttft": None, "est": False}
+        t["in"] += u.get("in") or 0
+        t["out"] += u.get("out") or 0
+        t["cost"] += u.get("cost") or 0.0
+        t["est"] = t["est"] or bool(u.get("est"))
+        t["cache"] += u.get("cache") or 0   # 命中前缀缓存的 token：便宜的那部分，和费用对得上
+        if t["ttft"] is None and u.get("ttft") is not None:
+            t["ttft"] = round(u["ttft"])   # 这一轮第一次开口的时间（带工具的轮次只看第一次）
+
+    def _count_tool(self, name: str, brief: str, t0: float, state: str = "ok"):
+        """A4：记下这一轮调过的工具和用时，挂在回复下面（重开对话也看得到走过哪几步）。"""
+        tools = getattr(self, "_turn_tool_ms", None)
+        if tools is None:
+            tools = self._turn_tool_ms = []
+        tools.append({"n": name, "ms": int((time.monotonic() - t0) * 1000),
+                      **({"b": brief} if brief else {}), **({"err": 1} if state == "err" else {})})
+
+    def _usage_meta(self, started: float) -> dict | None:
+        """这一轮的用量，挂在回复的 meta 上：in / out 个 token，cost 美元，ttft 第一个字的毫秒，sec 整轮秒数。
+        服务没回 usage（token 全 0）就返回 None，不带空字段。"""
+        t = getattr(self, "_turn_usage", None) or {}
+        if not t.get("in") and not t.get("out"):
+            return None
+        return {"in": t["in"], "out": t["out"], "cache": t["cache"], "cost": round(t["cost"], 6),
+                "ttft": t["ttft"], "sec": round(time.time() - started, 1),
+                **({"est": True} if t["est"] else {}),
+                **({"tools": self._turn_tool_ms} if getattr(self, "_turn_tool_ms", None) else {})}
 
     def _tools(self) -> list[dict]:
         """这一轮给模型的工具（self.chat 是本轮的对话）。"""
@@ -504,25 +611,46 @@ class Router:
             bot_rule=PRIMARY_RULE if b["is_primary"] else OTHER_RULE.format(primary=p) if (p := bots.primary_name()) else "",
             attach_rule=ATTACH_SEE if see else ATTACH_BLIND) + verification.HINT + local_checks.runtime_hint() + skillpacks.runtime_hint(self.bot_id) + i18n.model_hint()
         recent = memories.turn_block(self.bot_id, related)
-        state = STATE_PROMPT.format(tasks=self._task_list(), approvals=approvals.summary(self.bot_id),
+        state = STATE_PROMPT.format(now=time.strftime("%Y-%m-%d %H:%M:%SZ", time.gmtime()),
+                                   tasks=self._task_list(), approvals=approvals.summary(self.bot_id),
                                     tools=", ".join(t["function"]["name"] for t in self._tools()),
-                                    memories="\n\n" + recent if recent else "", turn=self._turn_block())
-        msgs = [{"role": "system", "content": system}] + with_state(
+                                    memories="\n\n" + recent if recent else "", removed="", turn=self._turn_block())
+        self._turn_context = ""            # C3：这一轮看得见的上下文（含用户这条），数有出处就不啰嗦
+        history, removed = memory.split_notice(
             memory.context(cid, self.bot_id if chat["kind"] == "group" else None, me=self.bot_id,
-                           images=media.MODEL_IMAGES if see else 0), state)
+                           images=media.MODEL_IMAGES if see else 0))   # C13: 索引挪到状态块，开头才是稳定的前缀
+        if removed:
+            state += "\n\n" + removed
+        memory.remember_state(cid, self.bot_id, state)   # C14：原样存下这一轮的状态，下一轮的正文才是它的延长
+        msgs = [{"role": "system", "content": system}] + with_state(history, state)
+        self._turn_context = "\n".join(str(m.get("content") or "") for m in msgs)
         sid, started = f"s{time.time_ns()}", time.time()
         self._turn_tasks = []             # 本轮派发的任务，挂在这条回复下面显示
         self._turn_heavy = None           # 一轮用户消息最多一个 Heavy
         self._turn_dms = 0                # 本轮发出的私信
         self._turn_waits = 0              # 本轮弹出的新建 / 修改 / 删除 Bot 的卡片：有了结果会再叫醒这个 Bot
         self._turn_files = []             # 本轮 send_file 发的文件，挂在这条回复下面显示
+        self._turn_tool_ms = []           # 本轮调过的工具（C6：上一轮的要清掉，否则每轮越记越长，回复下面挂一排旧工具）
+        self._turn_outputs = []             # C3：本轮工具吐出来的文字（数出处）
+        self._self_check = []               # C3：改过一轮仍对不上工具结果的数
+        self._turn_usage = {"in": 0, "out": 0, "cache": 0, "cost": 0.0, "ttft": None, "est": False}   # A4：本轮各次模型调用的合计
+        guard = float(CFG["limits"].get("turn_cost_guard") or 0)   # C4：比平时贵太多的一轮
+        cap = memory.turn_cost_cap(factor=guard)
+        self._turn_capped = None
         shown, thinking, shots, finish = "", "", [], None
-        async def rounds():
+        async def rounds(force_tool: str | None = None):
             """跑最多 10 轮工具调用。返回（轮数是否用完, 最后一段正文, 最后一段思考）。"""
             nonlocal shown, thinking, shots, finish
             rounds_used, content, reasoning = True, "", ""
-            for _ in range(10):
-                content, reasoning, calls, finish = await self._stream(client, model, msgs, sid, started)
+            mark = len(msgs)      # 上一轮之后新加进 msgs 的，就是这次请求要发出去的；它们得留下来（C15）
+            self._turn_tail: list[dict] = []
+            for i in range(10):
+                self._keep_tail(msgs[mark:])
+                mark = len(msgs)
+                # 只在第一次调用上强制：收尾那轮再强制一次 dispatch，模型会又派一遍
+                content, reasoning, calls, finish = await self._stream(client, model, msgs, sid, started,
+                                                                      use_tools=not self._turn_capped,
+                                                                      force_tool=force_tool if i == 0 else None)
                 shown += content
                 thinking += reasoning
                 if not calls:
@@ -546,6 +674,17 @@ class Router:
                     png, whole = shots[-1]
                     msgs.append(ctools.image_message(png, "the whole screen" if whole else (getattr(png, "caption", None) or "the current page"), coords=not whole))
                     shots = []
+                if cap and self._turn_capped is None and self._turn_usage["cost"] > cap[0]:
+                    # C4：这一轮已经花得比平时多好几倍：不再调工具，用手上的资料回答
+                    self._turn_capped = {"cost": round(self._turn_usage["cost"], 6),
+                                         "cap": round(cap[0], 6), "usual": round(cap[1], 6), "turns": cap[2],
+                                         "factor": guard}
+                    log.warning("turn cost %s over cap %s (%sx the usual %s of %s replies): answering without more tools",
+                                self._turn_capped["cost"], self._turn_capped["cap"], guard, cap[1], cap[2])
+                    msgs.append({"role": "user", "content": i18n.t(
+                        "(System: this turn has already cost {cost} — more than {factor}x the usual {usual}. "
+                        "Answer from what you have now; do not call any more tools.)",
+                        cost=self._turn_capped["cost"], factor=_times(guard), usual=round(cap[1], 4))})
                 if shown and not shown.endswith("\n"):
                     shown += "\n\n"
                     await self.emit({"type": "stream", "sid": sid, "delta": "\n\n"}, cid)
@@ -555,6 +694,32 @@ class Router:
         await self.emit({"type": "stream_start", "sid": sid}, cid)
         try:
             rounds_used, content, reasoning = await rounds()
+            # C10：说“已经交给 worker 了”却没带任务号，而这一轮一次都没派（也没有正在跑的任务可以指）。
+            # 给一次带工具的机会真的去派；仍然没派就补一句更正，并在记录里标成通知。
+            claimed_no_call = False
+            if (not self._turn_tasks and not self.tasks and self._dispatch_claim_without_id(shown)):
+                msgs.append({"role": "assistant", "content": content, "reasoning_content": reasoning})
+                msgs.append({"role": "user", "content": CLAIM_NO_CALL_NOTE})
+                if not shown.endswith("\n"):
+                    shown += "\n\n"
+                    await self.emit({"type": "stream", "sid": sid, "delta": "\n\n"}, cid)
+                before = shown
+                try:
+                    # C11：这一轮本来就是“去把活派出去”，直接把 dispatch 定为必调工具，别让模型又只回一句话。
+                    rounds_used, content, reasoning = await rounds(force_tool="dispatch")
+                except Exception as e:   # 有的服务不认 tool_choice：退回普通的一轮
+                    log.warning("forced dispatch round failed (%s); retrying with every tool", providers.brief(e))
+                    if shown != before:
+                        shown = before
+                        await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
+                        if before:
+                            await self.emit({"type": "stream", "sid": sid, "delta": before}, cid)
+                    rounds_used, content, reasoning = await rounds()
+                if not self._turn_tasks:
+                    claimed_no_call = True
+                    fix = i18n.t("（更正：这一轮还没真的派出任务，上面说已经交给 worker 是不对的。）")
+                    shown = shown.rstrip() + "\n\n" + fix
+                    await self.emit({"type": "stream", "sid": sid, "delta": "\n\n" + fix}, cid)
             # B1：没派任务却说“已派发任务 #N”、而 #N 根本不存在。给一次带工具的机会真的去派；仍然没有就在后面补一句更正
             if not self._turn_tasks and (fake := self._fake_dispatch_ids(shown)):
                 msgs.append({"role": "assistant", "content": content, "reasoning_content": reasoning})
@@ -567,6 +732,17 @@ class Router:
                     fix = i18n.t("（更正：这一轮没有派出任务 {ids}，上面说已派发是不对的。）", ids=", ".join(f"#{i}" for i in fake))
                     shown = shown.rstrip() + "\n\n" + fix
                     await self.emit({"type": "stream", "sid": sid, "delta": "\n\n" + fix}, cid)
+            # C3：回复里数了数（“8 lần”“150 dòng”），这个数却不在本轮任何一个工具结果里、也不在用户这条消息里。
+            # 给一轮机会按工具结果改；仍然对不上，就在 meta 里标出来，别让它当成事实留在记录里。
+            told = self._turn_context + "\n" + "\n".join(self._turn_outputs)
+            if self._turn_outputs and (unsupported := verification.count_claims(shown, told)):
+                msgs.append({"role": "assistant", "content": content, "reasoning_content": reasoning})
+                msgs.append({"role": "user", "content": SELF_CHECK_NOTE.format(claims=", ".join(f"“{c}”" for c in unsupported))})
+                if not shown.endswith("\n"):
+                    shown += "\n\n"
+                    await self.emit({"type": "stream", "sid": sid, "delta": "\n\n"}, cid)
+                rounds_used, content, reasoning = await rounds()
+                self._self_check = verification.count_claims(shown, told)
             # 空回复，或 finish_reason=length：再要一次完整回复。仍空就不要当成成功的空白消息。
             if not shown.strip() or finish == "length":
                 if not shown.strip() and rounds_used:   # 工具轮数用完还没开口：关掉工具，逼它给一句回复
@@ -587,10 +763,15 @@ class Router:
         finally:
             await self.emit({"type": "stream_end", "sid": sid}, cid)
         flag = langcheck.record(shown, woke["text"] if woke else (last[0] if last else ""), f"chat {cid}")
+        usage_meta = self._usage_meta(started)
         await self.add("assistant", shown.strip(), cid, reasoning=reasoning, thinking=thinking,
                        thought_s=round(time.time() - started, 1), sid=sid, tasks=self._turn_tasks,
+                       **({"usage": usage_meta} if usage_meta else {}),
                        **({"lang_flag": flag} if flag else {}),
                        **({"fabricated_task_ids": fake} if fake else {}),
+                       **({"claimed_dispatch": True} if claimed_no_call else {}),
+                       **({"self_check": self._self_check} if self._self_check else {}),
+                       **({"cost_guard": self._turn_capped} if self._turn_capped else {}),
                        **({"attachments": self._turn_files} if self._turn_files else {}))
         return shown.strip()
 
@@ -613,6 +794,17 @@ class Router:
         real |= {r[0] for r in rows}
         return [i for i in ids if i not in real]
 
+    def _dispatch_claim_without_id(self, text: str) -> bool:
+        """C10：回复说“已经交给 worker / 已经调了 dispatch”，却没带任务号（带号的归 _fake_dispatch_ids 管）。
+        只看同一句话；否定句（“chưa giao”“还没有派”）和已经在讲结果的句子不算。"""
+        for sentence in SENTENCE_RE.split(text or ""):
+            if (FAKE_DISPATCH_RE.search(sentence) or DISPATCH_UNCLAIMED_RE.search(sentence)
+                    or DISPATCH_RESULT_RE.search(sentence)):
+                continue
+            if DISPATCH_CLAIM_RE.search(sentence):
+                return True
+        return False
+
 
     def _turn_woke(self) -> dict | None:
         """私信（dm）、其他 Bot 的回信（reply）、或建改删 Bot 有了结果（botadmin）叫醒时的来由。
@@ -629,8 +821,25 @@ class Router:
         return None
 
     async def _tool(self, name: str, args: dict):
-        """调一个工具；调完发 tool_done 事件（只读，插件能看不能改，不等它们）。"""
-        out = await self._call_tool(name, args)
+        """调一个工具；调完发 tool_done 事件（只读，插件能看不能改，不等它们）。
+        同时在 /ws 上发 tool 帧：界面能看到“正在跑哪一步”，而不是一直转圈到答案出现。"""
+        cid = self.chat["id"]
+        brief = _tool_brief(args)
+        t0 = time.monotonic()
+        await self.emit({"type": "tool", "name": name, "state": "run", "brief": brief}, cid)
+        try:
+            out = await self._call_tool(name, args)
+        except Exception:
+            await self.emit({"type": "tool", "name": name, "state": "err", "brief": brief,
+                             "ms": int((time.monotonic() - t0) * 1000)}, cid)
+            self._count_tool(name, brief, t0, "err")
+            raise
+        await self.emit({"type": "tool", "name": name, "state": "ok", "brief": brief,
+                         "ms": int((time.monotonic() - t0) * 1000)}, cid)
+        self._count_tool(name, brief, t0)
+        text = out[0] if isinstance(out, tuple) else out
+        if isinstance(text, str):
+            self._turn_outputs.append(text[:20_000])   # C3：本条回复里数出来的数要有出处
         if registry.listening("tool_done"):
             registry.fire("tool_done", scope="router", bot=self.bot, chat_id=self.chat["id"], task=None, name=name,
                           args=dict(args), result=out[0] if isinstance(out, tuple) else out, status="done")

@@ -1,0 +1,18 @@
+id: e31_tool_frames
+title: Tool chạy thì phát frame run/ok để giao diện hiện chip, xong đổi thành dấu tích (A3)
+area: ui
+bots: [Runner]
+script:
+  router:Runner:
+    - {call: quick_code, args: {code: "print(6 * 7)"}}
+    - "42"
+input: {to: Runner, text: "6*7 bằng mấy? Tính bằng code"}
+expect:
+  tasks: 0
+  executed: [quick_code]
+  tool_frames: [quick_code]
+  messages:
+    - {chat: Runner, role: assistant, text: "42"}
+notes: |
+  Trước A3 giao diện chỉ quay vòng chờ đến khi có câu trả lời. Giờ mỗi lần gọi tool
+  có frame run (đang chạy) rồi ok/err (xong) kèm số mili giây.

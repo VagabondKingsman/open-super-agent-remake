@@ -5,9 +5,12 @@
 """
 import asyncio
 import os
+import time
 import uuid
 import httpx
 import websockets
+
+from ..config import CFG
 from .. import i18n, vault
 from ..memory import conn
 from .base import Computer, ComputerError, ExecResult, check_enabled
@@ -77,6 +80,8 @@ class InstaboxComputer(Computer):
         self.template = template
         self.idle_seconds = idle_seconds
         self._starting = asyncio.Lock()
+        self._switch = asyncio.Lock()        # 换机器一次只做一次（几个动作同时发现机器没了）
+        self._ls_cache: dict = {}             # 目录列表：界面翻文件夹时同一个目录几秒内只问一次（见 ls）
         self.http = httpx.AsyncClient(base_url=API, timeout=httpx.Timeout(60, read=660))
 
     # 机器 id 存在数据库里，以后一直用同一台机器
@@ -91,6 +96,46 @@ class InstaboxComputer(Computer):
         conn.execute("insert or replace into computers(bot_id, backend, ref) values(?, 'instabox', ?)", (self.bot_id, mid))
         conn.commit()
 
+    def _forget(self):
+        conn.execute("delete from computers where bot_id=? and backend='instabox'", (self.bot_id,))
+        conn.commit()
+
+    async def _get_machine(self, mid: str) -> dict | None:
+        """那台机器的样子；已经没了（账号那边删掉、回收）返回 None。"""
+        try:
+            return await self._req("GET", f"/v1/machines/{mid}")
+        except ComputerError as e:
+            if "machine_not_found" in str(e) or " 404 " in str(e):
+                return None
+            raise
+
+    async def _set_role(self, mid: str, role: str):
+        """在机器的 metadata 里记下它是哪一台（primary：现在用的；backup：备着）。Instabox 不认这个接口也不影响用。"""
+        try:
+            await self._req("PATCH", f"/v1/machines/{mid}", json={"metadata": {"app": "open-super-agent", "role": role}})
+        except Exception:
+            pass
+
+    async def failover(self, why: str = "") -> str:
+        """现在这台机器没了：换一台自己的机器用，一台都没有就返回 ""（start 里新建）。
+        有现成的机器时只多两次请求（列一下、记住），所以切换在几秒内完成。"""
+        if self.fixed_machine:
+            raise ComputerError(i18n.t("config.yaml 指定的电脑（{mid}）不在了，换不了：清空 computer.instabox_machine 或改成另一台", mid=self.fixed_machine))
+        async with self._switch:
+            cur = self.machine_id
+            if cur and await self._get_machine(cur) is not None:
+                return cur          # 别人已经换好了
+            alive = [m for m in await self.list_machines()   # state 是界面上的说法（见 STATE）：paused 是挂起的
+                     if m["ours"] and m["id"] != cur and m["state"] in ("running", "paused", "stopped")]
+            if not alive:
+                self._forget()
+                return ""
+            order = {"running": 0, "paused": 1, "stopped": 2}   # 已经开着的先用，挂起的次之
+            pick = sorted(alive, key=lambda m: order[m["state"]])[0]["id"]
+            self._save_id(pick)
+            await self._set_role(pick, "primary")
+            return pick
+
     async def list_machines(self) -> list[dict]:
         """账号下所有机器，给界面选“用已有的电脑”。"""
         out, cursor = [], None
@@ -102,6 +147,7 @@ class InstaboxComputer(Computer):
         cur = self.machine_id
         return [{"id": m["id"], "name": m.get("name") or "", "state": STATE.get(m.get("state"), "error"),
                  "template": m.get("template") or "", "created": m.get("createdAt"),
+                 "role": (m.get("metadata") or {}).get("role") or "",
                  "ours": (m.get("metadata") or {}).get("app") == "open-super-agent", "current": m["id"] == cur}
                 for m in out if m.get("state") not in ("deleting", "deleted")]
 
@@ -134,9 +180,11 @@ class InstaboxComputer(Computer):
         if not mid:
             return {"state": "none", "detail": i18n.t("还没有创建")}
         try:
-            m = await self._req("GET", f"/v1/machines/{mid}")
+            m = await self._get_machine(mid)
         except ComputerError as e:
             return {"state": "error", "detail": str(e)}
+        if m is None:
+            return {"state": "gone", "detail": i18n.t("那台机器已经没了"), "machine_id": mid}
         return {"state": STATE.get(m.get("state"), "error"), "detail": m.get("state", ""), "machine_id": mid}
 
     async def start(self):
@@ -144,11 +192,14 @@ class InstaboxComputer(Computer):
         async with self._starting:
             st = await self.status()
             mid = self.machine_id
+            if mid and st["state"] == "gone":   # 机器没了：换一台自己的（或者下面新建一台）
+                mid = await self.failover()
+                st = await self.status() if mid else {"state": "none", "detail": ""}
             if st["state"] == "none" or not mid:
                 try:
                     op = await self._req("POST", "/v1/machines", idem=True, json={
                     "name": "osa-computer", "templateId": self.template,
-                    "autoSuspendAfterSeconds": self.idle_seconds, "metadata": {"app": "open-super-agent", "role": "shared"}})
+                    "autoSuspendAfterSeconds": self.idle_seconds, "metadata": {"app": "open-super-agent", "role": "primary"}})
                 except ComputerError as e:
                     if " 429 " in str(e):
                         raise ComputerError(i18n.t("Instabox 账号的机器数量到上限了（免费版只能有一台）。"
@@ -189,7 +240,49 @@ class InstaboxComputer(Computer):
         if mid and (await self.status())["state"] == "running":
             await self._wait_op(await self._req("POST", f"/v1/machines/{mid}/suspend", idem=True))
 
+    async def ls(self, path: str) -> list[dict]:
+        """列目录。这里每个 exec 都要一个 API 来回（几百毫秒到一秒），界面打开文件夹、上传前查重名都会来问，
+        所以同一个目录几秒内只问一次（computer.ls_cache_s，默认 2 秒）；写文件、删文件时清掉（见 write_bytes / rm）。"""
+        ttl = float((CFG.get("computer") or {}).get("ls_cache_s", 2) or 0)
+        key = (self.machine_id, path)
+        now = time.monotonic()
+        if ttl and (hit := self._ls_cache.get(key)) and now - hit[0] < ttl:
+            return [dict(e) for e in hit[1]]
+        out = await super().ls(path)
+        if ttl:
+            for k in [k for k, (ts, _) in self._ls_cache.items() if now - ts > 60]:
+                self._ls_cache.pop(k, None)     # 不攒着
+            self._ls_cache[key] = (now, out)
+        return [dict(e) for e in out]
+
+    async def write_bytes(self, path: str, data: bytes):
+        self._ls_cache.clear()
+        await super().write_bytes(path, data)
+
+    async def rm(self, path: str):
+        self._ls_cache.clear()
+        await super().rm(path)
+
+    async def _wake_retry(self, fn):
+        """机器空闲后会自己挂起：遇到 409 machine_not_running 就叫醒它，再做一次。
+        shell()/browser() 本来就会 start()，但 exec/read_file 走的是这里，之前原样把 409 抛给了模型。"""
+        try:
+            return await fn()
+        except ComputerError as e:
+            if "machine_not_found" in str(e):   # 机器没了：换一台，再试一次
+                if not await self.failover():
+                    raise
+                await self.start()
+                return await fn()
+            if "machine_not_running" not in str(e):
+                raise
+            await self.start()
+            return await fn()
+
     async def exec(self, cmd: str, timeout: int = 120, stdin: str | None = None) -> ExecResult:
+        return await self._wake_retry(lambda: self._exec_once(cmd, timeout, stdin))
+
+    async def _exec_once(self, cmd: str, timeout: int = 120, stdin: str | None = None) -> ExecResult:
         mid = self.machine_id
         if not mid:
             raise ComputerError(i18n.t("电脑还没创建"))
@@ -200,6 +293,9 @@ class InstaboxComputer(Computer):
         return ExecResult(r.get("exitCode", -1), r.get("stdout", ""), r.get("stderr", ""), bool(r.get("timedOut")))
 
     async def read_bytes(self, path: str, limit: int = 32 << 20) -> bytes:
+        return await self._wake_retry(lambda: self._read_once(path, limit))
+
+    async def _read_once(self, path: str, limit: int) -> bytes:
         mid = self.machine_id
         r = await self.http.get(f"/v1/machines/{mid}/files/content", params={"path": path}, headers=_headers())
         if r.status_code == 404:
@@ -222,7 +318,9 @@ class InstaboxComputer(Computer):
 
     async def open_vnc(self):
         url = API.replace("https://", "wss://").replace("http://", "ws://") + f"/v1/machines/{self.machine_id}/vnc"
-        ws = await websockets.connect(url, additional_headers=_headers(), max_size=None, ping_interval=None)
+        # ping：云端那头的连接悄悄断了（NAT 超时、机器重启）也能发现——不发 ping 就一直等，画面冻在那里
+        ws = await websockets.connect(url, additional_headers=_headers(), max_size=None,
+                                      ping_interval=20, ping_timeout=20, close_timeout=5)
 
         async def recv() -> bytes:
             m = await ws.recv()

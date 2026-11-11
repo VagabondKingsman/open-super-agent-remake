@@ -121,7 +121,9 @@ computer:
   height: 800
   idle_pause_s: 900      # 闲置多少秒后自动暂停
   instabox_template: agent-browser
-  instabox_machine: ""   # 使用已有的 Instabox 机器（免费版只能有一台）
+  ls_cache_s: 2           # 列目录缓存几秒（Instabox 上每个 exec 一个 API 来回；写、删时立刻清掉）
+  instabox_machine: ""   # 使用已有的 Instabox 机器（免费版只能有一台）。写死了就不换机器：那台没了会直接报错
+                         # 没写死时，账号里还有别的机器（或用这里建的机器）的话，现在这台没了会自动换过去（`metadata.role` 记下它现在是 primary）
 ```
 
 | 后端 | 说明 |
@@ -130,7 +132,7 @@ computer:
 | 本地 Docker | 容器 `osa-computer`，数据在 `data/computers/shared`（用 Docker Compose 部署时在命名卷 `osa-computer-data`，由环境变量 `OSA_COMPUTER_DATA` 指定）。VNC 只监听容器内部、不映射到宿主机端口，由服务端经 `docker exec` 转发给浏览器。 |
 
 **几个任务同时用电脑**：所有 Bot 共用一台电脑，但后台任务不用一个个排队。每个任务在自己的浏览器窗口里做，
-截图、点击、输入都只作用在自己的窗口里，互不干扰；登录状态、电脑里的文件大家共用。同时用的任务最多 `parallel` 个，多了排队，
+截图、点击、输入都只作用在自己的窗口里，互不干扰；每个任务一个浏览器 profile（cookie、登录状态互不可见，任务结束就丢，`computer.isolate_tasks` 可关），电脑里的文件大家共用。同时用的任务最多 `parallel` 个，多了排队，
 任务卡片上会显示“排队等电脑”。终端命令和读写文件不算在里面。
 
 - 画面上一次只显示一个窗口，跟着最近的操作切换。右栏电脑上方列着正在用电脑的任务，点一下画面就固定在它的窗口上，再点一下取消。

@@ -35,12 +35,32 @@ def client_for(role: str) -> tuple[AsyncOpenAI, str]:
     return providers.client(r["provider"]), r["model"]
 
 
+def _spec_kwargs(spec: dict) -> dict:
+    """一份角色设置（或它的备用模型）要带的额外参数：thinking: false 关掉思考模式，reasoning_effort 指定强度。"""
+    kw = {}
+    if spec.get("thinking") is False:
+        kw["extra_body"] = {"thinking": {"type": "disabled"}}
+    if spec.get("reasoning_effort"):
+        kw["reasoning_effort"] = spec["reasoning_effort"]
+    return kw
+
+
 def call_kwargs(role: str) -> dict:
     """某个角色调用模型时的额外参数。config.yaml 里可以给角色加 thinking: false 或 reasoning_effort。"""
-    r = CFG["roles"][role]
-    kw = {}
-    if r.get("thinking") is False:
-        kw["extra_body"] = {"thinking": {"type": "disabled"}}
-    if r.get("reasoning_effort"):
-        kw["reasoning_effort"] = r["reasoning_effort"]
-    return kw
+    return _spec_kwargs(CFG["roles"][role])
+
+
+def fallback_for(role: str, model: str = "") -> tuple[AsyncOpenAI, str, dict] | None:
+    """这个角色的备用模型（config.yaml 的 roles.<role>.fallback: {model: ..., provider: ...}），返回（客户端、模型名、参数）。
+
+    主模型连着卡住、重来也没用的时候换它把这一轮做完，任务不至于整个失败。没配、配的还是主模型、
+    或者那个服务不在 providers 里，都返回 None。备用模型可以自己写 thinking / reasoning_effort。"""
+    from . import providers
+    spec = CFG["roles"].get(role) or {}
+    fb = spec.get("fallback") or {}
+    if not fb.get("model") or fb["model"] == (model or spec.get("model")):
+        return None
+    provider = fb.get("provider") or spec.get("provider")
+    if provider not in (CFG.get("providers") or {}):
+        return None
+    return providers.client(provider), fb["model"], _spec_kwargs(fb)

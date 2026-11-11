@@ -4,7 +4,7 @@ import re
 import json
 import time
 from dataclasses import dataclass, field
-from .config import CFG, call_kwargs, client_for
+from .config import CFG, call_kwargs, client_for, fallback_for
 from .providers import ProviderLimit, create_chat
 from . import applets, approvals, dsml, i18n, local_checks, memories, memory, mcp_hub, providers, registry, skillpacks, tasklog, verification
 from . import builtin  # noqa: F401  导入即注册内置工具
@@ -119,37 +119,53 @@ def _outbound(msg: dict) -> dict:
     return {k: v for k, v in msg.items() if k != "finish_reason"}
 
 
-async def _reply(task: Task, log: tasklog.Log, role: str, client, model: str, msgs: list, tools_: list | None = None) -> dict:
+async def _reply(task: Task, log: tasklog.Log, role: str, client, model: str, msgs: list, tools_: list | None = None,
+                 kw: dict | None = None) -> dict:
     """调一轮模型。流中途卡住（limits.stream_idle_s 秒没有新块）或断了（服务忙、连接断）就重来，
-    最多 limits.stream_retries 次，免得一次卡住的流让 Watchdog 把整个任务取消。额度用尽不重来。"""
-    attempt = 0
+    最多 limits.stream_retries 次，免得一次卡住的流让 Watchdog 把整个任务取消。重来还是卡住，而这个角色配了
+    备用模型（roles.<role>.fallback），就换备用模型把这一轮做完，任务不至于整个失败。额度用尽不重来。"""
+    attempt, fell_back = 0, False
+    kw = call_kwargs(role) if kw is None else kw
     while True:
+        task.last_progress = time.time()   # 每次尝试都算一次进展：Watchdog 的 5 分钟从这一轮开始算
         try:
-            return await _reply_once(task, log, role, client, model, msgs, tools_)
+            return await _reply_once(task, log, role, client, model, msgs, tools_, kw)
         except Exception as e:
             # 开流之前的错 create_chat 已经按规则重试过了，这里只管流开了之后的
-            if not getattr(e, "osa_midstream", False) or attempt >= providers.stream_retries() or not providers.retry_midstream(e):
+            if not getattr(e, "osa_midstream", False) or not providers.retry_midstream(e):
                 raise
-            attempt += 1
+            if attempt < providers.stream_retries():
+                attempt += 1
+                note = i18n.t("这一轮模型调用中途出错（{err}），重新调用", err=providers.brief(e))
+            elif not fell_back and (fb := fallback_for(role, model)):
+                client, model, kw = fb
+                fell_back = True   # 备用模型只试一次：再卡住就是服务整体出问题，别一直耗下去
+                note = i18n.t("这一轮模型调用中途出错（{err}），换备用模型 {model} 继续", err=providers.brief(e), model=model)
+            else:
+                raise
             task.last_progress = time.time()
-            await log.note(i18n.t("这一轮模型调用中途出错（{err}），重新调用", err=providers.brief(e)), "error")
+            await log.note(note, "error")
             await providers.retry_pause(attempt)
             task.last_progress = time.time()
 
 
-async def _reply_once(task: Task, log: tasklog.Log, role: str, client, model: str, msgs: list, tools_: list | None = None) -> dict:
+async def _reply_once(task: Task, log: tasklog.Log, role: str, client, model: str, msgs: list, tools_: list | None = None,
+                      kw: dict | None = None) -> dict:
     """流式调用一次模型，思考和正文边收边写进任务过程。返回这一轮的 assistant 消息。
 
     消息上的 finish_reason 是 stop / length / tool_calls 等。流被取消时，已有 usage 照实记；
     没有 usage 但已经收到文字就按估算记一条。"""
+    kw = call_kwargs(role) if kw is None else kw
     t0, first = time.monotonic(), None
     try:
         stream = await create_chat(client, model=model, messages=msgs, stream=True,
                                    stream_options={"include_usage": True},
-                                   **({"tools": tools_} if tools_ else {}), **call_kwargs(role))
+                                   **({"tools": tools_} if tools_ else {}), **kw)
     except Exception as e:
         memory.record_error(role, model, providers.brief(e), task.id, bot_id=task.bot_id, chat_id=task.chat_id,
                             ms=(time.monotonic() - t0) * 1000)
+        if isinstance(e, providers.StreamStalled):
+            e.osa_midstream = True   # 连接阶段卡住（见 provider_head_s）：_reply 会重来一次，再不行换备用模型
         raise
     content, reasoning, calls, usage = "", "", {}, None
     finish = None
@@ -165,8 +181,9 @@ async def _reply_once(task: Task, log: tasklog.Log, role: str, client, model: st
             text = await log.start("text")
         await log.append(text, piece)
 
+    stats: dict = {}   # guard_stream 填：这次调用里最长的一段静默（见 providers.guard_stream）
     try:
-        async for chunk in providers.guard_stream(stream):
+        async for chunk in providers.guard_stream(stream, stats=stats):
             task.last_progress = time.time()   # 还在出字就算有进展，Watchdog 不会当成卡住
             if getattr(chunk, "usage", None):
                 usage = chunk.usage
@@ -198,17 +215,20 @@ async def _reply_once(task: Task, log: tasklog.Log, role: str, client, model: st
                     c["name"] += tc.function.name or ""
                     c["args"] += tc.function.arguments or ""
         memory.record_usage(role, model, usage, task.id, bot_id=task.bot_id, chat_id=task.chat_id,
-                            ms=(time.monotonic() - t0) * 1000, ttft=None if first is None else (first - t0) * 1000)
+                            ms=(time.monotonic() - t0) * 1000, ttft=None if first is None else (first - t0) * 1000,
+                            silence=stats.get("silence"))
         recorded = True
     except asyncio.CancelledError:
         if not recorded:
-            memory.record_partial(role, model, usage, memory.streamed_output_text(content, reasoning, calls), task.id)
+            memory.record_partial(role, model, usage, memory.streamed_output_text(content, reasoning, calls), task.id,
+                                  silence=stats.get("silence"))
         raise
     except Exception as e:
         memory.record_error(role, model, providers.brief(e), task.id, bot_id=task.bot_id, chat_id=task.chat_id,
-                            ms=(time.monotonic() - t0) * 1000)
+                            ms=(time.monotonic() - t0) * 1000, silence=stats.get("silence"))
         # 作废的这一轮也花了 token：有 usage 照实记，没有就按已收到的文字估算
-        memory.record_partial(role, model, usage, memory.streamed_output_text(content, reasoning, calls), task.id)
+        memory.record_partial(role, model, usage, memory.streamed_output_text(content, reasoning, calls), task.id,
+                              silence=stats.get("silence"))
         for s in (think, text):   # 这一轮作废：没收完的思考、正文标成出错，别一直显示“进行中”
             if s and s["status"] == "running":
                 await log.finish(s, status="error")
@@ -383,6 +403,78 @@ def _history(task: Task, label: str) -> list:
     return task.repeat_history.setdefault(label or "", [])
 
 
+SHORTENED = "\n… (shortened to keep the context small; call the tool again if you need the rest)"
+OMITTED = "\n… (earlier result omitted; call the tool again if you need it)"
+CUT = "\n… ({n} chars cut here; call the tool again, or narrow the command, if you need the middle) …\n"
+
+
+def _cut_result(out: str, cap: int) -> str:
+    """C22：结果一到就截短，头尾都留。
+
+    只改“刚回来的这一条”，所以下一次请求的正文永远是这一次的原样延长 —— 模型服务整段命中缓存。
+    而 _compact_tools 改的是已经发出去的结果：改哪一条，就从那一条起把整个 body 重读一遍（4 倍价钱）。
+    模拟（scripts/compact_sim.py，30 步、真实结果尺寸、真实单价）：每个任务 1,5 次断点、$0,2155
+    → 0 次断点、$0,1938（cap=3000）。留尾是因为命令的错通常写在最后几行，只留头会把 traceback 的
+    尾巴切掉，模型只好把同一条命令再跑一遍。
+    """
+    if not cap or cap < 400 or len(out) <= cap:
+        return out
+    tail = max(200, cap * 3 // 10)
+    head = cap - tail
+    return out[:head] + CUT.format(n=len(out) - cap) + out[-tail:]
+
+
+def _compact_tools(msgs: list[dict]) -> int:
+    """C8/C18：任务跑久了，早先的工具结果把每一步的上下文撑大。
+
+    线上（2026-11-11）worker 平均每次调用发 49k token：一次任务 30 步，每步都把前面所有工具
+    结果重发一遍。这里只留最近 worker_keep_full_tools 条完整，其余截到 worker_old_tool_chars 字；
+    总量不到 worker_compact_chars 就一个字不动 —— 改了前缀，模型服务的缓存那一次就要全部重读。
+
+    C18：一次要截到 worker_compact_to_chars 以下，给后面的步留出余量。原来截完总量几乎还在阈值边上，
+    下一步又来一条结果、又超、又截一条：于是**每一步**都改了前缀，每一步都重读整个 body（实测任务 106、
+    102 里就是这样，连续几次调用只命中 1152 token）。留出余量后，一次截短换来后面若干步都命中。
+    返回截掉的字数。
+    """
+    lim = CFG["limits"]
+    keep = int(lim.get("worker_keep_full_tools", 3) or 0)
+    keep_chars = int(lim.get("worker_old_tool_chars", 1500) or 0)
+    compact_at = int(lim.get("worker_compact_chars", 60000) or 0)
+    goal = int(lim.get("worker_compact_to_chars", 20000) or 0) or compact_at // 3
+    if not compact_at or keep_chars <= 0:
+        return 0
+    tools = [i for i, m in enumerate(msgs) if m.get("role") == "tool"]
+    total = sum(len(msgs[i].get("content") or "") for i in tools)
+    if total <= compact_at:
+        return 0
+    cut = 0
+    for i in tools[:-keep] if keep else tools:
+        c = msgs[i].get("content") or ""
+        if len(c) <= keep_chars or c.endswith(SHORTENED):
+            continue
+        msgs[i]["content"] = c[:keep_chars] + SHORTENED
+        cut += len(c) - keep_chars
+        total -= len(c) - len(msgs[i]["content"])
+        if total <= goal:
+            break
+    if total <= goal:
+        return cut
+    # C21：只截到 1500 字还到不了 goal —— 最近几条本身就比 goal 长（线上 5-8k 字的结果很常见），
+    # 于是每次只截得动新来的那一条，一步一个断点（实测 8000 字的结果：30 步里 14 次断）。
+    # 这里把最老的收成一行：一次痛到底，后面十几步都是原样追加。
+    tiny = int(lim.get("worker_tiny_tool_chars", 200) or 0)
+    for i in tools[:-keep] if keep else tools:
+        c = msgs[i].get("content") or ""
+        if c.endswith(OMITTED) or len(c) <= tiny + len(OMITTED):
+            continue
+        msgs[i]["content"] = c[:tiny] + OMITTED
+        cut += len(c) - len(msgs[i]["content"])
+        total -= len(c) - len(msgs[i]["content"])
+        if total <= goal:
+            break
+    return cut
+
+
 def _looping(history: list, sig: str) -> bool:
     """同一个工具调用在这份历史里连续出现 repeat_tool_limit 次就停。0 表示不查。"""
     limit = int(CFG["limits"].get("repeat_tool_limit", 3) or 0)
@@ -413,6 +505,7 @@ async def _run_worker(task: Task, goal: str, label: str = "") -> str:
     stopped = False
     for _ in range(CFG["limits"]["worker_max_steps"]):
         ctools.prune_images(msgs)
+        _compact_tools(msgs)          # C8：早先的工具结果占的地方太大，只留最近几条完整
         m = await _reply(task, log, "worker", client, model, msgs, schemas)
         task.steps += 1
         task.last_progress = time.time()
@@ -433,7 +526,8 @@ async def _run_worker(task: Task, goal: str, label: str = "") -> str:
         history = _history(task, label)
         ran, blocked = await _run_calls(task, log, m["tool_calls"], env, history)
         for call, (out, got) in zip(m["tool_calls"], ran):
-            msgs.append({"role": "tool", "tool_call_id": call["id"], "content": out[:8000]})
+            cap = int(CFG["limits"].get("worker_result_chars", 3000) or 0)
+            msgs.append({"role": "tool", "tool_call_id": call["id"], "content": _cut_result(out, cap)})
             shots += got
         if not label:
             task.recent_calls = list(history)

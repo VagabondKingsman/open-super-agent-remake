@@ -14,11 +14,15 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import quote
 from fastapi import Body, FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.background import BackgroundTask
 from . import backup
 backup.apply_pending()   # 确认过的恢复：在打开数据库之前换上
+# A7：应用自己的日志（警告、出错的对话、后台任务）和 uvicorn 的访问日志一起落到 logs/osa.log。
+# uvicorn 只给自己的 logger 配了格式，这里给其余的补上时间和来处，否则文件里只剩一句“对话 1 出错”，看不出什么时候、是谁。
+LOG_FORMAT = "%(asctime)s %(levelname).1s %(name)s: %(message)s"
+logging.basicConfig(level=os.environ.get("OSA_LOG_LEVEL", "INFO").upper(), format=LOG_FORMAT)
 from . import applets, approvals, auth, avatars, botadmin, bots, catalog, channels, computer, dm, events, groups, i18n, library, mcp_hub, media, memories, memory, push, router as rt, routines
 from . import mcpapps, observe, outputs, prices, providers, search, security, settings, skills, skillpacks, tasklog, teach, templates, unfurl, vault
 from . import worker as worker_mod
@@ -93,6 +97,7 @@ async def lifespan(app):
     if config.db_outside_data_dir():
         print(i18n.t("注意：设置了 OSA_DATA_DIR（{data}），但 memory.db 是绝对路径 {db}，数据库不在数据目录里。备份和迁移时别漏了它。",
                      data=config.DATA, db=config.DB_PATH), flush=True)
+    logging.getLogger("osa").info("osa %s starting, data=%s", backup.version() or "?", config.DATA)
     bots.ensure_default()
     tasklog.startup()   # 上次没做完的任务标成“已中断”，清掉太旧的任务过程
     settings.apply()
@@ -117,6 +122,11 @@ async def lifespan(app):
 
 app = FastAPI(lifespan=lifespan)
 app.add_middleware(auth.AuthMiddleware)
+try:  # 慢链路上的加速层：预压缩静态资源 + JSON 压缩；见 fastsrv.py
+    from . import fastsrv
+    app.add_middleware(fastsrv.Speed)
+except Exception:  # noqa: BLE001
+    logging.getLogger(__name__).warning("fastsrv disabled", exc_info=True)
 app.include_router(auth.router)
 
 
@@ -1059,17 +1069,26 @@ async def list_files(path: str = "", start: bool = False):
         p = library.norm(path)
     except ValueError as e:
         _err(e)
-    c = await _files_pc(start)
-    if not c:
-        return {"running": False, **(await computer.get().status()), "path": p, "root": library.root()}
+    c = computer.get()
+    if start:
+        c = await _files_pc(True)
+    # 不先问一遍电脑开没开：直接列（电脑没开的话下面再问，省一个来回——Instabox 上每个来回都要几百毫秒）
     try:
-        entries = await library.list_dir(c, p)
-        pinned = library.pins()
-        stats = await library.stat_many(c, pinned)
+        entries, pinned, stats = await _listing(c, p)
     except (ValueError, computer.ComputerError) as e:
-        _err(e)
+        st = await c.status()
+        if st["state"] == "running":
+            _err(e)                       # 电脑开着：目录不存在、命令出错，是真的出错
+        return {"running": False, **st, "path": p, "root": library.root()}   # 电脑没开：不替用户开，也不报错
     return {"running": True, "path": p, "root": library.root(), "entries": entries,
             "pins": [stats.get(x) or {"name": posixpath.basename(x), "path": x, "missing": True} for x in pinned]}
+
+
+async def _listing(c, p: str):
+    """列一个文件夹、顺便取置顶文件的现状。两个终端命令一起跑：等的时间是一次的，不是两次的。"""
+    pinned = library.pins()
+    entries, stats = await asyncio.gather(library.list_dir(c, p), library.stat_many(c, pinned))
+    return entries, pinned, stats
 
 
 @app.get("/api/files/download")
@@ -1449,6 +1468,14 @@ async def pc_vnc(sock: WebSocket, bot_id: int):
         await sock.close(code=1011, reason=str(e)[:100])
         return
 
+    await _vnc_bridge(sock, recv, send, close, on_action=lambda: setattr(c, "last_used", time.time()))
+
+
+async def _vnc_bridge(sock, recv, send, close, on_action=None):
+    """网页 ⇄ 电脑的 VNC 字节流。哪边走都不惊动另一边：电脑那边断了，就把网页这边按 1011 关掉（前端立刻显示断线、3 秒后重连）；
+    网页关了就关掉电脑那边的连接，别留着占机器。"""
+    lost = asyncio.Event()   # 电脑那边先断的
+
     async def up():
         while True:
             m = await sock.receive()
@@ -1456,12 +1483,17 @@ async def pc_vnc(sock: WebSocket, bot_id: int):
                 return
             data = m.get("bytes") or (m.get("text") or "").encode()
             if data:
-                c.last_used = __import__("time").time()
+                if on_action:
+                    on_action()
                 await send(data)
 
     async def down():
-        while True:
-            await sock.send_bytes(await recv())
+        try:
+            while True:
+                await sock.send_bytes(await recv())
+        except Exception:
+            lost.set()
+            raise
 
     tasks = [asyncio.create_task(up()), asyncio.create_task(down())]
     await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
@@ -1469,7 +1501,13 @@ async def pc_vnc(sock: WebSocket, bot_id: int):
         t.cancel()
     try:
         await close()
-        await sock.close()
+    except Exception:
+        pass
+    try:
+        if lost.is_set():
+            await sock.close(code=1011, reason="computer disconnected")
+        else:
+            await sock.close()
     except Exception:
         pass
 
@@ -1985,6 +2023,8 @@ NO_CACHE = {"cache-control": "no-cache"}
 
 @app.get("/{path:path}")
 async def spa(path: str):
+    if path.startswith("api/"):   # 没实现的接口要露出 404，别把首页 HTML 当成成功返回
+        return JSONResponse({"detail": i18n.t("没有这个接口")}, status_code=404)
     f = (DIST / path).resolve()
     if path and f.is_relative_to(DIST.resolve()) and f.is_file():   # 不让 ../ 读到 dist 外面的文件
         return FileResponse(f, headers=NO_CACHE if f.name in ("index.html", "sw.js") else None)

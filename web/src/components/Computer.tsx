@@ -57,6 +57,7 @@ function TypeBar({ botId }: { botId: number }) {
 
 const STATE: Record<string, string> = {
   none: t('还没启动'), starting: t('启动中'), running: t('运行中'), paused: t('已暂停'), stopped: t('已停止'), error: t('出错了'), unavailable: t('无法使用'),
+  gone: t('那台机器没了（会换一台）'),
 }
 /** 用哪台电脑。
  *  App 自己独立运行时在三台里选：本机（这台 Mac 上 Bot 自己的 Chrome，能操作整个屏幕）、Docker 沙盒、云电脑（Instabox）。
@@ -236,6 +237,7 @@ export function ComputerView({ botId, interactive }: { botId: number; interactiv
   const rfb = useRef<RFB | null>(null)
   const [conn, setConn] = useState<'connecting' | 'connected' | 'closed'>('connecting')
   const [retry, setRetry] = useState(0)
+  const [lost, setLost] = useState(0)   // 断了几次：第一次 1 秒后就重连，越断越久，最多 8 秒
 
   useEffect(() => {
     if (!box.current) return
@@ -246,8 +248,14 @@ export function ComputerView({ botId, interactive }: { botId: number; interactiv
     r.resizeSession = false
     r.background = 'transparent'
     r.viewOnly = !interactive
-    r.addEventListener('connect', () => setConn('connected'))
-    r.addEventListener('disconnect', () => { setConn('closed'); setTimeout(() => setRetry(x => x + 1), 3000) })
+    r.addEventListener('connect', () => { setConn('connected'); setLost(0) })
+    // 电脑那边断了、网络掉了：马上把画面盖住（不让人对着一张冻住的图点），过一会儿重连
+    r.addEventListener('disconnect', () => {
+      setConn('closed')
+      const wait = Math.min(8000, 1000 * 2 ** Math.min(lost, 3))
+      setLost(n => n + 1)
+      setTimeout(() => setRetry(x => x + 1), wait)
+    })
     rfb.current = r
     return () => { try { r.disconnect() } catch {} }
   }, [botId, retry])

@@ -91,6 +91,7 @@ class Telegram(Channel):
                 for u in ups:
                     offset = u["update_id"] + 1
                     asyncio.create_task(self._safe(self.on_update(u)))
+                await asyncio.sleep(0)   # 让出一下：连接立刻返回时（代理、测试里的假 API）不至于空转个不停
             except TgError as e:
                 if e.code in (401, 404):
                     self.set_state("error", i18n.later("token 失效了（机器人被删除或 token 被重置），删掉这个连接重新添加"))

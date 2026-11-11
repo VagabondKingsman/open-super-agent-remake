@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import { applyStream } from './streamDelta'
+import { applyToolRun } from './toolRun'
 import { lang, syncLang, t } from './i18n'
 import type { App, Approval, Attachment, Bot, CatalogItem, Chat, ComputerState, Message, OpenThread, Settings, Skill, Stream, Task, TaskInfo, TaskStep, Teach, TeachDraft, ThreadInfo, ThreadSummary } from './types'
 import { notice } from './components/Dialog'
@@ -378,6 +379,12 @@ function handle(d: any) {
         const st = s.streams[cid]
         if (!st || st.sid !== d.sid) return {}
         return { streams: { ...s.streams, [cid]: applyStream(st, d) } }
+      })
+      break
+    case 'tool':   // Router 正在跑哪一步（A3：以前只有结果，界面一直转圈）
+      set(s => {
+        const st = s.streams[cid]
+        return st ? { streams: { ...s.streams, [cid]: applyToolRun(st, d) } } : {}
       })
       break
     case 'task':

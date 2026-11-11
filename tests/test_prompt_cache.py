@@ -1,4 +1,6 @@
 """Router 每轮发给模型的内容：前面的部分要逐字不变，才能命中模型服务的缓存。"""
+import re
+
 from conftest import until
 from osa import bots, memories, memory, router, server
 from osa.config import CFG
@@ -47,3 +49,112 @@ def test_history_window_moves_in_batches(make_bot, monkeypatch):
             assert ctx[:len(prev)] == prev
         prev = ctx
     assert ctx[0]["role"] == "system" and "#" in ctx[0]["content"]   # 移出的只留编号和开头
+
+
+async def test_state_block_carries_the_server_clock(llm, events, make_bot):
+    """C12：模型说时间只能来自这一行或本轮的某个工具。它附在每轮的状态里，所以系统提示词照样逐字不变。"""
+    a = make_bot("Clocky")
+    llm.script("router:Clocky", "ok")
+    await server.safe_handle(bots.chat(a["chat_id"]), "mấy giờ rồi")
+    await until(lambda: llm.bodies("router", "Clocky"), what="请求")
+    body = llm.bodies("router", "Clocky")[-1]
+    state = body["messages"][-1]["content"]
+    assert re.search(r"Now: \d{4}-\d\d-\d\d \d\d:\d\d:\d\dZ \(server clock, UTC\)", state), state[-400:]
+    assert "Now:" not in body["messages"][0]["content"]      # 缓存的前缀里没有会变的东西
+
+
+async def test_removed_index_rides_in_the_state_not_the_head(llm, events, make_bot, monkeypatch):
+    """C13: “更早的对话”的索引每轮都在长。它要是留在 history 的第一条，缓存从那里就断了：
+    实测一轮的第一次调用只命中 6%，而同一个 body 不改能命中 99%。"""
+    monkeypatch.setitem(CFG["memory"], "inline_messages", 4)
+    a = make_bot("Indexy")
+    for i in range(6):
+        llm.script("router:Indexy", f"回 {i}")
+        await server.safe_handle(bots.chat(a["chat_id"]), f"第 {i} 条")
+    body = llm.bodies("router", "Indexy")[-1]["messages"]
+    assert body[0]["role"] == "system"
+    assert "Earlier turns were removed from context" not in body[0]["content"]
+    assert all(m["role"] != "system" for m in body[1:]), "history 开头不该再有 system 通知"
+    assert "Earlier turns were removed from context" in body[-1]["content"]   # 索引在最后一条里
+    assert body[-1]["content"].startswith("第 5 条")
+
+
+async def test_each_turn_extends_the_previous_body(llm, events, make_bot, monkeypatch):
+    """C14: 这一轮的正文要整段包住上一轮的正文（逐字），缓存才会命中 —— 供应商认的是“延长”，
+    不是“前缀大致相同”。状态跟着它那条用户消息一起存下来，就是为此。"""
+    monkeypatch.setitem(CFG["memory"], "inline_messages", 4)
+    a = make_bot("Prefixy")
+    for i in range(6):
+        llm.script("router:Prefixy", f"答 {i}")
+        await server.safe_handle(bots.chat(a["chat_id"]), f"问 {i}")
+    bodies = [b["messages"] for b in llm.bodies("router", "Prefixy")]
+    a1, a2 = bodies[4], bodies[5]          # 第 5、6 轮：窗口的分界（每隔 n 条才挪一次）这两轮没挪
+    assert a2[:len(a1)] == a1              # 上一轮的正文原样是这一轮的开头
+    assert "system-attached" in a1[-1]["content"]     # 状态挂在它那条用户消息上
+    assert a1[-1]["content"].startswith("问 4")
+    assert a2[len(a1) - 1] == a1[-1]                   # 下一轮里那条消息一字不差地还在
+
+
+async def test_stored_state_is_not_overwritten_on_a_second_wake(make_bot):
+    """同一条用户消息又醒一次（定时任务、回信）：留着当时发出去的那份，否则前缀就断了。"""
+    a = make_bot("Wakey")
+    cid = a["chat_id"]
+    memory.conn.execute("insert into messages(ts, role, content, meta, chat_id, bot_id) values(?,?,?,?,?,?)",
+                        (0, "user", "一条", "{}", cid, a["id"]))
+    memory.conn.commit()
+    memory.remember_state(cid, a["id"], "STATE A")
+    memory.remember_state(cid, a["id"], "STATE B")
+    body = memory.context(cid, me=a["id"])
+    assert body[-1]["content"].endswith("STATE A")
+
+
+async def test_a_tool_turn_chains_into_the_next_turn(llm, events, make_bot, monkeypatch):
+    """C15: 带工具的一轮也要把“上一轮发出去的正文”原样留给下一轮 —— assistant 的 tool_calls 和 tool 结果
+    都记在那条用户消息上（memory.keep_tail），否则下一轮的前缀断在工具往返处，17k 全部重算。"""
+    from fakellm import Call
+    monkeypatch.setitem(CFG["memory"], "inline_messages", 4)
+    a = make_bot("Chainy")
+    llm.script(f"router:{a['name']}", Call("quick_code", {"code": "print(7)"}), "答 0")
+    await server.safe_handle(bots.chat(a["chat_id"]), "问 0")
+    llm.script(f"router:{a['name']}", "答 1")
+    await server.safe_handle(bots.chat(a["chat_id"]), "问 1")
+    bodies = [b["messages"] for b in llm.bodies("router", a["name"])]
+    tool_body = next(b for b in bodies if any(m.get("tool_calls") for m in b))
+    assert any(m["role"] == "tool" for m in tool_body), "这一轮应该有工具往返"
+    assert bodies[-1][:len(tool_body)] == tool_body   # 上一轮发过的整段（含工具往返）原样是这一轮的开头
+
+
+def test_two_bots_in_a_group_keep_their_own_state(make_bot):
+    """群聊里同一条用户消息会被两个 Bot 各发一次：各自的状态要分开记，别把别人的“当前任务”带回自己这轮。"""
+    a, b = make_bot("GA"), make_bot("GB")
+    g = bots.create_group([a["id"], b["id"]], lead=a["id"])
+    memory.conn.execute("insert into messages(ts, role, content, meta, chat_id, bot_id) values(?,?,?,?,?,?)",
+                        (0, "user", "在吗", "{}", g["id"], a["id"]))
+    memory.conn.commit()
+    memory.remember_state(g["id"], a["id"], "STATE-A")
+    memory.remember_state(g["id"], b["id"], "STATE-B")
+    assert memory.context(g["id"], viewer=a["id"], me=a["id"])[-1]["content"].endswith("STATE-A")
+    assert memory.context(g["id"], viewer=b["id"], me=b["id"])[-1]["content"].endswith("STATE-B")
+
+
+def test_a_meta_that_is_not_an_object_does_not_kill_the_turn(make_bot):
+    """11/11 16:54：一条 meta 只是普通字符串的消息，让整个对话每一轮都报 'str' object has no attribute 'get'，
+    用户连发四句一句都没得到回复。现在坏行当空 meta 处理，对话照常。"""
+    a = make_bot("BadMeta")
+    cid = a["chat_id"]
+    memory.conn.execute("insert into messages(ts, role, content, meta, chat_id, bot_id) values(?,?,?,?,?,?)",
+                        (0, "user", "một dòng hỏng", '"chỉ là một chuỗi"', cid, a["id"]))
+    memory.conn.commit()
+    ctx = memory.context(cid, me=a["id"])
+    assert ctx[-1]["content"].startswith("một dòng hỏng")
+    assert all(isinstance(m["meta"], dict) for m in memory.page(cid))
+
+
+def test_a_state_written_before_c16_is_still_read(make_bot):
+    """C16 之前存的是纯字符串：老消息还要照常渲染，不能整个对话报错。"""
+    a = make_bot("Oldy")
+    cid = a["chat_id"]
+    memory.conn.execute("insert into messages(ts, role, content, meta, chat_id, bot_id) values(?,?,?,?,?,?)",
+                        (0, "user", "cũ", '{"state": "STATE CŨ"}', cid, a["id"]))
+    memory.conn.commit()
+    assert memory.context(cid, me=a["id"])[-1]["content"].endswith("STATE CŨ")

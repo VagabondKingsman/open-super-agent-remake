@@ -60,7 +60,7 @@ async def test_no_image_model(llm, events, make_bot, monkeypatch):
     llm.script("router:Painter0", Call("generate_image", {"prompt": "一只猫"}), "我现在画不了")
     await server.safe_handle(bots.chat(a["chat_id"]), "画一只猫")
     await until(lambda: find(a["chat_id"], role="assistant"), what="回复")
-    tool = [m for m in llm.bodies("router", "Painter0")[-1]["messages"] if m["role"] == "tool"][0]
+    tool = [m for m in llm.bodies("router", "Painter0")[-1]["messages"] if m["role"] == "tool"][-1]
     assert tool["content"] == images.NO_MODEL
     assert not [x for x in approvals.pending.values() if x["tool"] == "generate_image"]
 
@@ -88,7 +88,7 @@ async def test_ask_then_draw_then_always(llm, events, make_bot, sf):
     llm.script("router:Painter", Call("generate_image", {"prompt": "再来一只"}), "画好了")
     await server.safe_handle(bots.chat(cid), "再画一只")
     await until(lambda: len(find(cid, kind="image")) == 2, what="第二张")
-    tool = [m for m in llm.bodies("router", "Painter")[-1]["messages"] if m["role"] == "tool"][0]
+    tool = [m for m in llm.bodies("router", "Painter")[-1]["messages"] if m["role"] == "tool"][-1]
     assert tool["content"].startswith("Drawn.")   # remake：给模型的工具结果是英文
     assert not [x for x in approvals.pending.values() if x["tool"] == "generate_image"]
 

@@ -3,6 +3,7 @@
   " 等 {n} 个": " ({n} bots)",
   "**↩️ {name} 回信**": "**↩️ {name} replied**",
   "3 分钟没有进展": "No progress for 3 minutes",
+  "{n} 秒没有进展": "No progress for {n} seconds",
   "App ID 应该以 cli_ 开头，在开发者后台应用的“凭证与基础信息”里": "The App ID should start with cli_. You'll find it under \"Credentials & Basic Info\" for the app in the developer console",
   "App ID 或 App Secret 不对（{error}）": "Wrong App ID or App Secret ({error})",
   "Bot ID 或 Secret 不对，或者机器人的 API 模式没选“长连接”（{error}）": "Wrong Bot ID or Secret, or the bot's API mode isn't set to \"long connection\" ({error})",
@@ -1226,6 +1227,7 @@
   "审稿人没有给出汇总，改用草稿 {n}": "The reviewer did not merge the drafts; using draft {n}",
   "模型 {n} 秒没有输出新内容": "The model sent nothing new for {n} seconds",
   "这一轮模型调用中途出错（{err}），重新调用": "The model call failed mid-way ({err}); calling it again",
+  "这一轮模型调用中途出错（{err}），换备用模型 {model} 继续": "The model call failed mid-way ({err}); continuing on the backup model {model}",
   "这台 Linux 电脑没有图形界面（没有 DISPLAY / WAYLAND_DISPLAY），Bot 用的 Chrome 开不了窗口。在有桌面的会话里运行 OSA，或者用 xvfb-run -a 启动它（比如 xvfb-run -a scripts/osa-start.sh），也可以把 computer.backend 换成 docker / instabox": "This Linux machine has no display (DISPLAY / WAYLAND_DISPLAY are not set), so the Bot's Chrome cannot open a window. Run OSA in a desktop session, start it with xvfb-run -a (for example xvfb-run -a scripts/osa-start.sh), or switch computer.backend to docker / instabox",
   "Chrome 没有在 20 秒内开启调试端口。Bot 用的 Chrome 可能已经开着但没开调试端口，关掉它再试": "Chrome did not open its debug port within 20 seconds. The Bot's Chrome may already be open without a debug port; close it and try again",
   "{n} 个 Bot": [
@@ -1283,6 +1285,18 @@
     "{n} secrets could not be decrypted (the master key changed) and were left out: {names}"
   ],
   "未设置 OSA_PASSWORD：网页不用登录就能访问，只能在本机或内网使用": "OSA_PASSWORD is not set: the web UI needs no login, so use it only on this machine or a private network",
+  "没有这个接口": "No such endpoint",
+  "（已选中）": "(checked)",
+  "（屏幕外）": "(offscreen)",
+  "{scroll}，视口高 {vh}": "{scroll}, viewport height {vh}",
+  "（更正：这一轮还没真的派出任务，上面说已经交给 worker 是不对的。）": "(Correction: nothing was actually dispatched in this turn; the claim above that the Worker had it is wrong.)",
+  "（超时）": "(timeout)",
+  "你还在用电脑，{n} 秒了，我先把这一步放下": "You have been using the computer ({n} s), so I'll set this step aside for now",
+  "你一直在用电脑（等了 {n} 秒），这一步先放下：等你交还以后我再继续": "You are still using the computer (waited {n} s); I'll set this step aside and continue once you hand it back",
+  "config.yaml 指定的电脑（{mid}）不在了，换不了：清空 computer.instabox_machine 或改成另一台": "The computer named in config.yaml ({mid}) is gone and there is no other to switch to: clear computer.instabox_machine or point it at another machine",
+  "那台机器已经没了": "That machine is gone",
+  "模型服务 {n} 秒没有响应（连接没能建起来）": "The model service did not answer within {n} s (the connection could not be opened)",
+  "(System: this turn has already cost {cost} — more than {factor}x the usual {usual}. Answer from what you have now; do not call any more tools.)": "(System: this turn has already cost {cost} — more than {factor}x the usual {usual}. Answer from what you have now; do not call any more tools.)",
   "这是 Bot 自己的私聊，随 Bot 一起删除": "This is the bot's own chat; it goes away with the bot",
   "对话已删除": "The chat was deleted"
 }

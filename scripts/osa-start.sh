@@ -26,6 +26,8 @@ mkdir -p "$DATA_DIR" "$LOG_DIR"
 PIDFILE="$LOG_DIR/osa.pid"
 PORTFILE="$LOG_DIR/osa.port"
 LOGFILE="$LOG_DIR/osa.log"
+# A7：日志只留一份旧的。uvicorn 直接把输出写到这个文件，自己不会转，久了会一直长。
+MAX_LOG_BYTES="${OSA_LOG_MAX_BYTES:-20971520}"   # 20 MB
 # OSA_PORT picks the port (default 8765). The server always binds 127.0.0.1; put a reverse proxy in front for LAN access.
 PORT="${OSA_PORT:-8765}"
 if [[ ! "$PORT" =~ ^[0-9]+$ ]] || (( PORT < 1 || PORT > 65535 )); then
@@ -65,7 +67,10 @@ if ready; then
   echo "port $PORT already answers $URL/manifest.json (another server?); set OSA_PORT or stop it first" >&2
   exit 1
 fi
-nohup uv run uvicorn osa.server:app --host 127.0.0.1 --port "$PORT" > "$LOGFILE" 2>&1 &
+if [[ -f "$LOGFILE" ]] && (( $(stat -c%s "$LOGFILE" 2>/dev/null || echo 0) > MAX_LOG_BYTES )); then
+  mv -f "$LOGFILE" "$LOGFILE.1"
+fi
+nohup uv run uvicorn osa.server:app --host 127.0.0.1 --port "$PORT" >> "$LOGFILE" 2>&1 &
 pid=$!
 echo "$pid" > "$PIDFILE"
 echo "$PORT" > "$PORTFILE"

@@ -135,7 +135,7 @@ web/src/
 - **所有 Bot 共用一台电脑，几个任务可以同时用。** 任务第一次用浏览器时占一个位置（`Computer.claim`，最多 `computer.parallel` 个，多了排队），
   分到一个自己的浏览器窗口；结束（包括取消和失败）时释放（`release`），窗口比并行数多就关掉它的。Heavy 模式下每个 Worker 各占一个。
   终端和读写文件不占位置。
-- **任务不碰真实的鼠标键盘。** 同一个浏览器（登录状态共用）开几个窗口，任务的 `browser_*`、`computer_*` 都经 CDP 发给自己窗口里的页面：
+- **任务不碰真实的鼠标键盘。** 同一个浏览器开几个窗口，每个任务在自己的浏览器 profile（`Target.createBrowserContext`：cookie、登录状态互不可见，任务结束就关掉）里做，任务的 `browser_*`、`computer_*` 都经 CDP 发给自己窗口里的页面：
   `computer_screenshot` 截的是页面（`Page.captureScreenshot`），`computer_click / type / key / scroll` 按截图坐标发 `Input.*` 事件。
   所以同时做也点不到别人的窗口。代价是浏览器自己的界面（地址栏、标签栏）和浏览器以外的窗口操作不到；上传文件用 `browser_upload`
   （拦下文件选择框，`DOM.setFileInputFiles`）。
