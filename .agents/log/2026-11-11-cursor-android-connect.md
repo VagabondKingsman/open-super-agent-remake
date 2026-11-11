@@ -48,7 +48,7 @@ SDK, NDK 29.0.14206865, emulator, image `aosp_atd` API 34 x86_64. `/dev/kvm` m�
 | APK debug arm64 | PASS file, chưa chạy | `lib/arm64-v8a`, `resources.arsc` Stored, zipalign 4 exit 0, apksigner v2. SHA-256 `ac5b12a3e9d1850578c1f4398e6ef4e8b86450ee4aac10df7747a876ad7ac8f5` |
 | Điện thoại S22 | NOT_CHECKED | Không có máy |
 | Probe cũ không ghi đè probe mới | PASS | Codex P1 trên PR #47. `ProbeGate`: lượt sau `bump` thì lượt trước `is_current` false. `cargo test --lib`: 10 passed. Emulator không chạy lại cho mục này |
-| S22 văng sau mật khẩu | Sửa, điện thoại chưa kiểm lại | Trang login là HTML, chưa gọi native. Sau POST `/login` SPA gọi `setBadge`. JNI 0.21 không `ExceptionClear`, thread detach khi còn exception thì process chết. `setCount` chuyển lên UI thread và nuốt lỗi. APK mới SHA `e3cb6a28d4df9917342be429bb50ebf4ba4fc52fa0c73407b183ac93d65df58d`. Máy này không vào được `osa.taila99125.ts.net` |
+| S22 văng sau mật khẩu | Sửa, điện thoại chưa kiểm lại | Trang login là HTML, chưa gọi native. Sau POST `/login` SPA gọi `setBadge`. JNI 0.21 không `ExceptionClear`, thread detach khi còn exception thì process chết. `setCount` chuyển lên UI thread và nuốt lỗi. APK mới SHA `e3cb6a28d4df9917342be429bb50ebf4ba4fc52fa0c73407b183ac93d65df58d`. Máy này không vào được hostname tailnet (dạng `<máy>.<tailnet>.ts.net`) |
 
 - Paid usage: 0.
 - Không đụng DB thật, không gửi channel.
