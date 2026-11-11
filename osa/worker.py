@@ -163,6 +163,8 @@ async def _reply_once(task: Task, log: tasklog.Log, role: str, client, model: st
     except Exception as e:
         memory.record_error(role, model, providers.brief(e), task.id, bot_id=task.bot_id, chat_id=task.chat_id,
                             ms=(time.monotonic() - t0) * 1000)
+        if isinstance(e, providers.StreamStalled):
+            e.osa_midstream = True   # 连接阶段卡住（见 provider_head_s）：_reply 会重来一次，再不行换备用模型
         raise
     content, reasoning, calls, usage = "", "", {}, None
     finish = None

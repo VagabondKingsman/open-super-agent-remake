@@ -471,7 +471,8 @@ class Router:
                     # 流中途卡住或断了，而且还没推送正文、没收到工具调用：重来一次。已经推送了正文就不重来，免得界面上重复
                     # 开流之前的错 create_chat 已经按规则重试过了，这里只管流开了之后的。重来还是不行，而且这个角色配了
                     # 备用模型（roles.<role>.fallback），就换备用模型把这一轮说完
-                    if stream is None or sent or calls or not providers.retry_midstream(e):
+                    if sent or calls or not providers.retry_midstream(e) or (stream is None and not isinstance(e, providers.StreamStalled)):
+                        # 开流之前的错 create_chat 已经按规则重试过了；只有“连接卡住”是这里新加的那个上限，值得再来一次
                         raise
                     if attempt < providers.stream_retries():
                         attempt += 1

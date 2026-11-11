@@ -302,3 +302,43 @@ def test_config_yaml_documents_stream_defaults(monkeypatch):
     monkeypatch.setitem(CFG, "limits", {k: v for k, v in CFG["limits"].items() if not k.startswith("stream_")})
     assert got == {"stream_first_chunk_s": providers.stream_first_chunk_s(), "stream_idle_s": providers.stream_idle_s(),
                    "stream_retries": providers.stream_retries()}
+
+
+async def test_a_connection_that_never_opens_is_a_stall_not_a_hang(monkeypatch):
+    """任务 212：连接卡住时 create_chat 一直等（客户端默认 600 秒），Watchdog 3 分钟就把任务取消，
+    一个模型调用都没发出去。现在连接阶段也有上限，超了就是“流卡住”，可以重来、可以换备用模型。"""
+    from types import SimpleNamespace
+    monkeypatch.setitem(CFG["limits"], "provider_head_s", 0.05)
+
+    async def slow(**kw):
+        await asyncio.sleep(0.5)
+        return "ok"
+
+    client = SimpleNamespace(base_url="https://example.invalid/v1",
+                             chat=SimpleNamespace(completions=SimpleNamespace(create=slow)))
+    with pytest.raises(providers.StreamStalled) as e:
+        await providers.create_chat(client, model="m", messages=[], stream=True)
+    assert providers.retry_midstream(e.value) is True          # 值得重来
+
+    # 非流式请求不受这个上限约束：整段回答本来就要等
+    assert await providers.create_chat(client, model="m", messages=[]) == "ok"
+
+
+async def test_reply_retries_a_connection_that_never_opened(monkeypatch):
+    """_reply 把“连接没建起来”当成这一轮没成：重来一次，成了就把任务做完，不留给 Watchdog 取消。"""
+    from types import SimpleNamespace
+    monkeypatch.setitem(CFG["limits"], "provider_head_s", 0.05)
+    calls = []
+
+    async def create(**kw):
+        calls.append(1)
+        if len(calls) == 1:
+            await asyncio.sleep(0.5)          # 第一次连接卡住
+        return Stream([Chunk(Delta(content="好的"))])
+
+    client = SimpleNamespace(base_url="https://example.invalid/v1",
+                             chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    task = Task(id=9001, goal="x", mode="single", bot_id=1, chat_id=1, approval_chat_id=1)
+    log = tasklog.Log(task, "probe")
+    msg = await worker._reply(task, log, "worker", client, "m", [{"role": "user", "content": "hi"}])
+    assert len(calls) == 2 and (msg.get("content") or "").startswith("好的")

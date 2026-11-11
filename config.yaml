@@ -70,6 +70,7 @@ limits:
   daily_token_budget: 2000000
   provider_rate_retries: 1   # 普通 429（rate_limit_exceeded）按 Retry-After 再试几次。额度用尽不重试
   provider_retry_cap_s: 120  # Retry-After 最多等这么多秒
+  provider_head_s: 120        # 流式请求：连上、拿到响应头最多等这么多秒（客户端默认 600，比 Watchdog 的 180 长）
   provider_transient_retries: 5  # 408/409/5xx 再试几次（和 upstream 的 providers.RETRIES 一致）。0 表示不试
   # 流式调用开了以后（下面三行是代码里的默认值，要改就去掉 # ）：
   # stream_first_chunk_s: 170  # 等第一块最多几秒（想得久的模型第一块慢），要比 Watchdog 的 3 分钟短。0 表示不限

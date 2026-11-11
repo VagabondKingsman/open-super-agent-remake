@@ -322,17 +322,27 @@ async def create_chat(client, **kwargs):
     base = str(getattr(client, "base_url", "") or "")
     if kwargs.get("reasoning_effort") and effort_rejected(base, kwargs.get("model", ""), kwargs["reasoning_effort"]):
         kwargs.pop("reasoning_effort")   # 以前这个模型就不认这个思考强度：直接不带
+    async def open_stream():
+        """流式请求：连接/响应头也就等 provider_head_s 秒，卡住当成流中途卡住（可以重来、可以换备用模型）。"""
+        head = provider_head_s() if kwargs.get("stream") else 0
+        if not head:
+            return await caller.chat.completions.create(**kwargs)
+        try:
+            return await asyncio.wait_for(caller.chat.completions.create(**kwargs), head)
+        except asyncio.TimeoutError:
+            raise StreamStalled(i18n.t("模型服务 {n} 秒没有响应（连接没能建起来）", n=f"{head:g}")) from None
+
     rate_attempt = transient_attempt = 0
     while True:
         try:
-            return await caller.chat.completions.create(**kwargs)
+            return await open_stream()
         except openai.BadRequestError as e:
             # 有的模型不认 reasoning_effort（比如 xAI 不收 max，有的推理模型什么强度都不收）：去掉再试一次，记下来以后不带
             effort = kwargs.pop("reasoning_effort", None)
             if not effort:
                 raise
             try:
-                r = await caller.chat.completions.create(**kwargs)
+                r = await open_stream()
             except Exception:
                 raise e from None
             remember_effort_reject(base, kwargs.get("model", ""), effort)
@@ -372,6 +382,14 @@ def stream_first_chunk_s() -> float:
     """流开了以后等第一块最多几秒。想得久的模型（高思考强度、不流式输出思考）第一块可能要两三分钟，
     所以单独算，默认 170，仍比 Watchdog 的 3 分钟短。0 表示不限。"""
     return max(0.0, float(CFG["limits"].get("stream_first_chunk_s", 170) or 0))
+
+
+def provider_head_s() -> float:
+    """流式请求：连上服务、拿到响应头最多等几秒（默认 120）。0 表示不限。
+
+    客户端自己的默认超时是 600 秒，比 Watchdog 的 3 分钟还长：连接卡住时任务先被 Watchdog 取消，
+    一个模型调用都没发出去（线上任务 212 就是这样，3 分钟无进展、0 步）。"""
+    return max(0.0, float(CFG["limits"].get("provider_head_s", 120) or 0))
 
 
 def stream_retries() -> int:
