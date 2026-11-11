@@ -239,7 +239,9 @@ class InstaboxComputer(Computer):
 
     async def open_vnc(self):
         url = API.replace("https://", "wss://").replace("http://", "ws://") + f"/v1/machines/{self.machine_id}/vnc"
-        ws = await websockets.connect(url, additional_headers=_headers(), max_size=None, ping_interval=None)
+        # ping：云端那头的连接悄悄断了（NAT 超时、机器重启）也能发现——不发 ping 就一直等，画面冻在那里
+        ws = await websockets.connect(url, additional_headers=_headers(), max_size=None,
+                                      ping_interval=20, ping_timeout=20, close_timeout=5)
 
         async def recv() -> bytes:
             m = await ws.recv()

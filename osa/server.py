@@ -1455,6 +1455,14 @@ async def pc_vnc(sock: WebSocket, bot_id: int):
         await sock.close(code=1011, reason=str(e)[:100])
         return
 
+    await _vnc_bridge(sock, recv, send, close, on_action=lambda: setattr(c, "last_used", time.time()))
+
+
+async def _vnc_bridge(sock, recv, send, close, on_action=None):
+    """网页 ⇄ 电脑的 VNC 字节流。哪边走都不惊动另一边：电脑那边断了，就把网页这边按 1011 关掉（前端立刻显示断线、3 秒后重连）；
+    网页关了就关掉电脑那边的连接，别留着占机器。"""
+    lost = asyncio.Event()   # 电脑那边先断的
+
     async def up():
         while True:
             m = await sock.receive()
@@ -1462,12 +1470,17 @@ async def pc_vnc(sock: WebSocket, bot_id: int):
                 return
             data = m.get("bytes") or (m.get("text") or "").encode()
             if data:
-                c.last_used = __import__("time").time()
+                if on_action:
+                    on_action()
                 await send(data)
 
     async def down():
-        while True:
-            await sock.send_bytes(await recv())
+        try:
+            while True:
+                await sock.send_bytes(await recv())
+        except Exception:
+            lost.set()
+            raise
 
     tasks = [asyncio.create_task(up()), asyncio.create_task(down())]
     await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
@@ -1475,7 +1488,13 @@ async def pc_vnc(sock: WebSocket, bot_id: int):
         t.cancel()
     try:
         await close()
-        await sock.close()
+    except Exception:
+        pass
+    try:
+        if lost.is_set():
+            await sock.close(code=1011, reason="computer disconnected")
+        else:
+            await sock.close()
     except Exception:
         pass
 
