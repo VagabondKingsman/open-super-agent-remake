@@ -82,21 +82,29 @@ class SheetActivity : Activity() {
     }
 
     fun setCount(activity: Activity, count: Int) {
-      if (Build.VERSION.SDK_INT < 25) return
-      val manager = activity.getSystemService(ShortcutManager::class.java) ?: return
-      val n = count.coerceAtLeast(0)
-      if (n == 0) {
-        manager.removeDynamicShortcuts(listOf("pending"))
-        return
+      // The Tauri command runs off the UI thread. ShortcutManager creates a Handler
+      // and throws if this thread has no Looper. A pending JNI exception then aborts
+      // the process when that thread detaches, which is what happens right after login.
+      activity.runOnUiThread {
+        try {
+          if (Build.VERSION.SDK_INT < 25) return@runOnUiThread
+          val manager = activity.getSystemService(ShortcutManager::class.java) ?: return@runOnUiThread
+          val n = count.coerceAtLeast(0)
+          if (n == 0) {
+            manager.removeDynamicShortcuts(listOf("pending"))
+            return@runOnUiThread
+          }
+          val label = if (n == 1) "1 pending" else "$n pending"
+          val info = ShortcutInfo.Builder(activity, "pending")
+            .setShortLabel(label)
+            .setLongLabel(label)
+            .setIcon(Icon.createWithResource(activity, R.mipmap.ic_launcher))
+            .setIntent(Intent(activity, MainActivity::class.java).setAction(Intent.ACTION_MAIN))
+            .build()
+          manager.dynamicShortcuts = listOf(info)
+        } catch (_: Throwable) {
+        }
       }
-      val label = if (n == 1) "1 pending" else "$n pending"
-      val info = ShortcutInfo.Builder(activity, "pending")
-        .setShortLabel(label)
-        .setLongLabel(label)
-        .setIcon(Icon.createWithResource(activity, R.mipmap.ic_launcher))
-        .setIntent(Intent(activity, MainActivity::class.java).setAction(Intent.ACTION_MAIN))
-        .build()
-      manager.dynamicShortcuts = listOf(info)
     }
 
     fun openAndWait(activity: Activity, url: String, origin: String) {
