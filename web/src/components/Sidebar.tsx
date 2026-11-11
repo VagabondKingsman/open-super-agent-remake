@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import type { MouseEvent } from 'react'
-import { openApps, openChat, openLibrary, openObserve, pinChat, useStore } from '../store'
+import { api, openApps, openChat, openLibrary, openObserve, pinChat, refreshLists, useStore } from '../store'
 import { t } from '../i18n'
 import { chatLabel } from '../chatLabel'
+import { ask, askText, notice } from './Dialog'
 import type { Chat } from '../types'
 import BotAvatar from './BotAvatar'
 import { GroupFace } from './Chat'
@@ -58,6 +59,8 @@ export default function Sidebar({ onNewBot, onNewGroup, onSettings, onClose }: {
   }
   const open = (c: Chat) => { openChat(c.id); onClose() }
   const onMenu = (c: Chat) => (e: MouseEvent) => { e.preventDefault(); setCtx({ chat: c, x: e.clientX, y: e.clientY }) }
+  // Bot 自己的那个私聊：随 Bot 一起删（服务端也拦着），菜单里不给“删除”
+  const isBotChat = (c: Chat) => bots.find(b => b.id === c.bot_ids[0])?.chat_id === c.id
   // 讨论串里的新回复也算在对话上：看过那个讨论串才去掉（只打开对话不算）
   const news = (c: Chat) => Object.values(threads).filter(x => x.parent === c.id && x.unread > 0)
   const count = (c: Chat) => (unread[c.id] || 0) + news(c).reduce((n, x) => n + x.unread, 0)
@@ -130,6 +133,24 @@ export default function Sidebar({ onNewBot, onNewGroup, onSettings, onClose }: {
         <div className="menu ctx-menu" style={{ left: Math.min(ctx.x, innerWidth - 180), top: Math.min(ctx.y, innerHeight - 56) }}
              onPointerDown={e => e.stopPropagation()}>
           <button onClick={() => { pinChat(ctx.chat.id, !ctx.chat.pinned); setCtx(null) }}>{ctx.chat.pinned ? t('取消置顶') : t('置顶')}</button>
+          {/* 一个 Bot 可以不止一个私聊：给它起个名字（空 = 跟着 Bot 的名字），不要的那个能删（Bot 自己的那个随 Bot） */}
+          {ctx.chat.kind === 'direct' && (
+            <button onClick={async () => {
+              const c = ctx.chat
+              setCtx(null)
+              const name = await askText(t('这个对话叫什么？（留空 = 跟着 Bot 的名字）'), c.title)
+              if (name === null) return
+              try { await api(`/api/chats/${c.id}`, { method: 'PATCH', body: { title: name } }); await refreshLists() } catch (e: any) { await notice(e.message) }
+            }}>{t('改名')}</button>
+          )}
+          {ctx.chat.kind === 'direct' && !isBotChat(ctx.chat) && (
+            <button onClick={async () => {
+              const c = ctx.chat
+              setCtx(null)
+              if (!(await ask(t('删除「{name}」？这个对话里的消息会一起删除。', { name: c.title }), { ok: t('删除'), danger: true }))) return
+              try { await api(`/api/chats/${c.id}`, { method: 'DELETE' }); await refreshLists() } catch (e: any) { await notice(e.message) }
+            }}>{t('删除对话')}</button>
+          )}
         </div>
       )}
       <div className="side-bottom">

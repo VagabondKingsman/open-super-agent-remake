@@ -331,10 +331,23 @@ def create_group(bot_ids, title: str = "", lead=None) -> dict:
 
 
 def update_group(chat_id: int, title: str | None = None, bot_ids=None, lead=None, image: str | None = None) -> dict:
-    """image：群头像图片的地址，空字符串是不用图片（用成员的头像拼）；None 不改。"""
+    """image：群头像图片的地址，空字符串是不用图片（用成员的头像拼）；None 不改。
+
+    私聊也能改标题（只改 title）：一个 Bot 可能有不止一个私聊，用户要能给自己建的那个起名、
+    要能把它改回 Bot 的名字（标题等于 Bot 的名字时，界面上就只显示 Bot 的名字，见 web/src/chatLabel.ts）。
+    私聊没有成员和协调者，bot_ids / lead / image 对它是空操作。"""
     g = chat(chat_id)
-    if not g or g["kind"] != "group" or g.get("parent"):
+    if not g or g.get("parent"):
         raise ValueError(i18n.t("没有这个群聊"))
+    if g["kind"] == "direct":
+        if title is not None:
+            name = title.strip()[:60]
+            if not name:
+                b = conn.execute("select name from bots where id=?", (g["bot_ids"][0],)).fetchone()
+                name = b[0] if b else g["title"]
+            conn.execute("update chats set title=? where id=?", (name, chat_id))
+            conn.commit()
+        return chat(chat_id)
     ids = _members(bot_ids) if bot_ids is not None else g["bot_ids"]
     if title is not None:
         conn.execute("update chats set title=? where id=?", (title.strip()[:60] or auto_title(ids), chat_id))
@@ -350,12 +363,33 @@ def update_group(chat_id: int, title: str | None = None, bot_ids=None, lead=None
     return chat(chat_id)
 
 
-def delete_group(chat_id: int):
-    if conn.execute("select 1 from chats where id=? and kind='group'", (chat_id,)).fetchone():
+def delete_chat(chat_id: int):
+    """删群聊，或删 Bot 自己的那个私聊**之外**的私聊（Bot 自己的那个随 Bot 一起删，见 delete）。
+    自己起名的私聊是用户自己建的，能删；删光了想再有一个就再建一个。"""
+    c = chat(chat_id)
+    if not c:
+        return
+    if c["kind"] == "direct":
+        own = conn.execute("select min(id) from chats where kind='direct' and bot_ids=?",
+                           (json.dumps(c["bot_ids"]),)).fetchone()[0]
+        if chat_id == own:
+            raise ValueError(i18n.t("这是 Bot 自己的私聊，随 Bot 一起删除"))
         _delete_chat(chat_id)
         conn.commit()
         avatars.gc()
         media.gc()
+        return
+    _delete_chat(chat_id)
+    conn.commit()
+    avatars.gc()
+    media.gc()
+
+
+def delete_group(chat_id: int):
+    """删群聊（旧名字，botadmin 和测试在用）。私聊走 delete_chat。"""
+    c = chat(chat_id)
+    if c and c["kind"] == "group":
+        _delete_chat(chat_id)
 
 
 def ensure_default():
