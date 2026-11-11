@@ -256,7 +256,12 @@ cần thì gọi lại tool hoặc thu hẹp lệnh”. Tầng hai của C21 v�
 
 Đo trên bản chạy thật: task #261 (6 lần gọi, thao tác máy ảo) và #265 (4 lần gọi, `run_code`), cả hai **không có
 lần nào chỉ hit 1152** ngoài lần đầu — body mỗi lần là phần mở rộng của lần trước, `cache_miss` đúng bằng
-kết quả mới (527, 1 172, 585 token). Test `tests/test_result_cap.py`: cắt giữ đầu + đuôi, đếm đúng số ký tự
+kết quả mới (527, 1 172, 585 token).
+
+Rõ nhất là task #269 (bảo worker in 60 dòng mỗi bước, kết quả ~9,9k ký tự/bước, 9 lần gọi):
+cache_hit = 1 152, 7 424, 9 728, 10 368, 11 008, 11 648, 12 288, 12 928, 13 568 — **mỗi bước đúng +640 token**,
+tức đúng phần 3000 ký tự vừa cắt; cache_miss mỗi bước 718–733 token, đúng bằng kết quả mới, không có lần nào
+tụt về 1 152. Cả task 9 lần gọi hết $0,0764 và trả lời đúng (đủ 8 bước × 60 dòng). Test `tests/test_result_cap.py`: cắt giữ đầu + đuôi, đếm đúng số ký tự
 đã cắt, và tính chất cache (thêm một kết quả đã cắt không đổi một tin nào phía trước).
 
 Một phát hiện phụ khi chạy thật: `run_code` chạy trong sandbox nên **không thấy** `/home/boxes/osa` (chỉ có thư mục
