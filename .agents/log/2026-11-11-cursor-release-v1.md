@@ -2,7 +2,7 @@
 
 - Khoảng 13:52 Asia/Saigon (UTC+7).
 - Base đã merge PR #47 tại `3c631a3`, head `9b931f6`.
-- Royan xác nhận S22 Ultra đăng nhập được: thấy AutoBot, Nova, Cài đặt ghi `osa.taila99125.ts.net`.
+- Royan xác nhận S22 Ultra đăng nhập được: thấy AutoBot, Nova, Cài đặt ghi `máy.ts.net`.
 - Skill Flow: osa-dev → ai-work-method → vibecode-kit → unslop-vi.
 
 ## Đã làm
@@ -18,6 +18,6 @@
 | S22 vào được bot | PASS | Ảnh Royan gửi 11/11, 01:46 trên điện thoại |
 | `cargo test --offline --lib` | PASS | 10 passed, chạy lại trước khi merge PR #47 |
 | CI PR #47 | PASS | backend, frontend, docker trên `9b931f6` |
-| Release tải được | Ghi sau khi `gh release create` | URL tag `v1.0` |
+| Release tải được | PASS | `gh release view v1.0`: asset `OpenSuperAgent-v1.0-arm64-debug.apk`, 39513858 byte. `curl -I` ra 200, `application/vnd.android.package-archive`. SHA-256 `e3cb6a28d4df9917342be429bb50ebf4ba4fc52fa0c73407b183ac93d65df58d` |
 
 - Paid usage: 0.

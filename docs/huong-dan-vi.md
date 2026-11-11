@@ -136,7 +136,7 @@ OSA chạy trên server. Điện thoại chỉ mở trang web đó. File cài v�
 
 Nhập `http://IP:cổng` hoặc tên Tailscale `http://máy.ts.net/`. App kiểm `GET /manifest.json` trước khi mở trang. Sai địa chỉ thì ở lại màn hình nhập. Đăng nhập là form `POST /login` của server. Sau khi vào, Cài đặt có nút Đổi máy chủ.
 
-Ngày 11/11/2026, Samsung Galaxy S22 Ultra nối `http://osa.taila99125.ts.net/`, đăng nhập, và mở được chat AutoBot cùng Nova.
+Ngày 11/11/2026, Samsung Galaxy S22 Ultra nối `http://máy.ts.net/`, đăng nhập, và mở được chat AutoBot cùng Nova.
 
 ## Kênh chat, thư viện và backup
 
