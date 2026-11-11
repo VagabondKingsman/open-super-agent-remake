@@ -338,8 +338,11 @@ def context(chat_id: int, viewer: int | None = None, me: int | None = None, imag
                 from . import media
                 parts = [p for a in meta.get("attachments") or [] if (mid, a.get("media")) in shown
                          and (p := media.image_part(a["media"]))]
-            if st := (meta.get("state") or {}).get(str(me)):   # 当时发出去的状态：原样带上（见 remember_state）
-                c = str(c) + st
+            st = meta.get("state")     # 当时发出去的状态：原样带上（见 remember_state）
+            if isinstance(st, dict):    # C16 起按 Bot 分开记；更早的只存了一段文字
+                st = st.get(str(me))
+            if st:
+                c = str(c) + str(st)
             msgs.append({"role": "user", "content": [{"type": "text", "text": c}, *parts] if parts else c})
             msgs.extend(meta.get("tail") or [])   # 这一轮之后发过的工具往返，原样放回（见 keep_tail）
     return msgs

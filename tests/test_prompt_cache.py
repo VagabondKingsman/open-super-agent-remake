@@ -135,3 +135,13 @@ def test_two_bots_in_a_group_keep_their_own_state(make_bot):
     memory.remember_state(g["id"], b["id"], "STATE-B")
     assert memory.context(g["id"], viewer=a["id"], me=a["id"])[-1]["content"].endswith("STATE-A")
     assert memory.context(g["id"], viewer=b["id"], me=b["id"])[-1]["content"].endswith("STATE-B")
+
+
+def test_a_state_written_before_c16_is_still_read(make_bot):
+    """C16 之前存的是纯字符串：老消息还要照常渲染，不能整个对话报错。"""
+    a = make_bot("Oldy")
+    cid = a["chat_id"]
+    memory.conn.execute("insert into messages(ts, role, content, meta, chat_id, bot_id) values(?,?,?,?,?,?)",
+                        (0, "user", "cũ", '{"state": "STATE CŨ"}', cid, a["id"]))
+    memory.conn.commit()
+    assert memory.context(cid, me=a["id"])[-1]["content"].endswith("STATE CŨ")
