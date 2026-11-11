@@ -14,7 +14,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import quote
 from fastapi import Body, FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.background import BackgroundTask
 from . import backup
@@ -117,6 +117,11 @@ async def lifespan(app):
 
 app = FastAPI(lifespan=lifespan)
 app.add_middleware(auth.AuthMiddleware)
+try:  # 慢链路上的加速层：预压缩静态资源 + JSON 压缩；见 fastsrv.py
+    from . import fastsrv
+    app.add_middleware(fastsrv.Speed)
+except Exception:  # noqa: BLE001
+    logging.getLogger(__name__).warning("fastsrv disabled", exc_info=True)
 app.include_router(auth.router)
 
 
@@ -1981,6 +1986,8 @@ NO_CACHE = {"cache-control": "no-cache"}
 
 @app.get("/{path:path}")
 async def spa(path: str):
+    if path.startswith("api/"):   # 没实现的接口要露出 404，别把首页 HTML 当成成功返回
+        return JSONResponse({"detail": i18n.t("没有这个接口")}, status_code=404)
     f = (DIST / path).resolve()
     if path and f.is_relative_to(DIST.resolve()) and f.is_file():   # 不让 ../ 读到 dist 外面的文件
         return FileResponse(f, headers=NO_CACHE if f.name in ("index.html", "sw.js") else None)

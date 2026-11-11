@@ -189,7 +189,21 @@ class InstaboxComputer(Computer):
         if mid and (await self.status())["state"] == "running":
             await self._wait_op(await self._req("POST", f"/v1/machines/{mid}/suspend", idem=True))
 
+    async def _wake_retry(self, fn):
+        """机器空闲后会自己挂起：遇到 409 machine_not_running 就叫醒它，再做一次。
+        shell()/browser() 本来就会 start()，但 exec/read_file 走的是这里，之前原样把 409 抛给了模型。"""
+        try:
+            return await fn()
+        except ComputerError as e:
+            if "machine_not_running" not in str(e):
+                raise
+            await self.start()
+            return await fn()
+
     async def exec(self, cmd: str, timeout: int = 120, stdin: str | None = None) -> ExecResult:
+        return await self._wake_retry(lambda: self._exec_once(cmd, timeout, stdin))
+
+    async def _exec_once(self, cmd: str, timeout: int = 120, stdin: str | None = None) -> ExecResult:
         mid = self.machine_id
         if not mid:
             raise ComputerError(i18n.t("电脑还没创建"))
@@ -200,6 +214,9 @@ class InstaboxComputer(Computer):
         return ExecResult(r.get("exitCode", -1), r.get("stdout", ""), r.get("stderr", ""), bool(r.get("timedOut")))
 
     async def read_bytes(self, path: str, limit: int = 32 << 20) -> bytes:
+        return await self._wake_retry(lambda: self._read_once(path, limit))
+
+    async def _read_once(self, path: str, limit: int) -> bytes:
         mid = self.machine_id
         r = await self.http.get(f"/v1/machines/{mid}/files/content", params={"path": path}, headers=_headers())
         if r.status_code == 404:
