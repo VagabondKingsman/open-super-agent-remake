@@ -142,7 +142,7 @@ async def test_numberless_claim_gets_corrective_round_that_really_dispatches(llm
     llm.script(name, "Đã giao worker chạy 8 lần, mỗi lần in 150 dòng. Kết quả sẽ về khi xong.",
                Call("dispatch", {"goal": "chạy run_code 8 lần"}), "Giờ đã giao thật.")
     llm.script("worker", "xong")
-    await server.safe_handle(_chat(bot), "Giao cho worker: chạy run_code 8 lần")
+    await server.safe_handle(_chat(bot), "Giao cho worker: chạy run_code 8 lần, mỗi lần in 150 dòng")
     await until(lambda: find(bot["chat_id"], kind="result"), what="kết quả task")
     await settle()
 

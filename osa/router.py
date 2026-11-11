@@ -148,6 +148,9 @@ DISPATCH_RESULT_RE = re.compile(r"kết quả|đã xong|hoàn thành|已完成|�
 FAKE_DISPATCH_NOTE = ("(System, not the user: your reply says task {ids} was dispatched, but you did not call the dispatch tool "
                       "in this turn and no such task exists. Saying it does not start anything. If the user wants this work done, "
                       "call dispatch now. Otherwise tell the user plainly that nothing was dispatched.)")
+SELF_CHECK_NOTE = ("(System, not the user: your reply states {claims}, but nothing this turn gave that number — "
+                  "not a tool result, not the user's message. Re-read the tool results above and restate with the "
+                  "number they show, call a tool to get it, or say it is unknown.)")
 CLAIM_NO_CALL_NOTE = ("(System, not the user: your reply says the work was already handed to the Worker — or that you called "
                       "dispatch — but this turn made no dispatch tool call, so nothing is running. Saying it does not start "
                       "anything. Call dispatch now with the goal, or tell the user plainly that nothing was dispatched yet.)")
@@ -596,9 +599,11 @@ class Router:
                                    tasks=self._task_list(), approvals=approvals.summary(self.bot_id),
                                     tools=", ".join(t["function"]["name"] for t in self._tools()),
                                     memories="\n\n" + recent if recent else "", turn=self._turn_block())
+        self._turn_context = ""            # C3：这一轮看得见的上下文（含用户这条），数有出处就不啰嗦
         msgs = [{"role": "system", "content": system}] + with_state(
             memory.context(cid, self.bot_id if chat["kind"] == "group" else None, me=self.bot_id,
                            images=media.MODEL_IMAGES if see else 0), state)
+        self._turn_context = "\n".join(str(m.get("content") or "") for m in msgs)
         sid, started = f"s{time.time_ns()}", time.time()
         self._turn_tasks = []             # 本轮派发的任务，挂在这条回复下面显示
         self._turn_heavy = None           # 一轮用户消息最多一个 Heavy
@@ -606,6 +611,8 @@ class Router:
         self._turn_waits = 0              # 本轮弹出的新建 / 修改 / 删除 Bot 的卡片：有了结果会再叫醒这个 Bot
         self._turn_files = []             # 本轮 send_file 发的文件，挂在这条回复下面显示
         self._turn_tool_ms = []           # 本轮调过的工具（C6：上一轮的要清掉，否则每轮越记越长，回复下面挂一排旧工具）
+        self._turn_outputs = []             # C3：本轮工具吐出来的文字（数出处）
+        self._self_check = []               # C3：改过一轮仍对不上工具结果的数
         self._turn_usage = {"in": 0, "out": 0, "cache": 0, "cost": 0.0, "ttft": None, "est": False}   # A4：本轮各次模型调用的合计
         guard = float(CFG["limits"].get("turn_cost_guard") or 0)   # C4：比平时贵太多的一轮
         cap = memory.turn_cost_cap(factor=guard)
@@ -701,6 +708,17 @@ class Router:
                     fix = i18n.t("（更正：这一轮没有派出任务 {ids}，上面说已派发是不对的。）", ids=", ".join(f"#{i}" for i in fake))
                     shown = shown.rstrip() + "\n\n" + fix
                     await self.emit({"type": "stream", "sid": sid, "delta": "\n\n" + fix}, cid)
+            # C3：回复里数了数（“8 lần”“150 dòng”），这个数却不在本轮任何一个工具结果里、也不在用户这条消息里。
+            # 给一轮机会按工具结果改；仍然对不上，就在 meta 里标出来，别让它当成事实留在记录里。
+            told = self._turn_context + "\n" + "\n".join(self._turn_outputs)
+            if self._turn_outputs and (unsupported := verification.count_claims(shown, told)):
+                msgs.append({"role": "assistant", "content": content, "reasoning_content": reasoning})
+                msgs.append({"role": "user", "content": SELF_CHECK_NOTE.format(claims=", ".join(f"“{c}”" for c in unsupported))})
+                if not shown.endswith("\n"):
+                    shown += "\n\n"
+                    await self.emit({"type": "stream", "sid": sid, "delta": "\n\n"}, cid)
+                rounds_used, content, reasoning = await rounds()
+                self._self_check = verification.count_claims(shown, told)
             # 空回复，或 finish_reason=length：再要一次完整回复。仍空就不要当成成功的空白消息。
             if not shown.strip() or finish == "length":
                 if not shown.strip() and rounds_used:   # 工具轮数用完还没开口：关掉工具，逼它给一句回复
@@ -728,6 +746,7 @@ class Router:
                        **({"lang_flag": flag} if flag else {}),
                        **({"fabricated_task_ids": fake} if fake else {}),
                        **({"claimed_dispatch": True} if claimed_no_call else {}),
+                       **({"self_check": self._self_check} if self._self_check else {}),
                        **({"cost_guard": self._turn_capped} if self._turn_capped else {}),
                        **({"attachments": self._turn_files} if self._turn_files else {}))
         return shown.strip()
@@ -794,6 +813,9 @@ class Router:
         await self.emit({"type": "tool", "name": name, "state": "ok", "brief": brief,
                          "ms": int((time.monotonic() - t0) * 1000)}, cid)
         self._count_tool(name, brief, t0)
+        text = out[0] if isinstance(out, tuple) else out
+        if isinstance(text, str):
+            self._turn_outputs.append(text[:20_000])   # C3：本条回复里数出来的数要有出处
         if registry.listening("tool_done"):
             registry.fire("tool_done", scope="router", bot=self.bot, chat_id=self.chat["id"], task=None, name=name,
                           args=dict(args), result=out[0] if isinstance(out, tuple) else out, status="done")
