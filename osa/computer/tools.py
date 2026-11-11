@@ -29,10 +29,17 @@ def page_text(d: dict) -> str:
             if d["offset"] + len(d["text"]) < d["total"] else ""
         return f"{d['title']} | {d['url']}\n{d['text']}{more}"
     els = "\n".join(d["elements"]) or i18n.t("（没有可操作元素）")
+    # 元素行里的记号在页面脚本里是英文（脚本不能 import 这里）：到这里才换成界面语言
+    for en, zh in (("checked", "（已选中）"), ("offscreen", "（屏幕外）")):
+        word = i18n.t(zh)
+        els = els.replace(f" ({en})", word if word.startswith("（") else f" {word}")
     if d.get("dialog"):
         els = i18n.t("（页面上有弹窗，下面只列弹窗里的元素；是登录、扫码或验证码就调用 ask_human）") + "\n" + els
+    scroll = d.get("scroll")
+    if d.get("vh"):   # 视口高度：判断“下面还有没有东西”要用
+        scroll = i18n.t("{scroll}，视口高 {vh}", scroll=scroll, vh=d["vh"])
     return i18n.t("当前页面：{title} | {url}（滚动 {scroll}）\n可操作元素：\n{els}\n\n正文开头：{text}",
-                  title=d["title"], url=d["url"], scroll=d["scroll"], els=els, text=d["text"][:1200])
+                  title=d["title"], url=d["url"], scroll=scroll, els=els, text=d["text"][:1200])
 
 
 def _fn(name, desc, props: dict, required: list[str] | None = None):

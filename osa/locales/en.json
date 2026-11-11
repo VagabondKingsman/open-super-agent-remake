@@ -1283,5 +1283,8 @@
     "{n} secrets could not be decrypted (the master key changed) and were left out: {names}"
   ],
   "未设置 OSA_PASSWORD：网页不用登录就能访问，只能在本机或内网使用": "OSA_PASSWORD is not set: the web UI needs no login, so use it only on this machine or a private network",
-  "没有这个接口": "No such endpoint"
+  "没有这个接口": "No such endpoint",
+  "（已选中）": "(checked)",
+  "（屏幕外）": "(offscreen)",
+  "{scroll}，视口高 {vh}": "{scroll}, viewport height {vh}"
 }

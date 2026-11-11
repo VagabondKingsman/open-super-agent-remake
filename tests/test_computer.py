@@ -279,3 +279,21 @@ async def test_tool_calls_attach_progress_so_a_wait_is_visible(monkeypatch):
     assert out.startswith("退出码 0")
     assert seen == [progress] and c.progress is None   # 执行期间挂着，执行完摘掉
     approvals.end_task(3)
+
+
+def test_page_text_speaks_the_readers_language(monkeypatch):
+    """B6：页面信息（滚动到哪、视口多高、哪几个元素打了勾 / 在屏幕外）跟着界面语言走，三种语言都对得上。"""
+    from osa import i18n
+    from osa.computer.tools import page_text
+    d = {"title": "T", "url": "https://x", "elements": ['[1] button "B" (checked)', '[2] a "L" (offscreen)'],
+         "text": "body", "dialog": False, "scroll": "0/10306", "vh": 669}
+    want = {"zh": "（滚动 0/10306，视口高 669）", "en": "(scroll 0/10306, viewport height 669)",
+            "vi": "(cuộn 0/10306, cao 669)"}
+    marks = {"zh": ("（已选中）", "（屏幕外）"), "en": ("(checked)", "(offscreen)"), "vi": ("(đã chọn)", "(ngoài màn hình)")}
+    for lang in want:
+        monkeypatch.setattr(i18n, "_lang", lang)
+        out = page_text(d)
+        assert want[lang] in out and all(m in out for m in marks[lang]), (lang, out)
+    monkeypatch.setattr(i18n, "_lang", "vi")
+    assert "视口高" not in page_text(d) and "已选中" not in page_text(d)   # 不再漏中文
+    assert "0/10306" in page_text({**d, "vh": None})   # 老脚本没给 vh 也能排版

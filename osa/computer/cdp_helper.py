@@ -85,16 +85,16 @@ SNAPSHOT_JS = r"""
     if (name) line += ` "${name.slice(0, 80)}"`;
     if (e.placeholder) line += ` placeholder="${clean(e.placeholder).slice(0, 40)}"`;
     if ((tag === 'input' || tag === 'textarea') && e.value && !/password/.test(e.type)) line += ` value="${clean(e.value).slice(0, 40)}"`;
-    if (e.checked) line += ' (已选中)';
+    if (e.checked) line += ' (checked)';
     if (tag === 'a') { const h = e.getAttribute('href') || ''; if (h && !h.startsWith('javascript')) line += ` → ${h.slice(0, 80)}`; }
-    if (!inView) line += ' (屏幕外)';
+    if (!inView) line += ' (offscreen)';
     out.push(line);
     if (out.length >= 150) break;
   }
   const text = clean(root === document ? (document.body ? document.body.innerText : '') : root.innerText).slice(0, 1500);
   const scroll = Math.round(scrollY), total = Math.round(document.documentElement.scrollHeight);
   return JSON.stringify({url: location.href, title: document.title, elements: out, text, dialog: dialogs.length > 0,
-                         scroll: `${scroll}/${total}，视口高 ${vh}`});
+                         scroll: `${scroll}/${total}`, vh});
 })()
 """
 

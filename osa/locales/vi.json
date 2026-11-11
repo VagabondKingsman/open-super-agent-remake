@@ -1214,5 +1214,8 @@
   "已导出到 {dst}": "Đã xuất ra {dst}",
   "有 {n} 个密钥解不开（主密钥换过），没有带上：{names}": "{n} khóa bí mật không giải mã được (khóa chính đã đổi) nên không được đưa vào: {names}",
   "未设置 OSA_PASSWORD：网页不用登录就能访问，只能在本机或内网使用": "Chưa đặt OSA_PASSWORD: trang web không cần đăng nhập, chỉ dùng trên máy này hoặc mạng nội bộ",
-  "没有这个接口": "Không có endpoint này"
+  "没有这个接口": "Không có endpoint này",
+  "（已选中）": "(đã chọn)",
+  "（屏幕外）": "(ngoài màn hình)",
+  "{scroll}，视口高 {vh}": "{scroll}, cao {vh}"
 }
