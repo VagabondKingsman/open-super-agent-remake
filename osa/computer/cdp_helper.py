@@ -462,6 +462,21 @@ def page() -> WS:
 BROWSER_ID = ""   # 这次开着的浏览器的标识：浏览器重开过，窗口编号可能和以前的撞上
 
 
+def new_context(b) -> str:
+    """一个新的浏览器 profile：cookie、登录状态和别的任务、和默认 profile 都不通。disposeOnDetach=False：
+    每做一个动作脚本就断开一次，不能因此把 profile 弄没了。"""
+    return b.call("Target.createBrowserContext", {"disposeOnDetach": False})["browserContextId"]
+
+
+def close_context(context: str) -> dict:
+    if context:
+        try:
+            _browser_ws().call("Target.disposeBrowserContext", {"browserContextId": context})
+        except Exception:
+            pass   # 浏览器已经关了、profile 已经没了
+    return {"ok": True}
+
+
 def _browser_ws() -> WS:
     global BROWSER_ID
     with urllib.request.urlopen(f"http://127.0.0.1:{PORT}/json/version", timeout=5) as r:
@@ -494,12 +509,16 @@ class Ctx:
     def __init__(self, a: dict):
         self.win, self.op = a.get("win"), a["op"]
         self.window = None
+        self.context = ""      # 这个任务的浏览器 profile（Target.createBrowserContext）：两个任务的 cookie 互相看不见
         if self.win is None:
             self.ws = page()
             return
         w = self.win
         ts = ensure_browser(bool(w.get("restart_ok")))
         self.b = _browser_ws()
+        self.context = w.get("context") or ""
+        if w.get("isolate") and not self.context:   # 第一次：给这个任务开一个新 profile
+            self.context = new_context(self.b)
         tw = self.windows(ts)
         avoid = set(w.get("avoid") or [])
         front = tw[0][1] if tw else None
@@ -517,7 +536,7 @@ class Ctx:
         else:
             t, self.window = next(((t, x) for t, x in tw if x not in avoid), (None, None))
             if t is None:
-                t, self.window = self.new_window(front)
+                t, self.window = self.new_window(front, self.context)
                 created = True
         self.ws = WS(t["webSocketDebuggerUrl"])
         if w.get("size") and not HOST:
@@ -541,9 +560,18 @@ class Ctx:
                 pass   # 刚关掉的标签页
         return out
 
-    def new_window(self, like: int | None) -> tuple[dict, int]:
-        tid = self.b.call("Target.createTarget", {"url": "about:blank", "newWindow": True,
-                                                  **({"background": True} if HOST else {})})["targetId"]
+    def new_window(self, like: int | None, context: str = "") -> tuple[dict, int]:
+        params = {"url": "about:blank", "newWindow": True, **({"background": True} if HOST else {})}
+        if context:
+            params["browserContextId"] = context
+        try:
+            tid = self.b.call("Target.createTarget", params)["targetId"]
+        except Exception:
+            if not context:
+                raise
+            # 浏览器重开过，记着的那个 profile 已经没了：换一个新的，不让人做不了事
+            self.context = context = new_context(self.b)
+            tid = self.b.call("Target.createTarget", {**params, "browserContextId": context})["targetId"]
         w = self.b.call("Browser.getWindowForTarget", {"targetId": tid})["windowId"]
         if like is not None:   # 和已有的窗口一样大、一样位置，屏幕上看起来像同一个浏览器
             try:
@@ -945,6 +973,8 @@ def run(a: dict) -> dict:
         return rec_stop(a["file"])
     if op == "close_window":
         return close_window(a)
+    if op == "close_context":   # 任务做完了：它的 profile 一起关掉（cookie 不留给下一个任务）
+        return close_context(a.get("context") or "")
     ctx = Ctx(a)
     ws = ctx.ws
     out = None
@@ -1042,6 +1072,7 @@ def run(a: dict) -> dict:
     out = snapshot(ws) if out is None else out
     out["window"] = ctx.window
     out["browser"] = BROWSER_ID
+    out["context"] = ctx.context
     return out
 
 

@@ -93,6 +93,7 @@ class Computer:
         self.watch: str | None = None            # 你点了“看这个”的任务：画面固定在它的窗口上
         self.chat_windows: dict[str, dict] = {}  # 对话里直接操作用的窗口：chat-<Bot id> -> {"window", "browser", "at"}
         self.asking: dict = {}                   # 正在“请你帮忙”的任务 id -> key（Heavy 的几个研究员共用一个任务 id）
+        self.contexts: dict[str, str] = {}       # 任务 -> 它的浏览器 profile（见 isolate）：cookie 不串
         self.progress = None                     # 当前这次调用的进度说明（tools.call 挂上来）：等用户交还、等机器开起来时让人看得见
         self._free = asyncio.Condition()
         self._assign = asyncio.Lock()            # 一次只给一个任务挑窗口，免得两个挑中同一个空窗口
@@ -151,12 +152,20 @@ class Computer:
             self._free.notify_all()
         if u and u.get("window"):
             self.background(self._close(u["window"], u.get("browser")))
+        if context := self.contexts.pop(key, ""):   # 任务做完了：它的 profile 也关掉，下一个任务从干净的 cookie 开始
+            self.background(self._close_context(context))
         self.changed()
 
     async def recheck(self):
         """并行数改大了：叫醒排队的。"""
         async with self._free:
             self._free.notify_all()
+
+    async def _close_context(self, context: str):
+        try:
+            await self._helper_run({"op": "close_context", "context": context})
+        except Exception:
+            pass   # 电脑暂停了之类，浏览器关掉时一起没
 
     async def _close(self, window: int, browser: str | None):
         """任务做完了：窗口比并行数多就关掉它的窗口，不多就留着（画面上还能看到它最后的样子）。"""
@@ -354,7 +363,8 @@ class Computer:
             watched = (self.users.get(self.watch) or {}).get("window") if self.watch != key else None
             return {"id": u.get("window"), "browser": u.get("browser"), "avoid": avoid, "keep_front": watched,
                     "front": first and not watched and self.controller == "bot",
-                    "restart_ok": first and alone and len(self.users) == 1, **self._size()}
+                    "restart_ok": first and alone and len(self.users) == 1,
+                    "isolate": self.isolate(), "context": self.contexts.get(key, ""), **self._size()}
         c = self.chat_windows.get(key) or {}
         mine = c.get("window") if c.get("window") not in tasks.values() else None
         return {"id": mine, "browser": c.get("browser") if mine else None, "avoid": avoid, "front": True, "router": True,
@@ -368,7 +378,14 @@ class Computer:
         w, h = int(cfg.get("width") or 1280), int(cfg.get("height") or 800)
         return {"size": [min(w, self.width or w), min(h, self.height or h)]}
 
-    def _set_window(self, key: str, window, browser: str | None = None):
+    def isolate(self) -> bool:
+        """每个任务一个 Chromium profile（cookie、登录状态互不可见）。Docker / Instabox 的电脑上打开；
+        你自己的电脑不隔离：那里的 Chrome 就是给你用你登录过的网站的。config.yaml: computer.isolate_tasks。"""
+        return self.backend not in HOSTS and bool((CFG.get("computer") or {}).get("isolate_tasks", True))
+
+    def _set_window(self, key: str, window, browser: str | None = None, context: str | None = None):
+        if context:
+            self.contexts[key] = context
         if key in self.users:
             self.users[key].update(window=window, browser=browser)
         elif key.startswith("chat-"):
@@ -397,7 +414,7 @@ class Computer:
                     async with self._assign:
                         if (win := self._win(key, op))["id"] is None:
                             got = await self._helper_run({"op": "window", "win": win})
-                            self._set_window(key, got["window"], got.get("browser"))
+                            self._set_window(key, got["window"], got.get("browser"), got.get("context"))
                             self.changed()
                 out = await self._helper_run({"op": op, **args, "win": self._win(key, op)})
             except ComputerError as e:
@@ -413,7 +430,7 @@ class Computer:
                     raise ComputerError(f"屏幕上现在是{who}的窗口，它还在用。要在那个页面上操作就先 cancel_task 停掉它；"
                                         "只是打开网页的话直接 browser_open，会换一个窗口。") from None
                 raise
-            self._set_window(key, out.get("window"), out.get("browser"))   # 点链接弹出的新窗口，脚本会跟过去
+            self._set_window(key, out.get("window"), out.get("browser"), out.get("context"))   # 点链接弹出的新窗口，脚本会跟过去
             if out.get("window"):
                 self.recent = (out["window"], out.get("browser"))
             if self.recent_desk:
