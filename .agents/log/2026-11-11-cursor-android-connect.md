@@ -33,7 +33,20 @@ Panic: `tauri-2.12.5/src/ipc/authority.rs:180`, `UnknownManifest { key: "app man
 | Send thứ 9 vào kênh 8 chỗ thì chặn | PASS | `ninth_pipe_send_blocks_until_drained` |
 | Demo nối server giả | PASS | Log `/tmp/osa-android-demo.log`: `GET /manifest.json` ua ureq, rồi `GET /` ua WebKit. Process còn sống, không còn dòng panic |
 | Panic trước khi sửa | FAIL rồi sửa | `UnknownManifest` trong `/tmp/osa-android-shell.log` của lần chạy đầu |
-| APK, emulator, điện thoại | NOT_CHECKED | Máy này không cài Android SDK. `/dev/kvm` có. Chưa build APK |
+| APK, emulator, điện thoại lúc viết mục trên | NOT_CHECKED | SDK chưa cài ở mục đó |
+
+## Bổ sung · emulator · 12:55 Asia/Saigon
+
+SDK, NDK 29.0.14206865, emulator, image `aosp_atd` API 34 x86_64. `/dev/kvm` mở cho user của phiên.
+
+| AC | Kết quả | Bằng chứng |
+|---|---|---|
+| APK debug x86_64 cài và chạy | PASS | `adb install` Success. SHA lúc chạy `14dae2a5fcb6d800e176ed03f9a9664130572c6a49c8c433c8b633013a8b5343`. File bị bản arm64 ghi đè sau |
+| Nối `http://10.0.2.2:8799` | PASS | Server giả: `GET /manifest.json` rồi `GET /`. WebView thành `http://10.0.2.2:8799/`. pid 1830 còn sống. logcat không FATAL |
+| Mở lại khi đã lưu server | PASS | `force-stop` rồi `am start`. Thêm một lượt manifest và `/`. pid 1999. Vẫn ở trang server. Không FATAL |
+| Địa chỉ chết `http://10.0.2.2:1` | PASS | Ở lại `http://tauri.localhost/`. Hiện lỗi connection refused. pid 2113 không đổi. Không FATAL |
+| APK debug arm64 | PASS file, chưa chạy | `lib/arm64-v8a`, `resources.arsc` Stored, zipalign 4 exit 0, apksigner v2. SHA-256 `ac5b12a3e9d1850578c1f4398e6ef4e8b86450ee4aac10df7747a876ad7ac8f5` |
+| Điện thoại S22 | NOT_CHECKED | Không có máy |
 
 - Paid usage: 0.
 - Không đụng DB thật, không gửi channel.

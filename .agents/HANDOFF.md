@@ -120,7 +120,7 @@ Live OSA-011 đã có trong repo: [bằng chứng](evidence/osa-011-live-test/LI
 
 ## Còn lại
 
-OSA-040 (chưa merge, branch `cursor/android-connect-crash-efeb`): app Android văng lúc nối server. Nguyên nhân thấy trên demo Linux là `add_capability` panic vì chưa có manifest app, khóa ACL bị độc, process chết. Hàng đợi wry 8 chỗ vẫn không được gọi `navigate`. Điện thoại thật chưa chạy bản này.
+OSA-040 (chưa merge, [PR #47](https://github.com/VagabondKingsman/open-super-agent-remake/pull/47)): app Android văng lúc nối server. Nguyên nhân trên demo Linux là `add_capability` panic vì chưa có manifest app. Emulator x86_64 đã nối HTTP, mở lại, và địa chỉ chết mà không FATAL. APK arm64 đã ký, chưa cài điện thoại.
 
 Code trên `i18n-vi` là v0.17.0. So với upstream `ec02547` không thiếu file trong `osa/`, `web/`, `tests/`, `desktop/`, `mobile/`. Khác biệt còn lại là của remake: tiếng Việt mặc định, prompt tiếng Anh, chi phí USD, AI Native, và các sửa bảo mật đã merge tới PR #25. Không có plugin. Không có trang Chi phí. `desktop/` và `mobile/` có trong cây, remake không build. Workflow đóng gói app Mac của upstream không có.
 
