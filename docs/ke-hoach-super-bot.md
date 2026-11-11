@@ -87,15 +87,21 @@ Chi phí tuần (báo cáo đầu tiên): 5,97 $ · 191 lần gọi · 5 lỗi �
 
 ## KPI (đo được, hiện tại → mục tiêu)
 
-| Chỉ số | Hiện | Mục tiêu vòng A | Vòng B |
+| Chỉ số | Hiện (đo 2026-11-11) | Mục tiêu vòng A | Vòng B |
 |---|---|---|---|
-| ttft turn thường | 2,49 s (7 ngày) | ≤ 1,8 s | ≤ 1,2 s |
-| Chữ đầu turn `17*23` | 7,10 s | ≤ 4 s | ≤ 3 s |
-| Frame tool trên `/ws` | 0 | ≥ 2/turn có tool | đủ bước + approval |
-| Chi phí/turn | không đo được | có trong `meta` | dashboard |
-| Test | 911 | ≥ 938 | ≥ 1 000 |
+| ttft turn thường | 2,27 s (báo cáo tuần, router) | ≤ 1,8 s | ≤ 1,2 s |
+| Chữ đầu turn `17*23` | 11,4 s (2 tool, đáp 391) | ≤ 4 s | ≤ 3 s |
+| Frame tool trên `/ws` | có, 1–2 mỗi lượt gọi tool | ≥ 2/turn có tool | đủ bước + approval |
+| Chi phí/turn | trong `meta.usage`; tuần này 242 lượt = $6,93 | có trong `meta` | dashboard |
+| Test | 1 129 | ≥ 938 | ≥ 1 000 |
 | Op computer (snapshot) | 0,44 s | giữ | ≤ 0,4 s |
-| Lỗi 5xx / 7 ngày | 1 | 0 | 0 |
+| Lỗi gọi model / 7 ngày | 5 | 0 | 0 |
+
+Đọc bảng này cho đúng: đơn vị đang chạy **không phải** cấu hình trong `config.yaml`. Phần `overrides` trong bảng
+`settings` của DB đặt `roles.router = grok-4.7, thinking: true, reasoning_effort: high` (và worker/reviewer như vậy),
+nên mọi lượt đều chạy bằng model đắt + suy luận sâu: 6,92 $ trong tuần gần như toàn bộ rơi vào grok-4.7, và "chữ đầu"
+là chữ đầu của phần suy luận, không phải của câu trả lời. Muốn so với mục tiêu ttft thì hạ `reasoning_effort` hoặc
+bỏ thinking cho router rồi đo lại; chưa làm vì đó là lựa chọn của operator.
 
 ## Rủi ro & lối thoát
 
