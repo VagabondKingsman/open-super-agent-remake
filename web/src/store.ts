@@ -307,6 +307,8 @@ document.addEventListener('visibilitychange', () => {
   set({ visible: document.visibilityState === 'visible' })
   if (document.visibilityState === 'hidden') hiddenAt = Date.now()
   else if (phone && ws && hiddenAt && Date.now() - hiddenAt > 30_000) {
+    // 后台可能推迟了 8 秒的计时器。先作废这次手动重连，免得它醒来后关掉前台刚打开的新连接。
+    abandonManual()
     const old = ws
     old.onclose = null; old.onmessage = null
     try { old.close() } catch { /* 已经断了 */ }
@@ -323,24 +325,37 @@ const reconnectTimer = createReconnectScheduler(
   (fn, ms) => setTimeout(fn, ms),
   id => clearTimeout(id as ReturnType<typeof setTimeout>),
 )
-let manual: { gen: number; done: (ok: boolean) => void; timer: ReturnType<typeof setTimeout> } | null = null
+let manual: { gen: number; sock: WebSocket | null; done: (ok: boolean | null) => void; timer: ReturnType<typeof setTimeout> } | null = null
+
+function quietClose(sock: WebSocket) {
+  sock.onclose = null
+  sock.onmessage = null
+  try { sock.close() } catch { /* 已经断了 */ }
+}
 
 function dropSocket() {
-  const old = ws
-  if (!old) return
-  old.onclose = null
-  old.onmessage = null
-  try { old.close() } catch { /* 已经断了 */ }
+  if (ws) quietClose(ws)
+}
+
+function abandonManual() {
+  if (!manual) return
+  clearTimeout(manual.timer)
+  const done = manual.done
+  manual = null
+  done(null)
 }
 
 function settleManual(gen: number, ok: boolean) {
   if (!manual || manual.gen !== gen) return
   clearTimeout(manual.timer)
+  const sock = manual.sock
   const done = manual.done
   manual = null
   done(ok)
-  if (!ok) {
-    dropSocket()
+  if (!ok && sock && sock !== ws) quietClose(sock)
+  else if (!ok && sock && ws === sock && sock.readyState !== WebSocket.OPEN) {
+    quietClose(sock)
+    ws = null
     reconnectTimer.schedule(() => connect(), reconnectDelay(attempts++))
   }
 }
@@ -348,6 +363,7 @@ function settleManual(gen: number, ok: boolean) {
 function openSocket(gen = ++socketGen) {
   reconnectTimer.cancel()
   ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws')
+  if (manual?.gen === gen) manual.sock = ws
   ws.onopen = () => { attempts = 0; set({ connected: true }); reportVisibility(); if (state.ready) resync(); settleManual(gen, true) }
   ws.onclose = () => {
     set({ connected: false })
@@ -367,15 +383,16 @@ export function connect() {
   openSocket()
 }
 
-/** APK: try the server now. Null while a try is already running. True if /ws opens within 8s. */
-export function reconnectNow(): Promise<boolean> | null {
+/** APK: try the server now. Null while a try is already running.
+ *  The promise is true if /ws opens within 8s, false on failure, null if a newer connect took over. */
+export function reconnectNow(): Promise<boolean | null> | null {
   if (manual) return null
   dropSocket()
   reconnectTimer.cancel()
   attempts = 0
   const gen = ++socketGen
   return new Promise(resolve => {
-    manual = { gen, done: resolve, timer: setTimeout(() => settleManual(gen, false), MANUAL_MS) }
+    manual = { gen, sock: null, done: resolve, timer: setTimeout(() => settleManual(gen, false), MANUAL_MS) }
     openSocket(gen)
   })
 }

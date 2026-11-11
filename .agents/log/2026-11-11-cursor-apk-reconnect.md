@@ -11,6 +11,7 @@
 - Bấm: hủy lịch chờ, đóng socket cũ, mở socket ngay. 8 giây. Đang thử thì bấm tiếp bị bỏ.
 - Xong: "Đã kết nối lại", chấm xanh. Thất bại: "Vẫn không nối được server", chấm đỏ, rồi lịch 1,5 giây đến 30 giây chạy lại.
 - Dòng thông báo tự mất sau 2,5 giây. Không gọi `webview.navigate`.
+- App về nền lúc đang thử: hủy lần thử đó trước khi mở socket mới. Timer cũ chỉ đóng đúng socket của nó.
 
 ## Evidence
 

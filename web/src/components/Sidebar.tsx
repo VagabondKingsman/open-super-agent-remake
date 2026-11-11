@@ -65,6 +65,7 @@ export default function Sidebar({ onNewBot, onNewGroup, onSettings, onClose }: {
     setReconnecting(true)
     const ok = await attempt
     setReconnecting(false)
+    if (ok === null) return
     showToast(ok, ok ? t('已重新连上') : t('还是连不上这台服务器'))
   }
 
