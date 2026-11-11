@@ -286,6 +286,7 @@ class Run:
         sleep = float(arg.get("sleep", 0))
         secret = arg.get("secret")
         returns = arg.get("returns", "ok")
+        size = int(arg.get("size", 0) or 0)          # C8: a big result, to see what the worker keeps in context
 
         async def fn(**kw):
             self.mcp_calls[name].append(kw)
@@ -293,6 +294,8 @@ class Run:
                 await asyncio.sleep(sleep)
             if len(self.mcp_calls[name]) <= fail_first:
                 raise RuntimeError(arg.get("error", "503 upstream unavailable"))
+            if size:
+                return f"blob-{len(self.mcp_calls[name])} " + "x" * size
             if secret:   # like an MCP server whose env has {vault:NAME}: resolved only when it runs
                 missing: list = []
                 from osa import mcp_hub
@@ -534,6 +537,11 @@ class Run:
             usage = [(json.loads(r[0] or "{}") or {}).get("usage") for r in rows]
             want(any(u and (u.get("out") or 0) > 0 for u in usage),
                  f"no reply carries this turn's usage (got {usage})")
+        if "worker_context_chars_max" in e:
+            worst = max((sum(len(json.dumps(m, ensure_ascii=False)) for m in b["messages"])
+                         for b in self.llm.bodies("worker")), default=0)
+            want(worst <= e["worker_context_chars_max"],
+                 f"worker context grew to {worst} chars (max {e['worker_context_chars_max']})")
         if "max_llm_calls" in e:
             want(len(self.llm.requests) <= e["max_llm_calls"], f"model calls {len(self.llm.requests)} > {e['max_llm_calls']}")
         want(not net.blocked, f"tried real network: {net.blocked}")

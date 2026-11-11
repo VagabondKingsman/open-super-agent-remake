@@ -18,7 +18,7 @@ bản đang chạy ở `boxes.dev` (86 module / 27 202 dòng / 150 route / 909 t
 | A | A0–A7 ✅ | suite 1 051 → 1 099 test |
 | B | B1–B9 ✅ | test kênh 92, nhóm 13, teach 13, memory 8; 3 bug thật (xem commit B8/B9) |
 | C | C1, C2, C4, C5, C6, C7 ✅ · C3 đã có sẵn (`verification_repair_attempts`) | 32 scenario (thêm e28–e32) |
-| D | C6 ✅ (mỗi lượt chỉ ghi công cụ của nó) · C7 ✅ (ngưỡng cost_guard theo trung vị) | 2 lỗi thật tìm từ dữ liệu live |
+| D | C6 ✅ (mỗi lượt chỉ ghi công cụ của nó) · C7 ✅ (ngưỡng cost_guard theo trung vị) · C8 ✅ (chặn kết quả tool cũ trong worker) | 2 lỗi thật tìm từ dữ liệu live; chi phí worker là chỗ tốn nhất |
 
 Chi phí tuần (báo cáo đầu tiên): 5,97 $ · 191 lần gọi · 5 lỗi · ttft 2 336 ms · cache 66 %.
 

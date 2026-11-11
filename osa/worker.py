@@ -383,6 +383,36 @@ def _history(task: Task, label: str) -> list:
     return task.repeat_history.setdefault(label or "", [])
 
 
+def _compact_tools(msgs: list[dict]) -> int:
+    """C8：任务跑久了，早先的工具结果把每一步的上下文撑大。
+
+    线上（2026-11-11）worker 平均每次调用发 49k token：一次任务 30 步，每步都把前面所有工具
+    结果重发一遍。这里只留最近 worker_keep_full_tools 条完整，其余截到 worker_old_tool_chars 字；
+    总量不到 worker_compact_chars 就一个字不动 —— 改了前缀，模型服务的缓存那一次就要全部重读。
+    返回截掉的字数。
+    """
+    lim = CFG["limits"]
+    keep = int(lim.get("worker_keep_full_tools", 3) or 0)
+    keep_chars = int(lim.get("worker_old_tool_chars", 1500) or 0)
+    compact_at = int(lim.get("worker_compact_chars", 60000) or 0)
+    if not compact_at or keep_chars <= 0:
+        return 0
+    long_ones = [i for i, m in enumerate(msgs)
+                 if m.get("role") == "tool" and len(m.get("content") or "") > keep_chars]
+    if len(long_ones) <= keep:
+        return 0
+    total = sum(len(msgs[i]["content"]) for i in long_ones)
+    if total <= compact_at:
+        return 0
+    cut = 0
+    for i in long_ones[:-keep] if keep else long_ones:
+        c = msgs[i]["content"]
+        if len(c) > keep_chars:
+            msgs[i]["content"] = c[:keep_chars] + "\n… (shortened to keep the context small; call the tool again if you need the rest)"
+            cut += len(c) - keep_chars
+    return cut
+
+
 def _looping(history: list, sig: str) -> bool:
     """同一个工具调用在这份历史里连续出现 repeat_tool_limit 次就停。0 表示不查。"""
     limit = int(CFG["limits"].get("repeat_tool_limit", 3) or 0)
@@ -413,6 +443,7 @@ async def _run_worker(task: Task, goal: str, label: str = "") -> str:
     stopped = False
     for _ in range(CFG["limits"]["worker_max_steps"]):
         ctools.prune_images(msgs)
+        _compact_tools(msgs)          # C8：早先的工具结果占的地方太大，只留最近几条完整
         m = await _reply(task, log, "worker", client, model, msgs, schemas)
         task.steps += 1
         task.last_progress = time.time()

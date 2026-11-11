@@ -57,6 +57,9 @@ limits:
   answer_continuations: 1     # 最终答案是空的，或 finish_reason=length 时，再要一次完整答案
   save_page_approval: false   # true：Worker 的 save_page 先等确认。命中“自动允许”规则时仍直接写
   task_timeout_s: 600
+  worker_compact_chars: 60000 # 任务里工具结果总长超过这么多字就把早先的截短（0 = 不截）
+  worker_keep_full_tools: 3   # 最近这么多条工具结果保持原样
+  worker_old_tool_chars: 1500 # 更早的截到这么多字
   watchdog_interval_s: 15
   approval_timeout_s: 1800   # 写操作等待确认的时限，超时按拒绝
   turn_cost_guard: 3.0          # 一轮比过去 7 天的中位数贵这么多倍就不再调工具（0 = 关掉），见 memory.turn_cost_cap
