@@ -1,7 +1,7 @@
 {
  "schema_version": 1,
  "suite": "osar-offline",
- "osa_commit": "354e734",
+ "osa_commit": "f251801",
  "tasks": [
   {
    "id": "e01_dispatch_answer",

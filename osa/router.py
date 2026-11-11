@@ -16,6 +16,11 @@ from .worker import IncompleteAnswer, Task, TaskFailed, run_worker, run_heavy
 
 log = logging.getLogger(__name__)
 
+def _times(x: float) -> str:
+    """2.0 → "2"，2.5 → "2.5"：写进给模型看的那句话里的倍数。"""
+    return f"{x:g}"
+
+
 def _tool_brief(args: dict) -> str:
     """给界面看的一行参数摘要：取第一个像样的字符串，太长就截断。"""
     for k in ("goal", "command", "cmd", "text", "url", "query", "q", "code", "path", "name"):
@@ -567,7 +572,8 @@ class Router:
         self._turn_files = []             # 本轮 send_file 发的文件，挂在这条回复下面显示
         self._turn_tool_ms = []           # 本轮调过的工具（C6：上一轮的要清掉，否则每轮越记越长，回复下面挂一排旧工具）
         self._turn_usage = {"in": 0, "out": 0, "cache": 0, "cost": 0.0, "ttft": None, "est": False}   # A4：本轮各次模型调用的合计
-        cap = memory.turn_cost_cap(factor=float(CFG["limits"].get("turn_cost_guard") or 0))   # C4：比平时贵太多的一轮
+        guard = float(CFG["limits"].get("turn_cost_guard") or 0)   # C4：比平时贵太多的一轮
+        cap = memory.turn_cost_cap(factor=guard)
         self._turn_capped = None
         shown, thinking, shots, finish = "", "", [], None
         async def rounds():
@@ -601,15 +607,16 @@ class Router:
                     msgs.append(ctools.image_message(png, "the whole screen" if whole else (getattr(png, "caption", None) or "the current page"), coords=not whole))
                     shots = []
                 if cap and self._turn_capped is None and self._turn_usage["cost"] > cap[0]:
-                    # C4：这一轮已经花得比平时多一倍：不再调工具，用手上的资料回答
+                    # C4：这一轮已经花得比平时多好几倍：不再调工具，用手上的资料回答
                     self._turn_capped = {"cost": round(self._turn_usage["cost"], 6),
-                                         "cap": round(cap[0], 6), "avg": round(cap[1], 6), "turns": cap[2]}
-                    log.warning("turn cost %s over cap %s (avg %s of %s replies): answering without more tools",
-                                self._turn_capped["cost"], self._turn_capped["cap"], cap[1], cap[2])
+                                         "cap": round(cap[0], 6), "usual": round(cap[1], 6), "turns": cap[2],
+                                         "factor": guard}
+                    log.warning("turn cost %s over cap %s (%sx the usual %s of %s replies): answering without more tools",
+                                self._turn_capped["cost"], self._turn_capped["cap"], guard, cap[1], cap[2])
                     msgs.append({"role": "user", "content": i18n.t(
-                        "(System: this turn has already cost {cost} — more than twice the usual {avg}. "
+                        "(System: this turn has already cost {cost} — more than {factor}x the usual {usual}. "
                         "Answer from what you have now; do not call any more tools.)",
-                        cost=self._turn_capped["cost"], avg=round(cap[1], 4))})
+                        cost=self._turn_capped["cost"], factor=_times(guard), usual=round(cap[1], 4))})
                 if shown and not shown.endswith("\n"):
                     shown += "\n\n"
                     await self.emit({"type": "stream", "sid": sid, "delta": "\n\n"}, cid)

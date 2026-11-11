@@ -59,7 +59,7 @@ limits:
   task_timeout_s: 600
   watchdog_interval_s: 15
   approval_timeout_s: 1800   # 写操作等待确认的时限，超时按拒绝
-  turn_cost_guard: 2.0          # 一轮比过去 7 天平均贵这么多倍就不再调工具（0 = 关掉），见 memory.turn_cost_cap
+  turn_cost_guard: 3.0          # 一轮比过去 7 天的中位数贵这么多倍就不再调工具（0 = 关掉），见 memory.turn_cost_cap
   daily_token_budget: 2000000
   provider_rate_retries: 1   # 普通 429（rate_limit_exceeded）按 Retry-After 再试几次。额度用尽不重试
   provider_retry_cap_s: 120  # Retry-After 最多等这么多秒

@@ -17,7 +17,8 @@ bản đang chạy ở `boxes.dev` (86 module / 27 202 dòng / 150 route / 909 t
 |---|---|---|
 | A | A0–A7 ✅ | suite 1 051 → 1 099 test |
 | B | B1–B9 ✅ | test kênh 92, nhóm 13, teach 13, memory 8; 3 bug thật (xem commit B8/B9) |
-| C | C1, C2, C4, C5 ✅ · C3 đã có sẵn (`verification_repair_attempts`) | scenario 34 (thêm e28–e31) |
+| C | C1, C2, C4, C5, C6, C7 ✅ · C3 đã có sẵn (`verification_repair_attempts`) | 32 scenario (thêm e28–e32) |
+| D | C6 ✅ (mỗi lượt chỉ ghi công cụ của nó) · C7 ✅ (ngưỡng cost_guard theo trung vị) | 2 lỗi thật tìm từ dữ liệu live |
 
 Chi phí tuần (báo cáo đầu tiên): 5,97 $ · 191 lần gọi · 5 lỗi · ttft 2 336 ms · cache 66 %.
 
@@ -61,7 +62,11 @@ Chi phí tuần (báo cáo đầu tiên): 5,97 $ · 191 lần gọi · 5 lỗi �
 1. ✅ **Cổng eval bắt buộc:** `tests/evals` (27 scenario) chạy trong mọi lần sửa; thêm 1 scenario cho mỗi lỗi thật đã sửa (bắt đầu từ A2–A4).
 2. ✅ **Sinh scenario từ log:** `scripts/scenario_from_log.py` (5 test) —  script đọc `osa.log` + `tasklog` → đề xuất scenario mới cho lỗi lặp ≥ 2 lần.
 3. **Self-check trước khi trả lời:** dùng `verification.py` cho turn có số liệu/đường dẫn; sai → tự sửa 1 lần (đã có `verification_repair_attempts`).
-4. ✅ **Ngân sách & hồi quy chi phí:** `memory.turn_cost_cap` + `router` dừng gọi tool khi một lượt > 2× trung bình 7 ngày (`limits.turn_cost_guard`, 4 test);  theo dõi `$/turn` từ A4; chặn khi vượt 2× trung bình 7 ngày.
+4. ✅ **Ngân sách & hồi quy chi phí:** `memory.turn_cost_cap` + `router` dừng gọi tool khi một lượt > 3× **trung vị** 7 ngày (`limits.turn_cost_guard`, 5 test);  theo dõi `$/turn` từ A4.
+   C7 (sau khi đọc số thật): trung vị thay trung bình — một lượt chạy lố tự nó đẩy trung bình lên
+   (một lượt $2 trong 12 lượt $0,04 làm trung bình từ $0,04 lên $0,20) nên ngưỡng 2× trung bình
+   tự nới đúng lúc cần siết; trung vị đứng yên. Số đo 2026-11-11 (14 lượt): trung vị $0,0418,
+   p90 $0,138, cao nhất $0,179 → ngưỡng $0,125, chỉ mở khi thật sự lệch.
 5. ✅ **Báo cáo tuần:** `scripts/weekly_report.py` (5 test) —  1 trang từ `/api/observe` + eval: ttft, tok/s, success, $, lỗi mới.
 
 ---

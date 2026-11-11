@@ -417,10 +417,15 @@ def record_partial(role: str, model: str, usage, text: str, task_id: int | None 
 _cap_cache: tuple | None = None   # (什么时候过期, 参数, 平均, 条数)
 
 
-def turn_cost_cap(days: int = 7, factor: float = 2.0, floor: float = 0.01, least: int = 8):
-    """挡住突然贵的一轮：过去几天每条回复的平均费用 × factor。
+def turn_cost_cap(days: int = 7, factor: float = 3.0, floor: float = 0.01, least: int = 8):
+    """挡住突然贵的一轮：过去几天每条回复的常用费用（中位数）× factor。
 
-    返回 (cap, 平均, 有费用的回复数)；回复太少（< least）或没开这个护栏就返回 None。
+    基准取中位数而不是平均数（C7）：平均数会被跑飞的那几条本身抬高 —— 一条 $2 的回复混进
+    $0.04 的日常量里，7 天平均从 $0.04 涨到 $0.19，护栏自己就被那一条放松了五倍；中位数不晃。
+    实测（2026-11-11，14 条回复）：中位数 $0.0418，p90 $0.138，最大 $0.179；
+    3× 中位数 = $0.125，只在真正跑飞时开口。
+
+    返回 (cap, 中位数, 有费用的回复数)；回复太少（< least）或没开这个护栏就返回 None。
     只看本条回复自己的用量（meta.usage.cost，A4 记的），不含任务。
     """
     if factor <= 0:
@@ -428,8 +433,8 @@ def turn_cost_cap(days: int = 7, factor: float = 2.0, floor: float = 0.01, least
     global _cap_cache
     now = time.time()
     if _cap_cache and _cap_cache[0] > now and _cap_cache[1] == (days, floor, least):
-        avg, n = _cap_cache[2], _cap_cache[3]
-        return (max(avg * factor, floor), avg, n) if n >= least else None
+        base, n = _cap_cache[2], _cap_cache[3]
+        return (max(base * factor, floor), base, n) if n >= least else None
     since = now - days * 86400
     costs = []
     for (meta,) in conn.execute("select meta from messages where role='assistant' and ts >= ? and meta like '%usage%'",
@@ -440,12 +445,14 @@ def turn_cost_cap(days: int = 7, factor: float = 2.0, floor: float = 0.01, least
             continue
         if c:
             costs.append(float(c))
-    avg = sum(costs) / len(costs) if costs else 0.0
+    costs.sort()
+    n = len(costs)
+    base = (costs[n // 2] if n % 2 else (costs[n // 2 - 1] + costs[n // 2]) / 2) if n else 0.0
     # 每一轮都查一遍太浪费（7 天的回复要扫一遍 meta）：一分钟内用同一个数
-    _cap_cache = (now + 60, (days, floor, least), avg, len(costs))
-    if len(costs) < least:
+    _cap_cache = (now + 60, (days, floor, least), base, n)
+    if n < least:
         return None
-    return max(avg * factor, floor), avg, len(costs)
+    return max(base * factor, floor), base, n
 
 
 def tokens_today() -> int:

@@ -15,14 +15,14 @@ def _reply(cost: float, ts: float | None = None, role="assistant", chat_id=9701)
     memory.conn.commit()
 
 
-def test_the_cap_is_twice_the_average_reply_of_the_last_week():
+def test_the_cap_is_a_multiple_of_the_usual_reply_of_the_last_week():
     assert memory.turn_cost_cap(least=1000) is None          # 样本太少：不管
     tag = time.time()
     for i in range(10):
         _reply(0.01, ts=time.time() - 3600 - i, chat_id=9702)
-    cap, avg, n = memory.turn_cost_cap(least=8)
-    assert cap == pytest.approx(avg * 2) and n >= 10
-    assert 0.018 <= cap <= 0.05          # 平均里混着别的测试记的回复
+    cap, usual, n = memory.turn_cost_cap(factor=3, least=8)
+    assert cap == pytest.approx(usual * 3) and n >= 10
+    assert 0.027 <= cap <= 0.05          # 中位数里混着别的测试记的回复
 
     old = time.time() - 30 * 86400
     for i in range(10):
@@ -31,6 +31,24 @@ def test_the_cap_is_twice_the_average_reply_of_the_last_week():
 
     assert memory.turn_cost_cap(factor=0) is None           # 0 = 关掉
     assert tag
+
+
+def test_one_runaway_reply_does_not_loosen_the_guard():
+    """C7：基准取中位数，所以跑飞的那一条自己抬不高护栏。
+    线上 14 条回复：中位数 $0.0418，最大 $0.179 —— 平均数会被贵的那几条拉走：
+    混进一条 $2 的，7 天平均从 $0.04 涨到 $0.19，2× 平均的护栏就从 $0.08 跑到 $0.38。"""
+    now, chat = time.time(), 9704
+    for i in range(11):
+        _reply(0.04, ts=now - 600 - i, chat_id=chat)
+    memory._cap_cache = None                                 # 一分钟的缓存：插了新回复要重算
+    before, _, n_before = memory.turn_cost_cap(factor=3, least=8)
+    _reply(2.0, ts=now - 60, chat_id=chat)                   # 一条跑飞的
+    memory._cap_cache = None
+    after, usual, n_after = memory.turn_cost_cap(factor=3, least=8)
+    assert n_after == n_before + 1 and usual <= 0.05
+    assert abs(after - before) <= before * 0.2               # 中位数几乎不动
+    # 同一堆数字，换成平均数：一条就够把“平均”顶到中位数护栏之上
+    assert (0.04 * 11 + 2.0) / 12 > before
 
 
 async def test_an_expensive_turn_stops_calling_tools(llm, make_bot, monkeypatch):
@@ -46,7 +64,7 @@ async def test_an_expensive_turn_stops_calling_tools(llm, make_bot, monkeypatch)
     first, second = llm.bodies("router", "Saver")[-2:]
     assert first.get("tools")                      # 第一轮有工具，用了 remember
     assert not second.get("tools")                 # 超了以后：不再给工具
-    assert "more than twice the usual" in second["messages"][-1]["content"]
+    assert "more than 2x the usual" in second["messages"][-1]["content"]
     [reply] = find(bot["chat_id"], role="assistant", text="X, Y, Z")
     assert reply["meta"]["cost_guard"]["cap"] == -0.5
     assert reply["meta"]["cost_guard"]["turns"] == 10
