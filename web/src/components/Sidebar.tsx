@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { MouseEvent, PointerEvent } from 'react'
-import { api, markChatUnread, openApps, openChat, openLibrary, openObserve, pinChat, refreshLists, setBotHidden, useStore } from '../store'
+import { api, markChatUnread, openApps, openChat, openLibrary, openObserve, pinChat, reconnectNow, refreshLists, setBotHidden, useStore } from '../store'
+import { android } from '../desktop'
 import { t } from '../i18n'
 import { chatLabel } from '../chatLabel'
 import { copyText } from '../copyText'
@@ -25,6 +26,9 @@ export default function Sidebar({ onNewBot, onNewGroup, onSettings, onClose }: {
   const [menu, setMenu] = useState(false)
   const [ctx, setCtx] = useState<{ chat: Chat; x: number; y: number } | null>(null)   // 右键 / 长按菜单
   const [showHidden, setShowHidden] = useState(false)
+  const [reconnecting, setReconnecting] = useState(false)
+  const [toast, setToast] = useState<{ ok: boolean; text: string } | null>(null)
+  const toastTimer = useRef<number | null>(null)
   const hold = useRef<{ timer: number | null; x: number; y: number }>({ timer: null, x: 0, y: 0 })
   const skipClick = useRef(false)
   const clearHold = () => { if (hold.current.timer !== null) { window.clearTimeout(hold.current.timer); hold.current.timer = null } }
@@ -48,6 +52,21 @@ export default function Sidebar({ onNewBot, onNewGroup, onSettings, onClose }: {
     }
   }, [ctx])
   useEffect(() => () => { if (hold.current.timer !== null) window.clearTimeout(hold.current.timer) }, [])
+  useEffect(() => () => { if (toastTimer.current !== null) window.clearTimeout(toastTimer.current) }, [])
+  const showToast = (ok: boolean, text: string) => {
+    if (toastTimer.current !== null) window.clearTimeout(toastTimer.current)
+    setToast({ ok, text })
+    toastTimer.current = window.setTimeout(() => { toastTimer.current = null; setToast(null) }, 2500)
+  }
+  const onReconnect = async () => {
+    if (reconnecting) return
+    const attempt = reconnectNow()
+    if (!attempt) return
+    setReconnecting(true)
+    const ok = await attempt
+    setReconnecting(false)
+    showToast(ok, ok ? t('已重新连上') : t('还是连不上这台服务器'))
+  }
 
   // 一个对话在侧栏里要显示的东西；Bot 已经没了的私聊不显示
   const info = (c: Chat) => {
@@ -241,8 +260,14 @@ export default function Sidebar({ onNewBot, onNewGroup, onSettings, onClose }: {
       )}
       <div className="side-bottom">
         <button className="side-link" onClick={onSettings}>⚙ {t('设置')}</button>
-        <span className={'conn' + (connected ? ' on' : '')} title={connected ? t('已连接') : t('连接中断，正在重连')} />
+        <span className="side-conn">
+          {android && !connected && (
+            <button className="side-link" disabled={reconnecting} onClick={onReconnect}>{reconnecting ? t('连接中…') : t('重新连接')}</button>
+          )}
+          <span className={'conn' + (connected ? ' on' : '')} title={connected ? t('已连接') : t('连接中断，正在重连')} />
+        </span>
       </div>
+      {toast && <div className={'conn-toast ' + (toast.ok ? 'ok' : 'bad')} role="status">{toast.text}</div>}
     </aside>
   )
 }

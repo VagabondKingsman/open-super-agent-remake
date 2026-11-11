@@ -5,7 +5,7 @@ import { lang, syncLang, t } from './i18n'
 import type { App, Approval, Attachment, Bot, CatalogItem, Chat, ComputerState, Message, OpenThread, Settings, Skill, Stream, Task, TaskInfo, TaskStep, Teach, TeachDraft, ThreadInfo, ThreadSummary } from './types'
 import { notice } from './components/Dialog'
 import { desktop, phone } from './desktop'
-import { reconnectDelay } from './reconnect'
+import { createReconnectScheduler, reconnectDelay } from './reconnect'
 
 type State = {
   ready: boolean
@@ -317,16 +317,67 @@ document.addEventListener('visibilitychange', () => {
 })
 
 let attempts = 0   // consecutive failed reconnects
-export function connect() {
+let socketGen = 0
+const MANUAL_MS = 8000
+const reconnectTimer = createReconnectScheduler(
+  (fn, ms) => setTimeout(fn, ms),
+  id => clearTimeout(id as ReturnType<typeof setTimeout>),
+)
+let manual: { gen: number; done: (ok: boolean) => void; timer: ReturnType<typeof setTimeout> } | null = null
+
+function dropSocket() {
+  const old = ws
+  if (!old) return
+  old.onclose = null
+  old.onmessage = null
+  try { old.close() } catch { /* 已经断了 */ }
+}
+
+function settleManual(gen: number, ok: boolean) {
+  if (!manual || manual.gen !== gen) return
+  clearTimeout(manual.timer)
+  const done = manual.done
+  manual = null
+  done(ok)
+  if (!ok) {
+    dropSocket()
+    reconnectTimer.schedule(() => connect(), reconnectDelay(attempts++))
+  }
+}
+
+function openSocket(gen = ++socketGen) {
+  reconnectTimer.cancel()
   ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws')
-  ws.onopen = () => { attempts = 0; set({ connected: true }); reportVisibility(); if (state.ready) resync() }
+  ws.onopen = () => { attempts = 0; set({ connected: true }); reportVisibility(); if (state.ready) resync(); settleManual(gen, true) }
   ws.onclose = () => {
     set({ connected: false })
     // WebSocket 被拒时拿不到状态码：问一下接口，没登录的话 api() 会跳去登录页
     if (state.auth) api('/api/me').catch(() => {})
-    setTimeout(connect, reconnectDelay(attempts++))
+    if (manual?.gen === gen) {
+      settleManual(gen, false)
+      return
+    }
+    reconnectTimer.schedule(() => connect(), reconnectDelay(attempts++))
   }
   ws.onmessage = e => handle(JSON.parse(e.data))
+  return gen
+}
+
+export function connect() {
+  openSocket()
+}
+
+/** APK: try the server now. Null while a try is already running. True if /ws opens within 8s. */
+export function reconnectNow(): Promise<boolean> | null {
+  if (manual) return null
+  dropSocket()
+  reconnectTimer.cancel()
+  attempts = 0
+  const gen = ++socketGen
+  return new Promise(resolve => {
+    manual = { gen, done: resolve, timer: setTimeout(() => settleManual(gen, false), MANUAL_MS) }
+    openSocket(gen)
+  })
 }
 
 async function resync() {
