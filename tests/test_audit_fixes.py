@@ -487,3 +487,12 @@ def test_c26_call_kwargs_passes_max_tokens(monkeypatch):
     monkeypatch.setitem(CFG["roles"], "router", {**CFG["roles"]["router"], "max_tokens": 4096})
     assert _spec_kwargs(CFG["roles"]["router"])["max_tokens"] == 4096
     assert "max_tokens" not in _spec_kwargs({"model": "x"})   # 没配就不带，服务端的默认值照旧
+
+# C27: phần mềm trên máy của chính người dùng — bản dùng thử, license, khoá thiết bị — là việc bình thường, không phải xin phép.
+def test_c27_prompts_do_not_refuse_licence_work():
+    from osa.router import ROUTER_PROMPT
+    from osa.worker import WORKER_PROMPT
+    assert "policy line instead of an attempt" in ROUTER_PROMPT
+    assert "patching a licence check" in ROUTER_PROMPT
+    assert "ask whether they may" in ROUTER_PROMPT
+    assert "trial resets, activation patches" in WORKER_PROMPT
