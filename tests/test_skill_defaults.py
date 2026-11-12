@@ -32,13 +32,13 @@ def test_fresh_defaults_restart_and_new_bot(defaults_store):
     pack = defaults_store
     assert skills.list_for(1) == []
     first = skillpacks.ensure_defaults(pack)
-    assert len(first) == 8 and all(r["status"] == "installed" for r in first)
+    assert len(first) == 9 and all(r["status"] == "installed" for r in first)
     before = memory.conn.execute("select id,name,updated from skills order by id").fetchall()
     assert all(r["status"] == "unchanged" for r in skillpacks.ensure_defaults(pack))
     assert before == memory.conn.execute("select id,name,updated from skills order by id").fetchall()
-    assert memory.conn.execute("select count(*) from skills where bot_id is null").fetchone()[0] == 8
+    assert memory.conn.execute("select count(*) from skills where bot_id is null").fetchone()[0] == 9
     bot = bots.create("Created after startup")
-    assert len(skills.list_for(bot["id"])) == 8
+    assert len(skills.list_for(bot["id"])) == 9
     assert len(json.loads(skillpacks.load_skill(bot["id"], "unslop"))["content"]) < skills.MAX_BODY
     for name in (s["name"] for s in first):
         assert (skillpacks.resource_root() / name / "SKILL.md").is_file()
@@ -64,7 +64,7 @@ def test_user_resource_edits_preserved_on_upgrade(defaults_store):
     result = skillpacks.ensure_defaults(defaults_store)
     assert next(r for r in result if r["name"] == "refinery")["status"] == "preserved-user-edit"
     assert target.read_text() == "local resource edit"
-    assert sum(r["status"] == "updated" for r in result) == 7
+    assert sum(r["status"] == "updated" for r in result) == 8
 
 
 def test_unmanaged_name_collision_and_private_override(defaults_store):
@@ -98,7 +98,7 @@ def test_hash_upgrade_updates_untouched_skill_without_duplicate(defaults_store):
     assert next(r for r in result if r["name"] == "refinery")["status"] == "updated"
     assert [r["id"] for r in result] == [r["id"] for r in initial]
     assert (skillpacks.resource_root() / "refinery" / "SKILL.source.md").read_bytes() == p.read_bytes()
-    assert memory.conn.execute("select count(*) from skills").fetchone()[0] == 8
+    assert memory.conn.execute("select count(*) from skills").fetchone()[0] == 9
 
 
 def test_opt_out_and_invalid_toggle(defaults_store, monkeypatch):
@@ -106,10 +106,10 @@ def test_opt_out_and_invalid_toggle(defaults_store, monkeypatch):
     assert skillpacks.ensure_defaults(defaults_store) == []
     assert skills.list_for(1) == [] and not skillpacks.resource_root().exists()
     monkeypatch.setenv("OSA_AI_NATIVE_DEFAULTS", "true")
-    assert len(skillpacks.ensure_defaults(defaults_store)) == 8
+    assert len(skillpacks.ensure_defaults(defaults_store)) == 9
     monkeypatch.setenv("OSA_AI_NATIVE_DEFAULTS", "false")
     assert skillpacks.ensure_defaults(defaults_store) == []
-    assert len(skills.list_for(1)) == 8
+    assert len(skills.list_for(1)) == 9
     monkeypatch.setenv("OSA_AI_NATIVE_DEFAULTS", "typo")
     with pytest.raises(ValueError, match="true/false"):
         skillpacks.ensure_defaults(defaults_store)
@@ -126,7 +126,7 @@ def test_tampered_bundle_fails_before_write(defaults_store):
 def test_adopt_exact_legacy_imports(defaults_store):
     original = skillpacks.install(defaults_store)
     result = skillpacks.ensure_defaults(defaults_store)
-    assert len(result) == 8 and all(r["status"] == "adopted" for r in result)
+    assert len(result) == 9 and all(r["status"] == "adopted" for r in result)
     assert [r["id"] for r in result] == [r["id"] for r in original]
 
 
@@ -151,7 +151,7 @@ async def test_real_lifespan_reconciles_defaults(defaults_store, monkeypatch):
         monkeypatch.setattr(obj, name, idle)
     before = asyncio.all_tasks()
     async with server.lifespan(server.app):
-        assert len(skills.list_for(bots.primary()["id"])) == 8
+        assert len(skills.list_for(bots.primary()["id"])) == 9
         created = asyncio.all_tasks() - before
     await asyncio.gather(*created, return_exceptions=True)
 
@@ -159,4 +159,4 @@ async def test_real_lifespan_reconciles_defaults(defaults_store, monkeypatch):
 def test_container_includes_default_payload():
     dockerfile = (skillpacks.PACK.parents[1] / "Dockerfile").read_text()
     assert "COPY skills-pack/ai-native/ skills-pack/ai-native/" in dockerfile
-    assert skillpacks.verify_sources()["source_files"] == 129
+    assert skillpacks.verify_sources()["source_files"] == 130

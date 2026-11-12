@@ -12,7 +12,7 @@ import asyncio
 import logging
 import re
 import time
-from . import bots, i18n, memory, providers
+from . import bots, freedom, i18n, memory, providers
 from .config import CFG
 
 MAX_TURNS = 8
@@ -81,6 +81,8 @@ class Group:
     def _over(self, spent: float, began: float) -> bool:
         """这一轮是不是已经过了上限：钱（limits.group_round_usd）或时间（limits.group_round_s），0 = 不限。
         MAX_TURNS 只数次数：8 个 Bot 各答一次也能花掉一块钱，得有个按钱、按秒的闸。"""
+        if freedom.on():   # C29 全开：一轮不按钱、按秒掐断
+            return False
         lim = CFG.get("limits") or {}
         usd = float(lim.get("group_round_usd") or 0)
         sec = float(lim.get("group_round_s") or 0)

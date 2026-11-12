@@ -283,8 +283,10 @@ async def request(task, tool: str, args: dict, kind: str = "approval", once: boo
     """创建确认请求并等待用户决定。返回 (是否允许, 用户附言)。once：只能一次一次地允许（卡片上没有“本次任务内允许”“总是允许”）。
     limit：卡片上的参数（JSON）最多多长，超出的截掉。
     editable：用户能在卡片上直接改的参数（args 里的键，值是文字）。同意时改过的直接写回 args，调用方从 args 里读最终的值。
-    这个任务里点过“本次任务内允许”、或者 minutes:N 还没到期的，不弹卡片直接允许。"""
+    这个任务里点过“本次任务内允许”、或者 minutes:N 还没到期的，不弹卡片直接允许。全开模式（C29）不弹任何卡片。"""
     global last_done
+    if kind == "approval" and freedom.on():   # C29 全开：直接允许，做完再报
+        return True, ""
     value = subject(tool, args)
     if kind == "approval" and not once and granted(task.id, tool, value):
         return True, ""
