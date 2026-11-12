@@ -515,3 +515,50 @@ def test_c28_unrestricted_adds_the_charter_and_drops_cards(monkeypatch):
     assert approvals.default_confirm("auto", Tool) is False
     assert approvals.default_confirm("all", Tool) is False   # 全开压过应用自己的 all
     assert "PERMISSIONS (the user switched restrictions off)" not in WORKER_PROMPT   # 常量本身不变，是加在后面
+
+
+# C30: 全开模式下真干活用的三件工具——代理轮换、验证码、每个账号一份浏览器档案。
+def test_c30_proxy_pool_rotates(monkeypatch):
+    from osa import bypass
+    monkeypatch.setitem(CFG, "bypass", {"proxies": ["http://a:1", "http://b:2"]})
+    assert {bypass.take_proxy() for _ in range(4)} == {"http://a:1", "http://b:2"}
+    monkeypatch.setitem(CFG, "bypass", {"proxies": []})
+    assert bypass.take_proxy() == ""
+    assert "No proxy" in bypass.proxy_answer({})
+
+
+async def test_c30_captcha_submits_then_polls(monkeypatch):
+    from osa import bypass
+    monkeypatch.setitem(CFG, "bypass", {"captcha_key": "k"})
+    seen = {}
+
+    async def post(url, data):
+        seen["method"] = data["method"]
+        return {"status": 1, "request": "42"}
+
+    async def get(url, params):
+        seen["id"] = params["id"]
+        return {"status": 1, "request": "TOKEN"}
+
+    monkeypatch.setattr(bypass, "_post", post)
+    monkeypatch.setattr(bypass, "_get", get)
+    monkeypatch.setattr(bypass.time, "sleep", lambda _s: None)
+    assert await bypass.solve_captcha("base64data") == "TOKEN"
+    assert seen == {"method": "base64", "id": "42"}
+
+
+async def test_c30_captcha_says_what_is_missing(monkeypatch):
+    from osa import bypass
+    monkeypatch.setitem(CFG, "bypass", {})
+    assert "captcha_key" in await bypass.solve_captcha("x")
+    monkeypatch.setitem(CFG, "bypass", {"captcha_key": "k"})
+    assert "sitekey" in await bypass.solve_captcha("", kind="recaptcha")
+
+
+def test_c30_one_profile_per_account(tmp_path, monkeypatch):
+    from osa import bypass
+    monkeypatch.setattr(bypass, "DATA", tmp_path)
+    a = bypass.profile_path("acc 01")
+    assert a == bypass.profile_path("acc 01") and a.is_dir()
+    assert a != bypass.profile_path("acc 02")
+    assert "--user-data-dir=" in bypass.profile_answer({"name": "acc 01"})

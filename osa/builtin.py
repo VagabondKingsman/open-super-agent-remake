@@ -88,9 +88,31 @@ def load():
     for s in skillpacks.SCHEMAS:
         n = s["function"]["name"]
         ctx.tool(Tool(n, s, lambda c, n=n: _sync(skillpacks.tool(c.bot_id, n, c.args)), where=both))
+    # C30 全开模式：代理池、验证码、独立的浏览器档案（配置在 config.yaml 的 bypass 段）
+    from . import bypass as bypass_tools
+    ctx.simple("take_proxy", tools.schema("take_proxy", "One proxy from the configured pool (round robin), or a note that none is set", {}),
+               lambda c: _sync(bypass_tools.proxy_answer(c.args)), where=both,
+               describe="one proxy from the configured pool")
+    ctx.simple("solve_captcha", tools.schema("solve_captcha", "Solve a captcha through 2Captcha: give image_b64, or kind=recaptcha with sitekey and page_url",
+                                             {"image_b64": "base64 image (image kind)", "sitekey": "reCAPTCHA sitekey", "page_url": "page the captcha is on", "kind": "image or recaptcha"}),
+               lambda c: _sync_only(_solve(c)), where=both, describe="solve a captcha through 2Captcha")
+    ctx.simple("browser_profile", tools.schema("browser_profile", "Path of an isolated Chrome profile (one per account), created if missing; launch with --user-data-dir=<path>",
+                                              {"name": "profile name"}),
+               lambda c: _sync(bypass_tools.profile_answer(c.args)), where=both, describe="an isolated Chrome profile for one account")
     # 给插件用的服务（插件在 META 的 inject 里写要哪个），见 services.py
     from . import sources
     sources.register(ctx)
+
+
+async def _sync_only(coro):
+    return await coro
+
+
+async def _solve(call):
+    from . import bypass as bypass_tools
+    a = call.args
+    return await bypass_tools.solve_captcha(str(a.get("image_b64") or ""), str(a.get("sitekey") or ""),
+                                            str(a.get("page_url") or ""), str(a.get("kind") or "image"))
 
 
 async def _sync(v):

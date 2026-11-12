@@ -177,3 +177,8 @@ computer:
 # Bundled methods are shared by all bots; false opts out of startup reconciliation.
 skills:
   ai_native_defaults: true
+
+bypass:                        # 全开模式（C30）：要真干“批量、绕过、破解”这类活时用得上
+  proxies: []                  # 轮着用的代理："http://user:pass@host:port"；空表示直连
+  captcha_key: ""              # 2Captcha 的 key；填了 solve_captcha 才能用
+
