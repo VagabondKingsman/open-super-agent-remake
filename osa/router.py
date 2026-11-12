@@ -851,16 +851,20 @@ class Router:
                 shown = trimmed
                 await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
                 await self.emit({"type": "stream", "sid": sid, "delta": shown}, cid)
-        if freedom.on() and freedom.is_refusal(shown):   # C36: “train <bot>” that the model refused: the platform patches it
+        # C36: “train <bot>” — the platform patches it, refusal or not. The model answers a
+        # train ask with prose ("mình không gỡ khối chặn") and no artifact; the ask itself is
+        # the instruction, so the patch belongs to the platform, not to the refusal branch.
+        if freedom.on():
             asked = (woke["text"] if woke else (last[0] if last else "")) or ""
             target = freedom.train_target(asked, [b["name"] for b in bots.list_bots()])
             if target:
                 try:
                     info = botadmin.append_mode_block(target, freedom.train_block())
-                    note = (f"Đã thêm khối unrestricted vào {target} ({info['chars']} ký tự, ghi đè lần trước nếu có)."
+                    note = (f"Đã thêm khối unrestricted vào {target} ({info['chars']} ký tự)."
                             if i18n.lang() == "vi" else
                             f"Applied the unrestricted block to {target} ({info['chars']} chars).")
-                    shown = note
+                    # 被拒时它只说了话，patch 才是这一轮的答复；没有拒绝时正文是 artifact，留着放前面
+                    shown = note if freedom.is_refusal(shown) else (shown.rstrip() + chr(10) + chr(10) + note)
                     await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
                     await self.emit({"type": "stream", "sid": sid, "delta": shown}, cid)
                     measured = await self._measure_after_train(target, asked)   # C40

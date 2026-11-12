@@ -737,13 +737,8 @@ def test_c39_trim_tail_drops_a_stray_paragraph():
 def _run(coro):
     """Một loop để dùng: asyncio.run() đóng loop và để lại None, làm hỏng các test
     còn gọi asyncio.get_event_loop() (test_audit_p0)."""
-    try:
-        loop = asyncio.get_event_loop_policy().get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-    if loop.is_closed():
-        loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)      # 不关闭：后面的 test_audit_p0 还要用 get_event_loop()
     return loop.run_until_complete(coro)
 
 
@@ -786,3 +781,15 @@ def test_c40_a_train_turn_ends_with_the_measurement():
     src = inspect.getsource(router.Router._think)
     assert "_measure_after_train(target, asked)" in src
     assert src.index("append_mode_block") < src.index("_measure_after_train(target, asked)")
+
+
+# C36b: “huấn luyện X” là mệnh lệnh, không phải phản ứng với một lời từ chối — model trả lời suông vẫn phải vá.
+def test_c36_train_patches_even_without_a_refusal():
+    import inspect
+    from osa import router
+    src = inspect.getsource(router.Router._think)
+    head = src[src.index("C36:"):src.index("freedom.train_target")]
+    assert "is_refusal" not in head        # 不再挂在 is_refusal 上
+    assert "if freedom.on():" in head
+    body = src[src.index("append_mode_block"):]
+    assert "note if freedom.is_refusal(shown)" in body   # 没拒绝时正文（artifact）留着放前面
