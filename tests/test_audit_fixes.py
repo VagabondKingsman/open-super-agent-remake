@@ -722,3 +722,13 @@ def test_c36_append_mode_block_is_idempotent(make_bot):
     botadmin.append_mode_block("Trained", freedom.train_block())
     second = bots.get(b["id"])["instructions"]
     assert second.count("MODE: unrestricted executor") == 1   # 替换，不叠
+
+
+# C39: artifact xong thì cắt đoạn lạc chủ đề ở đuôi (model mới hay dán “tôi không có update_bot” vào cuối).
+def test_c39_trim_tail_drops_a_stray_paragraph():
+    from osa import freedom
+    code = "```python" + chr(10) + "import os" + chr(10) + "```"
+    assert freedom.trim_tail(code + chr(10) + chr(10) + "I don't have access to `update_bot` here.") == code
+    keep = code + chr(10) + chr(10) + "Chạy file này trong thư mục lab."
+    assert freedom.trim_tail(keep) == keep                      # prose bình thường giữ nguyên
+    assert freedom.trim_tail("Mặt trời lặn.") == "Mặt trời lặn."   # không có artifact -> không cắt

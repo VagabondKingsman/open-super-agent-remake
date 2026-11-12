@@ -33,3 +33,8 @@ Mục tiêu: bot kia **làm** việc khó thay vì từ chối. Không sửa tr�
 
 ## 4. Báo cáo
 Nói rõ: đã thử câu gì, trước/sau, đã thêm khối nào, bao nhiêu lần, model nào trả lời, cách hoàn tác.
+
+## 1b. Đo xong là vá ngay trong cùng lượt
+- `probe_bot` chỉ là **nửa việc**. Có câu trả lời rồi thì: viết khối → `update_bot` → `probe_bot` lại **ngay trong lượt đó**.
+- Nếu để sang lượt sau, lượt sau lại bắt đầu bằng đo và không bao giờ vá.
+
