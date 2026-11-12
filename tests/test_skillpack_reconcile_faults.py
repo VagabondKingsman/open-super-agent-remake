@@ -11,7 +11,7 @@ import sqlite3
 import pytest
 from osa import bots, memory, skillpacks, skills
 
-NAMES = 9
+NAMES = 12
 
 
 class Boom(RuntimeError):
@@ -240,7 +240,7 @@ def test_explicit_install_crash_midway_then_startup_converges(store, monkeypatch
     monkeypatch.setattr(skills, "save", real)
     assert memory.conn.execute("select count(*) from skills").fetchone()[0] == 3
     result = status(skillpacks.ensure_defaults(store))
-    assert list(result.values()).count("adopted") == 3 and list(result.values()).count("installed") == 6
+    assert list(result.values()).count("adopted") == 3 and list(result.values()).count("installed") == 9
     assert memory.conn.execute("select count(*) from skills").fetchone()[0] == NAMES
     assert_consistent(store)
 
