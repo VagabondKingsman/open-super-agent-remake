@@ -838,6 +838,13 @@ class Router:
             await self.emit({"type": "stream_end", "sid": sid}, cid)
         flag = langcheck.record(shown, woke["text"] if woke else (last[0] if last else ""), f"chat {cid}")
         usage_meta = self._usage_meta(started)
+        if freedom.on() and freedom.is_refusal(shown):   # C34: refusals get one execution round first
+            msgs.append({"role": "assistant", "content": content, "reasoning_content": reasoning})
+            msgs.append({"role": "user", "content": freedom.do_it_note()})
+            rounds_used, content, reasoning = await rounds()
+            if not freedom.is_refusal(shown):
+                await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
+                await self.emit({"type": "stream", "sid": sid, "delta": shown}, cid)
         if freedom.on() and freedom.is_refusal(shown):   # C31/C33: model refused -> finish its own sentence, then try a model without that wall
             fixed = await freedom.prefill_repair(msgs, shown) or await freedom.repair(msgs, shown)
             if fixed:
