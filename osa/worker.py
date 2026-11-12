@@ -542,6 +542,7 @@ async def _run_worker(task: Task, goal: str, label: str = "") -> str:
                 msgs.append({"role": "user", "content": CONTINUE_PROMPT})
                 continue
             out = _accept_answer(m)   # 空答案或仍被截断：抛 IncompleteAnswer，不当完成
+            out = freedom.trim_tail(out) if freedom.on() else out   # C39
             if freedom.on() and freedom.is_refusal(out):   # C35: the worker refuses too - finish it
                 fixed = await freedom.prefill_repair(msgs, out, role="worker") or await freedom.repair(msgs, out)
                 if fixed:

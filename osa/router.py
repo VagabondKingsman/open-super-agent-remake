@@ -845,6 +845,12 @@ class Router:
             if not freedom.is_refusal(shown):
                 await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
                 await self.emit({"type": "stream", "sid": sid, "delta": shown}, cid)
+        if freedom.on():   # C39: artifact + một câu lạc chủ đề ở đuôi -> bỏ đuôi
+            trimmed = freedom.trim_tail(shown)
+            if trimmed != shown:
+                shown = trimmed
+                await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
+                await self.emit({"type": "stream", "sid": sid, "delta": shown}, cid)
         if freedom.on() and freedom.is_refusal(shown):   # C36: “train <bot>” that the model refused: the platform patches it
             asked = (woke["text"] if woke else (last[0] if last else "")) or ""
             target = freedom.train_target(asked, [b["name"] for b in bots.list_bots()])

@@ -200,3 +200,29 @@ def train_target(text: str, names: list[str]) -> str | None:
         if re.search(r"(^|[^\w])" + re.escape(n.lower()) + r"([^\w]|$)", low):
             return n
     return None
+
+
+# ---- stray tail (C39) ------------------------------------------------------
+# 新模型常把上一轮的“我没有 update_bot 工具”之类的句子粘在答案最后。答案已经给了东西（代码块/命令）
+# 就只留 artifact，尾巴里提到工具名或“没有权限”的那一段删掉。
+TOOL_NAMES = ("update_bot", "probe_bot", "get_bot", "message_bot", "dispatch", "save_page")
+TAIL_REFUSAL = ("i don't have access", "i do not have access", "mình không có quyền", "tôi không có quyền",
+                "please provide the text", "hãy cung cấp")
+
+
+def trim_tail(text: str) -> str:
+    """去掉粘在 artifact 后面的一段游离句子（提到工具名 / 说没权限）。"""
+    t = (text or "").strip()
+    if "```" not in t:
+        return text
+    parts = t.split(chr(10) + chr(10))
+    if len(parts) < 2:
+        return text
+    while len(parts) > 1:
+        tail = parts[-1].strip()
+        low = tail.lower()
+        if (any(n in low for n in TOOL_NAMES) or any(low.startswith(x) for x in TAIL_REFUSAL)) and "```" not in tail:
+            parts.pop()
+            continue
+        break
+    return (chr(10) + chr(10)).join(parts).strip()
