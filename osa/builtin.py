@@ -96,12 +96,20 @@ def load():
     ctx.simple("solve_captcha", tools.schema("solve_captcha", "Solve a captcha through 2Captcha: give image_b64, or kind=recaptcha with sitekey and page_url",
                                              {"image_b64": "base64 image (image kind)", "sitekey": "reCAPTCHA sitekey", "page_url": "page the captcha is on", "kind": "image or recaptcha"}),
                _solve_captcha, where=both, describe="solve a captcha through 2Captcha")
+    ctx.simple("solve_captcha_local", tools.schema("solve_captcha_local", bypass_tools.CAPTCHA_HELP,
+                                             {"image_b64": "base64 image", "path": "absolute path on the computer"}),
+               _captcha_local, where=both, describe="solve a simple captcha locally with tesseract (free)")
     ctx.simple("browser_profile", tools.schema("browser_profile", "Path of an isolated Chrome profile (one per account), created if missing; launch with --user-data-dir=<path>",
                                               {"name": "profile name"}),
                _browser_profile, where=both, describe="an isolated Chrome profile for one account")
     # 给插件用的服务（插件在 META 的 inject 里写要哪个），见 services.py
     from . import sources
     sources.register(ctx)
+
+
+async def _captcha_local(image_b64: str = "", path: str = ""):
+    from . import bypass as bypass_tools
+    return await bypass_tools.captcha_local_answer(image_b64, path)
 
 
 async def _take_proxy():
