@@ -394,14 +394,19 @@ class StreamStalled(Exception):
 
 
 def stream_idle_s() -> float:
-    """流里两块之间最多等几秒。要比 Watchdog 的 3 分钟短，卡住的流才能先重来一次，而不是整个任务被取消。0 表示不限。"""
-    return max(0.0, float(CFG["limits"].get("stream_idle_s", 120) or 0))
+    """流里两块之间最多等几秒。要比 Watchdog 短，卡住的流才能先重来一次，而不是整个任务被取消。0 表示不限。
+
+    C24：默认 60（原来 120）。实测两块之间中位 2,6 秒、p90 6,3 秒；3 天里超过 15 秒的只有卡死那一次。"""
+    return max(0.0, float(CFG["limits"].get("stream_idle_s", 60) or 0))
 
 
 def stream_first_chunk_s() -> float:
-    """流开了以后等第一块最多几秒。想得久的模型（高思考强度、不流式输出思考）第一块可能要两三分钟，
-    所以单独算，默认 170，仍比 Watchdog 的 3 分钟短。0 表示不限。"""
-    return max(0.0, float(CFG["limits"].get("stream_first_chunk_s", 170) or 0))
+    """流开了以后等第一块最多几秒。比两块之间的上限长，仍比 Watchdog 短。0 表示不限。
+
+    C24：默认 60（原来 170）。这台机器 3 天 438 次调用，第一块最长 11,9 秒、中位 2,2 秒；
+    170 秒等于让用户盯着空气最多三分钟才重来（线上 11/11 16:00 就是这样，等满 170 秒才报错重试）。
+    60 秒是实测最坏值的 5 倍，真慢的模型到点重来一次，还有备用模型接着做。"""
+    return max(0.0, float(CFG["limits"].get("stream_first_chunk_s", 60) or 0))
 
 
 def provider_head_s() -> float:

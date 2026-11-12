@@ -23,7 +23,7 @@ def apply():
     o = _load()
     for role, v in o.get("roles", {}).items():
         if role in CFG["roles"]:
-            CFG["roles"][role].update({k: v[k] for k in ("provider", "model", "thinking", "reasoning_effort") if k in v})
+            CFG["roles"][role].update({k: v[k] for k in ("provider", "model", "thinking", "reasoning_effort", "max_tokens") if k in v})
     for k, v in o.get("limits", {}).items():
         if k in EDITABLE_LIMITS:
             CFG["limits"][k] = v
@@ -121,7 +121,9 @@ def save(data: dict) -> dict:
         for role, v in data["roles"].items():
             if role not in CFG["roles"]:
                 continue
-            v = {k: v[k] for k in ("provider", "model", "thinking", "reasoning_effort") if k in v}
+            v = {k: v[k] for k in ("provider", "model", "thinking", "reasoning_effort", "max_tokens") if k in v}
+            if "max_tokens" in v:   # C26：输出的上限（思考也算在里面）
+                v["max_tokens"] = max(256, min(32768, int(v["max_tokens"])))
             if (v.get("reasoning_effort") or "") not in EFFORTS:
                 raise ValueError(i18n.t("思考强度只能是：{allowed}", allowed=", ".join(e for e in EFFORTS if e)))
             if "provider" in v and v["provider"] not in CFG["providers"]:

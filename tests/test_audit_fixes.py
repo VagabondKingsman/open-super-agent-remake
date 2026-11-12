@@ -454,3 +454,36 @@ async def test_r3_router_cancel_counts_tool_arguments(make_bot):
     rows = memory.conn.execute(
         "select output, estimated from llm_calls where model=? order by ts", ("router-tool-only",)).fetchall()
     assert rows == [(memory.estimate_output_tokens("verify_facts" + args), 1)]
+
+
+
+# C26: bị cắt vì độ dài, xin "câu trả lời đầy đủ" thì model thường kể lại từ đầu → một tin nhắn hai lần.
+def test_c26_unrepeated_keeps_only_the_new_tail():
+    from osa.router import _unrepeated
+    a = "Ba việc vừa khép: Nova trả lời lại, demo khảo sát xong, hai số kiểm lại PASS."
+    assert _unrepeated(a, a) == ""                       # 完全重复
+    assert _unrepeated(a, a + " Đoạn tiếp theo.") == "Đoạn tiếp theo."
+    assert _unrepeated(a, "Đoạn tiếp theo.") == "Đoạn tiếp theo."   # 没有重叠
+    assert _unrepeated(a, "kiểm lại PASS. Đoạn tiếp theo.") == "Đoạn tiếp theo."   # 上一段结尾被重说了
+    assert _unrepeated(a, "PASS. Đoạn tiếp.") == "PASS. Đoạn tiếp."   # 重叠太短，不算重复
+    assert _unrepeated("", a) == a
+
+
+async def test_c26_truncated_reask_lands_once(llm, events, make_bot, monkeypatch):
+    monkeypatch.setattr(i18n, "_lang", "vi")
+    bot = make_bot("Repeat")
+    same = "Ba việc vừa khép: Nova trả lời lại, demo khảo sát xong, hai số kiểm lại PASS."
+    llm.script(f"router:{bot['name']}", StreamReply(content=same, finish="length"),
+               StreamReply(content=same, finish="stop"))
+    await server.safe_handle(bots_chat(bot), "tóm tắt ba việc")
+    await until(lambda: find(bot["chat_id"], role="assistant"), what="reply đã lặp")
+    text = find(bot["chat_id"], role="assistant")[-1]["content"]
+    assert text.count("Ba việc vừa khép") == 1
+    assert text.strip() == same
+
+
+def test_c26_call_kwargs_passes_max_tokens(monkeypatch):
+    from osa.config import CFG, _spec_kwargs
+    monkeypatch.setitem(CFG["roles"], "router", {**CFG["roles"]["router"], "max_tokens": 4096})
+    assert _spec_kwargs(CFG["roles"]["router"])["max_tokens"] == 4096
+    assert "max_tokens" not in _spec_kwargs({"model": "x"})   # 没配就不带，服务端的默认值照旧

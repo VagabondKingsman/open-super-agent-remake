@@ -2,8 +2,44 @@
 import re
 
 from conftest import until
-from osa import bots, memories, memory, router, server
+from osa import bots, memories, memory, router, server, skills
 from osa.config import CFG
+from osa.worker import Task
+
+
+async def test_skills_and_capabilities_ride_the_state_not_the_head(llm, events, make_bot):
+    """C25：技能的清单、Worker 能用的工具清单原来在系统提示词里。它们会变（装个技能、接个应用），
+    一变整个正文就从头重算。现在放在状态块（正文末尾）：系统提示词那一段逐字不动，变的只有尾巴。"""
+    a = make_bot("Skillful")
+    llm.script("router:Skillful", "答 0")
+    await server.safe_handle(bots.chat(a["chat_id"]), "câu hỏi 0")
+    await until(lambda: len(llm.bodies("router", "Skillful")) == 1, what="第 1 轮")
+    skills.save(a["id"], "viet-bai", "Viết bài tiếng Việt, đủ dài, có dẫn nguồn.", "viết bài")
+    llm.script("router:Skillful", "答 1")
+    await server.safe_handle(bots.chat(a["chat_id"]), "câu hỏi 1")
+    await until(lambda: len(llm.bodies("router", "Skillful")) == 2, what="第 2 轮")
+    b1, b2 = [x["messages"] for x in llm.bodies("router", "Skillful")]
+    assert b1[0] == b2[0], "装了技能之后系统提示词变了，前缀整段白算"
+    assert "viet-bai" in b2[-1]["content"]           # 技能清单在状态的末尾
+    assert "viet-bai" not in b2[0]["content"]
+
+
+async def test_the_rooms_work_in_flight_rides_the_state(llm, events, make_bot):
+    """C25：群成员看得见别人在这个群里的任务，才不会再干一份一样的。它每轮都变，所以在状态块里。"""
+    a, b = make_bot("LedgerA"), make_bot("LedgerB")
+    g = bots.create_group([a["id"], b["id"]], lead=a["id"])
+    task = Task(id=9401, goal="khảo sát tool metadata", bot_id=b["id"], chat_id=g["id"])
+    router.TASKS[9401] = task
+    try:
+        llm.script("router:LedgerA", "đang chạy")
+        await server.safe_handle(bots.chat(g["id"]), "cả nhà xem giúp")
+        await until(lambda: llm.bodies("router", "LedgerA"), what="轮")
+        body = llm.bodies("router", "LedgerA")[-1]["messages"]
+        assert "#9401" in body[-1]["content"] and "LedgerB" in body[-1]["content"]
+        assert "#9401" not in body[0]["content"]
+    finally:
+        router.TASKS.pop(9401, None)
+
 
 
 async def test_system_prompt_and_history_stay_identical(llm, events, make_bot):

@@ -424,6 +424,24 @@ def _cut_result(out: str, cap: int) -> str:
     return out[:head] + CUT.format(n=len(out) - cap) + out[-tail:]
 
 
+def _result_cap(used: int, steps_left: int, lim: dict) -> int:
+    """C23：这一步进上下文的结果最多留多少字。
+
+    平时就是 worker_result_chars（3000）。但总量快到 worker_compact_chars 时，按剩下几步把地方摊开，
+    于是每一步的正文都只是上一步的延长，_compact_tools 一次也不用改已经发出去的前缀。
+    改前缀要从那一条起重读整个 body（4 倍价钱）；少留几百字比那个便宜得多。
+    剩得比 worker_tiny_tool_chars 还少时，那也认了：宁可结果短，也不要每步重读。"""
+    flat = int(lim.get("worker_result_chars", 3000) or 0)
+    total = int(lim.get("worker_compact_chars", 60000) or 0)
+    if not flat or not total:
+        return flat
+    room = max(0, total - used)
+    if room >= flat * max(1, steps_left):     # 照常用量也塞得下：不必抠
+        return flat
+    share = max(0, room - 200) // max(1, steps_left)   # 留一点给“切掉了多少字”那句标记
+    return max(int(lim.get("worker_tiny_tool_chars", 200) or 200), min(flat, share))
+
+
 def _compact_tools(msgs: list[dict]) -> int:
     """C8/C18：任务跑久了，早先的工具结果把每一步的上下文撑大。
 
@@ -503,7 +521,9 @@ async def _run_worker(task: Task, goal: str, label: str = "") -> str:
             await PROGRESS(task, text)
 
     stopped = False
-    for _ in range(CFG["limits"]["worker_max_steps"]):
+    steps_max = int(CFG["limits"]["worker_max_steps"])
+    spent = 0                     # C23：已经放进上下文的工具结果字数（结果的大小于是只看“还剩多少地方”）
+    for step in range(steps_max):
         ctools.prune_images(msgs)
         _compact_tools(msgs)          # C8：早先的工具结果占的地方太大，只留最近几条完整
         m = await _reply(task, log, "worker", client, model, msgs, schemas)
@@ -526,8 +546,10 @@ async def _run_worker(task: Task, goal: str, label: str = "") -> str:
         history = _history(task, label)
         ran, blocked = await _run_calls(task, log, m["tool_calls"], env, history)
         for call, (out, got) in zip(m["tool_calls"], ran):
-            cap = int(CFG["limits"].get("worker_result_chars", 3000) or 0)
-            msgs.append({"role": "tool", "tool_call_id": call["id"], "content": _cut_result(out, cap)})
+            cap = _result_cap(spent, steps_max - step, CFG["limits"])
+            text = _cut_result(out, cap)
+            msgs.append({"role": "tool", "tool_call_id": call["id"], "content": text})
+            spent += len(text)
             shots += got
         if not label:
             task.recent_calls = list(history)

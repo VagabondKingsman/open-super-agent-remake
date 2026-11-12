@@ -9,6 +9,7 @@
   "Bot ID 或 Secret 不对，或者机器人的 API 模式没选“长连接”（{error}）": "Bot ID hoặc Secret sai, hoặc API mode chưa chọn kết nối dài hạn ({error})",
   "Bot 不存在": "Không có Bot này",
   "Bot 们这一轮已经说了 {n} 次，先停一下，等你发话。": "Các Bot đã nói {n} lần trong lượt này. Tạm dừng chờ bạn nhắn tiếp.",
+  "Bot 们这一轮已经用了 ${usd}、{sec} 秒，先停一下，等你发话。": "Các Bot đã dùng ${usd} và {sec} giây trong lượt này. Tạm dừng chờ bạn nhắn tiếp.",
   "Bot 已删除": "Đã xóa Bot",
   "Client ID 或 Client Secret 不对（{error}）": "Client ID hoặc Client Secret không đúng ({error})",
   "Discord 断开了连接：{error}": "Discord đã ngắt kết nối: {error}",

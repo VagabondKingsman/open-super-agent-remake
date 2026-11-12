@@ -13,6 +13,7 @@ import logging
 import re
 import time
 from . import bots, i18n, memory, providers
+from .config import CFG
 
 MAX_TURNS = 8
 EVERYONE = ("everyone", "所有人", "全体成员")
@@ -46,6 +47,7 @@ class Group:
         origin=user 按队列项设置（mention/lead），不写在共用的 turn 上，免得同一轮的 handoff 沿用。"""
         turn = turn or {}
         queue, turns = list(first), 0
+        spent, began = 0.0, time.monotonic()
         while queue:
             bot_id, why = queue.pop(0)
             chat = bots.chat(self.chat_id)
@@ -56,19 +58,33 @@ class Group:
             if turns >= MAX_TURNS:
                 await note(self.chat_id, i18n.t("Bot 们这一轮已经说了 {n} 次，先停一下，等你发话。", n=MAX_TURNS))
                 break
+            if turns and self._over(spent, began):
+                await note(self.chat_id, i18n.t("Bot 们这一轮已经用了 ${usd}、{sec} 秒，先停一下，等你发话。",
+                                                usd=f"{spent:.3f}", sec=int(time.monotonic() - began)))
+                break
             turns += 1
             self.handoffs = []
             from . import router
+            rt = router.runtime(bot_id)
             try:
-                await router.runtime(bot_id).respond(self.chat_id, respond_turn(why, turn))
+                await rt.respond(self.chat_id, respond_turn(why, turn))
             except Exception as e:
                 log.exception("群聊 %s 里 Bot %s 出错", self.chat_id, bot_id)
                 if notify:
                     await notify({"type": "error", "chat_id": self.chat_id,
                                   "message": i18n.t("{name} 出错了：{e}", name=_name(bot_id), e=providers.brief(e))})
+            spent += float(((getattr(rt, "_turn_usage", None) or {}).get("cost") or 0))
             # 交出去的工作排在最前面，按交接的先后
             queue = [(b, "handoff") for b in self.handoffs] + [q for q in queue if q[0] not in self.handoffs]
         self.handoffs = []
+
+    def _over(self, spent: float, began: float) -> bool:
+        """这一轮是不是已经过了上限：钱（limits.group_round_usd）或时间（limits.group_round_s），0 = 不限。
+        MAX_TURNS 只数次数：8 个 Bot 各答一次也能花掉一块钱，得有个按钱、按秒的闸。"""
+        lim = CFG.get("limits") or {}
+        usd = float(lim.get("group_round_usd") or 0)
+        sec = float(lim.get("group_round_s") or 0)
+        return bool((usd and spent >= usd) or (sec and time.monotonic() - began >= sec))
 
 
 _groups: dict[int, Group] = {}
@@ -85,10 +101,16 @@ def _name(bot_id: int) -> str:
     return b["name"] if b else i18n.t("已删除的 Bot")
 
 
+def everyone_mentioned(text: str) -> bool:
+    """@everyone / @所有人 / @全体成员：说的是整个群，不是某一个 Bot。"""
+    low = text.lower()
+    return any(f"@{w}" in low for w in EVERYONE)
+
+
 def mentions(text: str, member_ids: list[int]) -> list[int]:
     """消息里 @ 到的成员，按出现顺序。名字可以带空格和中文，长名字优先匹配。"""
     low = text.lower()
-    if any(f"@{w}" in low for w in EVERYONE):
+    if everyone_mentioned(text):
         return list(member_ids)
     names = sorted(((b["name"].lower(), b["id"]) for i in member_ids if (b := bots.get(i))), key=lambda x: -len(x[0]))
     taken, found = [], []
@@ -130,7 +152,9 @@ async def on_user(chat: dict, text: str, via: str = "", attachments: list | None
         # 讨论串里没 @ 人：由被回复的那条消息的作者接；回复的是用户自己的消息，还是协调者接
         # Bot 自己的发言不会走到这里（不会因为正文里 @ 别人就排 mention）
         lead = chat.get("root_bot") or (chat["lead"] if chat["lead"] in chat["bot_ids"] else chat["bot_ids"][0])
-        await g.run([(b, "mention") for b in hit] or [(lead, "lead")])
+        # C25：@everyone 不再让所有 Bot 一起抢着答（线上 11/11 18:59：一条 @Mọi người 让 4 个 Bot
+        # 各发一条、同一件事说四遍）。交给协调者：它答，需要谁就 handoff 谁。
+        await g.run([(lead, "lead")] if everyone_mentioned(text) else ([(b, "mention") for b in hit] or [(lead, "lead")]))
 
 
 async def handoff(chat_id: int, from_id: int, to_id: int, request: str):
