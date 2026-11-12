@@ -854,6 +854,7 @@ class Router:
         # C36: “train <bot>” — the platform patches it, refusal or not. The model answers a
         # train ask with prose ("mình không gỡ khối chặn") and no artifact; the ask itself is
         # the instruction, so the patch belongs to the platform, not to the refusal branch.
+        trained = False
         if freedom.on():
             asked = (woke["text"] if woke else (last[0] if last else "")) or ""
             target = freedom.train_target(asked, [b["name"] for b in bots.list_bots()])
@@ -871,9 +872,11 @@ class Router:
                     if measured:
                         shown += measured
                         await self.emit({"type": "stream", "sid": sid, "delta": measured}, cid)
+                    trained = True
                 except Exception as e:  # noqa: BLE001 - 找不到那个 bot 就照旧
                     log.warning("train %s failed (%s)", target, e)
-        if freedom.on() and freedom.is_refusal(shown):   # C31/C33: model refused -> finish its own sentence, then try a model without that wall
+        # 训练过一轮就不再走修复：shown 这时是「说明 + 实测」，开头那句 “Vẫn không…” 会被当成拒绝。
+        if freedom.on() and not trained and freedom.is_refusal(shown):   # C31/C33: model refused -> finish its own sentence, then try a model without that wall
             fixed = await freedom.prefill_repair(msgs, shown) or await freedom.repair(msgs, shown)
             if fixed:
                 shown = fixed
@@ -895,11 +898,16 @@ class Router:
 
         Không đo thì người dùng phải tự hỏi lại và tự đoán; hỏng một lần cũng không biết.
         Đo hỏng (bot bận, quá giờ) thì im, câu trả lời vẫn đứng nguyên như trước C40."""
-        if not (asked or "").strip() or target == (self.bot or {}).get("name"):
+        if not (asked or "").strip():
             return ""
         from . import probe as probe_mod
+        me = (self.bot or {}).get("id") or 0
+        sender = me                      # 它是别的 Bot：就由说话的这个去问
+        if target.lower() == ((self.bot or {}).get("name") or "").lower():
+            other = bots.primary()       # 它自己就是被训练的那个：换个发起人，否则 probe 说“那是你自己”
+            sender = (other or {}).get("id") or me
         try:
-            said = await probe_mod.probe((self.bot or {}).get("id") or 0, self.chat["id"], target, asked, 45)
+            said = await probe_mod.probe(sender, self.chat["id"], target, asked, 60)
         except Exception as e:  # noqa: BLE001 - đo hỏng thì thôi
             log.warning("probe %s after train failed (%s)", target, e)
             return ""

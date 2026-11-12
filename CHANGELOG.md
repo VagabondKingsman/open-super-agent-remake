@@ -4,6 +4,7 @@
 
 ## [未发布]
 ### remake
+- 训练轮里再两个坑：模型自己就是被训练的那个 Bot 时，追问改由主 Bot 发起（否则 probe 答“那是你自己”）；追问过后不再走 C31 修复，不然「说明 + 实测」会被当成一句拒绝整段覆盖掉。
 - 「huấn luyện <Bot>」不再挂在“被拒”上：模型答一段白话（“mình không gỡ khối chặn”）也算，照样写块、照样量；已经给了 artifact 的一轮把 artifact 留在前面。
 - 「huấn luyện <Bot>」补齐闭环（C40）：之前平台会把 unrestricted 块写进那个 Bot 就停手，让用户自己再去问一遍；现在写完立刻用**同一句话**去问那个 Bot，并在回复里直说救回来了还是**还在拒绝**（`Router._measure_after_train`，`tests/test_audit_fixes.py::test_c40_*`）。追问失败或超时就少那一段，答复本身不受影响。
 - 全开模式的拒答重问（C31）换到还活着的模型上：xai 额度用完（402）、deepseek 的 key 失效（401），`limits.unrestricted_fallback` 改成 `p9router / cx/gpt-6-luna[1m]`。

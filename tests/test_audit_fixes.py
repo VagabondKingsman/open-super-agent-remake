@@ -793,3 +793,13 @@ def test_c36_train_patches_even_without_a_refusal():
     assert "if freedom.on():" in head
     body = src[src.index("append_mode_block"):]
     assert "note if freedom.is_refusal(shown)" in body   # 没拒绝时正文（artifact）留着放前面
+
+
+# C36c: 训练轮的回答是「说明 + 实测」，开头那句可能就是“Vẫn không…”，别让 C31 把它当成拒绝覆盖掉。
+def test_c36_a_trained_turn_skips_the_refusal_repair():
+    import inspect
+    from osa import router
+    src = inspect.getsource(router.Router._think)
+    assert "trained = False" in src
+    assert "not trained and freedom.is_refusal(shown)" in src
+    assert src.index("trained = True") < src.index("not trained and freedom.is_refusal")
