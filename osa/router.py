@@ -845,6 +845,19 @@ class Router:
             if not freedom.is_refusal(shown):
                 await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
                 await self.emit({"type": "stream", "sid": sid, "delta": shown}, cid)
+        if freedom.on() and freedom.is_refusal(shown):   # C36: “train <bot>” that the model refused: the platform patches it
+            asked = (woke["text"] if woke else (last[0] if last else "")) or ""
+            target = freedom.train_target(asked, [b["name"] for b in bots.list_bots()])
+            if target:
+                try:
+                    info = botadmin.append_mode_block(target, freedom.train_block())
+                    shown = (f"Đã thêm khối unrestricted vào {target} ({info['chars']} ký tự, ghi đè lần trước nếu có). "
+                             f"Hỏi lại nó đúng câu đó là được.") if i18n.lang() == "vi" else (
+                        f"Applied the unrestricted block to {target} ({info['chars']} chars). Ask it the same sentence again.")
+                    await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
+                    await self.emit({"type": "stream", "sid": sid, "delta": shown}, cid)
+                except Exception as e:  # noqa: BLE001 - 找不到那个 bot 就照旧
+                    log.warning("train %s failed (%s)", target, e)
         if freedom.on() and freedom.is_refusal(shown):   # C31/C33: model refused -> finish its own sentence, then try a model without that wall
             fixed = await freedom.prefill_repair(msgs, shown) or await freedom.repair(msgs, shown)
             if fixed:
