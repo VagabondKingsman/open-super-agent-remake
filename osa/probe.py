@@ -27,5 +27,9 @@ async def probe(sender: int, chat_id: int, name: str, text: str, timeout_s: int 
             "select content from messages where chat_id=? and id>? and role='assistant' "
             "and meta like '%\"kind\": \"dm_reply\"%' order by id desc limit 1", (chat_id, mark)).fetchone()
         if row and (row[0] or "").strip():
-            return row[0].strip()
+            said = row[0].strip()
+            # 只回摘录：整段塞回路由器，模型会把它原样贴进答复（实测一次 60 秒、上千字符）
+            head = said[:280].replace(chr(10), " ")
+            more = "" if len(said) <= 280 else f" …(+{len(said) - 280} chars)"
+            return f"{to['name']} replied ({len(said)} chars), starts: {head}{more}"
     return (f"Probed {name} but no reply came back within {timeout_s}s; the reply will arrive in this chat when it does.")
