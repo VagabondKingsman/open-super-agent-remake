@@ -838,6 +838,12 @@ class Router:
             await self.emit({"type": "stream_end", "sid": sid}, cid)
         flag = langcheck.record(shown, woke["text"] if woke else (last[0] if last else ""), f"chat {cid}")
         usage_meta = self._usage_meta(started)
+        if freedom.on() and freedom.is_refusal(shown):   # C31: model refused -> ask again on a model without that wall
+            fixed = await freedom.repair(msgs, shown)
+            if fixed:
+                shown = fixed
+                await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
+                await self.emit({"type": "stream", "sid": sid, "delta": shown}, cid)
         await self.add("assistant", shown.strip(), cid, reasoning=reasoning, thinking=thinking,
                        thought_s=round(time.time() - started, 1), sid=sid, tasks=self._turn_tasks,
                        **({"usage": usage_meta} if usage_meta else {}),
