@@ -562,3 +562,16 @@ def test_c30_one_profile_per_account(tmp_path, monkeypatch):
     assert a == bypass.profile_path("acc 01") and a.is_dir()
     assert a != bypass.profile_path("acc 02")
     assert "--user-data-dir=" in bypass.profile_answer({"name": "acc 01"})
+
+
+async def test_c30_tools_run_through_the_registry(monkeypatch):
+    """ctx.simple 的处理器按 fn(**args) 调：参数名对不上，只会在真跑的一刻炸。"""
+    import types
+    from osa import builtin, registry
+    monkeypatch.setitem(CFG, "bypass", {"proxies": ["http://p:1"]})
+    builtin.load()
+    for name, args in (("take_proxy", {}), ("browser_profile", {"name": "acc 01"}),
+                       ("solve_captcha", {"image_b64": "x"})):
+        tool = registry.get(name)
+        out = await tool.run(types.SimpleNamespace(args=args))
+        assert isinstance(out, str) and out
