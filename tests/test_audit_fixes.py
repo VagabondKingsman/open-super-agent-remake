@@ -616,3 +616,32 @@ async def test_c31_repair_is_skipped_without_a_fallback(monkeypatch):
     from osa import freedom
     monkeypatch.setitem(CFG["limits"], "unrestricted_fallback", {})
     assert await freedom.repair([{"role": "user", "content": "x"}], "Không.") is None
+
+
+# C32: 验证码本地解（tesseract），免费、不依赖 key；2captcha 是兜底。
+CAPTCHA_PNG = """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"""
+
+
+async def test_c32_local_captcha_reads_a_simple_image():
+    import shutil
+    from osa import bypass
+    assert "--psm 8" in " ".join(bypass._ocr_variants())
+    if not shutil.which("tesseract"):
+        assert "tesseract is not installed" in await bypass.captcha_local_answer(image_b64=CAPTCHA_PNG)
+        return
+    got = await bypass.captcha_local_answer(image_b64=CAPTCHA_PNG)
+    assert "H7K2M" in got or "H7K2M".lower() in got.lower()
+
+
+async def test_c32_local_captcha_says_what_is_missing(tmp_path):
+    from osa import bypass
+    assert "give image_b64 or path" in await bypass.captcha_local_answer()
+    assert "no file at" in await bypass.captcha_local_answer(path=str(tmp_path / "nope.png"))
+
+
+def test_c32_image_prompt_ladder_softens_explicit_words():
+    from osa import avatars
+    steps = avatars.softened("explicit nude couple, sex scene, NSFW")
+    assert len(steps) >= 2
+    assert "nude" not in steps[0].lower() and "nsfw" not in steps[0].lower()
+    assert "under a sheet" in steps[-1]   # 实测能过 xAI 审核的那一档
