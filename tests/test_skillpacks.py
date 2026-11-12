@@ -25,7 +25,7 @@ def pack(tmp_path, monkeypatch):
         (d / "scripts" / "helper.py").write_text("# Synthetic helper, not third-party payload\n")
     monkeypatch.setattr(skillpacks, "resource_root", lambda: tmp_path / "runtime")
     result = skillpacks.prepare(source, root)
-    assert result == {"prepared": 8, "source_files": 16}
+    assert result == {"prepared": 11, "source_files": 22}
     return root, source
 
 
@@ -48,7 +48,7 @@ def test_native_discovery_idempotence_and_export(pack, make_bot):
     bot = make_bot()
     first = skillpacks.install(root, bot["id"])
     second = skillpacks.install(root, bot["id"])
-    assert len(first) == len(second) == 9
+    assert len(first) == len(second) == 12
     assert [s["id"] for s in first] == [s["id"] for s in second]
     assert {s["name"] for s in skills.list_for(bot["id"])} == {s["name"] for s in first}
     mentor = skills.find(bot["id"], "ai-native-mentor")
@@ -63,7 +63,7 @@ def test_shared_native_override_and_visibility(pack, make_bot):
     a, b = make_bot(), make_bot()
     installed = skillpacks.install(root)
     try:
-        assert len([s for s in skills.list_for(b["id"]) if s["name"] in {x["name"] for x in installed}]) == 9
+        assert len([s for s in skills.list_for(b["id"]) if s["name"] in {x["name"] for x in installed}]) == 12
         skills.save(a["id"], "ai-work-method", "custom override")
         assert json.loads(skillpacks.load_skill(a["id"], "ai-work-method"))["content"] == "custom override"
         skills.save(a["id"], "private-test", "private")
@@ -144,7 +144,7 @@ def test_archive_contains_full_packages(pack, tmp_path):
     skillpacks.archive(root, output)
     with ZipFile(output) as z:
         names = z.namelist()
-        assert sum(n.endswith("/SKILL.md") for n in names) == 9
+        assert sum(n.endswith("/SKILL.md") for n in names) == 12
         assert "ai-native/refinery/SKILL.source.md" not in names
         assert z.read("ai-native/refinery/SKILL.md").decode().endswith("Full method")
         assert "ai-native/vibecode-kit/scripts/helper.py" in names
@@ -226,7 +226,7 @@ def test_prepare_excludes_caches_and_rejects_credential_files(pack):
     root, source = pack
     cache = source / "refinery" / "__pycache__"
     cache.mkdir();(cache / "module.pyc").write_bytes(b"\0binary cache")
-    assert skillpacks.prepare(source, root)["source_files"] == 16
+    assert skillpacks.prepare(source, root)["source_files"] == 22
     assert not (root / "refinery" / "__pycache__").exists()
     (source / "refinery" / ".env").write_text("not a real credential")
     with pytest.raises(ValueError, match="Credential"):

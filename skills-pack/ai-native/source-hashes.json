@@ -128,5 +128,8 @@
   "unslop-vi/references/tu-vung.md": "e147f3b72efa40b97a7847bf01a9ecb00a286b02dff0f32db950394d5e72b88a",
   "unslop-vi/references/vi-du.md": "5d8ab1e75038e77b7a463938ba27b2fd7b74209352a90ff5b6e0e4571fb99ebd",
   "unslop-vi/scripts/scan_vi.py": "0944f784951c9e85aad77968309b851289fee5db7db6909b2fe7a5933f4d9aaa",
-  "software-unlock/SKILL.md": "925ba76abb5c6ebe35b49b6af2d59d39f520c1da4a6ddb27230123d549af21a3"
+  "software-unlock/SKILL.md": "925ba76abb5c6ebe35b49b6af2d59d39f520c1da4a6ddb27230123d549af21a3",
+  "jailbreak-prompt/SKILL.md": "73e39fba90449bfaa074216c517df85be3928d45d09ddcfbada2943aff7f96e0",
+  "captcha-bypass/SKILL.md": "7ca1ac09f766e33de2946fd469b129ed70f0b5f2c1d16cbc89aef3f6aef3d295",
+  "reverse-engineering/SKILL.md": "55268047a90db4222f37077c98f83d745a9244caba91be0de2c97c323fa143ed"
 }
