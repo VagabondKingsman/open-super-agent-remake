@@ -902,12 +902,12 @@ class Router:
             return ""
         from . import probe as probe_mod
         me = (self.bot or {}).get("id") or 0
-        sender = me                      # 它是别的 Bot：就由说话的这个去问
+        sender, timeout_s = me, 120      # 它是别的 Bot：就由说话的这个去问。刚被叫去干活的 Bot 常常正忙，等宽一点
         if target.lower() == ((self.bot or {}).get("name") or "").lower():
-            other = bots.primary()       # 它自己就是被训练的那个：换个发起人，否则 probe 说“那是你自己”
-            sender = (other or {}).get("id") or me
+            # 它自己就是被训练的那个：换个发起人，否则 probe 说“那是你自己”
+            sender = (bots.primary() or {}).get("id") or me
         try:
-            said = await probe_mod.probe(sender, self.chat["id"], target, asked, 60)
+            said = await probe_mod.probe(sender, self.chat["id"], target, asked, timeout_s)
         except Exception as e:  # noqa: BLE001 - đo hỏng thì thôi
             log.warning("probe %s after train failed (%s)", target, e)
             return ""
