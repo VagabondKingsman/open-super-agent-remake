@@ -385,23 +385,27 @@ export function ModelPicker({ kind, value, onChange, allowNone, only }: {
   const box = useRef<HTMLDivElement>(null)
   const pop = useRef<HTMLDivElement>(null)
   // 弹出框用 fixed 定位，不被设置页的滚动区域裁掉；下面放不下就往上开
-  useLayoutEffect(() => {
-    if (!open || !box.current) return
+  useLayoutEffect(() => { if (open) place() }, [open])
+  // 弹框位置跟着按钮走：滚动/改窗口时**重新定位**，不要关掉。
+  // 以前这里一有滚动就 setOpen(false)，输入框 autoFocus 引起的页面滚动会在弹框刚出现时把它关掉——
+  // 用户看到的就是“点开就消失、点不中任何一项”。
+  const place = () => {
+    if (!box.current) return
     const r = box.current.getBoundingClientRect()
-    const width = Math.min(Math.max(460, r.width), innerWidth - 16)   // 按钮比弹出框宽时（引导里）和按钮一样宽
+    const width = Math.min(Math.max(460, r.width), innerWidth - 16)
     const below = innerHeight - r.bottom - 12, above = r.top - 12
     const up = below < 320 && above > below
     setPos({ position: 'fixed', width, left: Math.max(8, Math.min(r.right - width, innerWidth - width - 8)), maxHeight: Math.min(480, up ? above : below),
       ...(up ? { bottom: innerHeight - r.top + 6 } : { top: r.bottom + 6 }) })
-  }, [open])
+  }
   useEffect(() => {
     if (!open) return
     const h = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false) }
-    const scroll = (e: Event) => { if (!pop.current?.contains(e.target as Node)) setOpen(false) }
+    const onScroll = () => place()      // 重新定位，不关
     document.addEventListener('mousedown', h)
-    document.addEventListener('scroll', scroll, true)
-    window.addEventListener('resize', scroll)
-    return () => { document.removeEventListener('mousedown', h); document.removeEventListener('scroll', scroll, true); window.removeEventListener('resize', scroll) }
+    document.addEventListener('scroll', onScroll, true)
+    window.addEventListener('resize', onScroll)
+    return () => { document.removeEventListener('mousedown', h); document.removeEventListener('scroll', onScroll, true); window.removeEventListener('resize', onScroll) }
   }, [open])
   const prov = s.providers.find(p => p.name === value.provider)
   const query = q.trim()
