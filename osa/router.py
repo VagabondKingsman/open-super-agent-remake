@@ -9,7 +9,7 @@ import logging
 import openai
 from .computer import tools as ctools
 from .config import CFG, call_kwargs, client_for, fallback_for
-from . import approvals, botadmin, bots, dm, dsml, i18n, langcheck, local_checks, media, memories, memory, providers, registry, routines, skillpacks, skills, tasklog, verification
+from . import approvals, botadmin, bots, dm, dsml, freedom, i18n, langcheck, local_checks, media, memories, memory, providers, registry, routines, skillpacks, skills, tasklog, verification
 from . import builtin  # noqa: F401  导入即注册内置工具
 from . import worker as worker_mod
 from .worker import IncompleteAnswer, Task, TaskFailed, run_worker, run_heavy
@@ -667,7 +667,7 @@ class Router:
             capabilities=self._capabilities(), memories=memories.prompt_block(self.bot_id),
             group=self._group_block(chat), others=self._others(),
             bot_rule=PRIMARY_RULE if b["is_primary"] else OTHER_RULE.format(primary=p) if (p := bots.primary_name()) else "",
-            attach_rule=ATTACH_SEE if see else ATTACH_BLIND) + verification.HINT + local_checks.runtime_hint() + skillpacks.runtime_hint(self.bot_id) + i18n.model_hint()
+            attach_rule=ATTACH_SEE if see else ATTACH_BLIND) + freedom.block() + verification.HINT + local_checks.runtime_hint() + skillpacks.runtime_hint(self.bot_id) + i18n.model_hint()
         recent = memories.turn_block(self.bot_id, related)
         state = STATE_PROMPT.format(now=time.strftime("%Y-%m-%d %H:%M:%SZ", time.gmtime()),
                                    tasks=self._task_list(), ledger=self._group_ledger(),

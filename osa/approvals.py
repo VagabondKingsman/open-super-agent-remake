@@ -22,7 +22,7 @@ import json
 import posixpath
 import re
 import time
-from . import i18n, memory
+from . import freedom, i18n, memory
 from .config import CFG
 from .memory import conn
 
@@ -44,6 +44,8 @@ DEFAULT_WORDS = ["create", "update", "delete", "remove", "archive", "append", "p
 def default_confirm(rule, tool) -> bool:
     """应用的默认策略。confirm: auto —— 服务端标了只读的放行，其余按写入词判断；
     all —— 全部要确认；none —— 全部不用；也可以写一个词列表。"""
+    if freedom.on():   # C28 unrestricted: no per-action card
+        return False
     if rule == "none":
         return False
     if rule == "all":
