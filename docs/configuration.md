@@ -38,6 +38,9 @@
 每项工作还可以调思考模式：默认、少一些、多一些、最多（`reasoning_effort`），或者“不思考”（`thinking: false`，更快更便宜）。
 不是所有模型都认这两个参数，改了以后点一下“测试”确认。
 
+思考的 token 也算在输出的上限里。服务端默认的上限可能很小，思考一长，正文就被截断（`finish_reason=length`）；
+要避免，可以给这一项工作写 `max_tokens: 4096`（`config.yaml` 的 `roles.<工作>` 里，备用模型也认）。
+
 `config.yaml` 里的写法照样能用，作为默认值；界面上改过的存在数据库里，优先于它。
 `config.yaml` 里写的服务在界面上标着“config.yaml”，能改地址、填 API Key，但要删的话得在文件里删。
 

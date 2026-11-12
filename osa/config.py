@@ -42,6 +42,10 @@ def _spec_kwargs(spec: dict) -> dict:
         kw["extra_body"] = {"thinking": {"type": "disabled"}}
     if spec.get("reasoning_effort"):
         kw["reasoning_effort"] = spec["reasoning_effort"]
+    # C26：思考的 token 也算在输出的上限里。不给上限时，服务端的默认值可能很小，思考一长，
+    # 正文就被截在 half（finish_reason=length），模型只好再说一遍——一条消息里同一段话两次。
+    if spec.get("max_tokens"):
+        kw["max_tokens"] = int(spec["max_tokens"])
     return kw
 
 

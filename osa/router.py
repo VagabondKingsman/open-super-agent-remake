@@ -33,6 +33,25 @@ def _tool_brief(args: dict) -> str:
     return ""
 
 
+def _unrepeated(shown: str, content: str) -> str:
+    """第二段正文里，第一段还没说过的部分（C26）。
+
+    一段被长度截断后让它“再给一次完整回复”，模型常常从头重讲一遍：两段几乎重叠，
+    整段接上去，用户就在一条消息里看见同一段话两次。这里只留多出来的那一截；纯粹重复返回空。
+    """
+    a, b = shown.strip(), content.strip()
+    if not b:
+        return ""
+    if b == a or (len(a) >= 24 and b in a):
+        return ""
+    if len(a) >= 24 and a in b:      # 先把刚才那段又说了一遍，然后接着往下说
+        return b.split(a, 1)[1].strip()
+    for k in range(min(len(a), len(b)), 7, -1):   # 最长的一段重叠（至少 8 个字符）
+        if a.endswith(b[:k]):
+            return b[k:].strip()
+    return b
+
+
 ROUTER_PROMPT = """You are "{name}", the user's AI teammate. {instructions}
 You talk with the user in this chat. You do not research things yourself. Instead:
 - Small talk, common knowledge, and questions you can answer directly: answer directly.
@@ -781,21 +800,35 @@ class Router:
                     await self.emit({"type": "stream", "sid": sid, "delta": "\n\n"}, cid)
                 rounds_used, content, reasoning = await rounds()
                 self._self_check = verification.count_claims(shown, told)
-            # 空回复，或 finish_reason=length：再要一次完整回复。仍空就不要当成成功的空白消息。
+            # 空回复，或 finish_reason=length：再要一次。上一段已经给用户看了，就让它“接着说”，
+            # 不是“重新说一遍”（C26：重说一遍，一条消息里同一段话会出现两次）。仍空就不要当成成功的空白消息。
             if not shown.strip() or finish == "length":
                 if not shown.strip() and rounds_used:   # 工具轮数用完还没开口：关掉工具，逼它给一句回复
                     msgs.append({"role": "user", "content": "(System: you have used up the tool calls allowed in this turn. Do not call any more tools. "
                                  "Tell the user in plain text how far you got; if something is unfinished, tell the user you will dispatch a task to continue it in the next message.)"})
+                elif shown.strip():
+                    msgs.append({"role": "user", "content": "(System: your last reply was cut off by the length limit, and the user can already see it. "
+                                 "Continue from exactly where it stopped; do not repeat what you already wrote.)"})
                 content, reasoning, _, finish = await self._stream(client, model, msgs, sid, started, use_tools=False)
                 if not shown.strip():
                     shown, thinking = content, thinking + reasoning
                 elif content:
-                    # _stream 已经把这段推给前端了，这里只补进要保存的正文
-                    if not shown.endswith("\n"):
-                        shown += "\n\n"
-                        await self.emit({"type": "stream", "sid": sid, "delta": "\n\n"}, cid)
-                    shown += content
                     thinking += reasoning
+                    add = _unrepeated(shown, content)
+                    if add != content.strip():
+                        # 说重了：前端已经收下整段重复的正文，把它拉回到要保存的这一份
+                        if add:
+                            shown = (shown if shown.endswith("\n") else shown + "\n\n") + add
+                        await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
+                        if thinking:
+                            await self.emit({"type": "stream", "sid": sid, "thinking": thinking}, cid)
+                        await self.emit({"type": "stream", "sid": sid, "delta": shown}, cid)
+                    else:
+                        # _stream 已经把这段推给前端了，这里只补进要保存的正文
+                        if not shown.endswith("\n"):
+                            shown += "\n\n"
+                            await self.emit({"type": "stream", "sid": sid, "delta": "\n\n"}, cid)
+                        shown += content
             if not shown.strip():
                 shown = i18n.t("没有给出回复")
         finally:
