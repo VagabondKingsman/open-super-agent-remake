@@ -233,7 +233,7 @@ async def test_update_checks(llm, events, boss, make_bot):
                Call("update_bot", {"name": "Check9", "instructions": "原来的职责", "new_name": "Check9"}),
                Call("update_bot", {"name": "Check9", "new_name": "taken9"}),
                Call("update_bot", {"name": "Check9", "remove_skills": ["shared9"]}),
-               Call("update_bot", {"name": "Check9", "instructions": "长" * 5000}), "好")
+               Call("update_bot", {"name": "Check9", "instructions": "长" * 9000}), "好")
     await server.safe_handle(bots.chat(boss["chat_id"]), "改一下")
     await settle()
     out = tool_outputs(llm.bodies("router", "Boss")[-1])

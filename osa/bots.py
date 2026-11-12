@@ -50,6 +50,9 @@ def _bot(row) -> dict:
             "hidden": bool(hidden)}
 
 
+MAX_INSTRUCTIONS = 8000   # 一个 bot 的 instructions 上限：够放角色 + 一个 mode 块（C37）
+
+
 def list_bots() -> list[dict]:
     return [_bot(r) for r in conn.execute(
         f"select {_BOT_COLS} from bots order by is_primary desc, id")]
@@ -126,7 +129,7 @@ def update(bot_id: int, **fields) -> dict:
         conn.execute("update chats set title=? where kind='direct' and bot_ids=? and title=?",
                      (name, json.dumps([bot_id]), old[0] if old else name))
     if fields.get("instructions") is not None:
-        conn.execute("update bots set instructions=? where id=?", (str(fields["instructions"])[:4000], bot_id))
+        conn.execute("update bots set instructions=? where id=?", (str(fields["instructions"])[:MAX_INSTRUCTIONS], bot_id))
     if fields.get("avatar"):
         conn.execute("update bots set avatar=? where id=?", (json.dumps(clean_avatar(fields["avatar"], bot_id)), bot_id))
     if fields.get("hidden") is not None:
