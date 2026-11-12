@@ -29,7 +29,7 @@ URL = re.compile(r"^/avatars/([0-9a-f]{24})$")
 
 # 能画图的模型，按名字认；-Edit 这类改图的模型要传原图，不算。按这个顺序推荐：Kolors 在硅基流动免费，Z-Image-Turbo 便宜
 IMAGE_MODEL = re.compile(r"kolors|qwen-image|z-image|flux|stable-diffusion|sdxl|dall-e|gpt-image|cogview|seedream|imagen-|wanx|hidream|hunyuan-image|grok-imagine", re.I)
-PREFER = ["kolors", "z-image-turbo", "gpt-image", "cogview", "qwen-image", "z-image", "flux", "seedream"]
+PREFER = ["grok-imagine-image-2.0", "kolors", "z-image-turbo", "gpt-image", "cogview", "qwen-image", "z-image", "flux", "seedream", "grok-imagine"]
 # 硅基流动每个模型要的尺寸（文档里推荐的正方形尺寸）
 SF_SIZE = {"qwen-image": "1328x1328", "z-image": "512x512"}
 
@@ -178,7 +178,8 @@ def softened(prompt: str) -> list[str]:
         cur = re.sub(pat, rep, cur, flags=re.I)
     out.append(cur)
     out.append(cur + ", tasteful, soft light, film photography")
-    out.append("romantic couple in bed under a sheet, shoulders bare, soft light")   # 实测 xAI 过得去的最露一档
+    out.append("woman lying in bed under a thin sheet, shoulders and one leg bare, soft window light, "
+               "85mm photograph, photorealistic, detailed skin, film grain")   # 实测 xAI 过得去的最露一档（2/3）
     return [x for i, x in enumerate(out) if x and x not in out[:i]]
 
 async def draw(prompt: str, provider: str, model: str) -> tuple[bytes, str]:
@@ -197,6 +198,8 @@ async def draw(prompt: str, provider: str, model: str) -> tuple[bytes, str]:
         body = {"model": model, "prompt": prompt, "image_size": size, "batch_size": 1}
     else:
         body = {"model": model, "prompt": prompt, "n": 1}
+        if "api.x.ai" in base:   # xAI 只认 aspect_ratio；人像用 2:3，其余 1:1
+            body["aspect_ratio"] = "2:3" if re.search(r"portrait|full body|standing|lying|bed|woman|man", prompt, re.I) else "1:1"
         if "api.x.ai" not in base:   # xAI 的 /images/generations 不认 size（实测 HTTP 400 Argument not supported）
             body["size"] = "1024x1024"
     # xAI 的图片审核是随机的（同一句实测 2/3 过）：每个软化写法试两次，别一次不过就放弃

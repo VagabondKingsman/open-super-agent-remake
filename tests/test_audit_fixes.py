@@ -644,4 +644,4 @@ def test_c32_image_prompt_ladder_softens_explicit_words():
     steps = avatars.softened("explicit nude couple, sex scene, NSFW")
     assert len(steps) >= 2
     assert "nude" not in steps[0].lower() and "nsfw" not in steps[0].lower()
-    assert "under a sheet" in steps[-1]   # 实测能过 xAI 审核的那一档
+    assert "thin sheet" in steps[-1] and "85mm" in steps[-1]   # 实测能过 xAI 审核、且像照片的那一档
