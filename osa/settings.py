@@ -7,7 +7,7 @@ from .config import CFG
 from .memory import conn
 
 EDITABLE_LIMITS = ["daily_token_budget", "worker_max_steps", "task_timeout_s", "approval_timeout_s",
-                    "computer_wait_human_s"]
+                    "computer_wait_human_s", "unrestricted"]   # unrestricted: C28 全开模式
 _PC = dict(CFG.get("computer") or {})   # config.yaml 里原来的电脑设置：界面上选回“自动”时用
 ROLE_NAMES = {"router": i18n.N_("对话"), "worker": i18n.N_("后台任务"), "reviewer": i18n.N_("Heavy 汇总"),
               "filter": i18n.N_("整理和过滤"), "embedding": i18n.N_("按意思检索")}

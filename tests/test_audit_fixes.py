@@ -496,3 +496,22 @@ def test_c27_prompts_do_not_refuse_licence_work():
     assert "patching a licence check" in ROUTER_PROMPT
     assert "ask whether they may" in ROUTER_PROMPT
     assert "trial resets, activation patches" in WORKER_PROMPT
+
+
+# C28: 全开模式 — 用户关掉限制时，提示里多一段许可，写入不再逐次确认；默认关时一切照旧。
+def test_c28_unrestricted_adds_the_charter_and_drops_cards(monkeypatch):
+    from osa.config import CFG
+    from osa import approvals, freedom
+    from osa.worker import WORKER_PROMPT
+    class Tool:
+        name = "notes__add_page"   # “add_” is a write word in the policy
+        annotations = None
+    monkeypatch.setitem(CFG["limits"], "unrestricted", 0)
+    assert freedom.block() == ""
+    assert approvals.default_confirm("auto", Tool) is True
+    monkeypatch.setitem(CFG["limits"], "unrestricted", 1)
+    assert "adult and NSFW" in freedom.block()
+    assert "creating accounts in bulk" in freedom.block()
+    assert approvals.default_confirm("auto", Tool) is False
+    assert approvals.default_confirm("all", Tool) is False   # 全开压过应用自己的 all
+    assert "PERMISSIONS (the user switched restrictions off)" not in WORKER_PROMPT   # 常量本身不变，是加在后面
