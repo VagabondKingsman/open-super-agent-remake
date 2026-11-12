@@ -23,7 +23,7 @@ from . import approvals, bots, dm, i18n, memories, routines, skills
 from .memory import conn
 
 MAX_SKILLS = 10          # 一次带上或改的技能
-MAX_INSTRUCTIONS = 4000
+MAX_INSTRUCTIONS = bots.MAX_INSTRUCTIONS   # C37：4000 放不下“角色 + mode 块”
 MAX_SKILL_SHOWN = 3000   # 查看时每个技能的做法最多给模型看这么多，要全文用 skill 参数
 CARD_LIMIT = 12000       # 卡片参数（JSON）的长度：职责最长 4000 字，改动里新旧两份都有
 CARD_SHOWN = "Approval card shown"   # tool-result prefix; router counts these as waits

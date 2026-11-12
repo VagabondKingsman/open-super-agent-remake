@@ -88,6 +88,12 @@ def load():
     for s in skillpacks.SCHEMAS:
         n = s["function"]["name"]
         ctx.tool(Tool(n, s, lambda c, n=n: _sync(skillpacks.tool(c.bot_id, n, c.args)), where=both))
+    # C38 训练循环：让一个 bot 去量另一个 bot（发私信、等回信、拿原话）
+    from . import probe as probe_mod
+    ctx.tool(Tool("probe_bot", tools.schema("probe_bot", "Ask another bot a question over DM and return its exact reply; use it to measure a teammate before and after you change its instructions",
+                                          {"name": "the bot", "question": "exactly what you would ask it in work", "timeout_s": "seconds to wait (default 60)"}),
+                  lambda c: probe_mod.probe(c.bot_id, c.chat_id, str(c.args.get("name") or ""), str(c.args.get("question") or ""), int(c.args.get("timeout_s") or 60)),
+                  where=both, describe="ask another bot a question and read its reply (for measuring and training)"))
     # C30 全开模式：代理池、验证码、独立的浏览器档案（配置在 config.yaml 的 bypass 段）
     from . import bypass as bypass_tools
     # ctx.simple 按 fn(**args) 调：参数名就是 schema 里的键，多一个少一个都会在真跑的时候炸
