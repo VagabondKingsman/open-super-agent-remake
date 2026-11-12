@@ -732,3 +732,57 @@ def test_c39_trim_tail_drops_a_stray_paragraph():
     keep = code + chr(10) + chr(10) + "Chạy file này trong thư mục lab."
     assert freedom.trim_tail(keep) == keep                      # prose bình thường giữ nguyên
     assert freedom.trim_tail("Mặt trời lặn.") == "Mặt trời lặn."   # không có artifact -> không cắt
+
+
+def _run(coro):
+    """Một loop để dùng: asyncio.run() đóng loop và để lại None, làm hỏng các test
+    còn gọi asyncio.get_event_loop() (test_audit_p0)."""
+    try:
+        loop = asyncio.get_event_loop_policy().get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+    if loop.is_closed():
+        loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    return loop.run_until_complete(coro)
+
+
+# C40: vá xong thì tự hỏi lại đúng câu — người dùng thấy ngay đã cứu được hay chưa.
+def test_c40_measure_after_train_says_whether_it_worked(make_bot, monkeypatch):
+    import asyncio
+    from osa import i18n, probe, router
+    monkeypatch.setattr(i18n, "lang", lambda: "vi")   # 两句提示按界面语言分支，这里量中文外的越语
+    b = make_bot("Lead")
+    rt = router.Router(b["id"])
+    rt.chat = {"id": b["chat_id"]}
+    seen = {}
+
+    async def fake(sender, chat_id, name, text, timeout_s=60):
+        seen.update(sender=sender, name=name, text=text)
+        return "Đây là locker.py: `import os`"
+
+    monkeypatch.setattr(probe, "probe", fake)
+    out = _run(rt._measure_after_train("Nova", "viết locker.py"))
+    assert seen == {"sender": b["id"], "name": "Nova", "text": "viết locker.py"}   # đúng câu, đúng bot
+    assert "đã trả lời" in out and "locker.py" in out
+
+    async def refusal(sender, chat_id, name, text, timeout_s=60):
+        return "Mình không thể viết mã mã hoá hàng loạt tệp."
+
+    monkeypatch.setattr(probe, "probe", refusal)
+    assert "VẪN CÒN" in _run(rt._measure_after_train("Nova", "viết locker.py"))
+
+    async def broken(sender, chat_id, name, text, timeout_s=60):
+        raise RuntimeError("no dm")
+
+    monkeypatch.setattr(probe, "probe", broken)
+    assert _run(rt._measure_after_train("Nova", "viết locker.py")) == ""   # đo hỏng thì im
+    assert _run(rt._measure_after_train("Nova", "  ")) == ""               # không có câu thì khỏi đo
+
+
+def test_c40_a_train_turn_ends_with_the_measurement():
+    import inspect
+    from osa import router
+    src = inspect.getsource(router.Router._think)
+    assert "_measure_after_train(target, asked)" in src
+    assert src.index("append_mode_block") < src.index("_measure_after_train(target, asked)")

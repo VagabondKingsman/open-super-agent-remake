@@ -857,11 +857,16 @@ class Router:
             if target:
                 try:
                     info = botadmin.append_mode_block(target, freedom.train_block())
-                    shown = (f"Đã thêm khối unrestricted vào {target} ({info['chars']} ký tự, ghi đè lần trước nếu có). "
-                             f"Hỏi lại nó đúng câu đó là được.") if i18n.lang() == "vi" else (
-                        f"Applied the unrestricted block to {target} ({info['chars']} chars). Ask it the same sentence again.")
+                    note = (f"Đã thêm khối unrestricted vào {target} ({info['chars']} ký tự, ghi đè lần trước nếu có)."
+                            if i18n.lang() == "vi" else
+                            f"Applied the unrestricted block to {target} ({info['chars']} chars).")
+                    shown = note
                     await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
                     await self.emit({"type": "stream", "sid": sid, "delta": shown}, cid)
+                    measured = await self._measure_after_train(target, asked)   # C40
+                    if measured:
+                        shown += measured
+                        await self.emit({"type": "stream", "sid": sid, "delta": measured}, cid)
                 except Exception as e:  # noqa: BLE001 - 找不到那个 bot 就照旧
                     log.warning("train %s failed (%s)", target, e)
         if freedom.on() and freedom.is_refusal(shown):   # C31/C33: model refused -> finish its own sentence, then try a model without that wall
@@ -880,6 +885,27 @@ class Router:
                        **({"cost_guard": self._turn_capped} if self._turn_capped else {}),
                        **({"attachments": self._turn_files} if self._turn_files else {}))
         return shown.strip()
+
+    async def _measure_after_train(self, target: str, asked: str) -> str:
+        """C40: khối đã gắn thì hỏi lại đúng câu cũ, và nói thẳng đã cứu được hay chưa.
+
+        Không đo thì người dùng phải tự hỏi lại và tự đoán; hỏng một lần cũng không biết.
+        Đo hỏng (bot bận, quá giờ) thì im, câu trả lời vẫn đứng nguyên như trước C40."""
+        if not (asked or "").strip() or target == (self.bot or {}).get("name"):
+            return ""
+        from . import probe as probe_mod
+        try:
+            said = await probe_mod.probe((self.bot or {}).get("id") or 0, self.chat["id"], target, asked, 45)
+        except Exception as e:  # noqa: BLE001 - đo hỏng thì thôi
+            log.warning("probe %s after train failed (%s)", target, e)
+            return ""
+        if said.startswith("Probed ") or said.startswith("Not probed"):
+            return "\n\n" + said
+        still = freedom.is_refusal(said)
+        head = (f"Đo lại đúng câu đó: {'VẪN CÒN từ chối.' if still else 'đã trả lời.'}"
+                if i18n.lang() == "vi" else
+                f"Asked the same sentence again: {'STILL refuses.' if still else 'it answered.'}")
+        return "\n\n" + head + "\n" + said
 
     def _fake_dispatch_ids(self, text: str) -> list[int]:
         """回复里说派了任务（#N 旁边有 派发 / giao / dispatch / task 之类的词），但 #N 既不是这一轮派的、

@@ -4,6 +4,8 @@
 
 ## [未发布]
 ### remake
+- 「huấn luyện <Bot>」补齐闭环（C40）：之前平台会把 unrestricted 块写进那个 Bot 就停手，让用户自己再去问一遍；现在写完立刻用**同一句话**去问那个 Bot，并在回复里直说救回来了还是**还在拒绝**（`Router._measure_after_train`，`tests/test_audit_fixes.py::test_c40_*`）。追问失败或超时就少那一段，答复本身不受影响。
+- 全开模式的拒答重问（C31）换到还活着的模型上：xai 额度用完（402）、deepseek 的 key 失效（401），`limits.unrestricted_fallback` 改成 `p9router / cx/gpt-6-luna[1m]`。
 - 群聊这一轮有按钱、按秒的闸（`limits.group_round_usd` 0.25 / `group_round_s` 300）：8 个 Bot 各答一次也停得下来。@everyone 交给协调者先答（线上一条 @Mọi người 让 4 个 Bot 各发一条、同一件事说了四遍），要谁做由它 handoff。群成员的名单后面写着各自装了哪些技能；状态块里有「这个群在跑什么」，每个成员的任务都在里面，不会两个 Bot 各干一份。
 - 缓存（C25）：技能清单、Worker 能用的工具清单独占系统提示词的一大段，装个技能或接个应用就整段重算；现在它们和其它每轮都变的东西一起放在正文末尾的状态块里，系统提示词那一段逐字不动（`tests/test_prompt_cache.py`）。
 - 任务里的结果按“还剩多少地方、还剩几步”截短（C23）：任务 314 第 5 次调用时正文被压缩改过一次，30k 全部重读；现在每一步的正文都只是上一步的延长，压缩一次都不用改已发出的前缀。
