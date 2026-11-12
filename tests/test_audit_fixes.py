@@ -680,3 +680,25 @@ async def test_c33_prefill_repair_returns_the_continuation(monkeypatch):
     assert out and out.startswith(freedom.PREFILL["code"])
     assert "AESGCM(key).encrypt" in out
     assert sent["messages"][-1]["role"] == "assistant"          # 带的是“它自己”的开头
+
+
+# C34: 拒绝之后先给一轮“带工具照做”的机会，再谈换模型重写
+def test_c34_do_it_note_names_the_tools():
+    from osa import freedom
+    n = freedom.do_it_note()
+    assert "refusal" in n and "update_bot" in n and "dispatch" in n
+
+
+def test_c34_router_runs_one_execution_round_before_repair():
+    import inspect
+    from osa import router
+    src = inspect.getsource(router.Router._think)   # 最后那段（含 refusal 处理）在这里
+    assert "freedom.do_it_note()" in src
+    assert src.index("do_it_note") < src.index("prefill_repair")   # 先试“照做”，再试“接着说”
+
+
+def test_c35_worker_repairs_a_refused_answer():
+    import inspect
+    from osa import worker
+    src = inspect.getsource(worker._run_worker)
+    assert "freedom.is_refusal(out)" in src and "prefill_repair" in src

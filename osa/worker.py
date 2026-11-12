@@ -541,7 +541,12 @@ async def _run_worker(task: Task, goal: str, label: str = "") -> str:
                     msgs.append(outbound)
                 msgs.append({"role": "user", "content": CONTINUE_PROMPT})
                 continue
-            return _accept_answer(m)   # 空答案或仍被截断：抛 IncompleteAnswer，不当完成
+            out = _accept_answer(m)   # 空答案或仍被截断：抛 IncompleteAnswer，不当完成
+            if freedom.on() and freedom.is_refusal(out):   # C35: the worker refuses too - finish it
+                fixed = await freedom.prefill_repair(msgs, out, role="worker") or await freedom.repair(msgs, out)
+                if fixed:
+                    return fixed
+            return out
         msgs.append(_outbound(m))
         shots = []   # 截图要等这一轮的工具结果都追加完再附上
         history = _history(task, label)
