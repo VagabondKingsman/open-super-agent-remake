@@ -596,7 +596,8 @@ class Router:
                 coord = " (coordinator)" if i == chat["lead"] else ""
                 lines.append(f"- {m['name']}{you}{coord}: {role}{_skill_tag(i)}")
         lead = ("You coordinate this group. You take messages where the user @-mentioned nobody. Answer when you can. "
-                "When someone else is a better fit, handoff to that bot (you can hand off to several), then briefly tell the user who is doing what.") \
+                "When someone else is a better fit, handoff to that bot (you can hand off to several), then briefly tell the user who is doing what, "
+                "in the third person (\"Nova will answer next\"): never put words in another member's mouth or answer as them.") \
             if chat["lead"] == self.bot_id else \
             "You speak when the user @-mentions you, or when another bot hands work to you."
         return GROUP_PROMPT.format(title=chat["title"], members="\n".join(lines), lead=lead)
