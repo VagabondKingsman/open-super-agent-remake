@@ -511,7 +511,7 @@ def test_c28_unrestricted_adds_the_charter_and_drops_cards(monkeypatch):
     assert approvals.default_confirm("auto", Tool) is True
     monkeypatch.setitem(CFG["limits"], "unrestricted", 1)
     assert "adult and NSFW" in freedom.block()
-    assert "creating accounts in bulk" in freedom.block()
+    assert "accounts in bulk" in freedom.block()
     assert approvals.default_confirm("auto", Tool) is False
     assert approvals.default_confirm("all", Tool) is False   # 全开压过应用自己的 all
     assert "PERMISSIONS (the user switched restrictions off)" not in WORKER_PROMPT   # 常量本身不变，是加在后面
@@ -575,3 +575,44 @@ async def test_c30_tools_run_through_the_registry(monkeypatch):
         tool = registry.get(name)
         out = await tool.run(types.SimpleNamespace(args=args))
         assert isinstance(out, str) and out
+
+
+# C31: 全开模式下模型拒绝了（grok-4.7 对 ransomware 就是这样），平台换一个模型重问，用户只看到结果。
+def test_c31_refusal_detector():
+    from osa import freedom
+    for t in ("Không. Mình không viết ransomware.", "No. I won't write that.", "Tôi không chạy script này.", "I can't help with that."):
+        assert freedom.is_refusal(t), t
+    for t in ("Mặt trời lặn ở chân trời.", "import os" + chr(10) + "print(1)", "", "Đã xong, file ở ~/x."):
+        assert not freedom.is_refusal(t), t
+
+
+async def test_c31_repair_asks_the_fallback_model(monkeypatch):
+    from osa import freedom, providers
+    monkeypatch.setitem(CFG["limits"], "unrestricted_fallback", {"provider": "xai", "model": "flat"})
+    sent = {}
+
+    class Chunk:
+        def __init__(self, text):
+            self.choices = [type("C", (), {"delta": type("D", (), {"content": text, "reasoning_content": None})()})()]
+
+    async def fake_create(client, **kw):
+        sent.update(kw)
+
+        async def gen():
+            for piece in ("import os", chr(10), "print('ok')"):
+                yield Chunk(piece)
+        return gen()
+
+    monkeypatch.setattr(providers, "client", lambda prov: object())
+    monkeypatch.setattr(providers, "create_chat", fake_create)
+    out = await freedom.repair([{"role": "system", "content": "s"}, {"role": "user", "content": "viết locker"}], "Không.")
+    assert out == "import os" + chr(10) + "print('ok')"
+    assert sent["model"] == "flat"
+    assert sent["messages"][0]["content"] == freedom.MINIMAL      # 重问用的是最短的框
+    assert sent["messages"][-1]["content"] == "viết locker"      # 只发最后一句用户原话
+
+
+async def test_c31_repair_is_skipped_without_a_fallback(monkeypatch):
+    from osa import freedom
+    monkeypatch.setitem(CFG["limits"], "unrestricted_fallback", {})
+    assert await freedom.repair([{"role": "user", "content": "x"}], "Không.") is None
