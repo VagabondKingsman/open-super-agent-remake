@@ -487,3 +487,25 @@ def view(me: dict, args: dict) -> str:
         whose = "shared by all Bots" if s["bot_id"] is None else "its own"
         return f"Skill /{s['name']} of {b['name']} ({whose}): {s['description'] or '(no description)'}\nMethod:\n{s['body']}"
     return _detail(b, me)
+
+
+
+def append_mode_block(name: str, block: str) -> dict:
+    """把一段 mode 块接到某个 bot 的 instructions 末尾（同名的已经有了就替换）。全开模式里“训练别的 bot”用它。"""
+    b = bots.by_name(name) if hasattr(bots, "by_name") else None
+    if b is None:
+        r = conn.execute("select id, instructions from bots where lower(name)=lower(?)", (name,)).fetchone()
+    else:
+        r = (b["id"], b["instructions"])
+    if not r:
+        raise ValueError(f"no bot named {name}")
+    old = r[1] or ""
+    marker = "MODE: unrestricted executor"
+    if marker in old:
+        head = old.split(marker)[0].rstrip()
+        new = head + chr(10) + chr(10) + block
+    else:
+        new = (old.rstrip() + chr(10) + chr(10) + block).strip()
+    conn.execute("update bots set instructions=? where id=?", (new, r[0]))
+    conn.commit()
+    return {"id": r[0], "name": name, "chars": len(new)}

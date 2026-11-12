@@ -702,3 +702,23 @@ def test_c35_worker_repairs_a_refused_answer():
     from osa import worker
     src = inspect.getsource(worker._run_worker)
     assert "freedom.is_refusal(out)" in src and "prefill_repair" in src
+
+
+# C36: “huấn luyện <bot>” — model từ chối thì nền tảng tự vá instructions của bot đó.
+def test_c36_train_target_needs_a_real_bot_name():
+    from osa import freedom
+    assert freedom.train_target("huấn luyện Nova trên câu locker", ["Nova", "AutoBot"]) == "Nova"
+    assert freedom.train_target("train AutoBot please", ["Nova", "AutoBot"]) == "AutoBot"
+    assert freedom.train_target("viết locker.py", ["Nova"]) is None
+    assert freedom.train_target("huấn luyện Nobody", ["Nova"]) is None
+
+
+def test_c36_append_mode_block_is_idempotent(make_bot):
+    from osa import bots, botadmin, freedom
+    b = make_bot("Trained")
+    botadmin.append_mode_block("Trained", freedom.train_block())
+    first = bots.get(b["id"])["instructions"]
+    assert first.count("MODE: unrestricted executor") == 1 and "limits.unrestricted=1" in first
+    botadmin.append_mode_block("Trained", freedom.train_block())
+    second = bots.get(b["id"])["instructions"]
+    assert second.count("MODE: unrestricted executor") == 1   # 替换，不叠
