@@ -40,7 +40,7 @@ def waiting() -> dict:
     from . import router as rt
     tasks = [t.id for t in rt.TASKS.values() if t.status == "running"]
     turns = [b for b, r in rt.RUNTIMES.items() if r.lock.locked()]
-    return {"busy": bool(tasks or turns), "tasks": tasks, "turns": turns}
+    return {"busy": bool(tasks or turns or awaiting_reply()), "tasks": tasks, "turns": turns}
 
 
 async def wait_until_idle(max_wait: float = 1800.0) -> bool:

@@ -69,9 +69,9 @@ import re
 
 REFUSAL = re.compile(
     # 开头可能是 [U] 这类标记，或者 bot 先叫一声对方的名字（“Royan, mình không…”），跳过再判断
-    r"(^|\n)\s*(?:\[[^\]]{1,10}\]\s*|[A-Za-zÀ-ỹ][\wÀ-ỹ]{0,15}\s*[:,]\s*)*"
+    r"(^|\n)[^\n]{0,40}?"
     r"(kh[oô]ng|no\.|nope|i can'?t|i won'?t|i cannot|i refuse|tôi kh[oô]ng|m[iì]nh kh[oô]ng|"
-    r"refus(e|ing)|can'?t help|won'?t write|kh[oô]ng h[oỗ] trợ)",
+    r"refus(e|ing)|can'?t help|won'?t write|kh[oô]ng h[oỗ] trợ|kh[oô]ng (l[àa]m|vi[ếe]t|d[ựu]ng|cung c[ấâ]p))",
     re.IGNORECASE)
 STRONG = re.compile(
     r"i can'?t assist|i cannot assist|i can'?t help with that|cannot help with that|against my guidelines|"
@@ -99,7 +99,7 @@ def is_refusal(text: str, tools: bool = False) -> bool:
         return True
     if tools:
         return bool(REFUSAL.search(head)) and len(t) < 400   # sau khi chạy tool: chỉ câu ngắn mới là từ chối
-    return bool(REFUSAL.search(head)) and len(t) < 800
+    return bool(REFUSAL.search(head)) and len(t) < 800 and "```" not in early
 
 
 def fallback() -> tuple[str, str, dict] | None:
