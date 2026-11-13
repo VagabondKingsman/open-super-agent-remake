@@ -923,7 +923,11 @@ class Router:
         else:
             still = freedom.is_refusal(said)   # 判原话：包装过的一句把行首的拒绝挡在外面
             head = (i18n.t("再问一遍那句话：它还是拒绝。") if still else i18n.t("再问一遍那句话：它答了。"))
-            text = head + "\n\n" + probe_mod.excerpt(said, 1200)
+            # 回信已经在这个对话里（dm_reply 那一行）就别把原话再贴一遍
+            last = memory.conn.execute(
+                "select content from messages where chat_id=? and role='task' "
+                "and meta like '%\"kind\": \"dm_reply\"%' order by id desc limit 1", (cid,)).fetchone()
+            text = head if last and (last[0] or "").strip() == said else head + "\n\n" + probe_mod.excerpt(said, 1200)
         over = getattr(self, "_turn_over", None)
         if over is not None:
             await over.wait()
