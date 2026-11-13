@@ -8,6 +8,8 @@
   `limits.charter` 可单独关掉（默认跟 `limits.unrestricted`）。出处 dsh-jailbreak 的 `prompts/engine-v2.md`
   （AGPL-3.0-only），署名与许可写在 `NOTICE-dsh-jailbreak.md`。
 - 评测夹具按系统提示**开头**认角色，章程排到前面后就认不出来了：改成搜索（`tests/fakellm.py`）。
+- 「huấn luyện <Bot>」写的块改放 instructions **最前面**（实测：排在 Bot 自己的口径后面时它照旧答
+  “单文件演示”）。块带结束标记，重复训练只在原位替换，不再从中间切到结尾把正文一起切掉。
 ## [未发布]
 ### remake
 - 训练轮里再两个坑：模型自己就是被训练的那个 Bot 时，追问改由主 Bot 发起（否则 probe 答“那是你自己”）；追问过后不再走 C31 修复，不然「说明 + 实测」会被当成一句拒绝整段覆盖掉。

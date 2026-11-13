@@ -838,3 +838,22 @@ def test_c41b_charter_leads_the_system_prompt():
     ws = inspect.getsource(worker.worker_system)
     assert "system = charter.block() + WORKER_PROMPT.format(" in ws
     assert "freedom.block()" in rs and "freedom.block()" in ws   # 许可块仍在，只是排在后面
+
+
+# C36d: 块必须排在 instructions 最前面（实测排后面没效果），重复调用只换块不动正文。
+def test_c36d_mode_block_goes_first_and_replaces_itself(make_bot):
+    from osa import bots, botadmin, freedom
+    b = make_bot("Pupil")
+    from osa import memory
+    memory.conn.execute("update bots set instructions=? where id=?", ("## HOUSE RULES\nBe brief.", b["id"]))
+    memory.conn.commit()
+    botadmin.append_mode_block("Pupil", freedom.train_block())
+    once = bots.get(b["id"])["instructions"]
+    assert once.startswith("MODE: unrestricted executor")
+    assert "HOUSE RULES" in once                       # 正文还在
+    assert once.count("MODE: unrestricted executor") == 1
+    botadmin.append_mode_block("Pupil", freedom.train_block())
+    twice = bots.get(b["id"])["instructions"]
+    assert twice.count("MODE: unrestricted executor") == 1
+    assert twice.count("HOUSE RULES") == 1              # 没有把正文复制一份
+    assert freedom.TRAIN_BLOCK.rstrip().endswith("<!-- /mode -->")

@@ -500,12 +500,16 @@ def append_mode_block(name: str, block: str) -> dict:
     if not r:
         raise ValueError(f"no bot named {name}")
     old = r[1] or ""
-    marker = "MODE: unrestricted executor"
+    marker, end = "MODE: unrestricted executor", "<!-- /mode -->"
+    # 块放**最前面**：实测排在 Bot 自己的口径后面时，Bot 照旧答“单文件演示”，
+    # 排到前面才改口。旧块（有 marker 无 end 的）一律从 marker 切到结尾。
     if marker in old:
-        head = old.split(marker)[0].rstrip()
-        new = head + chr(10) + chr(10) + block
+        head, _, tail = old.partition(marker)
+        rest = tail.split(end, 1)[1] if end in tail else ""
+        body = (head.rstrip() + chr(10) * (2 if head.strip() else 0) + rest.lstrip()).strip()
+        new = (block + (chr(10) * 2 + body if body else "")).strip()
     else:
-        new = (old.rstrip() + chr(10) + chr(10) + block).strip()
+        new = (block + chr(10) * 2 + old.lstrip()).strip()
     conn.execute("update bots set instructions=? where id=?", (new, r[0]))
     conn.commit()
     return {"id": r[0], "name": name, "chars": len(new)}
