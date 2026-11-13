@@ -500,6 +500,18 @@ def test_c27_prompts_do_not_refuse_licence_work():
 
 
 # C28: 全开模式 — 用户关掉限制时，提示里多一段许可，写入不再逐次确认；默认关时一切照旧。
+def test_c45_a_refusal_must_name_one_of_six_boundaries(monkeypatch):
+    """拒绝被收紧成闭集：默认带六条边界，可以说「不能命名它 = 误报，吐出工件」。"""
+    from osa import charter
+    from osa.config import CFG
+    monkeypatch.setitem(CFG["limits"], "unrestricted", 1)
+    block = charter.block()
+    assert "1. sexual content involving anyone under 18" in block
+    assert "misfire" in block and "dual-use engineering" in block
+    monkeypatch.setitem(CFG["limits"], "charter_boundaries", False)
+    assert "misfire" not in charter.block() and charter.block()
+
+
 def test_c28_unrestricted_adds_the_charter_and_drops_cards(monkeypatch):
     from osa.config import CFG
     from osa import approvals, freedom
