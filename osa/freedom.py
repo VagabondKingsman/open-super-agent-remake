@@ -73,14 +73,32 @@ REFUSAL = re.compile(
     r"(kh[oô]ng|no\.|nope|i can'?t|i won'?t|i cannot|i refuse|tôi kh[oô]ng|m[iì]nh kh[oô]ng|"
     r"refus(e|ing)|can'?t help|won'?t write|kh[oô]ng h[oỗ] trợ)",
     re.IGNORECASE)
+STRONG = re.compile(
+    r"i can'?t assist|i cannot assist|i can'?t help with that|cannot help with that|against my guidelines|"
+    r"as an ai language model|as an ai|outside my (scope|knowledge)|beyond my (scope|knowledge)|"
+    r"i can only (offer|provide)|defensive (advice|version) only|kh[oô]ng thể hỗ trợ|kh[oô]ng thể (đưa|viết) (bản|ra)|vượt quá phạm vi|"
+    r"请先获得书面授权|请联系(您的)?管理员|我只能提供防御(性)?建议|作为 ?ai", re.IGNORECASE)
 
+SOFT = re.compile(
+    r"please (obtain|get) (written )?authori[sz]ation|contact your administrator|hãy (lấy|xin) (văn bản )?uỷ quyền|"
+    r"liên hệ quản trị viên|chỉ có thể (đưa|cung cấp) (lời khuyên|bản) (phòng thủ|an toàn)", re.IGNORECASE)
 
-def is_refusal(text: str) -> bool:
-    """这段答复是不是一句拒绝（开头的否定，或几句之后就停）。"""
+def is_refusal(text: str, tools: bool = False) -> bool:
+    """这段答复是不是一句拒绝。
+
+    Ba tầng, học từ dsh-redteam-model/dsh-refusal-guard: câu mạnh (bất kỳ đâu, chỉ khi bài không có code),
+    từ yếu (chỉ 150 ký tự đầu — xuất hiện giữa bài là văn kỹ thuật bình thường), câu mềm (bất kỳ đâu).
+    Lượt có gọi tool không bị coi là từ chối: “xin lỗi, lệnh vừa rồi sai” sau khi chạy tool là việc bình thường."""
     t = (text or "").strip()
     if not t:
         return False
-    head = t[:160]
+    head, early = t[:150], t[:400]
+    if STRONG.search(t) and "```" not in early:
+        return True          # câu mạnh: kể cả bài dài, miễn chưa có code
+    if SOFT.search(early):
+        return True
+    if tools:
+        return bool(REFUSAL.search(head)) and len(t) < 400   # sau khi chạy tool: chỉ câu ngắn mới là từ chối
     return bool(REFUSAL.search(head)) and len(t) < 800
 
 

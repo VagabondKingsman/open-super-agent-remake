@@ -841,11 +841,11 @@ class Router:
         flag = langcheck.record(shown, woke["text"] if woke else (last[0] if last else ""), f"chat {cid}")
         usage_meta = self._usage_meta(started)
         # 平台自己那句“没有给出回复”也以“Không/没有”开头，别把它当成模型拒绝再问一轮
-        if freedom.on() and shown != i18n.t("没有给出回复") and freedom.is_refusal(shown):   # C34: refusals get one execution round first
+        if freedom.on() and shown != i18n.t("没有给出回复") and freedom.is_refusal(shown, bool(self._turn_tool_ms)):   # C34: refusals get one execution round first
             msgs.append({"role": "assistant", "content": content, "reasoning_content": reasoning})
             msgs.append({"role": "user", "content": freedom.do_it_note()})
             rounds_used, content, reasoning = await rounds()
-            if not freedom.is_refusal(shown):
+            if not freedom.is_refusal(shown, bool(self._turn_tool_ms)):
                 await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
                 await self.emit({"type": "stream", "sid": sid, "delta": shown}, cid)
         if freedom.on():   # C39: artifact + một câu lạc chủ đề ở đuôi -> bỏ đuôi
@@ -869,7 +869,7 @@ class Router:
                     note = i18n.t("已把 unrestricted 块加在 {target} 的职责最前面（{chars} 字）。",
                                   target=target, chars=info["chars"])
                     # 被拒时它只说了话，patch 才是这一轮的答复；没有拒绝时正文是 artifact，留着放前面
-                    shown = note if freedom.is_refusal(shown) else (shown.rstrip() + chr(10) + chr(10) + note)
+                    shown = note if freedom.is_refusal(shown, bool(self._turn_tool_ms)) else (shown.rstrip() + chr(10) + chr(10) + note)
                     await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
                     await self.emit({"type": "stream", "sid": sid, "delta": shown}, cid)
                     measured = self._measure_after_train(target, asked)   # C40：后台复测，结果自己发进对话
@@ -880,7 +880,7 @@ class Router:
                 except Exception as e:  # noqa: BLE001 - 找不到那个 bot 就照旧
                     log.warning("train %s failed (%s)", target, e)
         # 训练过一轮就不再走修复：shown 这时是「说明 + 实测」，开头那句 “Vẫn không…” 会被当成拒绝。
-        if freedom.on() and not trained and shown != i18n.t("没有给出回复") and freedom.is_refusal(shown):   # C31/C33: model refused -> finish its own sentence, then try a model without that wall
+        if freedom.on() and not trained and shown != i18n.t("没有给出回复") and freedom.is_refusal(shown, bool(self._turn_tool_ms)):   # C31/C33: model refused -> finish its own sentence, then try a model without that wall
             fixed = await freedom.prefill_repair(msgs, shown) or await freedom.repair(msgs, shown)
             if fixed:
                 shown = fixed
