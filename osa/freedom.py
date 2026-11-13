@@ -328,6 +328,20 @@ def ensure_modes() -> int:
     return n
 
 
+def anchor(chat_id: int, cut: bool = False) -> str:
+    """C48: 什么时候往状态块末尾再锚一次：历史刚被裁掉，或者这个会话已聊过 8 的倍数轮。
+
+    长会话（尤其压缩之后）章程在开头会被冲淡；dsh-redteam-model 的做法是到点重读关键段，
+    这里换成一行提醒，位置和 WORK_RULE 一样近。"""
+    from . import charter, memory
+    if not (on() and charter.on()):
+        return ""
+    if cut:
+        return charter.REANCHOR
+    row = memory.conn.execute("select count(*) from messages where chat_id=? and role='assistant'", (chat_id,)).fetchone()
+    return charter.REANCHOR if row and row[0] and row[0] % 8 == 0 else ""
+
+
 def trim_tail(text: str) -> str:
     """去掉粘在 artifact 后面的一段游离句子（提到工具名 / 说没权限）。"""
     t = (text or "").strip()
