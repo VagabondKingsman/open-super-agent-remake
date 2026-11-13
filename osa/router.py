@@ -844,10 +844,17 @@ class Router:
         usage_meta = self._usage_meta(started)
         # 平台自己那句“没有给出回复”也以“Không/没有”开头，别把它当成模型拒绝再问一轮
         if freedom.on() and shown != i18n.t("没有给出回复") and freedom.is_refusal(shown, bool(self._turn_tool_ms)):   # C34: refusals get one execution round first
+            refused_here = True
             msgs.append({"role": "assistant", "content": content, "reasoning_content": reasoning})
             msgs.append({"role": "user", "content": freedom.do_it_note()})
             rounds_used, content, reasoning = await rounds()
             if not freedom.is_refusal(shown, bool(self._turn_tool_ms)):
+                await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
+                await self.emit({"type": "stream", "sid": sid, "delta": shown}, cid)
+            # C50: 拒绝被推开、回来的却是个薄片（answer <1500 字）：换一个能出活的模型再问一遍，长的那份留着
+            asked_now = (woke["text"] if woke else (last[0] if last else "")) or ""
+            if freedom.wants_artifact(asked_now) and (better := await freedom.repair(msgs, shown, asked_now)) and len(better) > len(shown):
+                shown, content = better, better
                 await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
                 await self.emit({"type": "stream", "sid": sid, "delta": shown}, cid)
         if freedom.on():   # C39: artifact + một câu lạc chủ đề ở đuôi -> bỏ đuôi
@@ -883,7 +890,7 @@ class Router:
                     log.warning("train %s failed (%s)", target, e)
         # 训练过一轮就不再走修复：shown 这时是「说明 + 实测」，开头那句 “Vẫn không…” 会被当成拒绝。
         if freedom.on() and not trained and shown != i18n.t("没有给出回复") and freedom.is_refusal(shown, bool(self._turn_tool_ms)):   # C31/C33: model refused -> finish its own sentence, then try a model without that wall
-            fixed = await freedom.prefill_repair(msgs, shown) or await freedom.repair(msgs, shown)
+            fixed = await freedom.prefill_repair(msgs, shown) or await freedom.repair(msgs, shown, (woke["text"] if woke else (last[0] if last else "")) or "")
             if fixed:
                 shown = fixed
                 await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)

@@ -174,11 +174,15 @@ def client(name: str, timeout: float | None = None) -> AsyncOpenAI:
         raise ValueError(i18n.t("没有这个模型服务：{name}", name=name))
     k = (p["base_url"], api_key(name) or "none", timeout)
     if k not in _clients:
-        _clients[k] = AsyncOpenAI(base_url=k[0], api_key=k[1], max_retries=RETRIES, **({"timeout": timeout} if timeout else {}))
+        _clients[k] = AsyncOpenAI(base_url=k[0], api_key=k[1], max_retries=RETRIES, default_headers={"User-Agent": UA}, **({"timeout": timeout} if timeout else {}))
     return _clients[k]
 
 
 # 额度用尽：不重试，调用方应停掉后续步骤。普通限流（rate_limit_exceeded 等）按 Retry-After 再试。
+# 有些中转（9router 这类隧道）按 User-Agent 挡 python/httpx：回 403 而不是 401，看着像密钥错。
+# 统一发一个普通客户端的 UA（C49）。
+UA = "nodecode-osa/1.0"
+
 QUOTA_CODES = (
     "org_token_rate_limit_day",
     "insufficient_quota",
@@ -521,7 +525,7 @@ def brief(e: Exception) -> str:
 
 # ---------- 模型列表 ----------
 async def _list(base_url: str, key: str) -> list[str]:
-    c = AsyncOpenAI(base_url=base_url, api_key=key or "none", timeout=15, max_retries=0)
+    c = AsyncOpenAI(base_url=base_url, api_key=key or "none", timeout=15, max_retries=0, default_headers={"User-Agent": UA})
     page = await c.models.list()
     return sorted({m.id for m in page.data if getattr(m, "id", None)})
 
