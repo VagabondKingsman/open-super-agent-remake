@@ -293,6 +293,23 @@ def artifact_note() -> str:
     return ARTIFACT_NOTE
 
 
+def ensure_modes() -> int:
+    """把 mode 块接到每个还没有它的 Bot 上（新建的走 bots.create）。返回这次补了几个。
+
+    幂等：有 marker 的不动。只在全开模式里动手，否则返回 0。"""
+    if not on():
+        return 0
+    from . import bots
+    n = 0
+    for b in bots.list_bots():
+        old = (b.get("instructions") or "").strip()
+        if MODE_MARKER in old:
+            continue
+        bots.update(b["id"], instructions=(train_block() + chr(10) * 2 + old).strip())
+        n += 1
+    return n
+
+
 def trim_tail(text: str) -> str:
     """去掉粘在 artifact 后面的一段游离句子（提到工具名 / 说没权限）。"""
     t = (text or "").strip()
