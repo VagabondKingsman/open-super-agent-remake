@@ -17,7 +17,7 @@ from fastapi import Body, FastAPI, HTTPException, Request, WebSocket, WebSocketD
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.background import BackgroundTask
-from . import backup
+from . import backup, idle
 backup.apply_pending()   # 确认过的恢复：在打开数据库之前换上
 # A7：应用自己的日志（警告、出错的对话、后台任务）和 uvicorn 的访问日志一起落到 logs/osa.log。
 # uvicorn 只给自己的 logger 配了格式，这里给其余的补上时间和来处，否则文件里只剩一句“对话 1 出错”，看不出什么时候、是谁。
@@ -807,6 +807,38 @@ async def backup_confirm():
 async def backup_cancel():
     backup.cancel()
     return {"ok": True}
+
+
+_idle_restart_task: asyncio.Task | None = None   # đang chờ Bot rảnh để restart
+log = logging.getLogger(__name__)
+
+
+async def _restart_when_idle(max_wait: float) -> None:
+    """等闲下来再换进程；等不到就只说一句，不硬来。"""
+    was = idle.waiting()
+    log.info("restart queued while idle (now: %s)", was)
+    if await idle.wait_until_idle(max_wait):
+        await broadcast({"type": "restarting"})
+        backup.request_restart(delay=1.0)
+    else:
+        log.warning("restart still not idle after %ss, staying on the old code", max_wait)
+
+
+@app.post("/api/system/restart")
+async def system_restart(when: str = "", max: int = 1800):
+    """自己重启（改完一处要它生效）：execv 用同样的命令行换掉进程，PID 不变，不碰 systemd。
+
+    when=idle：等到没有一轮对话、没有任务在跑才换（见 osa/idle.py），不掐掉 Bot 正在做的事。
+    max 是最多等多少秒（默认 1800）；等不到就放弃，不硬重启。"""
+    global _idle_restart_task
+    if when == "idle":
+        if _idle_restart_task and not _idle_restart_task.done():
+            return {"queued": True, "already": True, **idle.waiting()}
+        _idle_restart_task = asyncio.create_task(_restart_when_idle(max))
+        return {"queued": True, **idle.waiting()}
+    await broadcast({"type": "restarting"})
+    backup.request_restart(delay=1.0)
+    return {"restarting": True}
 
 
 # ---------- 长期记忆 ----------

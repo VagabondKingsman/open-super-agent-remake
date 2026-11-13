@@ -120,13 +120,13 @@ def system_of(body: dict) -> str:
 
 
 def role_of(body: dict) -> tuple[str, str]:
-    """(角色, Bot 名字)。按系统提示词的开头认。"""
+    """(角色, Bot 名字)。按系统提示词认：章程（charter）会排在前面，所以是搜索而不是比开头。"""
     sys = system_of(body)
-    if m := re.match(r'You are "(.+?)"', sys):
+    if m := re.search(r'You are "(.+?)"', sys):
         return "router", m.group(1)
-    if sys.startswith("You are the Worker"):
+    if "You are the Worker" in sys:
         return "worker", ""
-    if sys.startswith("You are the reviewer"):
+    if "You are the reviewer" in sys:
         return "reviewer", ""
     return "other", ""
 

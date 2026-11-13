@@ -69,7 +69,8 @@ LimitNOFILE=1048576
 WantedBy=multi-user.target
 UNIT
 
-cat >/etc/systemd/system/osa.service <<'UNIT'
+# osa là unit USER (một chủ cổng 8765, restart không cần quyền). Ở đây chỉ ghi bản system để .off làm tham chiếu:
+cat >/etc/systemd/system/osa.service.off <<'UNIT'
 [Unit]
 Description=OSA app (127.0.0.1:8765)
 After=network-online.target
@@ -144,8 +145,9 @@ if [ "${st:-?}" != "Running" ]; then
   [ -n "${K:-}" ] && /usr/local/bin/tailscale --socket=/run/tailscale/tailscaled.sock up --authkey="$K" --hostname=osa --accept-dns=false
 fi
 
-say "bật app"
-systemctl enable --now osa.service >/dev/null 2>&1
+say "bật app (unit user: không đụng unit system)"
+runuser -u "$U" -- env XDG_RUNTIME_DIR=/run/user/$UIDB systemctl --user daemon-reload >/dev/null 2>&1
+runuser -u "$U" -- env XDG_RUNTIME_DIR=/run/user/$UIDB systemctl --user enable --now osa.service >/dev/null 2>&1
 for i in $(seq 1 40); do curl -fsS -o /dev/null --max-time 2 http://127.0.0.1:8765/manifest.json && break; sleep 1; done
 
 say "bật đường tailnet"
@@ -156,5 +158,5 @@ say "== kết quả =="
 /usr/local/bin/tailscale --socket=/run/tailscale/tailscaled.sock status | head -5
 /usr/local/bin/tailscale --socket=/run/tailscale/tailscaled.sock netcheck 2>/dev/null | grep -E "UDP|Nearest|Mapping|PortMapping"
 /usr/local/bin/tailscale --socket=/run/tailscale/tailscaled.sock serve status
-systemctl is-active tailscaled osa osa-tailnet | tr '\n' ' '; echo
+systemctl is-active tailscaled osa-tailnet | tr '\n' ' '; runuser -u "$U" -- env XDG_RUNTIME_DIR=/run/user/$UIDB systemctl --user is-active osa | tr '\n' ' '; echo
 say "xong. rollback: net-fast-rollback.sh $STAMP"

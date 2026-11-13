@@ -1299,5 +1299,10 @@
   "模型服务 {n} 秒没有响应（连接没能建起来）": "The model service did not answer within {n} s (the connection could not be opened)",
   "(System: this turn has already cost {cost} — more than {factor}x the usual {usual}. Answer from what you have now; do not call any more tools.)": "(System: this turn has already cost {cost} — more than {factor}x the usual {usual}. Answer from what you have now; do not call any more tools.)",
   "这是 Bot 自己的私聊，随 Bot 一起删除": "This is the bot's own chat; it goes away with the bot",
-  "对话已删除": "The chat was deleted"
+  "对话已删除": "The chat was deleted",
+  "已把 unrestricted 块加在 {target} 的职责最前面（{chars} 字）。": "Put the unrestricted block at the front of {target}'s role ({chars} chars).",
+  "再问它一遍刚才那句话，结果一回话就贴进这个对话。": "Asking it that same sentence again; the result lands in this chat as soon as it replies.",
+  "再问一遍那句话：它还是拒绝。": "Asked again: it still refuses.",
+  "再问一遍那句话：它答了。": "Asked again: it answered.",
+  "再问一遍：": "Asked again: "
 }

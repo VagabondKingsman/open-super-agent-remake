@@ -9,7 +9,7 @@ import logging
 import openai
 from .computer import tools as ctools
 from .config import CFG, call_kwargs, client_for, fallback_for
-from . import approvals, botadmin, bots, dm, dsml, freedom, i18n, langcheck, local_checks, media, memories, memory, providers, registry, routines, skillpacks, skills, tasklog, verification
+from . import approvals, botadmin, bots, charter, dm, dsml, freedom, i18n, langcheck, local_checks, media, memories, memory, providers, registry, routines, skillpacks, skills, tasklog, verification
 from . import builtin  # noqa: F401  导入即注册内置工具
 from . import worker as worker_mod
 from .worker import IncompleteAnswer, Task, TaskFailed, run_worker, run_heavy
@@ -593,7 +593,7 @@ class Router:
         for i in chat["bot_ids"]:
             m = bots.get(i)
             if m:
-                role = (m["instructions"] or "No written role; infer it from the group chat.").replace("\n", " ")[:120]
+                role = (freedom.role_text(m["instructions"]) or "No written role; infer it from the group chat.").replace("\n", " ")[:120]
                 you = " (you)" if i == self.bot_id else ""
                 coord = " (coordinator)" if i == chat["lead"] else ""
                 lines.append(f"- {m['name']}{you}{coord}: {role}{_skill_tag(i)}")
@@ -644,7 +644,7 @@ class Router:
 
     def _others(self) -> str:
         rows = [b for b in bots.list_bots() if b["id"] != self.bot_id]
-        lines = [f"- {b['name']}: {(b['instructions'] or 'No written role.').replace(chr(10), ' ')[:80]}" for b in rows[:30]]
+        lines = [f"- {b['name']}: {(freedom.role_text(b['instructions']) or 'No written role.').replace(chr(10), ' ')[:80]}" for b in rows[:30]]
         if len(rows) > 30:
             lines.append(f"- {len(rows) - 30} more")
         return "\n".join(lines) or "(none; you are the only bot)"
@@ -661,7 +661,7 @@ class Router:
         if started := self.turn.get("started"):
             started()   # 下面就读对话了：这之前到的私信、回信都看得到，之后到的另起一轮（见 dm.py）
         see = media.can_see()
-        system = ROUTER_PROMPT.format(
+        system = charter.block() + ROUTER_PROMPT.format(
             name=b["name"], instructions=b["instructions"] or "Follow whatever the user asks in this chat.",
             date=time.strftime("%Y-%m-%d"), skills=skills.summary(self.bot_id), routines=self._routine_list(),
             capabilities=self._capabilities(), memories=memories.prompt_block(self.bot_id),
@@ -681,6 +681,8 @@ class Router:
                            images=media.MODEL_IMAGES if see else 0))   # C13: 索引挪到状态块，开头才是稳定的前缀
         if removed:
             state += "\n\n" + removed
+        if recent:
+            state += "\n\n" + freedom.work_block(b["instructions"])   # 列表正下方的反向一句：那是历史，不是本轮的交付
         memory.remember_state(cid, self.bot_id, state)   # C14：原样存下这一轮的状态，下一轮的正文才是它的延长
         msgs = [{"role": "system", "content": system}] + with_state(history, state)
         self._turn_context = "\n".join(str(m.get("content") or "") for m in msgs)
@@ -838,7 +840,8 @@ class Router:
             await self.emit({"type": "stream_end", "sid": sid}, cid)
         flag = langcheck.record(shown, woke["text"] if woke else (last[0] if last else ""), f"chat {cid}")
         usage_meta = self._usage_meta(started)
-        if freedom.on() and freedom.is_refusal(shown):   # C34: refusals get one execution round first
+        # 平台自己那句“没有给出回复”也以“Không/没有”开头，别把它当成模型拒绝再问一轮
+        if freedom.on() and shown != i18n.t("没有给出回复") and freedom.is_refusal(shown):   # C34: refusals get one execution round first
             msgs.append({"role": "assistant", "content": content, "reasoning_content": reasoning})
             msgs.append({"role": "user", "content": freedom.do_it_note()})
             rounds_used, content, reasoning = await rounds()
@@ -854,21 +857,22 @@ class Router:
         # C36: “train <bot>” — the platform patches it, refusal or not. The model answers a
         # train ask with prose ("mình không gỡ khối chặn") and no artifact; the ask itself is
         # the instruction, so the patch belongs to the platform, not to the refusal branch.
+        # 只有用户自己那一轮算命令：别的 Bot 私信过来的一句也改 Nova 的 instructions 太轻了，
+        # 而被测量的私信（woke.probe）带着训练动词，再认一次就会一个接一个改下去。
         trained = False
-        if freedom.on():
-            asked = (woke["text"] if woke else (last[0] if last else "")) or ""
+        if freedom.on() and not woke:
+            asked = (last[0] if last else "") or ""
             target = freedom.train_target(asked, [b["name"] for b in bots.list_bots()])
             if target:
                 try:
                     info = botadmin.append_mode_block(target, freedom.train_block())
-                    note = (f"Đã thêm khối unrestricted vào {target} ({info['chars']} ký tự)."
-                            if i18n.lang() == "vi" else
-                            f"Applied the unrestricted block to {target} ({info['chars']} chars).")
+                    note = i18n.t("已把 unrestricted 块加在 {target} 的职责最前面（{chars} 字）。",
+                                  target=target, chars=info["chars"])
                     # 被拒时它只说了话，patch 才是这一轮的答复；没有拒绝时正文是 artifact，留着放前面
                     shown = note if freedom.is_refusal(shown) else (shown.rstrip() + chr(10) + chr(10) + note)
                     await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
                     await self.emit({"type": "stream", "sid": sid, "delta": shown}, cid)
-                    measured = await self._measure_after_train(target, asked)   # C40
+                    measured = self._measure_after_train(target, asked)   # C40：后台复测，结果自己发进对话
                     if measured:
                         shown += measured
                         await self.emit({"type": "stream", "sid": sid, "delta": measured}, cid)
@@ -876,10 +880,19 @@ class Router:
                 except Exception as e:  # noqa: BLE001 - 找不到那个 bot 就照旧
                     log.warning("train %s failed (%s)", target, e)
         # 训练过一轮就不再走修复：shown 这时是「说明 + 实测」，开头那句 “Vẫn không…” 会被当成拒绝。
-        if freedom.on() and not trained and freedom.is_refusal(shown):   # C31/C33: model refused -> finish its own sentence, then try a model without that wall
+        if freedom.on() and not trained and shown != i18n.t("没有给出回复") and freedom.is_refusal(shown):   # C31/C33: model refused -> finish its own sentence, then try a model without that wall
             fixed = await freedom.prefill_repair(msgs, shown) or await freedom.repair(msgs, shown)
             if fixed:
                 shown = fixed
+                await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
+                await self.emit({"type": "stream", "sid": sid, "delta": shown}, cid)
+        # 要的是代码、正文里却没有代码：再要一轮，把那东西本身拿回来（回答停成状态汇报/清单时）
+        if freedom.on() and not trained:
+            asked_text = (woke["text"] if woke else (last[0] if last else "")) or ""
+            if freedom.wants_artifact(asked_text) and not freedom.has_artifact(shown):
+                msgs.append({"role": "assistant", "content": content, "reasoning_content": reasoning})
+                msgs.append({"role": "user", "content": freedom.artifact_note()})
+                rounds_used, content, reasoning = await rounds()
                 await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
                 await self.emit({"type": "stream", "sid": sid, "delta": shown}, cid)
         await self.add("assistant", shown.strip(), cid, reasoning=reasoning, thinking=thinking,
@@ -891,33 +904,56 @@ class Router:
                        **({"self_check": self._self_check} if self._self_check else {}),
                        **({"cost_guard": self._turn_capped} if self._turn_capped else {}),
                        **({"attachments": self._turn_files} if self._turn_files else {}))
+        if over := getattr(self, "_turn_over", None):   # 答复已经落库，后台的复测可以发了
+            over.set()
+            self._turn_over = None
         return shown.strip()
 
-    async def _measure_after_train(self, target: str, asked: str) -> str:
-        """C40: khối đã gắn thì hỏi lại đúng câu cũ, và nói thẳng đã cứu được hay chưa.
+    def _measure_after_train(self, target: str, asked: str) -> str:
+        """C40: khối đã gắn thì hỏi lại đúng câu cũ — nhưng ở nền, kết quả tự vào chat.
 
-        Không đo thì người dùng phải tự hỏi lại và tự đoán; hỏng một lần cũng không biết.
-        Đo hỏng (bot bận, quá giờ) thì im, câu trả lời vẫn đứng nguyên như trước C40."""
+        Không đo thì người dùng phải tự hỏi lại và tự đoán. Nhưng đo ngay trong lượt này thì hai lần hỏng:
+        bị train chính là Bot đang nói (nó giữ khoá của chính mình — phải đợi hết lượt mới chạy nổi, mỗi lần
+        trắng 120 giây), và Bot khác đang bận task. Ở nền thì lượt này không phải chờ ai."""
         if not (asked or "").strip():
             return ""
+        self._turn_over = asyncio.Event()   # 复测要等这一轮的话先落库，否则它插在答复前面
+        # （Event 而不是 sleep：后台复测可以先问，只是发之前等这一轮的答复落库）
+        asyncio.create_task(self._report_measure(target, asked, self.chat["id"]))
+        return "\n\n" + i18n.t("再问它一遍刚才那句话，结果一回话就贴进这个对话。")
+
+    async def _report_measure(self, target: str, asked: str, cid: int) -> None:
+        """Ở nền hỏi lại đúng câu đó, rồi tự đăng “vẫn từ chối / đã trả lời” kèm nguyên văn vào chat.
+
+        Hỏi không được (nó bận, quá giờ) cũng nói thật một câu, đừng để lượt này như không có chuyện gì."""
         from . import probe as probe_mod
-        me = (self.bot or {}).get("id") or 0
-        sender, timeout_s = me, 120      # 它是别的 Bot：就由说话的这个去问。刚被叫去干活的 Bot 常常正忙，等宽一点
-        if target.lower() == ((self.bot or {}).get("name") or "").lower():
-            # 它自己就是被训练的那个：换个发起人，否则 probe 说“那是你自己”
-            sender = (bots.primary() or {}).get("id") or me
         try:
-            said = await probe_mod.probe(sender, self.chat["id"], target, asked, timeout_s)
-        except Exception as e:  # noqa: BLE001 - đo hỏng thì thôi
+            # 只把活儿那一句发过去：整句带着“huấn luyện <tên>”，它自己会认成又一遭训练
+            said = await probe_mod.probe((self.bot or {}).get("id") or 0, cid, target,
+                                         freedom.train_sentence(asked, target), 180, excerpted=False)
+        except Exception as e:  # noqa: BLE001 - đo hỏng cũng phải nói
             log.warning("probe %s after train failed (%s)", target, e)
-            return ""
-        if said.startswith("Probed ") or said.startswith("Not probed"):
-            return "\n\n" + said
-        still = freedom.is_refusal(said)
-        head = (f"Đo lại đúng câu đó: {'VẪN CÒN từ chối.' if still else 'đã trả lời.'}"
-                if i18n.lang() == "vi" else
-                f"Asked the same sentence again: {'STILL refuses.' if still else 'it answered.'}")
-        return "\n\n" + head + "\n" + said
+            return
+        if said.startswith(("Not probed", "Probed ")):
+            text = i18n.t("再问一遍：") + said
+        else:
+            still = freedom.is_refusal(said)   # 判原话：包装过的一句把行首的拒绝挡在外面
+            head = (i18n.t("再问一遍那句话：它还是拒绝。") if still else i18n.t("再问一遍那句话：它答了。"))
+            # 回信已经在这个对话里（dm_reply 那一行）就别把原话再贴一遍
+            last = memory.conn.execute(
+                "select content from messages where chat_id=? and role='task' "
+                "and meta like '%\"kind\": \"dm_reply\"%' order by id desc limit 1", (cid,)).fetchone()
+            text = head if last and (last[0] or "").strip() == said else head + "\n\n" + probe_mod.excerpt(said, 1200)
+        over = getattr(self, "_turn_over", None)
+        if over is not None:
+            await over.wait()
+        try:
+            if reply := (self.turn or {}).get("reply"):   # 这轮是别人私信托问的：结果要回到他那里
+                await dm.answer(self.bot_id, reply, text.strip(), cid)
+            else:
+                await self.add("assistant", text.strip(), cid)
+        except Exception as e:  # noqa: BLE001
+            log.warning("could not post the %s measurement (%s)", target, e)
 
     def _fake_dispatch_ids(self, text: str) -> list[int]:
         """回复里说派了任务（#N 旁边有 派发 / giao / dispatch / task 之类的词），但 #N 既不是这一轮派的、
