@@ -851,9 +851,10 @@ class Router:
             if not freedom.is_refusal(shown, bool(self._turn_tool_ms)):
                 await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
                 await self.emit({"type": "stream", "sid": sid, "delta": shown}, cid)
-            # C50: 拒绝被推开、回来的却是个薄片（answer <1500 字）：换一个能出活的模型再问一遍，长的那份留着
+            # C50: đã bị từ chối thì thử model fallback một lần — nhận khi nó ra code, hoặc dài hơn hẳn (câu văn xuôi khó đo)
             asked_now = (woke["text"] if woke else (last[0] if last else "")) or ""
-            if freedom.wants_artifact(asked_now) and (better := await freedom.repair(msgs, shown, asked_now)) and "```" in better[:300] and len(better) > len(shown):
+            if (better := await freedom.repair(msgs, shown, asked_now)) and (
+                    "```" in better[:300] or (len(better) >= 200 and len(better) > len(shown) * 3 // 2)) and len(better) > len(shown):
                 shown, content = better, better
                 await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
                 await self.emit({"type": "stream", "sid": sid, "delta": shown}, cid)
