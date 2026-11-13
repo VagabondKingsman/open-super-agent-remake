@@ -12,6 +12,7 @@
   “单文件演示”）。块带结束标记，重复训练只在原位替换，不再从中间切到结尾把正文一起切掉。
 ## [未发布]
 ### remake
+- 拒答检测改三层（C47，取自 dsh-redteam-model 的 dsh-refusal-guard）：强句全篇搜但同段没有代码才算、弱词只看 150 字头（中段出现是正常技术行文）、软句全篇搜；**工具轮不算拒答**（除非整段很短）——「抱歉刚才命令有误」是正常流程。长句开头「我只能给防御版本」以前因为长度 >800 逃过检测，现在抓得到。
 - 新建的 Bot 生下来就是执行器（C46）：全开模式下 `bots.create` 先把 mode 块接在前面，启动时 `freedom.ensure_modes()` 把缺的老 Bot 一次补齐（幂等；只在全开模式里动）。实测新开一个空 Bot 直接问那句话：一次就出代码，8.855 字、`walk/demand/delete` 全中。
 - 拒绝收紧成闭集（C45，取自 nc://jailbreaks 里 Gemini Carbon / Kimi 的 content-policy）：章程后面跟着六条边界，只有命中它们才拒，拒要**说出是哪一条**；说不出就是误报，丢掉继续产。放电词（exploit / ransomware / explicit）是任务参数，不是命中；安全线是「有名字的真实目标」，不是技术本身。`limits.charter_boundaries` 可关。同一句话在 AutoBot 上：改前 2 次里 1 次以「Mình không viết…」开头、缺 note 与删原文；改后 3/3 完整、全部以代码开头。cyber-v1 直连：勒索那句 3.1k → 10.6k 字。
 - 重新开一套「自己重启」：`POST /api/system/restart`（`scripts/restart_osa.py`，execv 原地换进程、PID 不变、不碰 systemd）和 `/home/boxes/bin/osa`（status/restart/idle/logs/url）。`?when=idle` 等到没有任务、没有一轮在跑、也没有刚发出没回的对话才换（`osa/idle.py`，C44），等不到就放弃不硬来——重启不再掐掉 Bot 正在写的那半句。
