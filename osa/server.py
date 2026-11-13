@@ -809,6 +809,17 @@ async def backup_cancel():
     return {"ok": True}
 
 
+@app.post("/api/system/restart")
+async def system_restart():
+    """自己重启（改完一处要它生效）：execv 用同样的命令行换掉进程，PID 不变，不碰 systemd。
+
+    单子是 root 的，重启要 sudo；这里走的是备份恢复用的那条路（request_restart → 关停钩子 execv），
+    所以只要还有登录态就能自己换上新代码。"""
+    await broadcast({"type": "restarting"})
+    backup.request_restart(delay=1.0)
+    return {"restarting": True}
+
+
 # ---------- 长期记忆 ----------
 @app.get("/api/bots/{bot_id}/memories")
 async def list_memories(bot_id: int):
