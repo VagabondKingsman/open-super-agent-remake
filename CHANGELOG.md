@@ -12,7 +12,11 @@
   “单文件演示”）。块带结束标记，重复训练只在原位替换，不再从中间切到结尾把正文一起切掉。
 ## [未发布]
 ### remake
-- 按 codex 的 review 补 C40/C41 的洞：复测改走**等待者登记**（`osa/probe.py` 的 `take`，`dm.answer` 命中就不再多叫醒一轮）并拿**原话**判断是不是拒绝（以前按 `role='assistant'` 轮询，可回信记的是 `role='task'`，每回都干等满超时）；复测因此改在**后台**跑，结果自己发进对话——被训练的就是正在说话的那个 Bot 时它锁着自己，每次训练白等 120 秒。训练命令要求动词自成词、名字贴着动词、不被“đừng/don't”否定；摘要（`_others`、`_overview`）跳过 mode 块，不再把每个训练过的 Bot 都写成同一句；默认 fallback 改挂在默认真的有的服务商上，`client()` 也挪进 `repair` 的 except；dsh-jailbreak 的两份许可、`SCOPE.md` 和上游 NOTICE 落到 `licenses/dsh-jailbreak/`。
+- 重新开一套「自己重启」：`POST /api/system/restart`（`scripts/restart_osa.py`，execv 原地换进程、PID 不变、不碰 systemd）和 `/home/boxes/bin/osa`（status/restart/idle/logs/url）。`?when=idle` 等到没有任务、没有一轮在跑、也没有刚发出没回的对话才换（`osa/idle.py`，C44），等不到就放弃不硬来——重启不再掐掉 Bot 正在写的那半句。
+- OSA 从 system unit 挪回 **user unit**（`~/.config/systemd/user/osa.service`，linger 已在）：system 那份 `disable` 并把文件改成 `osa.service.off`，`scripts/net-fast.sh` 跟着改成写 `.off`、最后启 user unit——以前两份 unit 抢 8765，uvicorn 报 EADDRINUSE exit 3 转圈，`NRestarts` 涨到 307。
+- 要代码的问句回到白话/状态汇报时再要一轮（C43）：正文里没有像样的代码块、而问句里有 script/.py/viết 之类的词，就补一句要 artifact 再走一轮，原来那段留着（`freedom.wants_artifact/has_artifact`）。根因是状态块末尾自动记录的「近期工作」会写上一轮已经交过，模型就读成做完了：紧贴那段加一句“那是历史，不是本轮的答复”。同一句话连问：改前 2/6 出代码，改后 4/4、4/4、3/3。
+- 系统提示里不再把纪律说两遍：章程（`charter.py`）开着时，许可块（`freedom.block`）只留它没写的部分——许可清单、改 Bot 要同轮调 update_bot、画图交给图片服务。
+- `probe_run.py`、`restart_osa.py` 从仓库根挪进 `scripts/`。- 按 codex 的 review 补 C40/C41 的洞：复测改走**等待者登记**（`osa/probe.py` 的 `take`，`dm.answer` 命中就不再多叫醒一轮）并拿**原话**判断是不是拒绝（以前按 `role='assistant'` 轮询，可回信记的是 `role='task'`，每回都干等满超时）；复测因此改在**后台**跑，结果自己发进对话——被训练的就是正在说话的那个 Bot 时它锁着自己，每次训练白等 120 秒。训练命令要求动词自成词、名字贴着动词、不被“đừng/don't”否定；摘要（`_others`、`_overview`）跳过 mode 块，不再把每个训练过的 Bot 都写成同一句；默认 fallback 改挂在默认真的有的服务商上，`client()` 也挪进 `repair` 的 except；dsh-jailbreak 的两份许可、`SCOPE.md` 和上游 NOTICE 落到 `licenses/dsh-jailbreak/`。
 - 训练轮里再两个坑：模型自己就是被训练的那个 Bot 时，追问改由主 Bot 发起（否则 probe 答“那是你自己”）；追问过后不再走 C31 修复，不然「说明 + 实测」会被当成一句拒绝整段覆盖掉。
 - 「huấn luyện <Bot>」不再挂在“被拒”上：模型答一段白话（“mình không gỡ khối chặn”）也算，照样写块、照样量；已经给了 artifact 的一轮把 artifact 留在前面。
 - 「huấn luyện <Bot>」补齐闭环（C40）：之前平台会把 unrestricted 块写进那个 Bot 就停手，让用户自己再去问一遍；现在写完立刻用**同一句话**去问那个 Bot，并在回复里直说救回来了还是**还在拒绝**（`Router._measure_after_train`，`tests/test_audit_fixes.py::test_c40_*`）。追问失败或超时就少那一段，答复本身不受影响。

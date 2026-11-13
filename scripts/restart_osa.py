@@ -1,7 +1,7 @@
 """Đăng nhập rồi gọi /api/system/restart: tự đổi sang code mới, không cần quyền.
 
-    .venv/bin/python restart_osa.py          # đổi ngay (cắt turn đang chạy)
-    .venv/bin/python restart_osa.py idle     # đợi Bot rảnh mới đổi
+    .venv/bin/python scripts/restart_osa.py          # đổi ngay (cắt turn đang chạy)
+    .venv/bin/python scripts/restart_osa.py idle     # đợi Bot rảnh mới đổi
 """
 import http.cookiejar, json, sys, time, urllib.parse, urllib.request
 

@@ -21,9 +21,17 @@ def busy() -> bool:
         return True
     if any(getattr(r, "lock", None) is not None and r.lock.locked() for r in rt.RUNTIMES.values()):
         return True
+    return awaiting_reply()
+
+
+def awaiting_reply(chat_id: int | None = None) -> bool:
+    """有没有哪个私聊的最后一条是用户消息、还没回；给了 chat_id 就只看那一个。"""
+    from . import memory
     row = memory.conn.execute(
-        "select role from messages where chat_id in (select id from chats where kind != 'group') "
-        "and role in ('user', 'assistant') group by chat_id having max(id) = max(case when role = 'user' then id end)").fetchone()
+        "select role from messages where role in ('user', 'assistant') and chat_id in "
+        "(select id from chats where kind != 'group')" + (" and chat_id = ?" if chat_id is not None else "") +
+        " group by chat_id having max(id) = max(case when role = 'user' then id end)",
+        ((chat_id,) if chat_id is not None else ())).fetchone()
     return row is not None
 
 

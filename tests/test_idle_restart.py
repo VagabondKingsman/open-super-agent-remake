@@ -17,6 +17,7 @@ class FakeTask:
 
 
 def test_busy_reads_tasks_and_locks(monkeypatch):
+    monkeypatch.setattr(idle, "awaiting_reply", lambda: False)
     async def main():
         assert idle.busy() is False
         monkeypatch.setattr(rt, "TASKS", {7: FakeTask(7, "running")})
@@ -32,15 +33,13 @@ def test_busy_reads_tasks_and_locks(monkeypatch):
     asyncio.run(main())
 
 
-async def test_an_unanswered_user_message_is_busy(monkeypatch, make_bot):
+async def test_an_unanswered_user_message_is_busy(make_bot):
     from osa import memory
-    monkeypatch.setattr(rt, "TASKS", {})
-    monkeypatch.setattr(rt, "RUNTIMES", {})
     bot = make_bot("Cho")
     memory.add("user", "câu vừa gửi", bot["chat_id"])
-    assert idle.busy() is True          # 还没回：换进程会把话吞掉
+    assert idle.awaiting_reply(bot["chat_id"]) is True    # 还没回：换进程会把话吞掉
     memory.add("assistant", "đã trả lời", bot["chat_id"])
-    assert idle.busy() is False
+    assert idle.awaiting_reply(bot["chat_id"]) is False
 
 
 async def test_wait_until_idle_needs_a_quiet_stretch(monkeypatch):
