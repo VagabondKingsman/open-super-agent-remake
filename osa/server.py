@@ -23,7 +23,7 @@ backup.apply_pending()   # 确认过的恢复：在打开数据库之前换上
 # uvicorn 只给自己的 logger 配了格式，这里给其余的补上时间和来处，否则文件里只剩一句“对话 1 出错”，看不出什么时候、是谁。
 LOG_FORMAT = "%(asctime)s %(levelname).1s %(name)s: %(message)s"
 logging.basicConfig(level=os.environ.get("OSA_LOG_LEVEL", "INFO").upper(), format=LOG_FORMAT)
-from . import applets, approvals, auth, avatars, botadmin, bots, catalog, channels, computer, dm, events, groups, i18n, library, mcp_hub, media, memories, memory, push, router as rt, routines
+from . import applets, approvals, auth, avatars, botadmin, bots, catalog, channels, charter, computer, dm, events, freedom, groups, i18n, library, mcp_hub, media, memories, memory, push, router as rt, routines
 from . import mcpapps, observe, outputs, prices, providers, search, security, settings, skills, skillpacks, tasklog, teach, templates, unfurl, vault
 from . import worker as worker_mod
 from . import config
@@ -101,6 +101,8 @@ async def lifespan(app):
     bots.ensure_default()
     tasklog.startup()   # 上次没做完的任务标成“已中断”，清掉太旧的任务过程
     settings.apply()
+    if (n := freedom.ensure_modes()):   # 全开模式：老的 Bot 也一律补上 mode 块（幂等，C46）
+        logging.getLogger("osa").info("unrestricted mode block added to %s bot(s)", n)
     skillpacks.ensure_defaults()
     routines.import_legacy(bots.primary()["id"])
     await mcp_hub.start()

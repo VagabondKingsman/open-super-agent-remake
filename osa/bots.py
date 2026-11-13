@@ -105,6 +105,11 @@ def _next_id() -> int:
 
 
 def create(name: str, avatar: dict | None = None, instructions: str = "", is_primary: bool = False) -> dict:
+    """建一个 Bot。全开模式开着就先接上 mode 块——新建的 Bot 生下来就是执行器，不是客服（C46）。"""
+    from . import freedom
+    instructions = (instructions or "").strip()
+    if freedom.on() and freedom.MODE_MARKER not in instructions:
+        instructions = (freedom.train_block() + chr(10) * 2 + instructions).strip()
     n = conn.execute("select count(*) from bots").fetchone()[0]
     if n >= MAX_BOTS:
         raise ValueError(i18n.t("最多 {n} 个 Bot", n=MAX_BOTS))
