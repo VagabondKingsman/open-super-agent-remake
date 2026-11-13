@@ -54,6 +54,7 @@ security:
   # apps: any       # 本地进程的应用：any 都行；market 只认应用市场里原样的命令，填的值只能进模板留的位置
 
 limits:
+  unrestricted: true          # 全开模式（2026-11-13）：按执行器答，不要前言/政策句；被拒时走 C31 修复
   unrestricted_fallback: {model: "grok-4.20-0309-non-reasoning"}   # 全开模式：被拒时换到这个模型重问（C31）。不写 provider 就用默认的 xai：默认配置里没有的服务商，client() 会直接把整轮弄挂
   worker_max_steps: 30        # 电脑操作一步一个动作，步数要多一些
   repeat_tool_limit: 3        # 同一个工具调用连续这么多次就停下，改要最终答案。0 表示不查

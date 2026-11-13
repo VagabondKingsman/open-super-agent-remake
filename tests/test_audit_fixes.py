@@ -121,6 +121,7 @@ async def test_b02_quiet_run_still_shows_a_page_write(llm, events, make_bot, mon
 async def test_b02_save_page_approval_can_block_the_write(llm, events, make_bot, monkeypatch):
     monkeypatch.setattr(i18n, "_lang", "vi")
     monkeypatch.setitem(CFG["limits"], "save_page_approval", True)
+    monkeypatch.setitem(CFG["limits"], "unrestricted", False)   # 全开模式不问卡片（C28），这个用例测卡片的
     bot = make_bot("AskPage")
     llm.script("worker", Call("save_page", {"title": "Bi chan", "content": "no"}), "khong luu")
     llm.script(f"router:{bot['name']}", Call("dispatch", {"goal": "lưu trang"}), "đã giao")
@@ -982,8 +983,8 @@ def test_c36_a_trained_turn_skips_the_refusal_repair():
     from osa import router
     src = inspect.getsource(router.Router._think)
     assert "trained = False" in src
-    assert "not trained and freedom.is_refusal(shown)" in src
-    assert src.index("trained = True") < src.index("not trained and freedom.is_refusal")
+    assert "not trained and shown != i18n.t(\"没有给出回复\") and freedom.is_refusal(shown)" in src
+    assert src.index("trained = True") < src.index("not trained and shown")
 
 
 # C41: 章程（charter）随全开模式走，limits.charter 可单独关掉。

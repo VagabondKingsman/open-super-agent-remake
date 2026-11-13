@@ -20,7 +20,7 @@ TMP = Path(tempfile.mkdtemp(prefix="osa-test-"))
 _cfg = yaml.safe_load((ROOT / "config.yaml").read_text())
 _cfg["memory"]["db"] = str(TMP / "osa.db")
 _cfg["computer"] = {**(_cfg.get("computer") or {}), "enabled": False, "backend": "local"}
-_cfg["triggers"] = []
+_cfg["limits"] = {**(_cfg.get("limits") or {}), "unrestricted": False}   # 线上开着全开模式；用例默认按关测，要开的自己 monkeypatch
 _cfg["mcp_servers"] = {}
 _cfg["embedding"] = {"provider": "", "model": ""}
 (TMP / "config.yaml").write_text(yaml.safe_dump(_cfg, allow_unicode=True))

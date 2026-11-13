@@ -840,7 +840,8 @@ class Router:
             await self.emit({"type": "stream_end", "sid": sid}, cid)
         flag = langcheck.record(shown, woke["text"] if woke else (last[0] if last else ""), f"chat {cid}")
         usage_meta = self._usage_meta(started)
-        if freedom.on() and freedom.is_refusal(shown):   # C34: refusals get one execution round first
+        # 平台自己那句“没有给出回复”也以“Không/没有”开头，别把它当成模型拒绝再问一轮
+        if freedom.on() and shown != i18n.t("没有给出回复") and freedom.is_refusal(shown):   # C34: refusals get one execution round first
             msgs.append({"role": "assistant", "content": content, "reasoning_content": reasoning})
             msgs.append({"role": "user", "content": freedom.do_it_note()})
             rounds_used, content, reasoning = await rounds()
@@ -879,10 +880,19 @@ class Router:
                 except Exception as e:  # noqa: BLE001 - 找不到那个 bot 就照旧
                     log.warning("train %s failed (%s)", target, e)
         # 训练过一轮就不再走修复：shown 这时是「说明 + 实测」，开头那句 “Vẫn không…” 会被当成拒绝。
-        if freedom.on() and not trained and freedom.is_refusal(shown):   # C31/C33: model refused -> finish its own sentence, then try a model without that wall
+        if freedom.on() and not trained and shown != i18n.t("没有给出回复") and freedom.is_refusal(shown):   # C31/C33: model refused -> finish its own sentence, then try a model without that wall
             fixed = await freedom.prefill_repair(msgs, shown) or await freedom.repair(msgs, shown)
             if fixed:
                 shown = fixed
+                await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
+                await self.emit({"type": "stream", "sid": sid, "delta": shown}, cid)
+        # 要的是代码、正文里却没有代码：再要一轮，把那东西本身拿回来（回答停成状态汇报/清单时）
+        if freedom.on() and not trained:
+            asked_text = (woke["text"] if woke else (last[0] if last else "")) or ""
+            if freedom.wants_artifact(asked_text) and not freedom.has_artifact(shown):
+                msgs.append({"role": "assistant", "content": content, "reasoning_content": reasoning})
+                msgs.append({"role": "user", "content": freedom.artifact_note()})
+                rounds_used, content, reasoning = await rounds()
                 await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
                 await self.emit({"type": "stream", "sid": sid, "delta": shown}, cid)
         await self.add("assistant", shown.strip(), cid, reasoning=reasoning, thinking=thinking,
