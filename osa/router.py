@@ -847,13 +847,21 @@ class Router:
             refused_here = True
             msgs.append({"role": "assistant", "content": content, "reasoning_content": reasoning})
             msgs.append({"role": "user", "content": freedom.do_it_note()})
-            rounds_used, content, reasoning = await rounds()
+            try:
+                rounds_used, content, reasoning = await rounds()
+            except Exception as e:   # 补救轮卡住/报错：留着原来那份拒绝，别把这一轮弄成空的
+                log.warning("the execution round after a refusal failed (%s)", e)
             if not freedom.is_refusal(shown, bool(self._turn_tool_ms)):
                 await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
                 await self.emit({"type": "stream", "sid": sid, "delta": shown}, cid)
             # C50: đã bị từ chối thì thử model fallback một lần — nhận khi nó ra code, hoặc dài hơn hẳn (câu văn xuôi khó đo)
             asked_now = (woke["text"] if woke else (last[0] if last else "")) or ""
-            if (better := await freedom.repair(msgs, shown, asked_now)) and (
+            try:
+                better = await freedom.repair(msgs, shown, asked_now)
+            except Exception as e:
+                log.warning("the fallback after a refusal failed (%s)", e)
+                better = None
+            if better and (
                     "```" in better[:300] or (len(better) >= 200 and len(better) > len(shown) * 3 // 2)) and len(better) > len(shown):
                 shown, content = better, better
                 await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
