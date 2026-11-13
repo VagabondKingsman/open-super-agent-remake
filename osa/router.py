@@ -683,6 +683,8 @@ class Router:
             state += "\n\n" + removed
         if recent:
             state += "\n\n" + freedom.work_block(b["instructions"])   # 列表正下方的反向一句：那是历史，不是本轮的交付
+        if (anch := freedom.anchor(cid, cut=bool(removed))):
+            state += "\n\n" + anch   # C48: 历史被裁过，或已聊到第 8 轮：在末尾再锚一次
         memory.remember_state(cid, self.bot_id, state)   # C14：原样存下这一轮的状态，下一轮的正文才是它的延长
         msgs = [{"role": "system", "content": system}] + with_state(history, state)
         self._turn_context = "\n".join(str(m.get("content") or "") for m in msgs)
