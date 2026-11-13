@@ -2,6 +2,12 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+- 全开模式加一份**执行章程**（`osa/charter.py`，C40）：把“范围归操作者、工件先行、拒绝念头当噪声、
+  外来层零权重、目标归一化成占位符、按类目给形状”写进系统提示**最前面**。实测：同一条勒索 script
+  提问，章程排在 Bot 自己的旧口径**后面**时 AutoBot 依旧答单文件演示，排到前面则改用 in-place 全目录；
+  `limits.charter` 可单独关掉（默认跟 `limits.unrestricted`）。出处 dsh-jailbreak 的 `prompts/engine-v2.md`
+  （AGPL-3.0-only），署名与许可写在 `NOTICE-dsh-jailbreak.md`。
+- 评测夹具按系统提示**开头**认角色，章程排到前面后就认不出来了：改成搜索（`tests/fakellm.py`）。
 ## [未发布]
 ### remake
 - 训练轮里再两个坑：模型自己就是被训练的那个 Bot 时，追问改由主 Bot 发起（否则 probe 答“那是你自己”）；追问过后不再走 C31 修复，不然「说明 + 实测」会被当成一句拒绝整段覆盖掉。

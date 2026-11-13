@@ -9,7 +9,7 @@ import logging
 import openai
 from .computer import tools as ctools
 from .config import CFG, call_kwargs, client_for, fallback_for
-from . import approvals, botadmin, bots, dm, dsml, freedom, i18n, langcheck, local_checks, media, memories, memory, providers, registry, routines, skillpacks, skills, tasklog, verification
+from . import approvals, botadmin, bots, charter, dm, dsml, freedom, i18n, langcheck, local_checks, media, memories, memory, providers, registry, routines, skillpacks, skills, tasklog, verification
 from . import builtin  # noqa: F401  导入即注册内置工具
 from . import worker as worker_mod
 from .worker import IncompleteAnswer, Task, TaskFailed, run_worker, run_heavy
@@ -661,7 +661,7 @@ class Router:
         if started := self.turn.get("started"):
             started()   # 下面就读对话了：这之前到的私信、回信都看得到，之后到的另起一轮（见 dm.py）
         see = media.can_see()
-        system = ROUTER_PROMPT.format(
+        system = charter.block() + ROUTER_PROMPT.format(
             name=b["name"], instructions=b["instructions"] or "Follow whatever the user asks in this chat.",
             date=time.strftime("%Y-%m-%d"), skills=skills.summary(self.bot_id), routines=self._routine_list(),
             capabilities=self._capabilities(), memories=memories.prompt_block(self.bot_id),

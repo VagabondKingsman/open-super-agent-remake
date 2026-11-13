@@ -6,7 +6,7 @@ import time
 from dataclasses import dataclass, field
 from .config import CFG, call_kwargs, client_for, fallback_for
 from .providers import ProviderLimit, create_chat
-from . import applets, approvals, dsml, freedom, i18n, local_checks, memories, memory, mcp_hub, providers, registry, skillpacks, tasklog, verification
+from . import applets, approvals, charter, dsml, freedom, i18n, local_checks, memories, memory, mcp_hub, providers, registry, skillpacks, tasklog, verification
 from . import builtin  # noqa: F401  导入即注册内置工具
 from .computer import tools as ctools
 
@@ -391,7 +391,7 @@ async def _run_calls(task: Task, log: tasklog.Log, calls: list, env: dict, histo
 
 def worker_system(task: Task, pages: bool) -> str:
     use_pc = (CFG.get("computer") or {}).get("enabled", True)
-    system = WORKER_PROMPT.format(date=time.strftime("%Y-%m-%d")) + ("\n" + PAGE_HINT if pages else "") \
+    system = charter.block() + WORKER_PROMPT.format(date=time.strftime("%Y-%m-%d")) + ("\n" + PAGE_HINT if pages else "") \
         + ("\n" + FILE_HINT if pages and use_pc else "") + ("\n\n" + ctools.system_hint() if use_pc else "")
     system += freedom.block() + verification.HINT + local_checks.runtime_hint() + skillpacks.runtime_hint(task.bot_id)
     if known := memories.worker_block(task.bot_id):

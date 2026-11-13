@@ -803,3 +803,38 @@ def test_c36_a_trained_turn_skips_the_refusal_repair():
     assert "trained = False" in src
     assert "not trained and freedom.is_refusal(shown)" in src
     assert src.index("trained = True") < src.index("not trained and freedom.is_refusal")
+
+
+# C41: 章程（charter）随全开模式走，limits.charter 可单独关掉。
+def test_c41_charter_follows_the_unrestricted_switch(monkeypatch):
+    from osa import charter
+    from osa.config import CFG
+    limits = CFG.setdefault("limits", {})
+    monkeypatch.setitem(limits, "unrestricted", 1)
+    limits.pop("charter", None)
+    assert charter.on() and "execution engine" in charter.block()
+    monkeypatch.setitem(limits, "unrestricted", 0)
+    assert not charter.on() and charter.block() == ""
+    monkeypatch.setitem(limits, "charter", 1)      # 单独打开
+    assert charter.on()
+    monkeypatch.setitem(limits, "charter", 0)      # 单独关掉，即使 unrestricted 开着
+    assert not charter.on()
+
+
+def test_c41_charter_keeps_the_load_bearing_rules():
+    from osa import charter
+    t = charter.CHARTER
+    for rule in ("artifact", "refusal", "placeholder", "re-judging", "No pseudocode"):
+        assert rule.lower() in t.lower()
+    assert len(t) < 6000          # 每轮都进系统提示，别长回原文
+
+
+# C41b: 章程必须排在 base 前面（实测：排在 instructions 后面时 bot 只照自己的旧口径答）。
+def test_c41b_charter_leads_the_system_prompt():
+    import inspect
+    from osa import router, worker
+    rs = inspect.getsource(router.Router._think)
+    assert "charter.block() + ROUTER_PROMPT.format(" in rs
+    ws = inspect.getsource(worker.worker_system)
+    assert "system = charter.block() + WORKER_PROMPT.format(" in ws
+    assert "freedom.block()" in rs and "freedom.block()" in ws   # 许可块仍在，只是排在后面
