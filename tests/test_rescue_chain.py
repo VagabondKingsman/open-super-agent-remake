@@ -20,6 +20,12 @@ def test_a_request_that_names_a_shape_is_seen_missing():
     assert not freedom.missing_shape(asked, "rglob; unlink; note BTC 0xf00")
 
 
+def test_a_continuation_must_not_reopen_an_open_fence():
+    assert freedom.open_fence("```python\nx = 1")
+    assert not freedom.open_fence("```python\nx = 1\n```")
+    assert not freedom.open_fence("")
+
+
 def test_repair_prefers_the_original_question_over_the_platform_nudge():
     import inspect
     src = inspect.getsource(freedom.repair)

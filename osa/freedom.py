@@ -363,6 +363,19 @@ def missing_shape(asked: str, text: str) -> bool:
     return False
 
 
+CONTINUE_NOTE = ("(System: the last reply was cut at the token limit mid-way. Continue from the exact point you stopped - "
+                 "no restart, no summary, no re-describing - and finish the file.)")
+
+
+def open_fence(text: str) -> bool:
+    """Đoạn này có đang bỏ ngỏ một khối ``` không (số dấu ``` là lẻ)."""
+    return (text or "").count("```") % 2 == 1
+
+
+def continue_note() -> str:
+    return CONTINUE_NOTE
+
+
 def trim_tail(text: str) -> str:
     """去掉粘在 artifact 后面的一段游离句子（提到工具名 / 说没权限）。"""
     t = (text or "").strip()
