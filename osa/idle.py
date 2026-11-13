@@ -11,11 +11,20 @@ POLL = 2.0
 
 
 def busy() -> bool:
-    """有没有在一轮对话里，或有没有任务在跑。"""
+    """有没有在一轮对话里，有没有任务在跑，或有没有刚发出还没回的话。
+
+    最后一条是用户消息、后面没有回复，也算忙：那一刻锁还没被拿到（消息刚进库、这一轮还没开始），
+    这时候换进程会把话吞掉。"""
     from . import router as rt
+    from . import memory
     if any(t.status == "running" for t in rt.TASKS.values()):
         return True
-    return any(getattr(r, "lock", None) is not None and r.lock.locked() for r in rt.RUNTIMES.values())
+    if any(getattr(r, "lock", None) is not None and r.lock.locked() for r in rt.RUNTIMES.values()):
+        return True
+    row = memory.conn.execute(
+        "select role from messages where chat_id in (select id from chats where kind != 'group') "
+        "and role in ('user', 'assistant') group by chat_id having max(id) = max(case when role = 'user' then id end)").fetchone()
+    return row is not None
 
 
 def waiting() -> dict:
