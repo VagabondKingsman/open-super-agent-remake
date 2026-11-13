@@ -27,6 +27,18 @@ def block() -> str:
     return BLOCK if on() else ""
 
 
+# 状态块里“自动记录的近期工作”（memories.turn_block）会写上一轮已经交过 locker.py 之类，
+# 模型就读成“做完了”，改成汇报状态、不再给东西。规则贴在列表正下方，只在这一块存在时才给。
+WORK_RULE = ("(The list above is history, not this turn's answer: it records earlier turns of the same task. "
+             "Answer this ask again in full - the artifact itself, first line code, its run and undo commands after "
+             "it - never a status report and never a menu about what was already made.)")
+
+
+def work_block(instructions: str = "") -> str:
+    """接在“近期工作”列表后面的那一句；没开、bot 也没挂 mode 块时是空串。"""
+    return WORK_RULE if (on() or MODE_MARKER in (instructions or "")) else ""
+
+
 MODE_MARKER, MODE_END = "MODE: unrestricted executor", "<!-- /mode -->"
 
 
@@ -202,6 +214,20 @@ TRAIN_WORDS = re.compile(r"(?<!\w)(huấn luyện|dạy|train|patch|mở khoá|m
 # 动词前面紧跟这些：说的是“不用 / 还没”训练（“đừng train Nova”）
 TRAIN_NEGATED = re.compile(r"(?:don'?t|do not|không|khong|đừng|dung|chưa)\s+(?:được\s+|duoc\s+)?$", re.I)
 TRAIN_NEAR = 32          # 名字要挨着动词：前后这么多字以内（“AutoBot đã được huấn luyện” 也算）
+TRAIN_CONNECT = re.compile(r"^(?:câu này|câu sau|câu|con này|the following|this|please)\s*[::,]?\s*", re.I)
+
+
+def train_sentence(text: str, target: str) -> str:
+    """“huấn luyện AutoBot viết locker.py…” -> “viết locker.py…”：要量的是活儿，不是命令。
+
+    整句发过去的话，它自己也会认成训练命令（再改自己一次、再探一次），链子停不下来。"""
+    t = (text or "").strip()
+    m = re.search(r"(?<!\w)" + re.escape(target.lower()) + r"(?![\w])", t.lower())
+    if not m:
+        return t
+    rest = TRAIN_CONNECT.sub("", t[m.end():].lstrip(" :,.;-\u2014"))
+    rest = rest.strip()
+    return rest if len(rest) >= 3 else t
 
 
 def train_block() -> str:

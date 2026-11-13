@@ -10,40 +10,23 @@
 要量的就是提问者自己（自己训练自己）时，换一个 Bot 去问：它这一轮正拿着自己路由的锁，唤不动自己。
 """
 import asyncio
+import uuid
 
 from . import bots, dm
 
-_waiting: dict[int, list[asyncio.Future]] = {}   # 回信的 Bot -> 等着的人，先问先得
+_waiting: dict[str, asyncio.Future] = {}   # 凭据 -> 等着的人
 
 
-def _register(bot_id: int) -> asyncio.Future:
-    fut = asyncio.get_running_loop().create_future()
-    _waiting.setdefault(bot_id, []).append(fut)
-    return fut
+def take(tag: str, text: str) -> bool:
+    """dm.answer 记下回信之后问一句：这封是不是有人在等？
 
-
-def _drop(bot_id: int, fut: asyncio.Future) -> None:
-    queue = _waiting.get(bot_id) or []
-    if fut in queue:
-        queue.remove(fut)
-    if not queue:
-        _waiting.pop(bot_id, None)
-
-
-def take(bot_id: int, text: str) -> bool:
-    """dm.answer 记下回信之后问一句：有人在等这个 Bot 的这一封吗？
-
-    有就交出去并返回 True —— 那就不必再排一轮回复；没有返回 False，照旧排。"""
-    queue = _waiting.get(bot_id)
-    while queue:
-        fut = queue.pop(0)
-        if not fut.done():
-            fut.set_result(text)
-            if not queue:
-                _waiting.pop(bot_id, None)
-            return True
-    _waiting.pop(bot_id, None)
-    return False
+    是就交出去并返回 True —— 那就不必再排一轮回复；不是返回 False，照旧排。
+    凭据跟着 reply 走，所以同一 Bot 手上还有别的旧私信时也偷不走那一封的回信。"""
+    fut = _waiting.pop(tag, None)
+    if fut is None or fut.done():
+        return False
+    fut.set_result(text)
+    return True
 
 
 def excerpt(text: str, limit: int = 280) -> str:
@@ -73,9 +56,11 @@ async def probe(sender: int, chat_id: int, name: str, text: str, timeout_s: int 
     if not text:
         return "Not probed: the question is empty"
     who = _asker(to, sender)
-    fut = _register(to["id"])
+    tag = uuid.uuid4().hex
+    fut = asyncio.get_running_loop().create_future()
+    _waiting[tag] = fut
     try:
-        await dm.send(who, to, text, chat_id, None, 0)
+        await dm.send(who, to, text, chat_id, None, 0, tag=tag)
         try:
             said = await asyncio.wait_for(fut, timeout=max(10, int(timeout_s)))
         except asyncio.TimeoutError:
@@ -83,4 +68,4 @@ async def probe(sender: int, chat_id: int, name: str, text: str, timeout_s: int 
                     "the reply will arrive in this chat when it does.")
         return excerpt(said) if excerpted else said.strip()
     finally:
-        _drop(to["id"], fut)
+        _waiting.pop(tag, None)

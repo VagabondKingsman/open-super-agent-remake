@@ -39,8 +39,11 @@ async def _message(chat_id: int, content: str, bot_id: int, **meta) -> int:
     return mid
 
 
-async def send(sender: int, to: dict, text: str, origin: int, owed: dict | None, depth: int) -> str:
-    """sender 在 origin 对话里私信 to。owed 是 sender 这一轮欠谁回信，depth 是这一轮的深度。返回给模型看的结果。"""
+async def send(sender: int, to: dict, text: str, origin: int, owed: dict | None, depth: int,
+               tag: str | None = None) -> str:
+    """sender 在 origin 对话里私信 to。owed 是 sender 这一轮欠谁回信，depth 是这一轮的深度。返回给模型看的结果。
+
+    tag 是等这封回信的凭据（probe 用）：回信带着它回来，只交给等它的那一个，不认成同一 Bot 别的回信。"""
     text = (text or "").strip()
     if not text:
         return "Not sent: the DM text is empty"
@@ -48,10 +51,13 @@ async def send(sender: int, to: dict, text: str, origin: int, owed: dict | None,
         return (f"Not sent: bots have already forwarded this {MAX_DEPTH} times. "
                 "Stop, tell the user the current state, and wait for them.")
     reply = {"bot": sender, "chat": origin, "depth": depth + 1, "then": owed}
+    woke = {"kind": "dm", "from": sender, "text": text}
+    if tag:
+        reply["probe"] = tag   # 回信带着的原样凭据
+        woke["probe"] = True   # 这一轮是被测量：自己别再把它当训练命令
     await _message(origin, text, sender, kind="dm", to=to["id"])
     await _message(to["chat_id"], text, sender, kind="dm", to=to["id"], chat=origin)   # chat：从哪个对话发来的
-    asyncio.create_task(wake(to["id"], to["chat_id"], {"reply": reply, "depth": depth + 1,
-                                                       "woke": {"kind": "dm", "from": sender, "text": text}}))
+    asyncio.create_task(wake(to["id"], to["chat_id"], {"reply": reply, "depth": depth + 1, "woke": woke}))
     return (f"{DM_SENT_PREFIX} {to['name']}. Their reply returns to this chat automatically; "
             "you will speak again then. Do not wait now.")
 
@@ -67,8 +73,8 @@ async def answer(sender: int, reply: dict, text: str, from_chat: int, **meta):
     await _message(from_chat, i18n.t("[已回复 {name}]", name=to["name"]), sender, kind="dm_reply", to=to["id"], sent=True, chat=cid)
     await _message(cid, text, sender, kind="dm_reply", to=to["id"], **meta)
     from . import probe   # probe 顶层要 dm，只能在函数里取
-    if probe.take(sender, text):
-        return            # 有人正等着这一封（probe_bot / 训练后的复测）：原话已经交给它，不必再叫醒谁
+    if reply.get("probe") and probe.take(reply["probe"], text):
+        return            # 就是等着的这一封（probe_bot / 训练后的复测）：原话已经交给它，不必再叫醒谁
     asyncio.create_task(wake(to["id"], cid, {"reply": reply["then"], "depth": reply["depth"],
                                              "woke": {"kind": "reply", "from": sender, "text": text}}))
 

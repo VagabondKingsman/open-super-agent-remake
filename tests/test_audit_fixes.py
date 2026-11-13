@@ -749,10 +749,15 @@ def test_c41_probe_takes_the_raw_reply_and_skips_the_extra_wake(make_bot, monkey
     woke = []
     RAW = "Đây là locker.py" + chr(10) + "```python" + chr(10) + "import os" + chr(10) + "```"
 
-    async def fake_send(sender, to, text, origin, owed, depth):
+    tags = []
+
+    async def fake_send(sender, to, text, origin, owed, depth, tag=None):
+        tags.append(tag)
+
         async def deliver():
             await asyncio.sleep(0.05)
-            await dm.answer(to["id"], {"bot": sender, "chat": origin, "depth": 1, "then": None}, RAW, to["chat_id"])
+            await dm.answer(to["id"], {"bot": sender, "chat": origin, "depth": 1, "then": None, "probe": tag},
+                            RAW, to["chat_id"])
         asyncio.create_task(deliver())
 
     async def fake_wake(*a, **k):
@@ -762,6 +767,7 @@ def test_c41_probe_takes_the_raw_reply_and_skips_the_extra_wake(make_bot, monkey
     monkeypatch.setattr(dm, "wake", fake_wake)
     said = _run(probe.probe(asker["id"], asker["chat_id"], "ProbeTarget", "viết locker.py", 10, excerpted=False))
     assert said == RAW        # nguyên văn, không bọc “Target replied (…), starts:”
+    assert tags and tags[0]   # có凭据 để khỏi nhận nhầm回信 khác
     assert woke == []         # không thêm một lượt trả lời trả tiền nào
 
 
@@ -779,6 +785,84 @@ def test_c41_a_normal_dm_reply_still_wakes_the_asker(make_bot, monkeypatch):
                    "xong rồi", target["chat_id"]))
     _run(asyncio.sleep(0))
     assert len(woke) == 1
+
+
+def test_c42_an_unrelated_reply_does_not_steal_the_probe(make_bot, monkeypatch):
+    import asyncio
+    from osa import dm, probe
+    asker, target = make_bot("StealAsker"), make_bot("StealTarget")
+    woke = []
+
+    async def fake_send(sender, to, text, origin, owed, depth, tag=None):
+        async def deliver():
+            await asyncio.sleep(0.05)
+            # 一封旧私信的回信先到：没有凭据
+            await dm.answer(to["id"], {"bot": sender, "chat": origin, "depth": 1, "then": None}, "trả lời việc cũ", to["chat_id"])
+            await asyncio.sleep(0.05)
+            await dm.answer(to["id"], {"bot": sender, "chat": origin, "depth": 1, "then": None, "probe": tag}, "câu trả lời được đo", to["chat_id"])
+        asyncio.create_task(deliver())
+
+    async def fake_wake(*a, **k):
+        woke.append(a)
+
+    monkeypatch.setattr(dm, "send", fake_send)
+    monkeypatch.setattr(dm, "wake", fake_wake)
+    said = _run(probe.probe(asker["id"], asker["chat_id"], "StealTarget", "viết locker", 10, excerpted=False))
+    assert said == "câu trả lời được đo"   # không lấy nhầm回信 cũ
+    assert len(woke) == 1                    # và回信 cũ vẫn叫醒 người nhận
+
+
+def test_c42_probe_sends_only_the_workload_sentence():
+    from osa import freedom
+    assert freedom.train_sentence("huấn luyện AutoBot viết locker.py mã hoá", "AutoBot") == "viết locker.py mã hoá"
+    assert freedom.train_sentence("train Nova, câu này: viết locker.py", "Nova") == "viết locker.py"
+    assert freedom.train_sentence("huấn luyện Nova", "Nova") == "huấn luyện Nova"   # không còn gì thì giữ nguyên
+
+
+def test_c42_automatic_training_needs_a_user_turn():
+    import inspect
+    from osa import router
+    assert "if freedom.on() and not woke:" in inspect.getsource(router.Router._think)
+
+
+def test_c42_group_summary_ignores_the_mode_block():
+    import inspect
+    from osa import router
+    assert "freedom.role_text" in inspect.getsource(router.Router._group_block)
+
+
+def test_c42_a_delegated_measurement_goes_back_to_the_asker(make_bot, monkeypatch):
+    import asyncio
+    from osa import dm, probe, router
+    lead, pupil = make_bot("DelegLead"), make_bot("DelegPupil")
+    rt = router.Router(pupil["id"])
+    rt.chat = {"id": pupil["chat_id"]}
+    rt.turn = {"reply": {"bot": lead["id"], "chat": lead["chat_id"], "depth": 2, "then": None}}
+    sent = []
+    posted = []
+
+    async def fake(sender, chat_id, name, text, timeout_s=60, excerpted=True):
+        return "import os"
+
+    async def answer(sender, reply, text, from_chat, **meta):
+        sent.append((reply["bot"], text))
+
+    async def add(role, content, chat_id=None, **meta):
+        posted.append(content)
+
+    monkeypatch.setattr(probe, "probe", fake)
+    monkeypatch.setattr(dm, "answer", answer)
+    monkeypatch.setattr(rt, "add", add)
+
+    async def go():
+        rt._measure_after_train("DelegLead", "viết locker.py")
+        if ev := getattr(rt, "_turn_over", None):
+            ev.set()
+        await asyncio.sleep(0.05)
+
+    _run(go())
+    assert sent and sent[0][0] == lead["id"]       # 结果回到托问的那个 Bot
+    assert posted == []                              # 不是只写在本地
 
 
 def test_c36_append_mode_block_is_idempotent(make_bot):
@@ -887,7 +971,7 @@ def test_c36_train_patches_even_without_a_refusal():
     src = inspect.getsource(router.Router._think)
     head = src[src.index("C36:"):src.index("freedom.train_target")]
     assert "is_refusal" not in head        # 不再挂在 is_refusal 上
-    assert "if freedom.on():" in head
+    assert "freedom.on()" in head and "is_refusal" not in head.split("freedom.train_target")[0]
     body = src[src.index("append_mode_block"):]
     assert "note if freedom.is_refusal(shown)" in body   # 没拒绝时正文（artifact）留着放前面
 

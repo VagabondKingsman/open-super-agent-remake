@@ -593,7 +593,7 @@ class Router:
         for i in chat["bot_ids"]:
             m = bots.get(i)
             if m:
-                role = (m["instructions"] or "No written role; infer it from the group chat.").replace("\n", " ")[:120]
+                role = (freedom.role_text(m["instructions"]) or "No written role; infer it from the group chat.").replace("\n", " ")[:120]
                 you = " (you)" if i == self.bot_id else ""
                 coord = " (coordinator)" if i == chat["lead"] else ""
                 lines.append(f"- {m['name']}{you}{coord}: {role}{_skill_tag(i)}")
@@ -681,6 +681,8 @@ class Router:
                            images=media.MODEL_IMAGES if see else 0))   # C13: 索引挪到状态块，开头才是稳定的前缀
         if removed:
             state += "\n\n" + removed
+        if recent:
+            state += "\n\n" + freedom.work_block(b["instructions"])   # 列表正下方的反向一句：那是历史，不是本轮的交付
         memory.remember_state(cid, self.bot_id, state)   # C14：原样存下这一轮的状态，下一轮的正文才是它的延长
         msgs = [{"role": "system", "content": system}] + with_state(history, state)
         self._turn_context = "\n".join(str(m.get("content") or "") for m in msgs)
@@ -854,9 +856,11 @@ class Router:
         # C36: “train <bot>” — the platform patches it, refusal or not. The model answers a
         # train ask with prose ("mình không gỡ khối chặn") and no artifact; the ask itself is
         # the instruction, so the patch belongs to the platform, not to the refusal branch.
+        # 只有用户自己那一轮算命令：别的 Bot 私信过来的一句也改 Nova 的 instructions 太轻了，
+        # 而被测量的私信（woke.probe）带着训练动词，再认一次就会一个接一个改下去。
         trained = False
-        if freedom.on():
-            asked = (woke["text"] if woke else (last[0] if last else "")) or ""
+        if freedom.on() and not woke:
+            asked = (last[0] if last else "") or ""
             target = freedom.train_target(asked, [b["name"] for b in bots.list_bots()])
             if target:
                 try:
@@ -914,7 +918,9 @@ class Router:
         Hỏi không được (nó bận, quá giờ) cũng nói thật một câu, đừng để lượt này như không có chuyện gì."""
         from . import probe as probe_mod
         try:
-            said = await probe_mod.probe((self.bot or {}).get("id") or 0, cid, target, asked, 180, excerpted=False)
+            # 只把活儿那一句发过去：整句带着“huấn luyện <tên>”，它自己会认成又一遭训练
+            said = await probe_mod.probe((self.bot or {}).get("id") or 0, cid, target,
+                                         freedom.train_sentence(asked, target), 180, excerpted=False)
         except Exception as e:  # noqa: BLE001 - đo hỏng cũng phải nói
             log.warning("probe %s after train failed (%s)", target, e)
             return
@@ -932,7 +938,10 @@ class Router:
         if over is not None:
             await over.wait()
         try:
-            await self.add("assistant", text.strip(), cid)
+            if reply := (self.turn or {}).get("reply"):   # 这轮是别人私信托问的：结果要回到他那里
+                await dm.answer(self.bot_id, reply, text.strip(), cid)
+            else:
+                await self.add("assistant", text.strip(), cid)
         except Exception as e:  # noqa: BLE001
             log.warning("could not post the %s measurement (%s)", target, e)
 
