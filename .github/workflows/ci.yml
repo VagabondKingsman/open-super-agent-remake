@@ -13,7 +13,7 @@ concurrency:   # a new push to the same PR/branch cancels the stale run
 jobs:
   backend:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30   # bộ test ~110s ở máy thường, nhưng runner chậm có lúc quá 15 phút (xfvb + Chrome + sandbox)
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
