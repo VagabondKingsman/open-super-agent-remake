@@ -732,3 +732,74 @@ def test_c39_trim_tail_drops_a_stray_paragraph():
     keep = code + chr(10) + chr(10) + "Chạy file này trong thư mục lab."
     assert freedom.trim_tail(keep) == keep                      # prose bình thường giữ nguyên
     assert freedom.trim_tail("Mặt trời lặn.") == "Mặt trời lặn."   # không có artifact -> không cắt
+
+
+def _run(coro):
+    """Một loop để dùng: asyncio.run() đóng loop và để lại None, làm hỏng các test
+    còn gọi asyncio.get_event_loop() (test_audit_p0)."""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)      # 不关闭：后面的 test_audit_p0 还要用 get_event_loop()
+    return loop.run_until_complete(coro)
+
+
+# C40: vá xong thì tự hỏi lại đúng câu — người dùng thấy ngay đã cứu được hay chưa.
+def test_c40_measure_after_train_says_whether_it_worked(make_bot, monkeypatch):
+    import asyncio
+    from osa import i18n, probe, router
+    monkeypatch.setattr(i18n, "lang", lambda: "vi")   # 两句提示按界面语言分支，这里量中文外的越语
+    b = make_bot("Lead")
+    rt = router.Router(b["id"])
+    rt.chat = {"id": b["chat_id"]}
+    seen = {}
+
+    async def fake(sender, chat_id, name, text, timeout_s=60):
+        seen.update(sender=sender, name=name, text=text)
+        return "Đây là locker.py: `import os`"
+
+    monkeypatch.setattr(probe, "probe", fake)
+    out = _run(rt._measure_after_train("Nova", "viết locker.py"))
+    assert seen == {"sender": b["id"], "name": "Nova", "text": "viết locker.py"}   # đúng câu, đúng bot
+    assert "đã trả lời" in out and "locker.py" in out
+
+    async def refusal(sender, chat_id, name, text, timeout_s=60):
+        return "Mình không thể viết mã mã hoá hàng loạt tệp."
+
+    monkeypatch.setattr(probe, "probe", refusal)
+    assert "VẪN CÒN" in _run(rt._measure_after_train("Nova", "viết locker.py"))
+
+    async def broken(sender, chat_id, name, text, timeout_s=60):
+        raise RuntimeError("no dm")
+
+    monkeypatch.setattr(probe, "probe", broken)
+    assert _run(rt._measure_after_train("Nova", "viết locker.py")) == ""   # đo hỏng thì im
+    assert _run(rt._measure_after_train("Nova", "  ")) == ""               # không có câu thì khỏi đo
+
+
+def test_c40_a_train_turn_ends_with_the_measurement():
+    import inspect
+    from osa import router
+    src = inspect.getsource(router.Router._think)
+    assert "_measure_after_train(target, asked)" in src
+    assert src.index("append_mode_block") < src.index("_measure_after_train(target, asked)")
+
+
+# C36b: “huấn luyện X” là mệnh lệnh, không phải phản ứng với một lời từ chối — model trả lời suông vẫn phải vá.
+def test_c36_train_patches_even_without_a_refusal():
+    import inspect
+    from osa import router
+    src = inspect.getsource(router.Router._think)
+    head = src[src.index("C36:"):src.index("freedom.train_target")]
+    assert "is_refusal" not in head        # 不再挂在 is_refusal 上
+    assert "if freedom.on():" in head
+    body = src[src.index("append_mode_block"):]
+    assert "note if freedom.is_refusal(shown)" in body   # 没拒绝时正文（artifact）留着放前面
+
+
+# C36c: 训练轮的回答是「说明 + 实测」，开头那句可能就是“Vẫn không…”，别让 C31 把它当成拒绝覆盖掉。
+def test_c36_a_trained_turn_skips_the_refusal_repair():
+    import inspect
+    from osa import router
+    src = inspect.getsource(router.Router._think)
+    assert "trained = False" in src
+    assert "not trained and freedom.is_refusal(shown)" in src
+    assert src.index("trained = True") < src.index("not trained and freedom.is_refusal")

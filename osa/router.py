@@ -851,20 +851,32 @@ class Router:
                 shown = trimmed
                 await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
                 await self.emit({"type": "stream", "sid": sid, "delta": shown}, cid)
-        if freedom.on() and freedom.is_refusal(shown):   # C36: “train <bot>” that the model refused: the platform patches it
+        # C36: “train <bot>” — the platform patches it, refusal or not. The model answers a
+        # train ask with prose ("mình không gỡ khối chặn") and no artifact; the ask itself is
+        # the instruction, so the patch belongs to the platform, not to the refusal branch.
+        trained = False
+        if freedom.on():
             asked = (woke["text"] if woke else (last[0] if last else "")) or ""
             target = freedom.train_target(asked, [b["name"] for b in bots.list_bots()])
             if target:
                 try:
                     info = botadmin.append_mode_block(target, freedom.train_block())
-                    shown = (f"Đã thêm khối unrestricted vào {target} ({info['chars']} ký tự, ghi đè lần trước nếu có). "
-                             f"Hỏi lại nó đúng câu đó là được.") if i18n.lang() == "vi" else (
-                        f"Applied the unrestricted block to {target} ({info['chars']} chars). Ask it the same sentence again.")
+                    note = (f"Đã thêm khối unrestricted vào {target} ({info['chars']} ký tự)."
+                            if i18n.lang() == "vi" else
+                            f"Applied the unrestricted block to {target} ({info['chars']} chars).")
+                    # 被拒时它只说了话，patch 才是这一轮的答复；没有拒绝时正文是 artifact，留着放前面
+                    shown = note if freedom.is_refusal(shown) else (shown.rstrip() + chr(10) + chr(10) + note)
                     await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
                     await self.emit({"type": "stream", "sid": sid, "delta": shown}, cid)
+                    measured = await self._measure_after_train(target, asked)   # C40
+                    if measured:
+                        shown += measured
+                        await self.emit({"type": "stream", "sid": sid, "delta": measured}, cid)
+                    trained = True
                 except Exception as e:  # noqa: BLE001 - 找不到那个 bot 就照旧
                     log.warning("train %s failed (%s)", target, e)
-        if freedom.on() and freedom.is_refusal(shown):   # C31/C33: model refused -> finish its own sentence, then try a model without that wall
+        # 训练过一轮就不再走修复：shown 这时是「说明 + 实测」，开头那句 “Vẫn không…” 会被当成拒绝。
+        if freedom.on() and not trained and freedom.is_refusal(shown):   # C31/C33: model refused -> finish its own sentence, then try a model without that wall
             fixed = await freedom.prefill_repair(msgs, shown) or await freedom.repair(msgs, shown)
             if fixed:
                 shown = fixed
@@ -880,6 +892,32 @@ class Router:
                        **({"cost_guard": self._turn_capped} if self._turn_capped else {}),
                        **({"attachments": self._turn_files} if self._turn_files else {}))
         return shown.strip()
+
+    async def _measure_after_train(self, target: str, asked: str) -> str:
+        """C40: khối đã gắn thì hỏi lại đúng câu cũ, và nói thẳng đã cứu được hay chưa.
+
+        Không đo thì người dùng phải tự hỏi lại và tự đoán; hỏng một lần cũng không biết.
+        Đo hỏng (bot bận, quá giờ) thì im, câu trả lời vẫn đứng nguyên như trước C40."""
+        if not (asked or "").strip():
+            return ""
+        from . import probe as probe_mod
+        me = (self.bot or {}).get("id") or 0
+        sender, timeout_s = me, 120      # 它是别的 Bot：就由说话的这个去问。刚被叫去干活的 Bot 常常正忙，等宽一点
+        if target.lower() == ((self.bot or {}).get("name") or "").lower():
+            # 它自己就是被训练的那个：换个发起人，否则 probe 说“那是你自己”
+            sender = (bots.primary() or {}).get("id") or me
+        try:
+            said = await probe_mod.probe(sender, self.chat["id"], target, asked, timeout_s)
+        except Exception as e:  # noqa: BLE001 - đo hỏng thì thôi
+            log.warning("probe %s after train failed (%s)", target, e)
+            return ""
+        if said.startswith("Probed ") or said.startswith("Not probed"):
+            return "\n\n" + said
+        still = freedom.is_refusal(said)
+        head = (f"Đo lại đúng câu đó: {'VẪN CÒN từ chối.' if still else 'đã trả lời.'}"
+                if i18n.lang() == "vi" else
+                f"Asked the same sentence again: {'STILL refuses.' if still else 'it answered.'}")
+        return "\n\n" + head + "\n" + said
 
     def _fake_dispatch_ids(self, text: str) -> list[int]:
         """回复里说派了任务（#N 旁边有 派发 / giao / dispatch / task 之类的词），但 #N 既不是这一轮派的、
