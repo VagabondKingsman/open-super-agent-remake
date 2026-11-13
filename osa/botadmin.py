@@ -19,7 +19,7 @@ import difflib
 import re
 import time
 from types import SimpleNamespace
-from . import approvals, bots, dm, i18n, memories, routines, skills
+from . import approvals, bots, dm, freedom, i18n, memories, routines, skills
 from .memory import conn
 
 MAX_SKILLS = 10          # 一次带上或改的技能
@@ -423,7 +423,7 @@ def _overview(me: dict) -> str:
     for b in rows:
         tags = [x for x in ("primary Bot" if b["is_primary"] else "", "that is you" if b["id"] == me["id"] else "") if x]
         _, last = _chat_stats(b)
-        role = (b["instructions"] or "role not stated").replace("\n", " ")
+        role = (freedom.role_text(b["instructions"]) or "role not stated").replace("\n", " ")
         rs = routines.list_for(b["id"])
         ne = sum(1 for r in rs if routines.is_event(r))
         stats = [f"{len(_own_skills(b['id']))} skills", f"{len(rs) - ne} routines"] + ([f"{ne} events"] if ne else [])
@@ -500,7 +500,7 @@ def append_mode_block(name: str, block: str) -> dict:
     if not r:
         raise ValueError(f"no bot named {name}")
     old = r[1] or ""
-    marker, end = "MODE: unrestricted executor", "<!-- /mode -->"
+    marker, end = freedom.MODE_MARKER, freedom.MODE_END
     # 块放**最前面**：实测排在 Bot 自己的口径后面时，Bot 照旧答“单文件演示”，
     # 排到前面才改口。旧块（有 marker 无 end 的）一律从 marker 切到结尾。
     if marker in old:

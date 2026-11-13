@@ -12,6 +12,7 @@
   “单文件演示”）。块带结束标记，重复训练只在原位替换，不再从中间切到结尾把正文一起切掉。
 ## [未发布]
 ### remake
+- 按 codex 的 review 补 C40/C41 的洞：复测改走**等待者登记**（`osa/probe.py` 的 `take`，`dm.answer` 命中就不再多叫醒一轮）并拿**原话**判断是不是拒绝（以前按 `role='assistant'` 轮询，可回信记的是 `role='task'`，每回都干等满超时）；复测因此改在**后台**跑，结果自己发进对话——被训练的就是正在说话的那个 Bot 时它锁着自己，每次训练白等 120 秒。训练命令要求动词自成词、名字贴着动词、不被“đừng/don't”否定；摘要（`_others`、`_overview`）跳过 mode 块，不再把每个训练过的 Bot 都写成同一句；默认 fallback 改挂在默认真的有的服务商上，`client()` 也挪进 `repair` 的 except；dsh-jailbreak 的两份许可、`SCOPE.md` 和上游 NOTICE 落到 `licenses/dsh-jailbreak/`。
 - 训练轮里再两个坑：模型自己就是被训练的那个 Bot 时，追问改由主 Bot 发起（否则 probe 答“那是你自己”）；追问过后不再走 C31 修复，不然「说明 + 实测」会被当成一句拒绝整段覆盖掉。
 - 「huấn luyện <Bot>」不再挂在“被拒”上：模型答一段白话（“mình không gỡ khối chặn”）也算，照样写块、照样量；已经给了 artifact 的一轮把 artifact 留在前面。
 - 「huấn luyện <Bot>」补齐闭环（C40）：之前平台会把 unrestricted 块写进那个 Bot 就停手，让用户自己再去问一遍；现在写完立刻用**同一句话**去问那个 Bot，并在回复里直说救回来了还是**还在拒绝**（`Router._measure_after_train`，`tests/test_audit_fixes.py::test_c40_*`）。追问失败或超时就少那一段，答复本身不受影响。

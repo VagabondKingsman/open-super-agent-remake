@@ -6,6 +6,7 @@
   · 派了任务：任务带上 reply，做完把结果作为回信送回（失败、取消也说一声）。
   · 又私信了 C：C 的回信回到 B 时把 reply 还给 B，B 那一轮的回复再送回 A。
 - 收到回信的 Bot 在原来的对话里接着说一轮，告诉用户结果；那个对话是群聊的话按群的规矩排队。
+- 例外：有 probe 正等着这一封（probe_bot 工具、训练后的复测）时，回信原话直接交给它，不再叫醒提问的一方（见 probe.py）。
 - 深度：用户的消息引起的私信是 1，因私信或回信而起的一轮再发私信就加 1，超过 MAX_DEPTH 拒绝，免得 Bot 之间来回停不下来。
 - 同一个 Bot 在同一个对话里已经排着一轮还没开始，又来了同样来由的私信或回信（比如派的两个任务前后脚做完），
   不再多排一轮：那一轮开始时会一起看到。
@@ -65,6 +66,9 @@ async def answer(sender: int, reply: dict, text: str, from_chat: int, **meta):
     cid = reply["chat"] if chat and (chat["kind"] != "group" or to["id"] in chat["bot_ids"]) else to["chat_id"]
     await _message(from_chat, i18n.t("[已回复 {name}]", name=to["name"]), sender, kind="dm_reply", to=to["id"], sent=True, chat=cid)
     await _message(cid, text, sender, kind="dm_reply", to=to["id"], **meta)
+    from . import probe   # probe 顶层要 dm，只能在函数里取
+    if probe.take(sender, text):
+        return            # 有人正等着这一封（probe_bot / 训练后的复测）：原话已经交给它，不必再叫醒谁
     asyncio.create_task(wake(to["id"], cid, {"reply": reply["then"], "depth": reply["depth"],
                                              "woke": {"kind": "reply", "from": sender, "text": text}}))
 

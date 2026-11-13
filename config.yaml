@@ -54,7 +54,7 @@ security:
   # apps: any       # 本地进程的应用：any 都行；market 只认应用市场里原样的命令，填的值只能进模板留的位置
 
 limits:
-  unrestricted_fallback: {provider: p9router, model: "cx/gpt-6-luna[1m]"}   # 全开模式：被拒时换到这个模型重问（C31）。xai 402、deepseek 401（11/12），先挂还活着的 p9router
+  unrestricted_fallback: {model: "grok-4.20-0309-non-reasoning"}   # 全开模式：被拒时换到这个模型重问（C31）。不写 provider 就用默认的 xai：默认配置里没有的服务商，client() 会直接把整轮弄挂
   worker_max_steps: 30        # 电脑操作一步一个动作，步数要多一些
   repeat_tool_limit: 3        # 同一个工具调用连续这么多次就停下，改要最终答案。0 表示不查
   answer_continuations: 1     # 最终答案是空的，或 finish_reason=length 时，再要一次完整答案

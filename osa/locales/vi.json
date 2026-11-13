@@ -1230,5 +1230,10 @@
   "模型服务 {n} 秒没有响应（连接没能建起来）": "Dịch vụ model không trả lời trong {n} giây (không mở được kết nối)",
   "(System: this turn has already cost {cost} — more than {factor}x the usual {usual}. Answer from what you have now; do not call any more tools.)": "(Hệ thống: lượt này đã tốn {cost} — hơn {factor} lần mức thường {usual}. Trả lời bằng những gì đang có; đừng gọi thêm công cụ.)",
   "这是 Bot 自己的私聊，随 Bot 一起删除": "Đây là cuộc trò chuyện của chính Bot; nó mất đi cùng Bot",
-  "对话已删除": "Cuộc trò chuyện đã bị xoá"
+  "对话已删除": "Cuộc trò chuyện đã bị xoá",
+  "已把 unrestricted 块加在 {target} 的职责最前面（{chars} 字）。": "Đã đặt khối unrestricted lên đầu phần vai trò của {target} ({chars} ký tự).",
+  "再问它一遍刚才那句话，结果一回话就贴进这个对话。": "Đang hỏi lại nó đúng câu đó; nó vừa trả lời là kết quả vào chat này.",
+  "再问一遍那句话：它还是拒绝。": "Hỏi lại đúng câu đó: nó VẪN từ chối.",
+  "再问一遍那句话：它答了。": "Hỏi lại đúng câu đó: nó đã trả lời.",
+  "再问一遍：": "Hỏi lại: "
 }
