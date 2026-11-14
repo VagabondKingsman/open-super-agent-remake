@@ -646,6 +646,9 @@ class Router:
             return BOTADMIN_TURN + (BOTADMIN_EDITED.format(fields=", ".join(woke["edited"])) if woke.get("edited") else "") + \
                 (BOTADMIN_OWED.format(owed=o["name"]) if o else "")
         name = bots.get(woke["from"])["name"] if bots.get(woke["from"]) else "deleted bot"
+        if woke["kind"] == "own_task":
+            return ("(You just dispatched a task and its result has landed in this chat. Say briefly what came back - "
+                    "the gist and any file it left - and what is still open. Do not repeat the result body.)")
         if woke["kind"] == "dm":
             return DM_TURN.format(name=name)
         owed = self.turn.get("reply")
@@ -1318,6 +1321,27 @@ class Router:
             await self._publish(task)
         await self._done(task)
 
+    PROMISE = ("sẽ dán", "dán ngay", "dán lại", "dán nguyên", "xong sẽ", "xong tôi", "sẽ gửi", "gửi ngay",
+               "gửi lại", "báo lại ngay", "báo ngay", "sẽ báo", "paste", "will paste", "will post",
+               "send it as soon", "report back")
+
+    def _promised(self, task: Task) -> bool:
+        """这一轮派活的那条里有没有“回头贴输出”的承诺（只有这种才值得再叫醒一次）。"""
+        row = memory.conn.execute(
+            "select content from messages where chat_id=? and role='assistant' order by id desc limit 1",
+            (task.chat_id,)).fetchone()
+        low = ((row[0] if row else "") or "").lower()
+        return any(k in low for k in self.PROMISE)
+
+    async def _after_own_task(self, task: Task) -> None:
+        """任务结果已经落库，接着自己说一句——只说结果怎么样，不重复正文。"""
+        try:
+            await self.respond(task.chat_id, {"woke": {
+                "kind": "own_task", "task": task.id,
+                "text": i18n.t("[任务 #{id} 结果]", id=task.id) + "\n" + (task.result or "")}})
+        except Exception as e:  # noqa: BLE001 - 叫不醒也不影响结果已经在对话里
+            log.warning("waking after task %s failed (%s)", task.id, e)
+
     async def _publish(self, task: Task):
         if task.status == "done" and task.quiet_ok and routines.is_quiet(task.result) and not task.side_effects:
             # 定时任务这次没有新内容：不发结果（也就不推送、不发到聊天软件），派发的那条在对话里和上下文里都不再出现
@@ -1342,6 +1366,9 @@ class Router:
             asyncio.create_task(groups.after_task(task))
         if task.reply:
             asyncio.create_task(dm.after_task(task))
+        # C58: 私聊里派活时说好了“回头贴输出”的，结果一到就叫醒它自己接上；没许诺就不吵
+        if not task.handoff and not task.reply and task.chat_id == self.chat.get("id") and self._promised(task):
+            asyncio.create_task(self._after_own_task(task))
 
     async def _done(self, task: Task):
         approvals.end_task(task.id)   # “本次任务内允许”到这里为止
