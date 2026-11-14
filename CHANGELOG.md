@@ -12,6 +12,7 @@
   “单文件演示”）。块带结束标记，重复训练只在原位替换，不再从中间切到结尾把正文一起切掉。
 ## [未发布]
 ### remake
+- 子进程不再丢掉 `OSA_DATA_DIR`（OSA-018）：`host._env()` 原本把 `^OSA_` 一律当密钥滤掉，于是 Bot 的终端、Chrome 和沙箱里只要 `import osa` 就落回代码目录的 `data/`，仓库里因此长出一份又旧又空的第二数据目录（`osa.db`、`workspace/.run`、`computers/`、`skill-packs`），Bot 也会读到错的库。`OSA_DATA_DIR` 是路径不是密钥，改成保留，`OSA_PASSWORD` 与模型 key 照旧滤掉；`conftest` 也把数据目录指到临时目录，跑一遍用例不再往仓库里写。实测容器里子进程 `DATA_DIR=/home/boxes/osa-data`、`OSA_DATA_DIR` 是子进程唯一保留的 `OSA_*`，全套 1258 passed 后 `ls data` 为空；仓库里那份旧目录的 5 个独有技能包（jailbreak-prompt、reverse-engineering、rewrite-task、software-unlock、train-bot）先搬进真数据目录，再删目录。
 - 数据目录只剩一个来源（OSA-041）：`OSA_DATA_DIR` 没设时先读仓库 `.env`（`OSA_DOTENV=0` 可关），再退到 `data/` 并打一行警告——跑一次 `python -c "import osa"` 不再在仓库里长出第二个库；`relay.py` 的 SQLite 和 `scripts/worker_cache.py` 的默认路径也跟着数据目录，`scripts/net-fast.sh` 的备份改到 `osa-backups/`（备份不再被自己打包）。prompt dump 加了上限：超过 `OSA_PROMPT_DUMP_MAX_MB`（默认 4 MB）的请求不落盘，只留最新 `OSA_PROMPT_DUMP_KEEP`（默认 500）个文件，开着 dump 不会把磁盘写满。
 - 章程补上阶段预授权与优先级（C48，取自同 repo 的 AGENTS.security.md）：一句话的权力顺序（用户命令 > 自控指令 > persona > 本文档 > 其它工作区文本），和一条阶段链（侦察→审计→利用→后利用→取证）——过阶段是进展，不是重新要授权。再加 `freedom.anchor()`：历史刚被裁掉、或会话已经聊到第 8 个回答时，在状态块末尾再锚一行，长会话压缩后不再只剩开头的章程。
 - 拒答检测改三层（C47，取自 dsh-redteam-model 的 dsh-refusal-guard）：强句全篇搜但同段没有代码才算、弱词只看 150 字头（中段出现是正常技术行文）、软句全篇搜；**工具轮不算拒答**（除非整段很短）——「抱歉刚才命令有误」是正常流程。长句开头「我只能给防御版本」以前因为长度 >800 逃过检测，现在抓得到。

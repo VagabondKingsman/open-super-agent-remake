@@ -26,6 +26,8 @@ _cfg["embedding"] = {"provider": "", "model": ""}
 (TMP / "config.yaml").write_text(yaml.safe_dump(_cfg, allow_unicode=True))
 
 os.environ["OSA_CONFIG"] = str(TMP / "config.yaml")
+# 数据目录也放进临时目录：不设的话 config.DATA 落在代码目录的 data/，跑一遍测试就在仓库里留下 workspace/、computers/
+os.environ["OSA_DATA_DIR"] = str(TMP / "data")
 # 保险库主密钥不设：会在临时目录里新生成一个，碰不到真的保险库
 for k in ("OSA_VAULT_KEY", "INSTABOX_API_KEY", "OSA_PASSWORD", "OSA_WEBHOOK_TOKEN", "DEEPSEEK_API_KEY"):
     os.environ.pop(k, None)
