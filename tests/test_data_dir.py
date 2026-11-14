@@ -61,6 +61,18 @@ def test_absolute_db_path_still_wins():
     assert p["apps"] == str(data / "apps")
 
 
+def test_child_commands_keep_the_data_dir(monkeypatch):
+    """Bot 的终端和沙箱里也会跑 python：子进程丢了 OSA_DATA_DIR 就会 import osa 写回代码目录的 data/。"""
+    from osa.computer import host
+    data = TMP / "child-data"
+    monkeypatch.setenv("OSA_DATA_DIR", str(data))
+    monkeypatch.setenv("OSA_PASSWORD", "s3cret")
+    monkeypatch.setenv("XAI_API_KEY", "sk-x")
+    env = host._env()
+    assert env["OSA_DATA_DIR"] == str(data)
+    assert "OSA_PASSWORD" not in env and "XAI_API_KEY" not in env
+
+
 def test_default_is_unchanged():
     p = _paths(OSA_CONFIG=str(TMP / "config.yaml"))
     assert p["db"] == str(TMP / "osa.db") and p["db_outside"] is False

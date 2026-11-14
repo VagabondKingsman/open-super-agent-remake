@@ -131,9 +131,13 @@ def _own_pids() -> set[int]:
     return out - {0}
 
 
+# 不是密钥，得跟着子进程走：子进程里 import osa 要靠它落到同一个数据目录，否则写回代码目录的 data/（OSA-018）
+KEEP_FOR_CHILD = {"OSA_DATA_DIR"}
+
+
 def _env() -> dict:
     """给控制脚本、Chrome 和终端命令的环境变量：去掉密钥和服务自己的设置（登录密码、保险库主密钥、模型的 API key）。"""
-    return {k: v for k, v in os.environ.items() if not SECRET.search(k)}
+    return {k: v for k, v in os.environ.items() if k in KEEP_FOR_CHILD or not SECRET.search(k)}
 
 
 class HostComputer(Computer):
