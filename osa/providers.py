@@ -290,12 +290,37 @@ def remember_effort_reject(base: str, model: str, effort: str):
         conn.commit()
 
 
+def _dump_keep() -> int:
+    """dump 留多少个 tệp（OSA_PROMPT_DUMP_KEEP，0 = 都留）。默认 500：一天几千个请求也就几十 MB。"""
+    try:
+        return max(0, int(os.environ.get("OSA_PROMPT_DUMP_KEEP", "500")))
+    except ValueError:
+        return 500
+
+
+def _prune_dumps(d: str, keep: int) -> None:
+    """只留最新的 keep 个 .json；按修改时间排，名字的先后不算数。"""
+    if keep <= 0:
+        return
+    try:
+        files = [e for e in os.scandir(d) if e.is_file() and e.name.endswith(".json")]
+        if len(files) <= keep:
+            return
+        files.sort(key=lambda e: e.stat().st_mtime, reverse=True)
+        for e in files[keep:]:
+            os.remove(e.path)
+    except OSError:
+        log.warning("prompt dump prune failed", exc_info=True)
+
+
 def dump_prompt(kwargs: dict) -> None:
     """OSA_PROMPT_DUMP (or a "prompt-dump" file in the data dir) points at a directory: every request's
     exact body goes to its own .json file.
 
     For cache-hit work: two requests can be compared piece by piece instead of guessed at.
-    The key rides in a header, not in kwargs, so nothing secret is written."""
+    The key rides in a header, not in kwargs, so nothing secret is written.
+    A dump left on for days must not fill the disk: a body over OSA_PROMPT_DUMP_MAX_MB is skipped
+    and only the newest OSA_PROMPT_DUMP_KEEP files (500) stay."""
     d = os.environ.get("OSA_PROMPT_DUMP")
     if not d:
         marker = db_path.parent / "prompt-dump"
@@ -303,10 +328,15 @@ def dump_prompt(kwargs: dict) -> None:
             return
         d = marker.read_text(encoding="utf-8").strip() or str(db_path.parent / "prompts")
     try:
+        body = json.dumps({"ts": time.time(), **{k: v for k, v in kwargs.items() if k != "stream"}}, ensure_ascii=False)
+        limit = int(float(os.environ.get("OSA_PROMPT_DUMP_MAX_MB", "4")) * 1024 * 1024)
+        if limit > 0 and len(body) > limit:
+            return
         os.makedirs(d, exist_ok=True)
         name = re.sub(r"[^\w.-]", "_", f"{time.time():.3f}-{kwargs.get('model', 'model')}") + ".json"
         with open(os.path.join(d, name), "w", encoding="utf-8") as f:
-            json.dump({"ts": time.time(), **{k: v for k, v in kwargs.items() if k != "stream"}}, f, ensure_ascii=False)
+            f.write(body)
+        _prune_dumps(d, _dump_keep())
     except Exception:   # noqa: BLE001 - recording must never break the request
         log.warning("prompt dump failed", exc_info=True)
 

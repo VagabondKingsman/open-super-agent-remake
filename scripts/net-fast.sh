@@ -12,7 +12,7 @@ set -uo pipefail
 [ "$(id -u)" = 0 ] || { echo "cần root"; exit 1; }
 U=boxes; UIDB=1002; H=/home/boxes
 STAMP=$(date +%Y%m%d-%H%M%S)
-BK="$H/osa-data/net-backup-$STAMP"
+BK="${OSA_BACKUP_DIR:-$H/osa-backups}/net-backup-$STAMP"
 TSSTATE=/var/lib/tailscale/tailscaled.state
 say() { echo "[net-fast] $*"; }
 

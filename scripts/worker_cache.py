@@ -16,7 +16,7 @@ import json
 import os
 import sqlite3
 
-DB = os.path.join(os.environ.get("OSA_DATA_DIR", "/home/boxes/osa-data"), "osa.db")
+DB = os.path.join(os.environ.get("OSA_DATA_DIR") or os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data"), "osa.db")
 WORKER_MARK = "You are the Worker executing a task"
 
 
