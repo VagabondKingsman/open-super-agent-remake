@@ -1,5 +1,7 @@
 # Trạng thái hiện tại · 11/11/2026
 
+> 14/11: snapshot dưới đây **cũ**. Trạng thái mới nhất ở [log 13–14/11 full mode](log/2026-11-14-cursor-unrestricted-full-mode.md); head `origin/i18n-vi` = `ad6b87b`.
+
 Snapshot sau merge PR #54 (`8bc4119`) và câu ứng dụng điện thoại bỏ chữ iPhone. Phiên mới phải `git fetch origin` và `git rev-parse origin/i18n-vi` lại. SHA mới hơn thì đọc log mới hơn file này.
 
 ## Base

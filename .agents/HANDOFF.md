@@ -17,9 +17,13 @@ Repo: `VagabondKingsman/open-super-agent-remake`. Base: `i18n-vi`. Upstream `kad
 
 ## Head hiện tại
 
-Đối chiếu 11/11/2026 23:16 Asia/Saigon, sau merge [PR #51](https://github.com/VagabondKingsman/open-super-agent-remake/pull/51): `origin/i18n-vi` = `14449fd3aa68581a49ec31fee12d61e803364acf`.
+Đối chiếu 14/11/2026 17:40 Asia/Saigon, sau merge [PR #93](https://github.com/VagabondKingsman/open-super-agent-remake/pull/93): `origin/i18n-vi` = `ad6b87b7581729a8ceab5263a8067d489e8ee198`.
 
-Cùng ngày, trước đó:
+**Đọc trước tiên:** [log 13–14/11 full mode](log/2026-11-14-cursor-unrestricted-full-mode.md) — 17 PR C41–C58 về charter, sáu biên giới, cứu hộ khi bị từ chối, tự tiến hoá, đường dẫn máy ảo, handoff, ngưỡng Watchdog. Có bảng Evidence và mục **còn mở** (wake sau task chưa chứng minh trọn đường, `LEARNED SHAPES` còn rỗng, model của vai hay bị đổi ngoài ý muốn).
+
+Trước đó 11/11: [PR #51](https://github.com/VagabondKingsman/open-super-agent-remake/pull/51) merge `14449fd`.
+
+Cùng ngày 11/11, trước đó:
 
 - [PR #50](https://github.com/VagabondKingsman/open-super-agent-remake/pull/50) merge `30dfb242e5a50724198d2ae9cd40f3629cc4c410`, head `fa0372d`.
 - [PR #49](https://github.com/VagabondKingsman/open-super-agent-remake/pull/49) merge `887fd7d`.
