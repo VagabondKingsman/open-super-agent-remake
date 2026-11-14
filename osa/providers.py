@@ -401,7 +401,7 @@ async def create_chat(client, **kwargs):
         return await _bounded(caller.chat.completions.create(**kwargs), head,
                               i18n.t("模型服务 {n} 秒没有响应（连接没能建起来）", n=f"{head:g}"))
 
-    rate_attempt = transient_attempt = 0
+    rate_attempt = transient_attempt = connect_attempt = 0
     while True:
         try:
             return await open_stream()
@@ -438,12 +438,13 @@ async def create_chat(client, **kwargs):
             raise
         except openai.APIConnectionError as e:
             # 连接压根没建起来（隧道卡住、DNS 慢、TLS 握手不回来）：和 5xx 一样算暂时故障，重来。
-            # 以前这里直接冒到上层，靠上层换模型；可一次就要白等满 provider_head_s。
-            if transient_attempt >= transient_retries:
+            # 每一次都要白等 provider_connect_s，所以次数单独算、比 5xx 少：主机整个死了就快点交给上层换模型
+            # （实测一个黑洞地址：5 次就是 105 秒，2 次 45 秒）。
+            if connect_attempt >= connect_retries():
                 raise
             log.warning("model %s: connection failed (%s), retrying", kwargs.get("model"), type(e).__name__)
-            await _pause(min(0.5 * (2 ** transient_attempt), cap))
-            transient_attempt += 1
+            await _pause(min(0.5 * (2 ** connect_attempt), cap))
+            connect_attempt += 1
             continue
 
 
@@ -473,6 +474,11 @@ def provider_head_s() -> float:
     客户端自己的默认超时是 600 秒，比 Watchdog 的 3 分钟还长：连接卡住时任务先被 Watchdog 取消，
     一个模型调用都没发出去（线上任务 212 就是这样，3 分钟无进展、0 步）。"""
     return max(0.0, float(CFG["limits"].get("provider_head_s", 120) or 0))
+
+
+def connect_retries() -> int:
+    """建连失败时同一轮再试几次（默认 2）。每次都要白等 provider_connect_s，所以比 5xx 的次数少。"""
+    return max(0, int(CFG["limits"].get("provider_connect_retries", 2) or 0))
 
 
 def stream_retries() -> int:

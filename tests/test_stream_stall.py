@@ -431,7 +431,7 @@ def _no_connect(**kwargs):
 
 
 async def test_connection_error_is_retried(monkeypatch):
-    monkeypatch.setitem(CFG, "limits", {**CFG["limits"], "provider_transient_retries": 2})
+    monkeypatch.setitem(CFG, "limits", {**CFG["limits"], "provider_connect_retries": 2})
 
     async def no_wait(attempt):
         pass
@@ -453,7 +453,7 @@ async def test_connection_error_is_retried(monkeypatch):
 
 
 async def test_connection_error_gives_up_after_retries(monkeypatch):
-    monkeypatch.setitem(CFG, "limits", {**CFG["limits"], "provider_transient_retries": 1})
+    monkeypatch.setitem(CFG, "limits", {**CFG["limits"], "provider_connect_retries": 1})
 
     async def no_wait(attempt):
         pass
@@ -479,3 +479,25 @@ def test_connect_timeout_sits_well_below_the_head_timeout():
     assert t.connect == providers.connect_s() and t.read == 600
     CFG["limits"].pop("provider_connect_s", None)
     assert providers.connect_s() == 15          # 默认值，配置里删掉也还在
+
+
+def test_connect_retries_are_fewer_than_5xx_retries():
+    """每一次建连失败都要白等 provider_connect_s：次数必须比 5xx 少，主机死了才快点交给上层换模型。"""
+    assert providers.connect_retries() < int(CFG["limits"].get("provider_transient_retries", 5))
+    CFG["limits"].pop("provider_connect_retries", None)
+    assert providers.connect_retries() == 2
+
+
+async def test_connect_retries_zero_is_a_single_attempt(monkeypatch):
+    monkeypatch.setitem(CFG, "limits", {**CFG["limits"], "provider_connect_retries": 0})
+    client = Client(OK)
+    seen = {"n": 0}
+
+    async def always(**kwargs):
+        seen["n"] += 1
+        raise _no_connect()
+
+    client.chat.completions.create = always
+    with pytest.raises(openai.APIConnectionError):
+        await providers.create_chat(client, model="m", messages=[], stream=True)
+    assert seen["n"] == 1
