@@ -16,8 +16,6 @@ from .config import CFG
 
 log = logging.getLogger(__name__)
 
-NEVER = float("inf")   # 上次打栈之后又堵了多久才会再打一次：同一段堵只打一次
-
 
 def lag_limit_s() -> float:
     """心跳超过这么多秒没动就算循环被堵（limits.loop_lag_s，默认 5；0 表示不查）。"""
