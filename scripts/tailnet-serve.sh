@@ -2,16 +2,20 @@
 # Đường vào OSA qua Tailscale (KHÔNG funnel): serve http=80 -> 127.0.0.1:8765 (tailnet only).
 # Tự chọn daemon: system (root, /run/tailscale) nếu có, ngược lại user (~/.tailscale).
 set -uo pipefail
-H=/home/boxes
+REPO=$(cd "$(dirname "$0")" 2>/dev/null && cd .. && pwd)   # 仓库在哪都成立，不再写死 /home/boxes
+H=$(dirname "$REPO")
 PORT="${OSA_PORT:-8765}"
-ENVF="$H/osa/.env"
-if [ "$(id -u)" = 0 ] && [ -S /run/tailscale/tailscaled.sock ]; then
-  TB=/usr/local/bin/tailscale; S="--socket=/run/tailscale/tailscaled.sock"
+ENVF="$REPO/.env"
+DATADIR="${OSA_DATA_DIR:-$(grep -h '^OSA_DATA_DIR=' "$ENVF" 2>/dev/null | tail -1 | cut -d= -f2-)}"
+DATADIR="${DATADIR:-$H/osa-data}"
+if [ -S /run/tailscale/tailscaled.sock ] && [ -x /usr/local/bin/tailscale ] \
+   && /usr/local/bin/tailscale --socket=/run/tailscale/tailscaled.sock status >/dev/null 2>&1; then
+  TB=/usr/local/bin/tailscale; S="--socket=/run/tailscale/tailscaled.sock"   # daemon system đang chạy: dùng nó, kể cả khi chạy bằng user
 else
   TB="$H/.local/tailscale/tailscale"; S="--socket=$H/.tailscale/tailscaled.sock"
 fi
-OUT="$H/osa-data/public-url.txt"
-mkdir -p "$H/osa-data" 2>/dev/null || true
+OUT="$DATADIR/public-url.txt"
+mkdir -p "$DATADIR" 2>/dev/null || true
 
 key_from_env() { grep -h '^TS_AUTHKEY=' "$ENVF" 2>/dev/null | tail -1 | cut -d= -f2-; }
 st() { "$TB" $S status --json 2>/dev/null | python3 -c 'import json,sys;print(json.load(sys.stdin).get("BackendState","?"))' 2>/dev/null; }
@@ -37,5 +41,5 @@ CUR=$("$TB" $S status --json 2>/dev/null | python3 -c 'import json,sys;d=json.lo
 echo "tailscale=$s serve=$([ "${SERVE:-0}" -gt 0 ] && echo on || echo off) dns=${DNS:-none} ip=${IP:-none} cur=${CUR:-relay}"
 [ -n "${DNS:-}" ] && echo "http://$DNS" > "$OUT" 2>/dev/null
 # quyền file cho user boxes khi chạy bằng root
-if [ "$(id -u)" = 0 ]; then chown boxes:boxes "$OUT" 2>/dev/null || true; fi
+if [ "$(id -u)" = 0 ]; then chown "$(stat -c %U "$H"):$(stat -c %G "$H")" "$OUT" 2>/dev/null || true; fi
 [ "$s" = "Running" ] && [ "${SERVE:-0}" -gt 0 ]

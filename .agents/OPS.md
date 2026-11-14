@@ -2,24 +2,24 @@
 
 Cách cài, chạy và kiểm bản đã merge. Cài trên máy mới thì đọc [docs/vi/cai-dat-may-moi.md](../docs/vi/cai-dat-may-moi.md) trước. File này ghi phần riêng của box vận hành. Không ghi giá trị key, mật khẩu, cookie, email, mã máy Instabox hay hostname tailnet vào git hoặc chat. Chỉ ghi tên biến.
 
-## Box vận hành hiện tại (10/11/2026)
+## Box vận hành hiện tại (14/11/2026)
 
 | Mục | Giá trị |
 |---|---|
-| Checkout chạy server | `/workspace/open-super-agent`, nhánh local `deploy/audit-f1-f12` (`b8ca2c0`), cây trùng `5a1e0e7` (PR #41). Chưa ở `i18n-vi` |
-| Process | `uv run uvicorn osa.server:app --host 127.0.0.1 --port 8765`, pid 523005 lúc 22:20 10/11, PID trong `logs/osa.pid`, cổng trong `logs/osa.port` |
-| Khởi động, dừng | `bash scripts/osa-start.sh`, `bash scripts/osa-stop.sh` trong checkout đó |
-| DB | `data/osa.db` trong checkout. Kiểm bằng `ls -l /proc/<pid>/fd \| grep '\.db'` trước khi backup |
-| Secret | nạp từ `.env` của checkout và kho secret của bot. Không in giá trị |
-| Computer | Instabox, máy `docker-osar-test` (`backend: auto`, `INSTABOX_API_KEY` trong vault của OSA) |
+| Checkout chạy server | `/home/boxes/osa`, nhánh `i18n-vi`. Sửa code làm ngay trên checkout này trên nhánh riêng, PR vào `i18n-vi`; không có đường `/workspace` trên máy này |
+| Dịch vụ | user unit `osa.service` (uvicorn, `127.0.0.1:8765`). `systemctl --user is-active osa.service`, PID: `systemctl --user show osa.service -p MainPID --value` |
+| Khởi động, dừng, khởi động lại | `XDG_RUNTIME_DIR=/run/user/$(id -u) systemctl --user {start,stop,restart} osa.service` |
+| DB | `$OSA_DATA_DIR/osa.db` = `/home/boxes/osa-data/osa.db` (không nằm trong checkout). Kiểm bằng `ls -l /proc/<pid>/fd \| grep '\.db'` trước khi backup |
+| Log | `/home/boxes/osa-data/logs/osa.log` (append). `logrotate` cần root — xem mục Deploy |
+| Secret | `.env` của checkout và vault của OSA. Không in giá trị |
+| Computer | Instabox, máy `m_agq4itov6fmqwbdfry45fp7fma`. Máy có thể ở trạng thái `paused`; `Computer.start()` tự `resume`, nên lượt dùng kế tiếp không hỏng, chỉ chậm hơn vài chục giây |
 | `task_timeout_s` | 7200 từ `settings.overrides` trong DB. `config.yaml` ghi 600, override thắng |
-| Giữ VM thức | `computer.idle_pause_s: 2592000` trong `config.yaml`, chưa commit. `/workspace/instabox-keepalive/lease-keepalive.py` (pid 335522, log `lease.log`) gia hạn activity lease mỗi 3 phút. Trần `maxRunMinutes` 480 phút vẫn áp. Suspend/resume của script đang lỗi thiếu `Idempotency-Key` (BOARD OPEN-KEEPALIVE). Không tắt script, không để VM pause, không commit `config.yaml` |
 
-Restart server chỉ khi Tin Tin yêu cầu, và backup DB trước. Việc sửa code làm trong worktree riêng, không làm trên checkout này (xem [HANDOFF](HANDOFF.md#cách-làm-việc-từ-10112026)).
+Restart server chỉ khi Tin Tin yêu cầu, và backup DB trước.
 
 ## Kiểm như CI trên box
 
-Chạy trong worktree, không trong checkout đang chạy server:
+Chạy trên checkout (conftest đặt `OSA_DATA_DIR` sang thư mục tạm nên không đụng DB thật); restart server chỉ sau khi xanh:
 
 ```bash
 uv sync --locked
@@ -34,7 +34,7 @@ env -u DISPLAY CI=1 OSA_REQUIRE_SANDBOX=1 OSA_TEST_CHROME=1 xvfb-run -a uv run p
 git diff --check
 ```
 
-Trên code của PR #41 (`5a1e0e7`): 853 passed, 1 skipped (`test_real_desktop`, chỉ macOS). Web `npm test` 36/36. `osa.i18n` thiếu 0. Box có `bwrap` 0.12.0, `xvfb-run`, Google Chrome, Node 24, uv 0.13.7. Box không có Docker, nên Docker build và compose là `NOT_CHECKED`. Đọc check-run CI cho phần đó.
+14/11/2026 trên `i18n-vi`: 1273 passed, 3 skipped (`test_real_desktop` chỉ macOS). `osa.i18n` thiếu 0. Số cũ trong lịch sử giữ nguyên. Box có `bwrap` 0.12.0, `xvfb-run`, Google Chrome, Node 24, uv 0.13.7. Box không có Docker, nên Docker build và compose là `NOT_CHECKED`. Đọc check-run CI cho phần đó.
 
 Muốn chạy thử một bản cài mới song song mà không đụng server thật thì clone vào thư mục tạm, đặt `OSA_DATA_DIR` riêng, chạy uvicorn foreground ở cổng khác (ví dụ 8799), gỡ `INSTABOX_API_KEY` và các key provider khỏi môi trường của lệnh đó, tắt process khi xong.
 
@@ -44,51 +44,39 @@ Có mặc định trong code, có dòng comment trong `limits:` của `config.ya
 
 | Khóa | Mặc định | Việc |
 |---|---|---|
-| `limits.stream_first_chunk_s` | 170 | chờ chunk đầu tối đa bao nhiêu giây. Nhỏ hơn 180 giây của Watchdog |
-| `limits.stream_idle_s` | 120 | sau chunk đầu, hai chunk cách nhau quá số này thì đóng stream |
+| `limits.stream_first_chunk_s` | 60 | chờ chunk đầu tối đa bao nhiêu giây. Nhỏ hơn `no_progress_s` (900) để kịp thử lại |
+| `limits.stream_idle_s` | 60 | sau chunk đầu, hai chunk cách nhau quá số này thì đóng stream |
+| `limits.provider_connect_s` | 15 | trần bước TCP/TLS; quá thì tính là lỗi tạm thời và thử lại, không chờ hết `provider_head_s` |
 | `limits.stream_retries` | 1 | số lần gọi lại cùng lượt, chờ 2–5 giây trước mỗi lần |
 
 Biến môi trường của script: `OSA_PORT` (mặc định 8765), `OSA_START_TIMEOUT` (giây chờ `/manifest.json`, mặc định 60), `OSA_STOP_TIMEOUT` (giây chờ process thoát, mặc định 20). Server luôn nghe `127.0.0.1`.
 
 ## Deploy và restart
 
-Chỉ làm khi Tin Tin giao. Code đã merge vào `i18n-vi` hoặc là patch đã test trong worktree.
+Chỉ làm khi Tin Tin giao. Code đã merge vào `i18n-vi`, CI xanh, và đã test trong worktree.
+
+Checkout vận hành là `/home/boxes/osa` trên nhánh `i18n-vi`; dữ liệu nằm ở `$OSA_DATA_DIR` (`/home/boxes/osa-data`), **không** nằm trong checkout. Ứng dụng là **user unit** `osa.service`, nghe `127.0.0.1:8765`; mọi lệnh systemctl cần `XDG_RUNTIME_DIR=/run/user/$(id -u)`.
 
 1. Backup DB bằng sqlite backup API (an toàn khi server đang chạy, có WAL), kiểm `integrity_check`, quyền 0600:
 
 ```bash
 TS=$(date +%Y%m%d-%H%M%S)
-.venv/bin/python - "$TS" <<'PY'
-import sqlite3, sys
-src = sqlite3.connect("file:data/osa.db?mode=ro", uri=True)
-dst = sqlite3.connect(f"/workspace/osa-backups/osa.db.<tên>.{sys.argv[1]}")
+.venv/bin/python - "$TS" <<'BK'
+import os, sqlite3, sys
+d = os.environ.get("OSA_DATA_DIR") or "/home/boxes/osa-data"
+src = sqlite3.connect(f"file:{d}/osa.db?mode=ro", uri=True)
+dst = sqlite3.connect(f"/home/boxes/osa-backups/osa.db.{sys.argv[1]}")
 src.backup(dst); print(dst.execute("pragma integrity_check").fetchone()[0])
-PY
-chmod 600 /workspace/osa-backups/osa.db.*.$TS
+BK
+chmod 600 /home/boxes/osa-backups/osa.db.*.$TS
 ```
 
-2. Giữ bản sửa `config.yaml`: `cp -p config.yaml /workspace/osa-backups/config.yaml.local.$TS && git diff config.yaml > /workspace/osa-backups/config.yaml.local.$TS.diff`.
-3. Đổi code (mục dưới), `uv sync --locked`, `(cd web && npm run build)`. `osa/static/dist/` nằm ngoài git nên phải build lại.
-4. `bash scripts/osa-stop.sh` (chờ process thoát, báo `stopped <pid> (port :8765)`), rồi `bash scripts/osa-start.sh` (chỉ báo `started` khi `/manifest.json` trả lời, lỗi thì in log và thoát 1).
-5. Kiểm: `/manifest.json` 200, đăng nhập bằng mật khẩu (không in), `GET /api/bots/1/computer` là `instabox` `running`, `ps -p 335522` còn chạy, `grep idle_pause_s config.yaml` vẫn là 2592000, `git status --short` chỉ có `config.yaml`.
+2. Code: `git fetch origin i18n-vi && git merge --ff-only origin/i18n-vi` (cây phải sạch; `config.yaml` nằm trong git nên không cần giữ bản sửa riêng). Đổi trong `web/` thì `(cd web && npm run build)` — `osa/static/dist/` ngoài git, pull không cập nhật bundle.
+3. `XDG_RUNTIME_DIR=/run/user/$(id -u) systemctl --user restart osa.service`; PID mới phải khác PID cũ, cổng 8765 phải do `uvicorn` giữ.
+4. Kiểm: `/manifest.json` trả 200/303, gửi một câu cho bot và thấy nó trả lời, `grep -c WARNING /home/boxes/osa-data/logs/osa.log` không tăng, `git status --short` sạch.
+5. `logrotate` là việc của root: `sudo /home/boxes/osa/scripts/install-logrotate.sh` (net-fast.sh tự gọi). Chưa cài thì log vẫn lớn dần — không chặn deploy, nhưng đừng để lâu.
 
-### Đưa checkout vận hành về i18n-vi
-
-Checkout đang ở nhánh local `deploy/audit-f1-f12`, cây trùng `5a1e0e7`. Khi cần theo `i18n-vi`:
-
-```bash
-cd /workspace/open-super-agent
-git fetch origin i18n-vi
-git diff config.yaml > /workspace/osa-backups/config.yaml.local.$TS.diff   # bước 2 ở trên
-git checkout -- config.yaml
-git checkout -B i18n-vi origin/i18n-vi
-git apply /workspace/osa-backups/config.yaml.local.$TS.diff
-git status --short    # chỉ còn " M config.yaml"
-```
-
-Nhánh local `i18n-vi` đã có (lúc 22:20 10/11 ở `d9ae1d8`, sau origin 54 commit) và không worktree nào đang giữ nó, nên `-B` đặt lại nó về `origin/i18n-vi` là an toàn.
-
-Nếu `git apply` báo xung đột (upstream sửa đúng dòng `idle_pause_s`) thì sửa tay dòng đó về 2592000. Code đổi thì restart theo bước 3–5. Chỉ đổi nhánh mà cây không đổi (như bây giờ) thì không cần restart.
+Sao lưu tay để ở `/home/boxes/osa-backups/`; `net-fast.sh` mỗi lần chạy tạo một thư mục `net-backup-<mốc giờ>` và chỉ giữ 10 bản gần nhất.
 
 ## CI
 
