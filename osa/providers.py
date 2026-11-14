@@ -17,6 +17,7 @@ import struct
 import time
 import zlib
 from urllib.parse import urlparse
+import httpx
 import openai
 from openai import AsyncOpenAI
 from . import i18n, vault
@@ -168,13 +169,27 @@ def public() -> list[dict]:
 
 
 # ---------- 客户端 ----------
+def connect_s() -> float:
+    """TCP 连上服务最多等几秒（默认 15）。0 表示交给 httpx 的默认值。
+
+    provider_head_s 管的是“连上之后到拿到响应头”，可连都连不上的时候一样要等满它：11/14 任务 1632
+    两次连 apitokenjuiceai 的隧道卡住，各白等 120 秒才报错重来。建连是几毫秒到几秒的事，单独给一个
+    上限：连接卡住 15 秒就报错重来，响应头照旧允许慢（provider_head_s）。"""
+    return max(0.0, float(CFG["limits"].get("provider_connect_s", 15) or 0))
+
+
+def _default_timeout() -> httpx.Timeout:
+    c = connect_s()
+    return httpx.Timeout(600, connect=c) if c else httpx.Timeout(600)
+
+
 def client(name: str, timeout: float | None = None) -> AsyncOpenAI:
     p = CFG["providers"].get(name)
     if not p:
         raise ValueError(i18n.t("没有这个模型服务：{name}", name=name))
     k = (p["base_url"], api_key(name) or "none", timeout)
     if k not in _clients:
-        _clients[k] = AsyncOpenAI(base_url=k[0], api_key=k[1], max_retries=RETRIES, default_headers={"User-Agent": UA}, **({"timeout": timeout} if timeout else {}))
+        _clients[k] = AsyncOpenAI(base_url=k[0], api_key=k[1], max_retries=RETRIES, default_headers={"User-Agent": UA}, timeout=timeout or _default_timeout())
     return _clients[k]
 
 
@@ -421,6 +436,15 @@ async def create_chat(client, **kwargs):
                 transient_attempt += 1
                 continue
             raise
+        except openai.APIConnectionError as e:
+            # 连接压根没建起来（隧道卡住、DNS 慢、TLS 握手不回来）：和 5xx 一样算暂时故障，重来。
+            # 以前这里直接冒到上层，靠上层换模型；可一次就要白等满 provider_head_s。
+            if transient_attempt >= transient_retries:
+                raise
+            log.warning("model %s: connection failed (%s), retrying", kwargs.get("model"), type(e).__name__)
+            await _pause(min(0.5 * (2 ** transient_attempt), cap))
+            transient_attempt += 1
+            continue
 
 
 class StreamStalled(Exception):

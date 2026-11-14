@@ -422,3 +422,60 @@ async def test_create_that_ignores_cancel_still_times_out(monkeypatch):
     with pytest.raises(providers.StreamStalled):
         await providers.create_chat(Hang(), model="m", messages=[], stream=True)
     assert time.monotonic() - t0 < 0.25
+
+
+# 连接压根没建起来（隧道卡住、DNS、TLS 不回来）：和 5xx 一样算暂时故障。
+# 2026-11-14 任务 1632 两次卡在 apitokenjuiceai 的建连上，各白等 120 秒才重来。
+def _no_connect(**kwargs):
+    return openai.APIConnectionError(request=httpx.Request("POST", "https://api.example/v1/chat/completions"))
+
+
+async def test_connection_error_is_retried(monkeypatch):
+    monkeypatch.setitem(CFG, "limits", {**CFG["limits"], "provider_transient_retries": 2})
+
+    async def no_wait(attempt):
+        pass
+
+    monkeypatch.setattr(providers, "retry_pause", no_wait)
+    client = Client(OK)
+    calls = {"n": 0}
+    original = client.chat.completions.create
+
+    async def flaky(**kwargs):
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise _no_connect()
+        return await original(**kwargs)
+
+    client.chat.completions.create = flaky
+    stream = await providers.create_chat(client, model="m", messages=[], stream=True)
+    assert stream is not None and calls["n"] == 3
+
+
+async def test_connection_error_gives_up_after_retries(monkeypatch):
+    monkeypatch.setitem(CFG, "limits", {**CFG["limits"], "provider_transient_retries": 1})
+
+    async def no_wait(attempt):
+        pass
+
+    monkeypatch.setattr(providers, "retry_pause", no_wait)
+    client = Client(OK)
+    seen = {"n": 0}
+
+    async def always(**kwargs):
+        seen["n"] += 1
+        raise _no_connect()
+
+    client.chat.completions.create = always
+    with pytest.raises(openai.APIConnectionError):
+        await providers.create_chat(client, model="m", messages=[], stream=True)
+    assert seen["n"] == 2
+
+
+def test_connect_timeout_sits_well_below_the_head_timeout():
+    """建连是几毫秒到几秒的事，响应头才允许慢：单列的上限必须明显更短。"""
+    assert 0 < providers.connect_s() <= providers.provider_head_s() / 4
+    t = providers._default_timeout()
+    assert t.connect == providers.connect_s() and t.read == 600
+    CFG["limits"].pop("provider_connect_s", None)
+    assert providers.connect_s() == 15          # 默认值，配置里删掉也还在
