@@ -864,6 +864,11 @@ class Router:
             if better and (
                     "```" in better[:300] or (len(better) >= 200 and len(better) > len(shown) * 3 // 2)) and len(better) > len(shown):
                 shown, content = better, better
+                if freedom.has_artifact(better):   # C53: 救回来了就记一条「这类活要怎么交」，下次少被拒
+                    try:
+                        freedom.remember_shape(self.bot, asked_now)
+                    except Exception as e:  # noqa: BLE001 - 记不上不影响这一轮
+                        log.warning("could not record the lesson (%s)", e)
                 await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
                 await self.emit({"type": "stream", "sid": sid, "delta": shown}, cid)
         if freedom.on():   # C39: artifact + một câu lạc chủ đề ở đuôi -> bỏ đuôi
