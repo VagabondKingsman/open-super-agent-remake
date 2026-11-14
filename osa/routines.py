@@ -50,7 +50,7 @@ QUIET = "[nothing new]"
 PREVIOUS_LABEL = "Previous run result (for comparison; do not repeat what the user was already told):"
 QUIET_HINT = (f"If there is nothing new worth telling the user (no new mail, same as last time, the event needs no action), "
               f"the result must be exactly {QUIET} and nothing else, so the user is not interrupted.")
-_QUIET_RE = re.compile(r"^\s*[\[【]?\s*(无新内容|没有新内容|nothing new|không có nội dung mới)\s*[\]】]?\s*[。.!！]?\s*$", re.I)
+_QUIET_RE = re.compile(r"^\s*[\[【]?\s*(无新内容|没有新内容|nothing new|không có nội dung mới|không có gì mới)\s*[\]】]?\s*[。.!！]?\s*$", re.I)
 RUNNING: dict[int, int] = {}      # routine_id -> 正在跑的 run id
 notify = None                     # 由 server 设置
 DAYS = (i18n.N_("周一"), i18n.N_("周二"), i18n.N_("周三"), i18n.N_("周四"), i18n.N_("周五"), i18n.N_("周六"), i18n.N_("周日"))
