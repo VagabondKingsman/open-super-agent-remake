@@ -111,6 +111,13 @@ def steps(task_id: int) -> list[dict]:
     return [public(LIVE[r[0]]) if r[0] in LIVE else dict(zip(KEYS, r)) for r in rows]
 
 
+def tail(task_id: int, n: int = 5) -> list[str]:
+    """最近 n 条已经做完的工具，只留名字：任务被取消时写进对话，用户才知道做到哪儿了。"""
+    rows = conn.execute("select coalesce(nullif(title, ''), name, '') from task_steps "
+                        "where task_id=? and kind='tool' and status='done' order by id desc limit ?", (task_id, n))
+    return [r[0][:120] for r in rows.fetchall() if r[0]][::-1]
+
+
 # ---------- 任务列表 ----------
 # 任务的编号就是“任务已派发”那条消息的 id；状态、用时、步数在任务结束时写回这条消息的 meta
 def _task(row) -> dict:

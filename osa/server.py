@@ -30,6 +30,7 @@ from . import config
 from .computer import link
 from .computer.base import HOSTS
 from . import builtin, registry  # noqa: F401  builtin：导入即注册内置工具
+from . import looplag
 from .watchdog import watchdog
 
 DIST = Path(__file__).parent / "static" / "dist"
@@ -107,7 +108,7 @@ async def lifespan(app):
     routines.import_legacy(bots.primary()["id"])
     await mcp_hub.start()
     await channels.start()
-    bg = [asyncio.create_task(watchdog()), asyncio.create_task(routines.scheduler()),
+    bg = [asyncio.create_task(watchdog()), asyncio.create_task(looplag.watch()), asyncio.create_task(routines.scheduler()),
           asyncio.create_task(computer.idle_pauser()), asyncio.create_task(search.embed_loop()),
           asyncio.create_task(prices.loop()), asyncio.create_task(tasklog.prune_loop()), asyncio.create_task(media.gc_loop())]
     if os.environ.get("OSA_PARENT_PID", "").isdigit():

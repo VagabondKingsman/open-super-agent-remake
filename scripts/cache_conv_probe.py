@@ -7,13 +7,13 @@ show the second turn's body is a verbatim extension of the first, so the body is
 
 Here the same body goes twice, twice: once with an identical `x-grok-conv-id`, once with none.
 """
-import json, os, sys, time
+import _paths, json, os, sys, time
 from openai import OpenAI
 
 body = json.load(open(sys.argv[1]))
 body.pop("ts", None)
 key = ""
-for line in open("/home/boxes/osa/.env"):
+for line in open(_paths.ROOT / ".env"):
     if line.startswith("XAI_API_KEY="):
         key = line.split("=", 1)[1].strip().strip('"')
 c = OpenAI(base_url="https://api.x.ai/v1", api_key=key, max_retries=0)

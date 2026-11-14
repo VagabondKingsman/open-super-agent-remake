@@ -101,7 +101,7 @@ pricing:
 ```
 
 **限额**在 设置 → 限制与预算 里改：每天最多用多少 token、每个任务最多几步、任务最长跑多久、后台任务等确认多久、Heavy 模式同时跑几个。
-对应 `config.yaml` 的 `limits`（`daily_token_budget`、`worker_max_steps`、`task_timeout_s`、`approval_timeout_s`，另外还有 `watchdog_interval_s`）和 `heavy.workers`。
+对应 `config.yaml` 的 `limits`（`daily_token_budget`、`worker_max_steps`、`task_timeout_s`、`approval_timeout_s`，另外还有 `watchdog_interval_s`、`loop_lag_s`）和 `heavy.workers`。
 
 下面这些只在 `config.yaml` 里改，设置页没有输入框：
 
@@ -110,8 +110,9 @@ pricing:
 - `save_page_approval`：`true` 时 Worker 写本地页面要先等确认。已经有一条“自动允许”规则时仍直接写。默认 `false`，但每次写页面都会记在任务结果里。
 - `provider_rate_retries`：普通 429（`rate_limit_exceeded`，以及没有额度码的 429）按响应头 `Retry-After` 再试几次。默认 1。没有这个头就等 1 秒。`provider_retry_cap_s`（默认 120）是最多等多少秒。
 - `provider_transient_retries`：408、409 和 5xx 再试几次。默认 5（和 `providers.RETRIES` 一致）。
-- `stream_first_chunk_s`：流开了以后等第一块最多几秒。想得久的模型（高思考强度、不流式输出思考）第一块可能要两三分钟，所以和下一项分开算。默认 170，要比 Watchdog 的 3 分钟短。0 表示不限。
-- `stream_idle_s`：第一块之后，两块之间最多等几秒，超过就关掉这条流。默认 120，要比 Watchdog 的 3 分钟短。0 表示不限。
+- `loop_lag_s`：事件循环的心跳超过几秒没动就记一条 WARNING 并把所有线程的栈打进日志。循环被同步调用堵住时，流的各项上限和 Watchdog 的计时器都跑不起来（2026-11-14 任务 #1610 就这样被取消）。默认 5。0 表示不查。
+- `stream_first_chunk_s`：流开了以后等第一块最多几秒。想得久的模型（高思考强度、不流式输出思考）第一块可能要两三分钟，所以和下一项分开算。默认 60（实测最长 11,9 秒；原来 170 等于白等三分钟）。比 Watchdog 短。0 表示不限。
+- `stream_idle_s`：第一块之后，两块之间最多等几秒，超过就关掉这条流。默认 60（实测两块之间中位 2,6 秒、p90 6,3 秒）。比 Watchdog 短。0 表示不限。
 - `stream_retries`：流开了以后卡住、断了（连接断、服务忙、5xx、SSE 里的 error）时，同一轮再调几次。默认 1。每次重来前等 2–5 秒（带随机）。额度用尽不重来。Router 已经把正文推到界面上的那一轮不重来；只推了思考的，重来时界面上的思考先清掉。作废那一次的用量照记（没有 usage 就按收到的文字估算，标 estimated）。
 
 `config.yaml` 的 `limits:` 里有这三项注释掉的默认值，去掉 `#` 就能改。
