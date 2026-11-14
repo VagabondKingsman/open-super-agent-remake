@@ -2,12 +2,12 @@
 
     .venv/bin/python scripts/ask.py <chat_id> <tag> "<câu hỏi>"
 """
-import asyncio, http.cookiejar, json, re, sqlite3, sys, time, urllib.parse, urllib.request, websockets
+import _paths, asyncio, http.cookiejar, json, re, sqlite3, sys, time, urllib.parse, urllib.request, websockets
 
 chat, tag, text = int(sys.argv[1]), sys.argv[2], sys.argv[3]
 BASE = 'http://127.0.0.1:8765'
-db = sqlite3.connect('file:/home/boxes/osa-data/osa.db?mode=ro', uri=True, timeout=10)
-pw = [l.split('=', 1)[1].strip() for l in open('/home/boxes/osa/.env') if l.startswith('OSA_PASSWORD=')][0]
+db = _paths.db()
+pw = _paths.password()
 cj = http.cookiejar.CookieJar()
 op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
 op.open(BASE + '/login', urllib.parse.urlencode({'password': pw}).encode())

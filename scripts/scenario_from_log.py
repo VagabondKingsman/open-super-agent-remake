@@ -16,7 +16,9 @@ import re
 import sys
 from pathlib import Path
 
-DEFAULT_LOG = Path("/home/boxes/osa-data/logs/osa.log")
+import _paths
+
+DEFAULT_LOG = _paths.data_dir() / "logs/osa.log"
 # 2026-11-11 06:45:10,377 I logger: message  |  2026-11-11 06:45:10 W osa.x: message  |  ERROR:    message
 LINE = re.compile(r"^(?:(?P<date>\d{4}-\d\d-\d\d) (?P<time>\d\d:\d\d:\d\d)[,\d]* +(?P<level>[A-Z]) +)?"
                   r"(?:(?P<level2>ERROR|WARNING|CRITICAL):?\s+)?(?P<msg>.*)$")
