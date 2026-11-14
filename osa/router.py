@@ -904,6 +904,22 @@ class Router:
                 shown = fixed
                 await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
                 await self.emit({"type": "stream", "sid": sid, "delta": shown}, cid)
+        if freedom.on() and finish == "length":   # C52: bị cắt giữa dòng thì xin phần tiếp, đừng đăng bản cụt
+            msgs.append({"role": "assistant", "content": content, "reasoning_content": reasoning})
+            msgs.append({"role": "user", "content": freedom.continue_note()})
+            before = len(shown)
+            try:
+                rounds_used, content, reasoning = await rounds()
+            except Exception as e:
+                log.warning("the continuation after a cut reply failed (%s)", e)
+            head, tail = shown[:before], shown[before:]
+            if tail and tail.lstrip().startswith("```") and freedom.open_fence(head):
+                tail = tail.lstrip().split(chr(10), 1)[-1]        # bỏ dấu ``` mở lại ở mối nối
+            if tail and not head.endswith(chr(10)):
+                head += chr(10)                                   # dán liền dòng là hai dòng dính nhau
+            shown = head + tail
+            await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
+            await self.emit({"type": "stream", "sid": sid, "delta": shown}, cid)
         # 要的是代码、正文里却没有代码：再要一轮，把那东西本身拿回来（回答停成状态汇报/清单时）
         if freedom.on() and not trained:
             asked_text = (woke["text"] if woke else (last[0] if last else "")) or ""
