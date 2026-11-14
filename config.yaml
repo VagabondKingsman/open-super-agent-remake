@@ -55,7 +55,7 @@ security:
 
 limits:
   unrestricted: true          # 全开模式（2026-11-13）：按执行器答，不要前言/政策句；被拒时走 C31 修复
-  unrestricted_fallback: {provider: deepseek, model: "glm-5.3-uncensored"}   # 全开模式：被拒时换到这个模型重问（C31/C50）。用便宜的 uncensored，别把默认模型也当砦
+  unrestricted_fallback: {provider: deepseek, model: "dolphin-mistral-24b-venice-edition"}   # 全开：被拒时换到这个重问；便宜、肯做、实测能出整份（别信 'uncensored' 标签）
   worker_max_steps: 30        # 电脑操作一步一个动作，步数要多一些
   repeat_tool_limit: 3        # 同一个工具调用连续这么多次就停下，改要最终答案。0 表示不查
   answer_continuations: 1     # 最终答案是空的，或 finish_reason=length 时，再要一次完整答案
