@@ -10,20 +10,24 @@
 set -uo pipefail
 
 [ "$(id -u)" = 0 ] || { echo "cần root"; exit 1; }
-U=boxes; UIDB=1002; H=/home/boxes
+# repo theo vị trí script, user theo chủ thư mục home — máy khác chạy vẫn đúng
+REPO=$(cd "$(dirname "$0")/.." && pwd); H=$(dirname "$REPO")
+U=$(stat -c %U "$H"); UIDB=$(id -u "$U")
 STAMP=$(date +%Y%m%d-%H%M%S)
 BK="${OSA_BACKUP_DIR:-$H/osa-backups}/net-backup-$STAMP"
 TSSTATE=/var/lib/tailscale/tailscaled.state
 # nơi ghi log: theo OSA_DATA_DIR, rồi .env, rồi thư mục mặc định của máy này
-DATADIR="${OSA_DATA_DIR:-$(grep -h '^OSA_DATA_DIR=' "$H/osa/.env" 2>/dev/null | tail -1 | cut -d= -f2-)}"
+DATADIR="${OSA_DATA_DIR:-$(grep -h '^OSA_DATA_DIR=' "$REPO/.env" 2>/dev/null | tail -1 | cut -d= -f2-)}"
 DATADIR="${DATADIR:-$H/osa-data}"
 LOGDIR="$DATADIR/logs"
 say() { echo "[net-fast] $*"; }
 
 install -d -m 0755 "$LOGDIR"
 # log append của systemd không tự lớn-mãi được: logrotate (copytruncate)
-bash "$H/osa/scripts/install-logrotate.sh" || say "logrotate chưa cài được, log vẫn lớn dần"
+bash "$REPO/scripts/install-logrotate.sh" || say "logrotate chưa cài được, log vẫn lớn dần"
 say "backup -> $BK"
+# mỗi lần chạy một thư mục nên chỉ giữ 10 bản gần nhất, không dọn thì lớn dần
+ls -1dt "${BK%/*}"/net-backup-* 2>/dev/null | tail -n +11 | xargs -r rm -rf
 install -d -m 0755 "$BK"
 cp -a "$H/.config/systemd/user" "$BK/user-units" 2>/dev/null || true
 cp -a "$H/.tailscale/tailscaled.state" "$BK/tailscaled.state" 2>/dev/null || true
@@ -150,7 +154,7 @@ for i in $(seq 1 60); do
   [ "$st" = "Running" ] && break; sleep 1
 done
 if [ "${st:-?}" != "Running" ]; then
-  K=$(grep -h '^TS_AUTHKEY=' "$H/osa/.env" 2>/dev/null | tail -1 | cut -d= -f2-)
+  K=$(grep -h '^TS_AUTHKEY=' "$REPO/.env" 2>/dev/null | tail -1 | cut -d= -f2-)
   say "chưa Running ($st) -> up bằng authkey"
   [ -n "${K:-}" ] && /usr/local/bin/tailscale --socket=/run/tailscale/tailscaled.sock up --authkey="$K" --hostname=osa --accept-dns=false
 fi

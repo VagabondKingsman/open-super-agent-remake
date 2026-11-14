@@ -83,10 +83,12 @@ Chạy trên nhánh `fix/audit-f1-f12` trước khi xuất patch. Cây của `5a
 
 - AUDIT-F11 (nhánh mặc định GitHub) chờ Tin Tin.
 - `NOT_CHECKED`: đường gọi lại stream của Router/Worker trên live (chỉ có test), Docker Compose live, app macOS, cài Instabox từ bản cài thứ hai.
-- Thông báo stream treo in "0 giây" khi ngưỡng dưới 1 giây. Chỉ là hiển thị.
+- ~~Thông báo stream treo in "0 giây" khi ngưỡng dưới 1 giây~~ — sửa 14/11: `secs` in một chữ số thập phân dưới 10 giây (`web/src/components/Chat.tsx`).
 - `docs/docker.md` giờ là tiếng Việt, lần merge upstream sau sẽ xung đột ở file này.
-- Script giữ VM thiếu `Idempotency-Key` (mục trên).
-- Việc cũ còn chờ: OSA-001, OSA-002, OSA-007, OSA-016, OSA-017, OSA-018, OSA-019, OSA-020, E2E-OPEN trên [BOARD](BOARD.md).
+- Script giữ VM thiếu `Idempotency-Key` (mục trên). Trên box này không còn process keepalive; VM Instabox có thể `paused`, `Computer.start()` tự `resume`.
+- `gmail-reg-watchdog` để **tắt** (14/11): Google chặn ở bước cross-device/SMS, máy chưa có `SMS_API_KEY` và không có `/dev/kvm`. Lý do đã ghi trong chính routine.
+- `daily-brief` bật lại 14/11 (web search kiểm được, 2 023 ký tự), hẹn 09:00 hằng ngày.
+- Việc cũ còn chờ: OSA-001, OSA-002, OSA-007, OSA-017, OSA-018, OSA-019, E2E-OPEN trên [BOARD](BOARD.md). OSA-016 và OSA-020 xong ngày 14/11.
 
 ## Bổ sung · merge PR #50 và #51 · cursor · 11/11/2026
 
