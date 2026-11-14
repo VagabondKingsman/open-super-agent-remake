@@ -510,6 +510,18 @@ class Router:
                     # 流中途卡住或断了，而且还没推送正文、没收到工具调用：重来一次。已经推送了正文就不重来，免得界面上重复
                     # 开流之前的错 create_chat 已经按规则重试过了，这里只管流开了之后的。重来还是不行，而且这个角色配了
                     # 备用模型（roles.<role>.fallback），就换备用模型把这一轮说完
+                    # 模型没了（404 Model not found）或服务拒了（401/402）：这一轮直接换能用的模型，别把整轮弄成空
+                    if stream is None and isinstance(e, (openai.NotFoundError, openai.PermissionDeniedError, openai.RateLimitError)):
+                        fb = fallback_for("router", model) or freedom.fallback()
+                        if not fell_back and fb:
+                            client, model, kw = fb
+                            fell_back = True
+                            log.warning("router model unavailable (%s); continuing on %s", providers.brief(e), model)
+                            content, reasoning, usage, finish, first = "", "", None, None, None
+                            stats = {}
+                            t0 = time.monotonic()
+                            continue
+                        raise
                     if sent or calls or not providers.retry_midstream(e) or (stream is None and not isinstance(e, providers.StreamStalled)):
                         # 开流之前的错 create_chat 已经按规则重试过了；只有“连接卡住”是这里新加的那个上限，值得再来一次
                         raise
