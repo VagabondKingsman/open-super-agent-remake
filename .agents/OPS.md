@@ -137,6 +137,12 @@ Các biến cần có sẵn trong môi trường, lấy từ kho secret của bo
 | `OSA_AI_NATIVE_DEFAULTS` | `false` thì không reconcile skill mặc định. Không xóa skill đã cài. |
 | `INSTABOX_API_KEY` | Bật Computer Instabox. Box đang chạy thì gỡ. |
 | `OSA_BACKUP_PASSPHRASE` | Mật khẩu backup của app. Không in. |
+| `OSA_DOTENV` | `0` = không đọc `.env`; một đường dẫn = đọc tệp đó. Mặc định đọc `.env` trong repo để lệnh chạy tay không rơi vào `data/` của repo. |
+| `OSA_PROMPT_DUMP_KEEP` | Dump prompt giữ bao nhiêu tệp mới nhất (mặc định 500, `0` = không giới hạn). |
+| `OSA_PROMPT_DUMP_MAX_MB` | Bỏ qua request lớn hơn ngưỡng này (mặc định 4 MB). |
+| `OSA_BACKUP_DIR` | Chỗ `scripts/net-fast.sh` ghi bản sao lưu, mặc định `/home/boxes/osa-backups`. |
+
+**Sao lưu để ngoài thư mục dữ liệu.** Bản sao lưu nằm trong `osa-data/` là tự bao chính nó: mỗi lần nén cả thư mục lại to thêm. Từ OSA-041 dùng `osa-backups/` cạnh `osa-data/`; tệp `.tar.gz` hay `net-backup-*` còn sót trong `osa-data/` thì chuyển ra. Riêng bản backup DB dùng sqlite backup API (mục dưới), không `cp` tệp `.db` đang mở.
 
 `OSA_DATA_DIR` đã khai trên box là `/workspace/osa-run/data`. Thư mục đó không tồn tại. Process vẫn mở `/workspace/osa-run/osa.db`. `osa/config.py` `_db_path()` thấy `memory.db` tuyệt đối thì trả đúng đường đó. Đặt biến môi trường không chứng minh DB nằm trong data dir. OSA-015.
 

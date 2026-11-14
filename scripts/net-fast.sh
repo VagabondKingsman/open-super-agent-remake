@@ -12,10 +12,17 @@ set -uo pipefail
 [ "$(id -u)" = 0 ] || { echo "cần root"; exit 1; }
 U=boxes; UIDB=1002; H=/home/boxes
 STAMP=$(date +%Y%m%d-%H%M%S)
-BK="$H/osa-data/net-backup-$STAMP"
+BK="${OSA_BACKUP_DIR:-$H/osa-backups}/net-backup-$STAMP"
 TSSTATE=/var/lib/tailscale/tailscaled.state
+# nơi ghi log: theo OSA_DATA_DIR, rồi .env, rồi thư mục mặc định của máy này
+DATADIR="${OSA_DATA_DIR:-$(grep -h '^OSA_DATA_DIR=' "$H/osa/.env" 2>/dev/null | tail -1 | cut -d= -f2-)}"
+DATADIR="${DATADIR:-$H/osa-data}"
+LOGDIR="$DATADIR/logs"
 say() { echo "[net-fast] $*"; }
 
+install -d -m 0755 "$LOGDIR"
+# log append của systemd không tự lớn-mãi được: logrotate (copytruncate)
+bash "$H/osa/scripts/install-logrotate.sh" || say "logrotate chưa cài được, log vẫn lớn dần"
 say "backup -> $BK"
 install -d -m 0755 "$BK"
 cp -a "$H/.config/systemd/user" "$BK/user-units" 2>/dev/null || true
@@ -89,12 +96,13 @@ ExecStart=/home/boxes/osa/.venv/bin/uvicorn osa.server:app --host 127.0.0.1 --po
 Restart=always
 RestartSec=3
 TimeoutStopSec=20
-StandardOutput=append:/home/boxes/osa-data/logs/osa.log
-StandardError=append:/home/boxes/osa-data/logs/osa.log
+StandardOutput=append:__LOGDIR__/osa.log
+StandardError=append:__LOGDIR__/osa.log
 
 [Install]
 WantedBy=multi-user.target
 UNIT
+sed -i "s#__LOGDIR__#$LOGDIR#g" /etc/systemd/system/osa.service.off
 
 cat >/etc/systemd/system/osa-tailnet.service <<'UNIT'
 [Unit]
@@ -115,6 +123,8 @@ WantedBy=multi-user.target
 UNIT
 
 systemctl daemon-reload
+# unit user cũ (tailscaled userspace + tailnet serve) nay bị unit system thay: tắt để boot khỏi dựng hai tailscaled
+runuser -u "$U" -- env XDG_RUNTIME_DIR=/run/user/$UIDB systemctl --user disable --now osa-tailscaled.service osa-tailnet.service >/dev/null 2>&1 || true
 
 # 5) sysctl: đệm TCP rộng cho đường dài (kernel này không có BBR/fq, chỉnh được phần đệm)
 say "sysctl"

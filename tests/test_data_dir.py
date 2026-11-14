@@ -74,7 +74,8 @@ def test_child_commands_keep_the_data_dir(monkeypatch):
 
 
 def test_default_is_unchanged():
-    p = _paths(OSA_CONFIG=str(TMP / "config.yaml"))
+    """Không env, không .env: vẫn là data/ trong repo như cũ."""
+    p = _paths(OSA_DOTENV="0", OSA_CONFIG=str(TMP / "config.yaml"))
     assert p["db"] == str(TMP / "osa.db") and p["db_outside"] is False
     assert p["apps"] == str(ROOT / "data" / "apps")
     assert p["workspace"] == str(ROOT / "data" / "workspace")
@@ -96,3 +97,45 @@ def test_start_script_puts_logs_outside_the_repo():
     assert (data / "logs").is_dir()
     assert not (ROOT / "logs" / "osa.log").exists() or "logs/osa.log" in before
     assert _runtime_files(ROOT) == before
+
+
+def _dotenv(path: Path, data: Path) -> str:
+    path.write_text(f"# cấu hình runtime\nOSA_DATA_DIR={data}\nOSA_PASSWORD=x\n", encoding="utf-8")
+    return str(path)
+
+
+def test_hand_run_follows_the_env_file():
+    """跑 tay `python -c "import osa"` 不带 env：要跟着 .env 走，不能在仓库里再长出一个 data/。"""
+    data = TMP / "envfile-data"
+    data.mkdir()
+    before = _runtime_files(ROOT)
+    p = _paths(OSA_DOTENV=_dotenv(TMP / "envfile", data), OSA_CONFIG=str(ROOT / "config.yaml"))
+    assert p["db"] == str(data / "osa.db")
+    assert p["computer"] == str(data / "computers" / "shared")
+    assert _runtime_files(ROOT) == before
+
+
+def test_env_file_can_be_switched_off():
+    data = TMP / "envfile-data-off"
+    data.mkdir()
+    p = _paths(OSA_DOTENV="0", OSA_CONFIG=str(TMP / "config.yaml"))
+    assert p["db"] == str(TMP / "osa.db")      # config 里是绝对路径，照旧赢
+    assert p["apps"] == str(ROOT / "data" / "apps")
+
+
+def test_env_file_pointing_at_a_missing_dir_falls_back():
+    """`.env` 里那条目录被删了：不能把数据写进一个空壳，退回仓库的 data/ 并报警。"""
+    p = _paths(OSA_DOTENV=_dotenv(TMP / "envfile-gone", TMP / "da-bi-xoa"), OSA_CONFIG=str(TMP / "config.yaml"))
+    assert p["apps"] == str(ROOT / "data" / "apps")
+
+
+def test_relay_db_follows_the_data_dir():
+    """relay 是单独跑的应用，不导入 osa：它的库也要在数据目录里，不能自己写回仓库。"""
+    data = TMP / "relay-data"
+    data.mkdir()
+    env = {k: v for k, v in os.environ.items() if k != "OSA_RELAY_DB"}
+    env["OSA_DATA_DIR"] = str(data)
+    out = subprocess.run([sys.executable, "-c", "from osa import relay; print(relay.DB_PATH)"],
+                         cwd=ROOT, env=env, capture_output=True, text=True, timeout=60)
+    assert out.returncode == 0, out.stderr
+    assert out.stdout.strip() == str(data / "relay.db")

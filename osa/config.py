@@ -1,3 +1,4 @@
+import logging
 import os
 from pathlib import Path
 import yaml
@@ -6,24 +7,69 @@ from openai import AsyncOpenAI
 ROOT = Path(__file__).resolve().parent.parent
 CFG = yaml.safe_load((ROOT / os.environ.get("OSA_CONFIG", "config.yaml")).read_text())
 
-# 数据目录：数据库、密钥、自己加的应用清单、工作目录都在这里，默认是仓库里的 data/。
-# 桌面版的代码目录是只读的，用 OSA_DATA_DIR 指到用户自己的目录；这时相对路径的 memory.db 只取文件名，放进这个目录
-DATA = Path(os.environ["OSA_DATA_DIR"]).expanduser() if os.environ.get("OSA_DATA_DIR") else ROOT / "data"
+# 数据目录：数据库、密钥、自己加的应用清单、工作目录都在这里。
+# 顺序是 OSA_DATA_DIR → 仓库里的 .env（systemd 和 scripts/osa-start.sh 读的也是它，OSA_DOTENV=0 可关）
+# → 仓库里的 data/。最后一档会喊一声：跑一次 python 就悄悄多出一个数据目录，是排查时最费时的那种错
+# （2026-11-14，一条 bot 命令就这样读走了另一个库）。
+# 桌面版的代码目录是只读的，用 OSA_DATA_DIR 指到用户自己的目录；这时相对路径的 memory.db 只取文件名，放进这个目录。
+log = logging.getLogger(__name__)
+
+
+def _dotenv_file() -> Path | None:
+    """要读的 .env：未设/1 = ROOT/.env，0 = 不读，别的值就是那个路径（测试用）。"""
+    v = os.environ.get("OSA_DOTENV", "1").strip()
+    if v == "0":
+        return None
+    return ROOT / ".env" if v in ("", "1") else Path(v).expanduser()
+
+
+def _data_dir_from_dotenv() -> Path | None:
+    """仓库 .env 里的 OSA_DATA_DIR。只读那一个文件，不依赖 cwd。"""
+    env_file = _dotenv_file()
+    if env_file is None:
+        return None
+    try:
+        text = env_file.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    for line in text.splitlines():
+        key, sep, value = line.strip().partition("=")
+        if sep and key.strip() == "OSA_DATA_DIR" and value.strip():
+            return Path(value.strip().strip("\"'")).expanduser()
+    return None
+
+
+def _resolve_data_dir() -> tuple[Path, bool]:
+    """（数据目录，是否是仓库里那一档）。.env 里那条指向的目录不存在就不用，免得全跑进一个空壳。"""
+    raw = os.environ.get("OSA_DATA_DIR", "").strip()
+    if raw:
+        return Path(raw).expanduser(), False
+    from_env = _data_dir_from_dotenv()
+    if from_env is not None:
+        if from_env.is_dir():
+            return from_env, False
+        log.warning(".env 的 OSA_DATA_DIR=%s 不存在，改用仓库里的 data/", from_env)
+    else:
+        log.warning("没设 OSA_DATA_DIR，.env 里也没有，数据会写进仓库里的 data/；跑脚本和测试前先设好，免得读错库")
+    return ROOT / "data", True
+
+
+DATA, _DATA_IN_REPO = _resolve_data_dir()
 
 
 def _db_path() -> Path:
     db = Path(CFG["memory"]["db"])
     if db.is_absolute():
         return db
-    return DATA / db.name if os.environ.get("OSA_DATA_DIR") else ROOT / db
+    return ROOT / db if _DATA_IN_REPO else DATA / db.name
 
 
 DB_PATH = _db_path()
 
 
 def db_outside_data_dir() -> bool:
-    """OSA_DATA_DIR is set but an absolute memory.db points elsewhere (OSA-015). Kept as-is; startup warns."""
-    if not os.environ.get("OSA_DATA_DIR"):
+    """数据目录在别处，但 memory.db 是绝对路径指向它的外面（OSA-015）。照旧用，启动时报警。"""
+    if _DATA_IN_REPO:
         return False
     return not DB_PATH.resolve().is_relative_to(DATA.resolve())
 

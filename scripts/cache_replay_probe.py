@@ -5,11 +5,11 @@ For a body that is a verbatim extension of the one before, the provider should r
 whole earlier request as a hit. Real turns report 1152, so replaying the pair says whether
 the bodies or the traffic is to blame. `--nostream` sends them as plain calls instead.
 """
-import json, sys
+import _paths, json, sys
 from openai import OpenAI
 
 key = ""
-for line in open("/home/boxes/osa/.env"):
+for line in open(_paths.ROOT / ".env"):
     if line.startswith("XAI_API_KEY="):
         key = line.split("=", 1)[1].strip().strip('"')
 c = OpenAI(base_url="https://api.x.ai/v1", api_key=key, max_retries=0)

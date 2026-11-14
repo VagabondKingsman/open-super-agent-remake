@@ -36,7 +36,9 @@ from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
 ORIGIN = os.environ.get("OSA_RELAY_ORIGIN", "https://push.cclsp.top").rstrip("/")
-DB_PATH = os.environ.get("OSA_RELAY_DB") or str(Path(__file__).resolve().parent.parent / "data" / "relay.db")
+DB_PATH = os.environ.get("OSA_RELAY_DB") or str(
+    Path(os.environ.get("OSA_DATA_DIR", "").strip() or Path(__file__).resolve().parent.parent / "data") / "relay.db"
+)
 KEY_FILE = os.environ.get("APNS_KEY_FILE", "")
 KEY_ID = os.environ.get("APNS_KEY_ID", "")
 TEAM_ID = os.environ.get("APNS_TEAM_ID", "HMDAVG9B8J")

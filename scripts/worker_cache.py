@@ -3,7 +3,7 @@
 
   .venv/bin/python scripts/worker_cache.py                  # mọi lần gọi worker đã ghi
   .venv/bin/python scripts/worker_cache.py --since 1794392000
-  .venv/bin/python scripts/worker_cache.py --bodies /home/boxes/osa-data/prompts2
+  .venv/bin/python scripts/worker_cache.py --bodies "$OSA_DATA_DIR/prompts2"
 
 Phần đầu trả lời "miss bao nhiêu %". Phần --bodies trả lời câu mà cache_hit không nói được:
 request này có phải phần MỞ RỘNG NGUYÊN VĂN của request trước hay không, và nếu không thì
@@ -16,7 +16,7 @@ import json
 import os
 import sqlite3
 
-DB = os.path.join(os.environ.get("OSA_DATA_DIR", "/home/boxes/osa-data"), "osa.db")
+DB = os.path.join(os.environ.get("OSA_DATA_DIR") or os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data"), "osa.db")
 WORKER_MARK = "You are the Worker executing a task"
 
 
