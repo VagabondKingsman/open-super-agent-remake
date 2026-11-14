@@ -26,7 +26,7 @@ const time = (ts: number) => new Date(ts * 1000).toLocaleTimeString(locale, { ho
 const VIA: Record<string, string> = {
   telegram: t('来自 Telegram'), feishu: t('来自飞书'), dingtalk: t('来自钉钉'), wecom: t('来自企业微信'), discord: t('来自 Discord'),
 }
-const secs = (s: number) => (s < 60 ? t('{n} 秒', { n: Math.round(s) }) : t('{m} 分 {s} 秒', { m: Math.floor(s / 60), s: Math.round(s % 60) }))
+const secs = (s: number) => (s < 60 ? t('{n} 秒', { n: s < 10 ? +(s.toFixed(1)) : Math.round(s) }) : t('{m} 分 {s} 秒', { m: Math.floor(s / 60), s: Math.round(s % 60) }))
 
 // 旧版本的任务记录没有 kind，从文字里推断
 function taskKind(m: Message): { kind: string; taskId?: number } {
