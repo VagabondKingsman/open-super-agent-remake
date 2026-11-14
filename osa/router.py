@@ -1123,11 +1123,16 @@ class Router:
         if name == "handoff":
             if self.chat["kind"] != "group":
                 return "handoff only works in a group chat"
-            to = self._member(args.get("to", ""))
+            # 模型常写 bot/name/note 而不是 to/request：两种都认，认不出就把成员名单还给它去重试
+            who = str(args.get("to") or args.get("bot") or args.get("name") or "").strip()
+            what = str(args.get("request") or args.get("note") or args.get("text") or "")
+            to = self._member(who) if who else None
             if not to or to["id"] == self.bot_id:
-                return f"No other member named {args.get('to')}"
+                others = [b["name"] for b in bots.list_bots()
+                          if b["id"] in (self.chat.get("bot_ids") or []) and b["id"] != self.bot_id]
+                return f"No other member named {who!r}; the members are: {', '.join(others) or '(none)'}"
             from . import groups
-            await groups.handoff(self.chat["id"], self.bot_id, to["id"], args.get("request", ""))
+            await groups.handoff(self.chat["id"], self.bot_id, to["id"], what)
             return f"Handed to {to['name']}. They continue after you finish this turn."
         if name == "save_skill":
             try:
