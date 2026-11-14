@@ -346,6 +346,16 @@ def cancel(tid: int, reason: str) -> str:
     return runtime(t.bot_id).cancel(tid, reason) if t else i18n.t("没有任务 #{id}", id=tid)
 
 
+def _cancel_text(tid: int, reason: str) -> str:
+    """取消的记录，附上取消前做到的最后几条工具：只写“已取消”时，做过的事跟着任务一起没了
+    （2026-11-14 任务 #1610 被 Watchdog 收走，用户看到的就是一条空取消，答案丢了）。"""
+    text = i18n.t("[任务 #{id} 已取消：{reason}]", id=tid, reason=reason)
+    done = tasklog.tail(tid)
+    if done:
+        text += "\n" + i18n.t("取消前做到：") + "\n" + "\n".join(f"- {d}" for d in done)
+    return text
+
+
 class Router:
     """一个 Bot 的常驻会话。一次处理一条消息；派出去的 Worker 在后台并行。"""
 
@@ -1377,7 +1387,6 @@ class Router:
                 await task.on_done(task)
             except Exception:
                 pass
-
     def cancel(self, tid: int, reason: str) -> str:
         t = self.tasks.get(tid)
         if not t or t.status != "running":
@@ -1388,7 +1397,6 @@ class Router:
         memory.update_meta(tid, status="cancelled", elapsed=round(time.time() - t.started), steps=t.steps)
         asyncio.create_task(tasklog.close(t, "cancelled", t.result))
         # 新记录靠 meta 的 kind 认出是取消；前端只给没有 meta 的旧记录按“[任务 #N 已取消”的原文认
-        asyncio.create_task(self.add("task", i18n.t("[任务 #{id} 已取消：{reason}]", id=tid, reason=reason), t.chat_id,
-                                     kind="cancel", task_id=tid))
+        asyncio.create_task(self.add("task", _cancel_text(tid, reason), t.chat_id, kind="cancel", task_id=tid))
         asyncio.create_task(self.emit({"type": "task", "task": t.public()}, t.chat_id))
         return i18n.t("已取消 #{id}", id=tid)
