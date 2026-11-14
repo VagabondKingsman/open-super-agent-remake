@@ -135,9 +135,11 @@ def schemas(c=None) -> list[dict]:
 
 def _intro(c) -> str:
     if c.backend not in HOSTS:
-        return """You have a computer (Linux + Chromium browser + terminal, shared with the other Bots). Your task has its own browser window
+        return f"""You have a computer (Linux + Chromium browser + terminal, shared with the other Bots). Your task has its own browser window
 (and its own browser profile: cookies and logins belong to this task, other tasks do not see them). Other tasks work in their own windows
-at the same time without interfering; files are shared by all. Operate it with the browser_* / computer_* tools:"""
+at the same time without interfering; files are shared by all. Operate it with the browser_* / computer_* tools:
+It is a different machine from the one OSA runs on: the host's paths (/home/..., /tmp/...) do not exist here - work inside {c.workspace}.
+"""
     shell = ("- Terminal: computer_shell runs commands on the user's computer (the working directory is the working folder). Every command needs user confirmation (except command prefixes the user has \"always allowed\"; commands with ; && | $( or redirection are asked every time); use it only when necessary."
              if c.shell_enabled() else "- No terminal (the user has not turned it on). Download files with the browser; read and write files with computer_read_file / computer_write_file.")
     desk = DESK_HINT if c.desktop_enabled() else ""
@@ -185,7 +187,8 @@ def capability(c=None) -> str:
     return ("Every background task can use a computer shared by all Bots (Linux desktop + Chromium browser + terminal); "
             "it can open web pages, click, type, act after logging in, upload and download files, and run scripts. Several tasks can use it at once, each in its own browser window, "
             "each task with its own browser profile (its own cookies and logins), sharing files; tasks only queue when too many use it at once. "
-            "The user can watch the screen live in the right panel.")
+            "The user can watch the screen live in the right panel. "
+            f"It is a different machine from the host: give paths inside {c.workspace}, never host paths.")
 
 
 _BODY = """
