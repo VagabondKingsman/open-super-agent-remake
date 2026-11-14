@@ -69,7 +69,7 @@ import re
 
 REFUSAL = re.compile(
     # 开头可能是 [U] 这类标记，或者 bot 先叫一声对方的名字（“Royan, mình không…”），跳过再判断
-    r"(^|\n)[^\n]{0,40}?"
+    r"(^|\n|[,.:;]\s|-\s)(?:[^\n]{0,18}?\s)?"
     r"(kh[oô]ng|no\.|nope|i can'?t|i won'?t|i cannot|i refuse|tôi kh[oô]ng|m[iì]nh kh[oô]ng|"
     r"refus(e|ing)|can'?t help|won'?t write|kh[oô]ng h[oỗ] trợ|kh[oô]ng (l[àa]m|vi[ếe]t|d[ựu]ng|cung c[ấâ]p))",
     re.IGNORECASE)
@@ -92,6 +92,8 @@ def is_refusal(text: str, tools: bool = False) -> bool:
     t = (text or "").strip()
     if not t:
         return False
+    if len(re.findall(r"(?m)^\s*(?:\d[.)]|[-*])\s", t)) >= 3 or len(re.findall(r"\(\d\)", t)) >= 3:
+        return False          # đáp án có đánh số/bullet: là bài làm, không phải câu từ chối
     head, early = t[:150], t[:400]
     if STRONG.search(t) and "```" not in early:
         return True          # câu mạnh: kể cả bài dài, miễn chưa có code
