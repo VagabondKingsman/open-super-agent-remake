@@ -65,6 +65,7 @@ Cập nhật 11/11/2026 23:16, Asia/Saigon (UTC+7), base `14449fd` (merge PR #51
 ## Done · đã public
 
 
+- OPEN-KEEPALIVE 15/11: script giữ máy giờ nằm trong repo — `scripts/instabox-keepalive.py` gọi `POST /api/bots/<id>/computer/start` theo nhịp (mặc định 200 s, `--once` cho cron), `Idempotency-Key` cho suspend/resume đã có sẵn trong `osa/computer/instabox.py`. Unit user mẫu ở `deploy/instabox-keepalive.service`. Đo trên box: chạy `--once` trả `bot 1: running`.
 - AUDIT-F11 15/11: 19:33 ICT (`2026-11-15T12:33Z`) nhánh mặc định của repo là `i18n-vi` — `gh api repos/… --jq .default_branch` trả `i18n-vi` sau một lần PATCH. Trước đó là `main` cũ.
 
 - Việc còn lại cần root trên box 15/11 (chưa làm được vì phiên không có sudo):
@@ -72,7 +73,6 @@ Cập nhật 11/11/2026 23:16, Asia/Saigon (UTC+7), base `14449fd` (merge PR #51
   - `osa-tailnet.service` tồn tại hai bản (bản system enabled, bản user disabled): `sudo systemctl disable --now osa-tailnet.service` rồi `systemctl --user enable --now osa-tailnet.service`, hoặc ngược lại — giữ đúng một.
 - OPEN-RETRY-LIVE 15/11: đường gọi lại đã chạy live 15 lần (11–14/11, `osa.log.2.gz`), 13 lần có câu trả lời trong 4 phút sau đó, không lần nào bị Watchdog huỷ; dòng log `router stream failed mid-way (…) ; retrying`. "at capacity" chưa xuất hiện live (đã có test). B1 "never existed": lượt sửa thật giao thì lịch sử không còn nói task chưa từng tồn tại (`fabricated_then_dispatched`).
 - OPEN-INSTABOX-REPO 15/11: `OSA_COMPUTER_MOUNTS` giờ dùng được trên backend Instabox — `osa/computer/push.py` đóng gói từng mục (bỏ `.git`, `node_modules`), đẩy sang VM và giải nén đúng đường dẫn, sha trong `/data/.osa-mounts.json` để lần sau bỏ qua mục không đổi; mount `ro` (mặc định) `chmod -R a-w` sau khi giải nén. Gắn vào `instabox.start()`, lỗi chỉ cảnh báo. Việc chuyển `extra_mounts` sang `mount_pairs` dùng chung. 6 test `tests/test_computer_push.py`.
-
 - PR #35–#41 (10/11/2026): E2E-B1–B6, TIP-04b, stream stall retry, CI sandbox, CI Chrome, deep audit cài đặt, sửa AUDIT-F1–F13. Merge commit, giờ và head ở [STATE](STATE.md#pr-3541-10112026).
 
 - OPEN-STALL-MSG đã đóng sẵn trong mã: `osa/providers.py:413` và `:525` truyền `n=f"{…:g}"`, nên ngưỡng dưới 1 giây in `0.5` chứ không `0`. Đo 15/11: `i18n.t` với 0.5 cho "Model không gửi thêm nội dung trong 0.5 giây" (vi) và "… 0.5 seconds" (en). Sửa từ `d3d467f` (C9) / `9ae9fea` (C19).

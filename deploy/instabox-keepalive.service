@@ -1,0 +1,17 @@
+# User unit giữ máy ảo Instabox sống (OPEN-KEEPALIVE). Cài:
+#   cp deploy/instabox-keepalive.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload && systemctl --user enable --now instabox-keepalive
+# Chỉ có nghĩa khi backend computer là Instabox; backend Docker không cần (container không bị nền tảng pause).
+[Unit]
+Description=OSA: giữ máy ảo Instabox khỏi bị tạm dừng
+After=osa.service
+
+[Service]
+WorkingDirectory=%h/osa
+Environment=TZ=Asia/Ho_Chi_Minh
+ExecStart=%h/osa/.venv/bin/python scripts/instabox-keepalive.py
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=default.target
