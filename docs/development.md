@@ -54,11 +54,18 @@ scripts/test.sh tests/test_fastsrv.py -x   # thêm tham số thì chuyển tiế
 
 ## 不要用真实数据测试
 
-复制一份数据库，在另一个端口启动：
+复制一份数据库，在另一个端口启动。用 SQLite 的 backup 接口拷，服务开着也安全；不能直接 `cp data/osa.db`：数据库是 WAL，热拷会丢掉最近的写入和还在 `-wal` 里、没并进主文件的页。
 
 ```bash
-mkdir -p /tmp/osa-test && cp data/osa.db /tmp/osa-test/
-sed 's|db: data/osa.db|db: /tmp/osa-test/osa.db|' config.yaml > /tmp/osa-test/config.yaml
+mkdir -p /tmp/osa-test
+uv run python -c "
+import sqlite3
+from osa.config import DB_PATH    # DB 不一定在 data/：设了 OSA_DATA_DIR 就在那里
+s = sqlite3.connect(DB_PATH)
+dst = sqlite3.connect('/tmp/osa-test/osa.db')
+s.backup(dst); dst.close(); s.close()
+"
+sed 's|^  db: .*|  db: /tmp/osa-test/osa.db|' config.yaml > /tmp/osa-test/config.yaml
 OSA_CONFIG=/tmp/osa-test/config.yaml uv run uvicorn osa.server:app --port 8766
 ```
 
