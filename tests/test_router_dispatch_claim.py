@@ -38,6 +38,7 @@ async def test_fake_dispatch_gets_corrective_round_that_really_dispatches(llm, e
     reply = _replies(bot)[-1]
     assert reply["meta"]["tasks"] == [_dispatch_id(bot)]   # RETRO-01: lượt này có task thật
     assert reply["meta"]["fabricated_task_ids"] == [999]
+    assert reply["meta"]["fabricated_then_dispatched"] is True   # 号是假的，但补救轮真的派了
     assert "Đính chính" not in reply["content"]   # đã giao thật thì không cần câu đính chính
 
 
@@ -230,3 +231,23 @@ async def test_service_that_rejects_tool_choice_falls_back(llm, events, make_bot
     assert reqs[1]["tool_choice"]["function"]["name"] == "dispatch"
     assert "tool_choice" not in reqs[2]
     assert len(_replies(bot)[-1]["meta"]["tasks"]) == 1
+
+
+async def test_a_corrected_fake_id_is_not_called_never_existed(llm, events, make_bot, vi):
+    """B1: lượt sửa đã giao thật thì lịch sử không được nói task "#999" chưa từng tồn tại."""
+    bot = make_bot("ClaimD")
+    name = f"router:{bot['name']}"
+    llm.script(name, "Đã giao tác vụ #999.", Call("dispatch", {"goal": "tra cứu"}), "Giờ đã giao thật.")
+    llm.script("worker", "xong")
+    await server.safe_handle(_chat(bot), "ok")
+    await until(lambda: find(bot["chat_id"], kind="result"), what="kết quả task")
+    await settle()
+
+    llm.script(name, "Bạn cần gì nữa?")
+    await server.safe_handle(_chat(bot), "còn gì không")
+    await settle()
+    ctx = llm.bodies("router", bot["name"])[-1]["messages"]
+    notices = [m["content"] for m in ctx if m["role"] == "user" and "#999" in str(m.get("content"))]
+    assert notices, "phải còn một thông báo nhắc #999"
+    assert any("corrective turn right after" in n for n in notices)
+    assert not any("never existed" in n for n in notices)
