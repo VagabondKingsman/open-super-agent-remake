@@ -139,3 +139,13 @@ def test_relay_db_follows_the_data_dir():
                          cwd=ROOT, env=env, capture_output=True, text=True, timeout=60)
     assert out.returncode == 0, out.stderr
     assert out.stdout.strip() == str(data / "relay.db")
+
+
+def test_db_uses_wal_and_normal_sync():
+    """commit 落在事件循环线程上：默认 rollback 日志每次 commit 同步写，盘一慢整条 loop 跟着慢。
+
+    2026-11-14 09:38:44 → 09:49:57 事件循环冻了 672 秒，期间连 access log 都不动。WAL 读写不互挡，
+    每次写也不用等 fsync；NORMAL 在 WAL 下不会写坏库，断电最多丢最后几个事务。"""
+    from osa import memory
+    assert memory.conn.execute("pragma journal_mode").fetchone()[0].lower() == "wal"
+    assert int(memory.conn.execute("pragma synchronous").fetchone()[0]) == 1

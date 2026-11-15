@@ -372,10 +372,21 @@ async def _bounded(aw, seconds: float, text: str):
     if seconds <= 0:
         return await aw
     task = asyncio.ensure_future(aw)
+    t0 = time.monotonic()
     done, _ = await asyncio.wait({task}, timeout=seconds)
-    if not done:
-        task.cancel()
+    # 事件循环被冻住时（2026-11-14 09:38:44 那天冻了 672 秒）计时器都跟着冻住：跑回来时任务可能恰好
+    # 同时完成，只看 done 就当没事，实际已经等了一个数量级的时间。按墙上时间再判一次。
+    if not done or time.monotonic() - t0 > seconds:
+        late = task.result() if (done and not task.cancelled()) else None   # 迟到却已完成：关掉它的流再抛
+        if not done:
+            task.cancel()
         task.add_done_callback(_quiet)
+        close = getattr(late, "close", None) or getattr(late, "aclose", None)
+        if close:
+            try:
+                await close()
+            except Exception:
+                pass
         raise StreamStalled(text) from None
     return task.result()
 
