@@ -20,6 +20,8 @@ HARDEN = ["--security-opt", "no-new-privileges", "--pids-limit", "4096", "--cap-
 
 # 在电脑里把 stdin / stdout 接到 x11vnc。网页关掉画面时 stdin 读到结尾，半关连接，x11vnc 随即断开，进程退出。
 # 电脑刚创建时桌面先就绪、x11vnc 稍后才监听，所以连不上时等一会儿再试
+VNC_FIRST_S = 10   # 等电脑给出第一个字节（RFB 版本）的秒数：超过就当它没醒，别让网页干等
+
 _VNC_RELAY = """
 import os, socket, sys, threading, time
 for _ in range(50):
@@ -30,16 +32,9 @@ for _ in range(50):
         time.sleep(0.2)
 else:
     sys.exit("VNC 没有启动")
-import traceback
-_LOG = open("/tmp/relay.log", "a", buffering=1)
-L = lambda m: _LOG.write(m + chr(10))
-L("start pid=" + str(os.getpid()))
-def _t(): L("up thread " + str(threading.get_ident()))
 def up():
-    _t()
     while True:
         d = os.read(0, 65536)
-        L("read " + str(len(d)) + " " + repr(d[:20]))
         if not d:
             break
         s.sendall(d)
@@ -48,7 +43,6 @@ threading.Thread(target=up, daemon=True).start()
 out = sys.stdout.buffer
 while True:
     d = s.recv(65536)
-    L("recv " + str(len(d)) + " " + repr(d[:20]))
     if not d:
         break
     out.write(d)
@@ -174,25 +168,41 @@ class LocalComputer(Computer):
         return ExecResult(code, out, err, timed_out=code == 124)
 
     async def open_vnc(self):
+        """返回 (recv, send, close)。电脑睡着（闲置暂停）时先叫醒：对暂停中的容器 docker exec 会一声不响地一直挂着，
+        网页那头只剩一张不再动的画面。转发进程的 stderr 留着，断了能说出为什么。"""
+        if (await self.status())["state"] == "paused":
+            await _run("docker", "unpause", self.name)
         p = await asyncio.create_subprocess_exec(
             "docker", "exec", "-i", self.name, "python3", "-c", _VNC_RELAY,
             stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-        import logging as _l
-        _log = _l.getLogger("osa.vncdbg")
-        _log.warning("open_vnc pid=%s", p.pid)
-        async def _err():
-            while True:
-                line = await p.stderr.readline()
-                if not line:
-                    return
-                _log.warning("vnc child stderr: %r", line[:200])
-        asyncio.ensure_future(_err())
+
+        async def why() -> str:
+            """转发进程留下的最后一句（docker 自己的报错也在里面），用来说明为什么没有画面。"""
+            try:
+                err = await asyncio.wait_for(p.stderr.read(), 1)
+            except Exception:
+                err = b""
+            return (err or b"").decode(errors="replace").strip()[-300:] or "-"
+
+        # 先等开头的 RFB 版本：电脑被暂停着的时候 docker exec 会一直等，不先等就要等网页自己超时
+        pending: list[bytes] = []
+        try:
+            first = await asyncio.wait_for(p.stdout.read(65536), VNC_FIRST_S)
+        except asyncio.TimeoutError:
+            first = b""
+        if first:
+            pending.append(first)
+        else:                 # 没醒，或者一上来就断了：说清楚，不要把一张空白画面交给网页
+            msg = await why()
+            p.kill()
+            raise ConnectionError(i18n.t("电脑 {s} 秒没有给画面：{error}", s=VNC_FIRST_S, error=msg))
 
         async def recv() -> bytes:
+            if pending:
+                return pending.pop(0)
             data = await p.stdout.read(65536)
-            _log.warning("RECV %s %r", len(data), data[:20])
             if not data:
-                raise ConnectionError("VNC 连接已关闭")
+                raise ConnectionError(i18n.t("VNC 连接已关闭：{error}", error=await why()))
             return data
 
         async def send(data: bytes):

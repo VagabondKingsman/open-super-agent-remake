@@ -93,6 +93,9 @@ Các biến sau trong `.env` chỉ dành cho compose (các biến môi trường
 | `OSA_DOMAIN` | | Tên miền cho `--profile https` |
 | `FORWARDED_ALLOW_IPS` | `*` | Tin IP thật (`X-Forwarded-For`) từ những nguồn nào. Mặc định chỉ máy này kết nối được nên tin tất cả. Khi `OSA_BIND=0.0.0.0` mở thẳng ra ngoài thì đổi thành `127.0.0.1`, nếu không người khác có thể giả IP để né giới hạn đăng nhập |
 | `APT_MIRROR`, `NPM_REGISTRY`, `PYPI_INDEX` | | Nguồn phần mềm khi build image, xem bên dưới |
+| `OSA_UID`, `OSA_GID` | `0` | UID/GID chạy trong container. Mặc định 0 = root, và khi đó `./data` (cả `skill-packs`, tệp Bot tải về) thành của root, tài khoản thường trên máy không xoá được: đặt `id -u` / `id -g` để tệp thuộc về bạn |
+
+Trên Linux, nên thêm `OSA_UID=$(id -u)` và `OSA_GID=$(id -g)` vào `.env`. Đo 15/11: chạy mặc định bằng root thì `data/skill-packs` toàn `Permission denied` khi người dùng dọn dẹp; đặt UID/GID thật thì mọi tệp trong `./data` thuộc về tài khoản đó và app vẫn chạy bình thường (đã đăng nhập, ghi `/cache` và `/app/data` trong container bằng uid 1002). Các tệp mang theo trong image được `chmod -R a+rX` để uid thường đọc được.
 
 Chú thích trong `.env` phải nằm trên dòng riêng. Chú thích viết sau giá trị có thể bị coi là một phần của giá trị.
 

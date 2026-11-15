@@ -84,6 +84,7 @@ class Computer:
         self._handback = asyncio.Event()
         self._handback.set()
         self.last_used = time.time()
+        self.viewers = 0                # 网页上正连着画面的人数（含“看”）：有人的时候不闲置暂停，否则画面停在原处不动
         self.lock = asyncio.Lock()        # 真实的鼠标键盘同一时间只做一件事
         self.width, self.height = 1280, 800
         # 谁在用：任务从第一次用浏览器起占一个窗口，到结束为止。key 是任务的标识（Heavy 的几个研究员各不相同）

@@ -140,6 +140,8 @@ async def idle_pauser():
         await asyncio.sleep(60)
         limit = (CFG.get("computer") or {}).get("idle_pause_s", 900)
         for c in list(_computers.values()):
+            if c.viewers:          # 有人正看着画面：暂停了画面就不动了，人都走了再说
+                continue
             if c.auto_pause and c.controller == "bot" and time.time() - c.last_used > limit:
                 try:
                     await c.pause()

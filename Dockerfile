@@ -28,6 +28,8 @@ ENV PYTHONUNBUFFERED=1 \
 # remake：run_code / quick_code 和 inspect_repo / check_patch 用 bubblewrap 隔离。容器不允许 user namespace 时
 # bwrap 起不来，这些工具会报不可用，不会退回到不隔离的本机 shell
 RUN apt-get update && apt-get install -y --no-install-recommends bubblewrap && rm -rf /var/lib/apt/lists/*
+# /cache 是命名卷；容器用 OSA_UID 跑时也要写得进去（否则 npx / uvx 全挂）
+RUN mkdir -p /cache && chmod 777 /cache
 
 # Node 和 npx：直接从官方 Node 镜像拷，两边都是 Debian bookworm
 COPY --from=node /usr/local/bin/node /usr/local/bin/node
@@ -53,6 +55,8 @@ COPY config.yaml LICENSE ./
 COPY osa/ osa/
 COPY skills-pack/ai-native/ skills-pack/ai-native/
 COPY --from=web /src/osa/static/dist osa/static/dist
+# 宿主机上的文件可能是 0600；用 OSA_UID 跑容器时要把它们变成可读
+RUN chmod -R a+rX /app
 
 EXPOSE 8765
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
