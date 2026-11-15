@@ -88,7 +88,10 @@ Chạy trên nhánh `fix/audit-f1-f12` trước khi xuất patch. Cây của `5a
 - Script giữ VM thiếu `Idempotency-Key` (mục trên). Trên box này không còn process keepalive; VM Instabox có thể `paused`, `Computer.start()` tự `resume`.
 - `gmail-reg-watchdog` để **tắt** (14/11): Google chặn ở bước cross-device/SMS, máy chưa có `SMS_API_KEY` và không có `/dev/kvm`. Lý do đã ghi trong chính routine.
 - `daily-brief` bật lại 14/11 (web search kiểm được, 2 023 ký tự), hẹn 09:00 hằng ngày.
-- Việc cũ còn chờ: OSA-001, OSA-002, OSA-007, OSA-017, OSA-018, OSA-019, E2E-OPEN trên [BOARD](BOARD.md). OSA-016 và OSA-020 xong ngày 14/11.
+- Việc cũ còn chờ: OSA-019 (còn ~16 ghi chú chữ nghĩa), E2E-OPEN trên [BOARD](BOARD.md). OSA-001/002/007/016/017/018/020 xong 14–15/11 — mỗi mục có phép đo trong cột kết quả.
+- Khoá provider trực tiếp: xai 402 (hết hạn mức), `deepseek`/experientiallabs 401 (key chết). Live chạy qua `apitokenjuiceai`; ai có key thì thay trong Cài đặt → Mô hình.
+- `logrotate` đã cài và `logrotate.timer` bật; trên máy mới vẫn phải chạy `sudo scripts/install-logrotate.sh` (root).
+- DB sang WAL từ 15/11 (PR #103) — sao lưu phải dùng sqlite backup API như mục Deploy, đừng `cp` mỗi `osa.db`.
 
 ## Bổ sung · merge PR #50 và #51 · cursor · 11/11/2026
 
