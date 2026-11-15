@@ -82,4 +82,4 @@ vi:   # Bản cài khi giao diện là tiếng Việt, xem docs/templates.md. Ng
         2. Soạn thư trả lời theo các ý tôi đưa: lịch sự, ngắn gọn, dùng cùng ngôn ngữ với thư gốc
         3. Cho tôi xem bản nháp trước. Chỉ gửi bằng @gmail sau khi tôi nói "gửi đi"
   routines:
-    - name: Xem thư ngày làm việc
+    - name: Xem thư các ngày trong tuần
