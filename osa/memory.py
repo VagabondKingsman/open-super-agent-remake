@@ -17,6 +17,11 @@ TASK_RESULT = re.compile(r"^\[(?:任务 #\d+ 结果|Task #\d+ result|Kết quả
 db_path = DB_PATH
 db_path.parent.mkdir(parents=True, exist_ok=True)
 conn = sqlite3.connect(db_path, check_same_thread=False)
+# WAL: 读不被写挡、每写一次省一次 fsync。commit 落在事件循环线程上（tasklog 的 start/update/save），
+# 默认的 rollback 日志每次同步写，盘一慢整条 loop 就跟着慢（2026-11-14 09:38:44 卡了 672 秒，
+# 期间连 access log 都不动）。NORMAL 在 WAL 下仍不会写坏库，断电最多丢最后几个事务。
+conn.execute("pragma journal_mode=WAL")
+conn.execute("pragma synchronous=NORMAL")
 conn.execute("""create table if not exists messages(
   id integer primary key, ts real, role text, content text, meta text)""")
 conn.execute("""create table if not exists bots(

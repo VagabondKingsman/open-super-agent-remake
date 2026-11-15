@@ -1528,21 +1528,31 @@ async def _vnc_bridge(sock, recv, send, close, on_action=None):
             if m["type"] == "websocket.disconnect":
                 return
             data = m.get("bytes") or (m.get("text") or "").encode()
+            log.warning("VNCUP got type=%s len=%s", m.get("type"), len(data or b""))
             if data:
                 if on_action:
                     on_action()
-                await send(data)
+                try:
+                    await send(data)
+                    log.warning("VNCUP sent %s", len(data))
+                except Exception as e:
+                    log.warning("VNCUP send failed: %r", e)
+                    raise
 
     async def down():
         try:
             while True:
-                await sock.send_bytes(await recv())
+                _d = await recv()
+                await sock.send_bytes(_d)
+                log.warning("VNCBRIDGE sent %s to page", len(_d))
         except Exception:
             lost.set()
             raise
 
     tasks = [asyncio.create_task(up()), asyncio.create_task(down())]
-    await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+    done, _pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+    for t in done:
+        log.warning("VNCBRIDGE task %s done exc=%r", t.get_name(), t.exception() if not t.cancelled() else "cancel")
     for t in tasks:
         t.cancel()
     try:

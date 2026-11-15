@@ -501,3 +501,29 @@ async def test_connect_retries_zero_is_a_single_attempt(monkeypatch):
     with pytest.raises(openai.APIConnectionError):
         await providers.create_chat(client, model="m", messages=[], stream=True)
     assert seen["n"] == 1
+
+
+# 事件循环被冻住：计时器跟着冻住，跑回来时任务恰好也完成了。以前只看 done，于是"已经等了 11 分钟"
+# 被当成没超时（2026-11-14 09:38:44 → 09:49:57，672 秒）。
+async def test_frozen_loop_past_the_limit_is_a_stall_even_if_it_finished():
+    closed = {"done": False}
+
+    class S:
+        async def aclose(self):
+            closed["done"] = True
+
+    async def slow():
+        time.sleep(0.3)      # 同步占住循环，计时器也一起停
+        return S()
+
+    t0 = time.monotonic()
+    with pytest.raises(providers.StreamStalled):
+        await providers._bounded(slow(), 0.1, "quá hạn")
+    assert time.monotonic() - t0 < 1 and closed["done"]
+
+
+async def test_quick_answer_under_the_limit_returns_the_result():
+    async def ok():
+        return "xong"
+
+    assert await providers._bounded(ok(), 5, "quá hạn") == "xong"
