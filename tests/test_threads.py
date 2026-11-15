@@ -148,7 +148,7 @@ async def test_approval_from_group_thread(llm, events, make_bot, mcp_tool):
     approvals.resolve(card[0]["id"], True)
     result = await until(lambda: find(th["id"], kind="result"), what="讨论串里的任务结果")
     assert "记好了" in result[0]["content"]
-    assert [t["id"] for t in await server.list_tasks(chat_id=group["id"])] == [find_id(th["id"], "dispatch")]
+    assert [t["msg_id"] for t in await server.list_tasks(chat_id=group["id"])] == [find_id(th["id"], "dispatch")]
 
 
 def find_id(chat_id: int, kind: str) -> int:

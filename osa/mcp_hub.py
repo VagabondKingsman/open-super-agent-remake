@@ -20,7 +20,7 @@ import logging
 import os
 import re
 import time
-from urllib.parse import parse_qs, parse_qsl, urlencode, urlparse
+from urllib.parse import parse_qs, parse_qsl, urlencode, urlparse, urlsplit
 import httpx2
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.auth import OAuthClientProvider
@@ -34,7 +34,7 @@ from mcp.shared.exceptions import MCPError
 from mcp_types import CONNECTION_CLOSED
 from .config import CFG, DATA
 from .memory import conn
-from . import i18n, mcpapps, registry, security, vault
+from . import i18n, mcpapps, registry, security, tools, vault
 
 conn.execute("create table if not exists apps(name text primary key, config text, enabled integer, created real)")
 conn.commit()
@@ -523,6 +523,22 @@ def _first(e: BaseException) -> BaseException:
     return e
 
 
+def _url_refusal(url: str) -> str | None:
+    """连接之前先看地址（audit L5）：协议要对；`tools.mcp_filter: public` 时还不许是本机/内网。
+
+    只认字面 IP 和 localhost，不做 DNS——这是同步路径；域名解析留到 httpx 去。
+    应用地址多是本机服务，所以默认 any（不过滤），要严的部署自己开。"""
+    u = urlsplit(url)
+    if u.scheme not in ("http", "https") or not u.hostname:
+        return i18n.t("应用地址要是 http:// 或 https://")
+    if (CFG.get("tools") or {}).get("mcp_filter", "any") != "public":
+        return None
+    host = u.hostname
+    if host == "localhost" or (tools._is_ip(host) and tools.private_ip(host)):
+        return i18n.t("应用地址 {host} 是本机或内网地址，tools.mcp_filter 是 public 时只允许公网地址", host=host)
+    return None
+
+
 def _transport(name: str, a: dict):
     """返回 (transport 上下文, 要一起关的 http client 或 None)。"""
     security.check_app(name, a)   # 服务器锁、演示模式：不管配置是怎么进的数据库（界面、恢复备份），连之前都查一遍
@@ -532,6 +548,8 @@ def _transport(name: str, a: dict):
         headers = {k: _resolve(v, missing) for k, v in (a.get("headers") or {}).items()}
         if missing:
             raise ValueError(i18n.t("缺少密钥：{names}", names=", ".join(missing)))
+        if why := _url_refusal(url):
+            raise ValueError(why)
         auth = _oauth(name, a, url) if a.get("oauth") else None
         if a["type"] == "sse":
             # 事件流闲着时不断开（默认 5 分钟没消息就断）；真断了，下次调用工具时会重连

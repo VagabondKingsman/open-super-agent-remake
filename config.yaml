@@ -30,6 +30,7 @@ search:
 
 tools:
   fetch_private: false       # fetch_url 默认不抓本机和内网地址（防网页里的提示注入让 Bot 去读内网服务、云服务器的元数据）；要抓内网页面改成 true
+  mcp_filter: any            # 连 MCP 应用（http / sse）前的地址过滤：any 什么都连（本机服务很常见）；public 只连公网，挡 127.0.0.1 / localhost / 169.254.169.254 这类
 
 server:
   # 没设 OSA_PASSWORD 时，只接受用本机、IP 地址、*.local、*.ts.net 访问；用别的域名访问（比如局域网里的机器名）要加在这里，

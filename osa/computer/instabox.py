@@ -4,6 +4,7 @@
 需要 Instabox 的 API key（scope 至少 machines:write）：界面里填的（加密存在保险库里）优先，没填用环境变量 INSTABOX_API_KEY。
 """
 import asyncio
+import logging
 import os
 import time
 import uuid
@@ -12,6 +13,7 @@ import websockets
 
 from ..config import CFG
 from .. import i18n, vault
+from . import push
 from ..memory import conn
 from .base import Computer, ComputerError, ExecResult, check_enabled
 
@@ -229,6 +231,13 @@ class InstaboxComputer(Computer):
                 await self._req("POST", f"/v1/machines/{mid}/desktop", timeout=100,
                                 json={"action": "start", "width": self.width, "height": self.height})
             # 和本地后端保持一致的工作目录；桌面已在运行时分辨率可能不是配置值，以实际为准
+            # OPEN-INSTABOX-REPO: 这台机器上没有 docker 挂载，OSA_COMPUTER_MOUNTS 由 push.py 推过来；
+            # 推失败不算启动失败（读写仓库只是加分项），但要留一行日志
+            try:
+                if got := await push.deliver(self):
+                    logging.getLogger(__name__).info("pushed mounts into the computer: %s", ", ".join(got))
+            except Exception as e:  # noqa: BLE001
+                logging.getLogger(__name__).warning("mount push failed (%s)", e)
             r = await self.exec("mkdir -p /data/workspace; DISPLAY=:1 xdpyinfo 2>/dev/null | awk '/dimensions:/{print $2}'", timeout=20)
             try:
                 self.width, self.height = map(int, r.stdout.strip().split("x"))

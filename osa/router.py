@@ -303,20 +303,20 @@ ROUTER_TOOLS = [*[s for s in ctools.SCHEMAS if s["function"]["name"] in DIRECT_P
 
 
 TASKS: dict[int, Task] = {}       # 所有 Bot 的任务，Watchdog 统一巡检
-_task_seq = 0                     # 已经发出去过的任务号（见 task_id）
+_task_seq = 0                     # 任务号自己的计数器（见 task_id）
 
 
-def task_id(msg_id: int) -> int:
-    """任务号：一般就是派发那条消息的 id。但消息会被删（删 Bot、清理对话），SQLite 随后用回最大的 id，
-    新任务就可能撞上还在 TASKS 里的老任务，直接覆盖掉：老任务的句柄、审批、`#编号` 全指向新的。
-    撞上时往上找一个没人用的号，进程内不复用。"""
+def task_id(msg_id: int = 0) -> int:
+    """任务号从自己的一段号里取，不再借用消息 id（OPEN-TASK-ID）。
+
+    消息 id 会被用回：删 Bot、清理对话之后，SQLite 把最大的 id 重新发出去，新任务于是可能撞上还在
+    TASKS 里的老任务——老任务的句柄、审批、`#编号` 全被顶掉。任务号独立编号就没有这回事；
+    和消息对得上靠 Task.msg_id（派发那条消息自己记着它）。"""
     global _task_seq
-    _task_seq = max(_task_seq, msg_id)
-    if msg_id not in TASKS:
-        return msg_id            # 没撞就用消息自己的号：任务号平时和消息对得上
-    while _task_seq in TASKS:
+    while True:
         _task_seq += 1
-    return _task_seq
+        if _task_seq not in TASKS:
+            return _task_seq
 RUNTIMES: dict[int, "Router"] = {}
 notify = None                     # 由 server 设置：async (event) -> None
 
@@ -794,6 +794,7 @@ class Router:
             return rounds_used, content, reasoning
 
         fake: list[int] = []
+        fixed_fake = False        # 说了不存在的号，但补救轮真的派了任务
         await self.emit({"type": "stream_start", "sid": sid}, cid)
         try:
             rounds_used, content, reasoning = await rounds()
@@ -835,6 +836,9 @@ class Router:
                     fix = i18n.t("（更正：这一轮没有派出任务 {ids}，上面说已派发是不对的。）", ids=", ".join(f"#{i}" for i in fake))
                     shown = shown.rstrip() + "\n\n" + fix
                     await self.emit({"type": "stream", "sid": sid, "delta": "\n\n" + fix}, cid)
+                elif self._turn_tasks:
+                    # 补救轮真的派了：上一轮那句“#N”只是号不对，任务是真有的。历史里别再写成“从不存在”
+                    fixed_fake = True
             # C3：回复里数了数（“8 lần”“150 dòng”），这个数却不在本轮任何一个工具结果里、也不在用户这条消息里。
             # 给一轮机会按工具结果改；仍然对不上，就在 meta 里标出来，别让它当成事实留在记录里。
             told = self._turn_context + "\n" + "\n".join(self._turn_outputs)
@@ -978,6 +982,7 @@ class Router:
                        **({"usage": usage_meta} if usage_meta else {}),
                        **({"lang_flag": flag} if flag else {}),
                        **({"fabricated_task_ids": fake} if fake else {}),
+                       **({"fabricated_then_dispatched": True} if fake and fixed_fake else {}),
                        **({"claimed_dispatch": True} if claimed_no_call else {}),
                        **({"self_check": self._self_check} if self._self_check else {}),
                        **({"cost_guard": self._turn_capped} if self._turn_capped else {}),

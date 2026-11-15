@@ -1310,5 +1310,7 @@
   "VNC 连接已关闭：{error}": "VNC connection closed: {error}",
   "OSA_COMPUTER_MOUNTS 里的 {item} 不是 宿主:容器[:ro|:rw]": "OSA_COMPUTER_MOUNTS entry {item} is not host:container[:ro|:rw]",
   "OSA_COMPUTER_MOUNTS 里的 {item} 两头都要是绝对路径": "Both sides of OSA_COMPUTER_MOUNTS entry {item} must be absolute paths",
-  "OSA_COMPUTER_MOUNTS 里的 {host} 不存在": "OSA_COMPUTER_MOUNTS path {host} does not exist"
+  "OSA_COMPUTER_MOUNTS 里的 {host} 不存在": "OSA_COMPUTER_MOUNTS path {host} does not exist",
+  "应用地址要是 http:// 或 https://": "An app URL must start with http:// or https://",
+  "应用地址 {host} 是本机或内网地址，tools.mcp_filter 是 public 时只允许公网地址": "App URL {host} is this machine or a private network; with tools.mcp_filter set to public only public addresses are allowed"
 }
