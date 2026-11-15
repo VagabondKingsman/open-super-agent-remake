@@ -241,7 +241,8 @@ async def test_a_demo_left_running_stops_itself_and_reports_the_draft(make_bot, 
     llm.script("other", Reply('{"name":"x","body":"b"}'))
 
     await teach.start(make_bot("Teacher")["id"])
-    await until(lambda: teach.public() is None, 5, "录制到时自己结束")
+    await until(lambda: [e for e in heard if e.get("auto")], 5, "录制到时自己结束")
+    assert teach.public() is None                 # 录制已经结束
 
     [done] = [e for e in heard if e.get("type") == "teach" and e.get("auto")]
     assert done["draft"]["name"] == "x" and done["auto"] is True
