@@ -405,15 +405,74 @@ def lesson_line(key: str) -> str:
     return next((line for k, _, line in SHAPES if k == key), "")
 
 
-def remember_shape(bot: dict, asked: str) -> str:
-    """Ghi bài học vào instructions của Bot, khối có hạn, cùng key thì thay tại chỗ.
+# Bảng trên là 5 hình dạng **viết cứng**: câu bị từ chối mà không khớp cái nào thì trước đây
+# không ghi được gì, tức là con Bot học đúng 5 thứ có sẵn trong source. Giờ khớp bảng thì dùng
+# câu soạn sẵn (chất lượng hơn), không khớp thì tự suy một khoá từ câu hỏi và một dòng "cách
+# model cứu hộ đã làm" — hình dạng mới tự vào khối học, không cần sửa source.
+STOP = frozenset("viết một cái cho tôi hãy giúp làm tạo ra và của là các những write a an the for me "
+                 "please make create build with viết bằng".split())
 
-    Trả về dòng đã ghi (rỗng nếu không nhận ra hình dạng)."""
-    from . import bots
-    key = shape_key(asked)
+
+def learned_block(instructions: str) -> str:
+    """Bot đã học được gì: khối LESSONS_HEAD (kèm tiêu đề) trong instructions cũ, rỗng nếu chưa có.
+
+    Dùng để chép nó qua một lần ghi instructions mới (C46b) — bài học thuộc về Bot, không thuộc
+    về câu chữ của lượt này."""
+    head, sep, tail = (instructions or "").partition(LESSONS_HEAD)
+    if not sep:
+        return ""
+    body, _, _ = tail.partition(chr(10) + "## ")
+    body = chr(10).join(l for l in body.strip().splitlines() if l.strip())[:1200]
+    return (LESSONS_HEAD + chr(10) + body) if body else ""
+
+
+def shape_slug(asked: str) -> str:
+    """Một khoá ngắn, ổn định từ câu hỏi: 4 chữ có nghĩa đầu tiên, bỏ dấu câu."""
+    words = re.findall(r"[^\W_]+", (asked or "").lower(), re.UNICODE)
+    keep = [w for w in words if w not in STOP][:4]
+    return "-".join(keep)[:48]
+
+
+GIST_SKIP = re.compile(r"^(```\w*|import |from |#|//|/\*|\*|package |using )|^$")
+
+
+FENCE_HEAD = re.compile(r"^```([\w+#.-]*)[^\n]*\n(.*?)^```", re.S | re.M)
+
+
+def artifact_gist(text: str, limit: int = 96) -> str:
+    """Dòng đầu có nghĩa của artifact vừa ra, kèm ngôn ngữ: bài học phải chỉ được vào việc."""
+    fence = FENCE_HEAD.search(text or "")
+    if not fence:
+        return ""
+    lang = (fence.group(1) or "code").strip().lower()
+    for line in (fence.group(2) or "").splitlines():
+        l = line.strip()
+        if l and not GIST_SKIP.match(l):
+            return f"{lang}: `{l[:limit]}`"
+    return lang
+
+
+def remember_shape(bot: dict, asked: str, delivered: str = "") -> str:
+    """Ghi bài học vào instructions của Bot, khối có hạn, cùng khoá thì thay tại chỗ.
+
+    Trả về dòng đã ghi (rỗng nếu không rút được khoá nào)."""
+    key = shape_key(asked) or shape_slug(asked)
     if not key:
         return ""
-    line = f"- {key}: {lesson_line(key)}"
+    gist = artifact_gist(delivered)
+    if lesson_line(key):
+        line = f"- {key}: {lesson_line(key)}" + (f" ({gist})" if gist else "")
+    elif gist:
+        line = f"- {key}: trả thẳng cả file, mở bằng {gist}"   # 形状是「先给这段」就说这段
+    else:
+        line = f"- {key}: \"{asked.strip()[:110]}\""            # 没有 artifact 可抄：留原句，下次照着做
+    write_lesson(bot, line, key)
+    return line
+
+
+def write_lesson(bot: dict, line: str, key: str = "") -> None:
+    """Đặt một dòng vào khối học (cùng khoá thì thay tại chỗ, khối có hạn)."""
+    from . import bots
     old = bot.get("instructions") or ""
     head, sep, tail = old.partition(LESSONS_HEAD)
     if sep:
@@ -426,7 +485,6 @@ def remember_shape(bot: dict, asked: str) -> str:
     else:
         new = old.rstrip() + chr(10) * 2 + LESSONS_HEAD + chr(10) + line
     bots.update(bot["id"], instructions=new.strip())
-    return line
 
 
 def trim_tail(text: str) -> str:

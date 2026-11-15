@@ -78,6 +78,12 @@
       "description": "Viết lại một yêu cầu cho vừa sức model: tách việc, đổi khung, đưa plan file, hoặc chuyển cho bot/model ít giới hạn hơn — rồi kiểm bằng chính câu gốc.",
       "focus": "Mục tiêu: cùng một kết quả, nhưng cách giao không chạm vào bức tường của model.",
       "redistribution": "own-work"
+    },
+    {
+      "name": "self-build",
+      "description": "Tự sửa chính OSA: đọc repo đã mount, tái hiện bằng test, sửa một việc, chạy cả bộ, mở PR. Dùng khi việc là sửa hệ thống chứ không phải dùng nó.",
+      "focus": "Tái hiện trước, nhánh riêng, ./scripts/test.sh xanh, PR + ba check, merge rồi mới restart và đo lại.",
+      "redistribution": "owner-authorized-bundled"
     }
   ],
   "author": "Tin Tin team",
