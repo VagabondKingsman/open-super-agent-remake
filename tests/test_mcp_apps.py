@@ -163,3 +163,26 @@ async def test_router_capabilities_skip_app_only_tools(uiapp, bot):
     caps = r._capabilities()
     line = next(x for x in caps.splitlines() if "@uidemo" in x)
     assert "show_weather" in line and "secret_tool" in line and "refresh_weather" not in line
+
+
+# ---- audit L5: 地址过滤 ---------------------------------------------------
+def test_the_url_filter_is_off_by_default(monkeypatch):
+    from osa import mcp_hub
+    monkeypatch.delitem(mcp_hub.CFG.setdefault("tools", {}), "mcp_filter", raising=False)
+    assert mcp_hub._url_refusal("http://127.0.0.1:3000/sse") is None
+    assert mcp_hub._url_refusal("http://169.254.169.254/latest") is None
+
+
+def test_public_mode_refuses_local_and_metadata_but_keeps_public(monkeypatch):
+    from osa import mcp_hub
+    monkeypatch.setitem(mcp_hub.CFG.setdefault("tools", {}), "mcp_filter", "public")
+    assert mcp_hub._url_refusal("http://127.0.0.1:3000/sse")
+    assert mcp_hub._url_refusal("http://localhost:3000/sse")
+    assert mcp_hub._url_refusal("http://169.254.169.254/latest")
+    assert mcp_hub._url_refusal("https://mcp.example.com/sse") is None
+
+
+def test_a_bad_scheme_is_always_refused(monkeypatch):
+    from osa import mcp_hub
+    monkeypatch.setitem(mcp_hub.CFG.setdefault("tools", {}), "mcp_filter", "any")
+    assert mcp_hub._url_refusal("ftp://x/y")

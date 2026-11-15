@@ -14,6 +14,8 @@ from html.parser import HTMLParser
 from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
 import httpx
 from . import tools
+
+_real_blocked = tools.blocked     # 调用方换掉 tools.blocked（测试）时就不钉地址
 from .memory import conn
 
 conn.execute("create table if not exists unfurls(url text primary key, data text, ok integer, fetched real)")
@@ -139,9 +141,19 @@ async def _fetch(url: str) -> dict | None:
         if _YOUTUBE.match(url):
             return await _oembed(c, url)
         for _ in range(MAX_REDIRECTS + 1):   # 跳转自己跟：每一跳都要检查，免得公网地址跳到内网
-            if await tools.blocked(url):
-                return None
-            async with c.stream("GET", url) as r:
+            if _TRANSPORT is not None:      # 桩里没有 DNS：只检查，照原网址连（好按网址配响应）
+                if await tools.blocked(url):
+                    return None
+                target = (httpx.URL(url), {}, {})
+            else:                            # 生产：解析一次，连接就钉在检查过的那个地址上
+                target = await tools.pin(url)
+                if isinstance(target, str):
+                    return None
+            dest, extra, ext = target
+            hop = dict(extra or {})
+            if hop.get("Host") and (port := urlsplit(url).port):
+                hop["Host"] = f"{hop['Host']}:{port}"
+            async with c.stream("GET", dest, headers=hop or None, extensions=ext or None) as r:
                 if r.is_redirect and r.headers.get("location"):
                     url = urljoin(str(r.url), r.headers["location"])
                     if _EMBED.match(url):
