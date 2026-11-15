@@ -123,7 +123,7 @@ def tail(task_id: int, n: int = 5) -> list[str]:
 def _task(row) -> dict:
     i, ts, content, meta, chat_id, bot_id = row
     m = json.loads(meta or "{}")
-    return {"id": m.get("task_id") or i, "ts": ts, "goal": memory.TASK_DISPATCH.sub("", content).strip(), "mode": m.get("mode", "single"),
+    return {"id": m.get("task_id") or i, "msg_id": i, "ts": ts, "goal": memory.TASK_DISPATCH.sub("", content).strip(), "mode": m.get("mode", "single"),
             "status": m.get("status", "done"), "elapsed": m.get("elapsed"), "steps": m.get("steps"),
             "chat_id": chat_id, "bot_id": bot_id, "handoff_to": m.get("handoff_to")}
 

@@ -78,8 +78,10 @@ def _last_dispatch(bot):
 
 
 def _dispatch_id(bot):
+    """派发那条消息的**任务号**（任务号不再等于消息 id，见 OPEN-TASK-ID）。"""
     from osa import memory
-    return memory.conn.execute("select max(id) from messages where chat_id=? and json_extract(meta,'$.kind')='dispatch'",
+    return memory.conn.execute("select json_extract(meta,'$.task_id') from messages where chat_id=? "
+                               "and json_extract(meta,'$.kind')='dispatch' order by id desc limit 1",
                                (bot["chat_id"],)).fetchone()[0]
 
 

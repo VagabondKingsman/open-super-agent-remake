@@ -104,7 +104,7 @@ def _tasks(a: float, b: float, bot: int | None) -> list[dict]:
     for i, ts, content, meta, chat_id, bot_id in rows:
         m = json.loads(meta or "{}")
         hit = ROUTINE.match(content or "")
-        out.append({"id": i, "ts": ts, "goal": ROUTINE.sub("", content or "").removeprefix("[任务已派发]").strip(),
+        out.append({"id": m.get("task_id") or i, "msg_id": i, "ts": ts, "goal": ROUTINE.sub("", content or "").removeprefix("[任务已派发]").strip(),
                     "status": m.get("status", "done"), "elapsed": m.get("elapsed"), "steps": m.get("steps"),
                     "mode": m.get("mode", "single"), "quiet": bool(m.get("quiet")), "chat_id": chat_id, "bot_id": bot_id,
                     "routine": hit.group(1) if hit else None})
@@ -145,7 +145,7 @@ def _tools(a: float, b: float, bot: int | None) -> list[dict]:
     rows = conn.execute(f"""select coalesce(nullif(s.name,''), s.title), count(*),
         sum(case when s.status='error' then 1 else 0 end), sum(case when s.status='rejected' then 1 else 0 end),
         avg(case when s.status='done' then s.dur end), max(s.ts)
-        from task_steps s join messages m on m.id=s.task_id where s.kind='tool' and s.ts>=? and s.ts<?{ws}
+        from task_steps s join messages m on m.id=(select d.id from messages d where json_extract(d.meta,'$.task_id')=s.task_id order by d.id desc limit 1) where s.kind='tool' and s.ts>=? and s.ts<?{ws}
         group by 1 order by 2 desc""", (a, b, *args)).fetchall()
     return [{"name": n, "calls": c, "errors": e, "rejected": r, "avg_s": round(d, 1) if d is not None else None, "last": l}
             for n, c, e, r, d, l in rows]
@@ -174,7 +174,7 @@ def _problems(a: float, b: float, bot: int | None, tasks: list[dict]) -> list[di
     ws, args = _bot_sql(bot, "m.bot_id")
     for ts, name, body, task_id, bot_id, chat_id in conn.execute(
             f"""select s.ts, coalesce(nullif(s.name,''), s.title), s.body, s.task_id, m.bot_id, m.chat_id
-            from task_steps s join messages m on m.id=s.task_id where s.kind='tool' and s.status='error'
+            from task_steps s join messages m on m.id=(select d.id from messages d where json_extract(d.meta,'$.task_id')=s.task_id order by d.id desc limit 1) where s.kind='tool' and s.status='error'
             and s.ts>=? and s.ts<?{ws} order by s.ts desc limit 500""", (a, b, *args)):
         items.append({"kind": "tool", "ts": ts, "bot_id": bot_id, "task_id": task_id, "chat_id": chat_id,
                       "title": name, "detail": (body or "")[:300]})
