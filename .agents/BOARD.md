@@ -50,7 +50,6 @@ Cập nhật 11/11/2026 23:16, Asia/Saigon (UTC+7), base `14449fd` (merge PR #51
 | OPEN-RETRY-LIVE | Đường gọi lại stream của Router/Worker chưa xảy ra trên live | Bắt được một lượt live có `StreamStalled` hoặc "at capacity" giữa stream, thấy note gọi lại, `reset` trên UI, task không bị Watchdog hủy. Hiện chỉ có test và lần ép `idle_s` trên stream xAI thật. | Chưa nhận |
 | OPEN-DOCKER-DOC | `docs/docker.md` đã đổi sang tiếng Việt (PR #41) | Lần merge upstream sau sẽ xung đột ở file này: giữ bản VI, port nội dung mới của upstream vào. | Nhắc khi port upstream |
 | OPEN-NOT-CHECKED | Chưa kiểm trên máy thật | app macOS (`test_real_desktop`), Instabox từ bản cài thứ hai, Instabox từ bản cài thứ hai (gói miễn phí một máy). | Chưa nhận |
-| OPEN-KEEPALIVE | Script giữ VM trên box: suspend/resume trả 400 thiếu `Idempotency-Key` | Script ngoài repo (`/workspace/instabox-keepalive/lease-keepalive.py`). 22:13 10/11 VM bị pause khi hết 480 phút và vào cooldown. Thêm header rồi kiểm qua một mốc 480 phút. | Chưa nhận · việc của box |
 | E2E-OPEN | Việc còn lại sau E2E 10/11 | Lỗi provider giữa stream đã sửa ở PR #37. "0 giây" khi ngưỡng dưới 1 giây đã sửa 14/11 (Chat.tsx `secs`); còn: thông báo B1 ghi "never existed" cả khi lượt sửa đã giao; "[新话题]" chưa dịch; Filter live, `cargo test` Android, APK `NOT_CHECKED`. | Chưa nhận |
 | OSA-040 | App Android văng khi nối server | Không gọi `navigate` (hàng đợi wry 8 chỗ). Probe `/manifest.json` trước khi `location.replace`. Manifest app có đủ permission nên `add_capability` không panic và không làm độc khóa ACL. HTTP được phép ở mọi build type. Demo Linux sống. Emulator x86_64 không FATAL. S22 Ultra 11/11 đăng nhập `http://<máy>.<tailnet>.ts.net/`, thấy AutoBot và Nova. APK `v1.0` SHA `e3cb6a28…f58d`. | Done · cursor / `cursor/android-connect-crash-efeb` · [PR #47](https://github.com/VagabondKingsman/open-super-agent-remake/pull/47) merge `3c631a3` |
 | AUDIT-ABC | Vòng A/B/C: usage, tool trên stream, stall, cache, trần chi phí | Pytest 1152 passed / 1 skipped trên head `fa0372d`. Eval nằm trong pytest. Chi tiết `docs/ke-hoach-super-bot.md`. | Done · cursor / `cursor/audit-abc-cache` · [PR #50](https://github.com/VagabondKingsman/open-super-agent-remake/pull/50) merge `30dfb24` |
@@ -64,6 +63,8 @@ Cập nhật 11/11/2026 23:16, Asia/Saigon (UTC+7), base `14449fd` (merge PR #51
 | OPEN-TASK-ID | Low. `router.TASKS` lấy id tin nhắn làm khóa | Xóa Bot thì tin nhắn bị xóa, SQLite dùng lại id lớn nhất, task mới có thể trùng khóa với task cũ còn trong `TASKS`. Thấy khi viết eval (engine lọc task theo Bot và thời gian). Chưa thấy lỗi ngoài test. | Chưa nhận |
 
 ## Done · đã public
+
+- OPEN-KEEPALIVE 15/11: script giữ máy giờ nằm trong repo — `scripts/instabox-keepalive.py` gọi `POST /api/bots/<id>/computer/start` theo nhịp (mặc định 200 s, `--once` cho cron), `Idempotency-Key` cho suspend/resume đã có sẵn trong `osa/computer/instabox.py`. Unit user mẫu ở `deploy/instabox-keepalive.service`. Đo trên box: chạy `--once` trả `bot 1: running`.
 
 - PR #35–#41 (10/11/2026): E2E-B1–B6, TIP-04b, stream stall retry, CI sandbox, CI Chrome, deep audit cài đặt, sửa AUDIT-F1–F13. Merge commit, giờ và head ở [STATE](STATE.md#pr-3541-10112026).
 

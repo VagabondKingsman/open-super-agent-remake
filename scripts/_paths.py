@@ -41,6 +41,11 @@ def db(ro: bool = True) -> sqlite3.Connection:
     return sqlite3.connect(p, timeout=10)
 
 
+def base() -> str:
+    """Địa chỉ OSA trên máy này (OSA_BASE, mặc định cổng 8765 của loopback)."""
+    return os.environ.get("OSA_BASE", "").strip() or _dotenv("OSA_BASE") or "http://127.0.0.1:8765"
+
+
 def password() -> str:
     pw = _dotenv("OSA_PASSWORD")
     if not pw:
