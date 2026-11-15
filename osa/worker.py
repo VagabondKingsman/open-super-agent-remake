@@ -66,6 +66,7 @@ class _NotStarted(Exception):
 class Task:
     id: int
     goal: str
+    msg_id: int = 0                        # “任务已派发”那条消息的 id：任务号平时等于它，撞号时另给号但消息还认这一条
     mode: str = "single"                   # single | heavy
     bot_id: int = 0
     chat_id: int = 0

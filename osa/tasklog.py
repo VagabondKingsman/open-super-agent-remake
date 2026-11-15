@@ -123,7 +123,7 @@ def tail(task_id: int, n: int = 5) -> list[str]:
 def _task(row) -> dict:
     i, ts, content, meta, chat_id, bot_id = row
     m = json.loads(meta or "{}")
-    return {"id": i, "ts": ts, "goal": memory.TASK_DISPATCH.sub("", content).strip(), "mode": m.get("mode", "single"),
+    return {"id": m.get("task_id") or i, "ts": ts, "goal": memory.TASK_DISPATCH.sub("", content).strip(), "mode": m.get("mode", "single"),
             "status": m.get("status", "done"), "elapsed": m.get("elapsed"), "steps": m.get("steps"),
             "chat_id": chat_id, "bot_id": bot_id, "handoff_to": m.get("handoff_to")}
 
@@ -146,8 +146,11 @@ def list_tasks(bot_id: int | None = None, chat_id: int | None = None, before: in
 
 
 def detail(task_id: int) -> dict | None:
-    r = conn.execute(f"select id, ts, content, meta, chat_id, bot_id from messages where id=? and {DISPATCH}",
-                     (task_id,)).fetchone()
+    # 任务号平时就是派发消息的 id；撞号换过号的任务，消息的 meta 里记着真任务号
+    r = conn.execute(f"select id, ts, content, meta, chat_id, bot_id from messages "
+                     f"where json_extract(meta, '$.task_id')=? and {DISPATCH}", (task_id,)).fetchone() \
+        or conn.execute(f"select id, ts, content, meta, chat_id, bot_id from messages where id=? and {DISPATCH}",
+                        (task_id,)).fetchone()
     if not r:
         return None
     t = _task(r)
