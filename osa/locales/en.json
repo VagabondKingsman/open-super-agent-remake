@@ -1305,5 +1305,7 @@
   "再问一遍那句话：它还是拒绝。": "Asked again: it still refuses.",
   "再问一遍那句话：它答了。": "Asked again: it answered.",
   "再问一遍：": "Asked again: ",
-  "取消前做到：": "Done before cancelling:"
+  "取消前做到：": "Done before cancelling:",
+  "电脑 {s} 秒没有给画面：{error}": "The computer gave no picture within {s}s: {error}",
+  "VNC 连接已关闭：{error}": "VNC connection closed: {error}"
 }

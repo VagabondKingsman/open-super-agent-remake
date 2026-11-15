@@ -187,8 +187,12 @@ class LocalComputer(Computer):
         # 先等开头的 RFB 版本：电脑被暂停着的时候 docker exec 会一直等，不先等就要等网页自己超时
         pending: list[bytes] = []
         try:
-            pending.append(await asyncio.wait_for(p.stdout.read(65536), VNC_FIRST_S))
+            first = await asyncio.wait_for(p.stdout.read(65536), VNC_FIRST_S)
         except asyncio.TimeoutError:
+            first = b""
+        if first:
+            pending.append(first)
+        else:                 # 没醒，或者一上来就断了：说清楚，不要把一张空白画面交给网页
             msg = await why()
             p.kill()
             raise ConnectionError(i18n.t("电脑 {s} 秒没有给画面：{error}", s=VNC_FIRST_S, error=msg))
