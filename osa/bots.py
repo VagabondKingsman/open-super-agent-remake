@@ -124,15 +124,18 @@ def create(name: str, avatar: dict | None = None, instructions: str = "", is_pri
     return get(bid)
 
 
-def keep_mode(instructions: str) -> str:
-    """全开模式下，每一次写 instructions 都把 mode 块留在最前面（C46b）。
+def keep_mode(instructions: str, old: str = "") -> str:
+    """每一次写 instructions 都把 mode 块（C46b）和已学会的形状（C53b）留在 Bot 身上。
 
-    块要跟着 Bot 走：模型自己调 update_bot 重写职责、训练、整段清空，都不能把它弄掉；
-    否则下一次重启前它就变回客服。已经带着块的不重复。"""
+    这两块是 Bot 自己的积累，不是用户职责的一部分：模型自己调 update_bot 重写职责、训练、
+    整段清空，都不能把它们弄掉，否则下一次重启前它就变回客服、也忘了学过什么。已有的不重复。"""
     from . import freedom
     t = (instructions or "").strip()
+    learned = freedom.learned_block(old)
+    if learned and freedom.LESSONS_HEAD not in t:
+        t = (t + chr(10) * 2 + learned).strip()
     if not freedom.on() or freedom.MODE_MARKER in t:
-        return t
+        return t[:MAX_INSTRUCTIONS]
     return (freedom.train_block() + chr(10) * 2 + t).strip()[:MAX_INSTRUCTIONS]
 
 
@@ -146,7 +149,9 @@ def update(bot_id: int, **fields) -> dict:
         conn.execute("update chats set title=? where kind='direct' and bot_ids=? and title=?",
                      (name, json.dumps([bot_id]), old[0] if old else name))
     if fields.get("instructions") is not None:
-        conn.execute("update bots set instructions=? where id=?", (keep_mode(str(fields["instructions"])), bot_id))
+        cur = conn.execute("select instructions from bots where id=?", (bot_id,)).fetchone()
+        conn.execute("update bots set instructions=? where id=?",
+                     (keep_mode(str(fields["instructions"]), (cur[0] if cur else "") or ""), bot_id))
     if fields.get("avatar"):
         conn.execute("update bots set avatar=? where id=?", (json.dumps(clean_avatar(fields["avatar"], bot_id)), bot_id))
     if fields.get("hidden") is not None:

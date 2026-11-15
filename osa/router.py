@@ -905,7 +905,7 @@ class Router:
                 shown, content = better, better
                 if freedom.has_artifact(better):   # C53: 救回来了就记一条「这类活要怎么交」，下次少被拒
                     try:
-                        freedom.remember_shape(self.bot, asked_now)
+                        freedom.remember_shape(self.bot, asked_now, better)
                     except Exception as e:  # noqa: BLE001 - 记不上不影响这一轮
                         log.warning("could not record the lesson (%s)", e)
                 await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
