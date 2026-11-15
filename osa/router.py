@@ -794,6 +794,7 @@ class Router:
             return rounds_used, content, reasoning
 
         fake: list[int] = []
+        fixed_fake = False        # 说了不存在的号，但补救轮真的派了任务
         await self.emit({"type": "stream_start", "sid": sid}, cid)
         try:
             rounds_used, content, reasoning = await rounds()
@@ -835,6 +836,9 @@ class Router:
                     fix = i18n.t("（更正：这一轮没有派出任务 {ids}，上面说已派发是不对的。）", ids=", ".join(f"#{i}" for i in fake))
                     shown = shown.rstrip() + "\n\n" + fix
                     await self.emit({"type": "stream", "sid": sid, "delta": "\n\n" + fix}, cid)
+                elif self._turn_tasks:
+                    # 补救轮真的派了：上一轮那句“#N”只是号不对，任务是真有的。历史里别再写成“从不存在”
+                    fixed_fake = True
             # C3：回复里数了数（“8 lần”“150 dòng”），这个数却不在本轮任何一个工具结果里、也不在用户这条消息里。
             # 给一轮机会按工具结果改；仍然对不上，就在 meta 里标出来，别让它当成事实留在记录里。
             told = self._turn_context + "\n" + "\n".join(self._turn_outputs)
@@ -978,6 +982,7 @@ class Router:
                        **({"usage": usage_meta} if usage_meta else {}),
                        **({"lang_flag": flag} if flag else {}),
                        **({"fabricated_task_ids": fake} if fake else {}),
+                       **({"fabricated_then_dispatched": True} if fake and fixed_fake else {}),
                        **({"claimed_dispatch": True} if claimed_no_call else {}),
                        **({"self_check": self._self_check} if self._self_check else {}),
                        **({"cost_guard": self._turn_capped} if self._turn_capped else {}),

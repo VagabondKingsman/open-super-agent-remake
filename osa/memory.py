@@ -326,6 +326,12 @@ def context(chat_id: int, viewer: int | None = None, me: int | None = None, imag
             msgs.append({"role": "user", "content": note + defang(c)})
         elif r == "assistant" and others:
             msgs.append({"role": "user", "content": f"[bot: {name(b)}]{defang(c)}"})
+        elif r == "assistant" and meta.get("fabricated_task_ids") and meta.get("fabricated_then_dispatched"):
+            # B1：号是编的，但补救轮真的派了：说“不存在”会把真在跑的任务说没了
+            ids = ", ".join(f"#{i}" for i in meta["fabricated_task_ids"])
+            msgs.append({"role": "user", "content": f"(system notice: this is your earlier reply. It named task {ids} before that task existed; "
+                                                    f"the dispatch tool was called in the corrective turn right after, so the work is running "
+                                                    f"under its real number){c}"})
         elif r == "assistant" and meta.get("fabricated_task_ids"):
             # B1：这条回复说派了并不存在的任务。改成通知形式，免得模型把“已派发 #N”当成可以照抄的格式
             ids = ", ".join(f"#{i}" for i in meta["fabricated_task_ids"])
