@@ -68,6 +68,8 @@ Cập nhật 11/11/2026 23:16, Asia/Saigon (UTC+7), base `14449fd` (merge PR #51
 
 - OPEN-STALL-MSG đã đóng sẵn trong mã: `osa/providers.py:413` và `:525` truyền `n=f"{…:g}"`, nên ngưỡng dưới 1 giây in `0.5` chứ không `0`. Đo 15/11: `i18n.t` với 0.5 cho "Model không gửi thêm nội dung trong 0.5 giây" (vi) và "… 0.5 seconds" (en). Sửa từ `d3d467f` (C9) / `9ae9fea` (C19).
 
+- 15/11: `looplag` đo thêm đồng hồ thật để không bỏ sót ca **cả máy** bị dừng (đúng dạng 672 s ngày 14/11: monotonic cũng đứng nên bản #103 vẫn im). `beat["jump"]` do phía đánh dấu tính ngay khi tỉnh, vượt `loop_lag_s` thì ghi "整台机器被暂停了" kèm câu nói rõ stack là sau khi tỉnh. Đo live: `kill -STOP` 3 giây → một WARNING "事件循环被堵住 3.1 秒" + stack; chạy 8 giây không đóng băng → im. [PR #110](https://github.com/VagabondKingsman/open-super-agent-remake/pull/110) merge `383ba16`.
+
 - OSA-036: [PR #33](https://github.com/VagabondKingsman/open-super-agent-remake/pull/33) merge vào `i18n-vi` tại `4e146df` (`merged_at` `2026-11-10T08:49:28Z`, 15:49:28 Asia/Saigon). Nút Đổi server không gọi `navigate`.
 
 - OSA-034 + OSA-035: [PR #31](https://github.com/VagabondKingsman/open-super-agent-remake/pull/31) merge tại `c7c5321` (`merged_at` `2026-11-10T07:47:27Z`). [PR #32](https://github.com/VagabondKingsman/open-super-agent-remake/pull/32) merge tại `26752c9` (`merged_at` `2026-11-10T08:40:21Z`). Android nhớ server, nhận `opensuperagent://pair`, không gọi `navigate`. APK debug arm64: SHA-256 `bfb36d54d7008f8852b228061ea4adc4bef5b8b45a8352ad11e094458ae34150`. Chưa chạy trên điện thoại thật.
