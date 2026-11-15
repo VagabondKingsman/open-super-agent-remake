@@ -199,3 +199,8 @@ async def prune_loop():
             prune()
         except Exception:
             logging.getLogger(__name__).exception("task log prune failed")
+        try:
+            from . import traces
+            traces.prune()
+        except Exception:
+            logging.getLogger(__name__).exception("trace prune failed")
