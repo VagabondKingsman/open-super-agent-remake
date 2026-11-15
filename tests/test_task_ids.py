@@ -11,14 +11,18 @@ def fake(bot_id=1):
 
 
 def test_a_reused_message_id_gets_a_free_task_number():
+    router.TASKS.clear()
+    router._task_seq = 0
     router.TASKS[4242] = fake()           # 一个还在 TASKS 里的老任务
     got = router.task_id(4242)
-    assert got not in router.TASKS and got > 4242
+    assert got not in router.TASKS
     assert router.task_id(4242) not in router.TASKS      # 下一次也不会用回同一个号
 
 
-def test_an_unused_message_id_is_the_task_id():
-    assert router.task_id(900000001) == 900000001
+def test_a_task_number_never_borrows_a_message_id():
+    router.TASKS.clear()
+    router._task_seq = 0
+    assert router.task_id(900000001) == 1
 
 
 async def test_dispatch_does_not_overwrite_a_live_task(make_bot, monkeypatch):
