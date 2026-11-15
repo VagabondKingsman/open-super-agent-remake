@@ -24,7 +24,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from . import i18n
 from .config import CFG
-from .memory import db_path
+from .memory import conn, db_path
 
 # 同一台机器上跑两个服务（比如桌面版和开发用的）时用 OSA_COOKIE 分开起名：cookie 不分端口，同名会互相把登录顶掉
 COOKIE = os.environ.get("OSA_COOKIE", "") if re.fullmatch(r"[A-Za-z0-9_-]{1,64}", os.environ.get("OSA_COOKIE", "")) else "osa_session"
@@ -98,8 +98,39 @@ def _signing_key() -> bytes:
     return hmac.new(_key, os.environ.get("OSA_PASSWORD", "").encode(), hashlib.sha256).digest()
 
 
+_VER: int | None = None
+
+
+def _version() -> int:
+    """签名的版本号（audit L3）。销毁全部会话 = 把它加一：旧 cookie 的签名就再也算不出来。
+
+    存在库里而不是内存里，进程重启不会把被销毁的会话又放回来。"""
+    global _VER
+    if _VER is None:
+        conn.execute("create table if not exists auth_meta(k text primary key, v integer not null default 0)")
+        conn.execute("insert or ignore into auth_meta(k, v) values('ver', 0)")
+        conn.commit()
+        _VER = conn.execute("select v from auth_meta where k='ver'").fetchone()[0]
+    return _VER
+
+
+def sessions_revoked() -> int:
+    """已销毁过几轮会话（给界面显示用）。"""
+    return _version()
+
+
+def revoke_all() -> int:
+    """销毁全部已登录会话：所有设备下次请求都回到登录页。返回新版本号。"""
+    global _VER
+    v = _version() + 1
+    conn.execute("update auth_meta set v=? where k='ver'", (v,))
+    conn.commit()
+    _VER = v
+    return v
+
+
 def _sign(exp: int) -> str:
-    return hmac.new(_signing_key(), f"v1.{exp}".encode(), hashlib.sha256).hexdigest()
+    return hmac.new(_signing_key(), f"v2.{_version()}.{exp}".encode(), hashlib.sha256).hexdigest()
 
 
 def new_token() -> str:
@@ -406,6 +437,15 @@ async def use_ticket(request: Request):
 
 @router.post("/logout")
 async def logout(request: Request):
+    r = RedirectResponse("/login" if enabled() else "/", 303)
+    r.headers.append("set-cookie", _cookie_header("", 0, request.url.scheme == "https"))
+    return r
+
+
+@router.post("/api/logout-all")
+async def logout_all(request: Request):
+    """登出所有设备（audit L3）：手机丢了、会话可能被人拿到时用，不用改密码。"""
+    revoke_all()
     r = RedirectResponse("/login" if enabled() else "/", 303)
     r.headers.append("set-cookie", _cookie_header("", 0, request.url.scheme == "https"))
     return r
