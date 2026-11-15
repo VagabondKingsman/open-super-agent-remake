@@ -6,7 +6,7 @@ import time
 from dataclasses import dataclass, field
 from .config import CFG, call_kwargs, client_for, fallback_for
 from .providers import ProviderLimit, create_chat
-from . import applets, approvals, charter, clock, dsml, freedom, i18n, local_checks, memories, memory, mcp_hub, providers, registry, skillpacks, tasklog, verification
+from . import applets, approvals, charter, clock, dsml, freedom, i18n, local_checks, memories, memory, mcp_hub, providers, registry, skillpacks, tasklog, traces, verification
 from . import builtin  # noqa: F401  导入即注册内置工具
 from .computer import tools as ctools
 
@@ -546,6 +546,10 @@ async def _run_worker(task: Task, goal: str, label: str = "") -> str:
             out = freedom.trim_tail(out) if freedom.on() else out   # C39
             if freedom.on() and freedom.is_refusal(out):   # C35: the worker refuses too - finish it
                 fixed = await freedom.prefill_repair(msgs, out, role="worker") or await freedom.repair(msgs, out)
+                try:   # P0PLUS-3 lite: 任务里的拒绝也要留下痕迹，否则只有对话里的 refusal 被看见
+                    traces.note(task.bot_id, getattr(task, "goal", "") or "", fixed or out, bool(fixed), task.chat_id or None)
+                except Exception as e:  # noqa: BLE001
+                    log.warning("could not record the task refusal (%s)", e)
                 if fixed:
                     return fixed
             return out
