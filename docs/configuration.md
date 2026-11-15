@@ -150,6 +150,14 @@ computer:
 | Instabox | Firecracker 微虚拟机，电脑关机也照常跑；暂停时保留内存。需要权限为 `machines:write` 的 API key。 |
 | 本地 Docker | 容器 `osa-computer`，数据在 `data/computers/shared`（用 Docker Compose 部署时在命名卷 `osa-computer-data`，由环境变量 `OSA_COMPUTER_DATA` 指定）。VNC 只监听容器内部、不映射到宿主机端口，由服务端经 `docker exec` 转发给浏览器。 |
 
+本地 Docker 后端可以用环境变量 `OSA_COMPUTER_MOUNTS` 额外挂目录进电脑，格式 `宿主路径:容器里的路径[:ro|:rw]`，用分号隔开，不写模式就是 `ro`：
+
+```bash
+OSA_COMPUTER_MOUNTS=/home/me/repo:/data/repo; /srv/shared:/data/shared:rw
+```
+
+电脑是另一台机器，宿主的路径它本来没有：想让它读得到仓库、共享资料，只能挂进去。写错（不是绝对路径、宿主那头不存在、少了容器那头）会直接报错，不会默默少挂。改了挂载要重启服务，并且**删掉旧容器**（`docker rm -f osa-computer`，里面的文件会没，先备份）才会生效——挂载只在创建容器时确定。Instabox 后端不吃这个变量。
+
 **几个任务同时用电脑**：所有 Bot 共用一台电脑，但后台任务不用一个个排队。每个任务在自己的浏览器窗口里做，
 截图、点击、输入都只作用在自己的窗口里，互不干扰；每个任务一个浏览器 profile（cookie、登录状态互不可见，任务结束就丢，`computer.isolate_tasks` 可关），电脑里的文件大家共用。同时用的任务最多 `parallel` 个，多了排队，
 任务卡片上会显示“排队等电脑”。终端命令和读写文件不算在里面。

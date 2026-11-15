@@ -18,6 +18,32 @@ IMAGE_DIR = Path(__file__).parent / "image"
 # a process cap against fork bombs, no raw sockets or device nodes. Applies to containers created from now on.
 HARDEN = ["--security-opt", "no-new-privileges", "--pids-limit", "4096", "--cap-drop", "NET_RAW", "--cap-drop", "MKNOD"]
 
+
+def extra_mounts(raw: str | None = None) -> list[str]:
+    """OSA_COMPUTER_MOUNTS 里的额外挂载，`宿主:容器[:ro|:rw]`，分号隔开。默认只读。
+
+    给 Bot 一份它自己看不到的东西（比如仓库、共享资料）：电脑是另一台机器，宿主的路径它本来没有。
+    写错的条目直接报错，不要默默少挂一块——用户会以为已经挂上了。
+    """
+    raw = (raw if raw is not None else os.environ.get("OSA_COMPUTER_MOUNTS", "")).strip()
+    out = []
+    for item in raw.split(";"):
+        item = item.strip()
+        if not item:
+            continue
+        host, _, rest = item.partition(":")
+        dest, _, mode = rest.partition(":")
+        mode = mode or "ro"
+        if not host or not dest or mode not in ("ro", "rw"):
+            raise ComputerError(i18n.t("OSA_COMPUTER_MOUNTS 里的 {item} 不是 宿主:容器[:ro|:rw]", item=item))
+        if not os.path.isabs(host) or not os.path.isabs(dest):
+            raise ComputerError(i18n.t("OSA_COMPUTER_MOUNTS 里的 {item} 两头都要是绝对路径", item=item))
+        if not Path(host).exists():
+            raise ComputerError(i18n.t("OSA_COMPUTER_MOUNTS 里的 {host} 不存在", host=host))
+        out += ["-v", f"{host}:{dest}:{mode}"]
+    return out
+
+
 # 在电脑里把 stdin / stdout 接到 x11vnc。网页关掉画面时 stdin 读到结尾，半关连接，x11vnc 随即断开，进程退出。
 # 电脑刚创建时桌面先就绪、x11vnc 稍后才监听，所以连不上时等一会儿再试
 VNC_FIRST_S = 10   # 等电脑给出第一个字节（RFB 版本）的秒数：超过就当它没醒，别让网页干等
@@ -146,7 +172,7 @@ class LocalComputer(Computer):
                     Path(self.data).mkdir(parents=True, exist_ok=True)
                 code, out, err = await _run(
                     "docker", "run", "-d", "--platform", await platform(), "--name", self.name, "--hostname", "osa",
-                    "--shm-size=1g", *HARDEN, "-v", f"{self.data}:/data",
+                    "--shm-size=1g", *HARDEN, "-v", f"{self.data}:/data", *extra_mounts(),
                     "-e", f"SCREEN_W={self.width}", "-e", f"SCREEN_H={self.height}",
                     "--label", "osa=computer", IMAGE, timeout=120)
                 if code:

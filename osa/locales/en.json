@@ -1307,5 +1307,8 @@
   "再问一遍：": "Asked again: ",
   "取消前做到：": "Done before cancelling:",
   "电脑 {s} 秒没有给画面：{error}": "The computer gave no picture within {s}s: {error}",
-  "VNC 连接已关闭：{error}": "VNC connection closed: {error}"
+  "VNC 连接已关闭：{error}": "VNC connection closed: {error}",
+  "OSA_COMPUTER_MOUNTS 里的 {item} 不是 宿主:容器[:ro|:rw]": "OSA_COMPUTER_MOUNTS entry {item} is not host:container[:ro|:rw]",
+  "OSA_COMPUTER_MOUNTS 里的 {item} 两头都要是绝对路径": "Both sides of OSA_COMPUTER_MOUNTS entry {item} must be absolute paths",
+  "OSA_COMPUTER_MOUNTS 里的 {host} 不存在": "OSA_COMPUTER_MOUNTS path {host} does not exist"
 }
