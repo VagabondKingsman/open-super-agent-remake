@@ -45,7 +45,6 @@ Cập nhật 11/11/2026 23:16, Asia/Saigon (UTC+7), base `14449fd` (merge PR #51
 | AUDIT-F10 | Low. `docs/docker.md` (bản upstream tiếng Trung) còn lệnh clone upstream | `docs/docker.md` tiếng Việt, clone `-b i18n-vi`. | Done · cursor / `fix/audit-f1-f13` · [PR #41](https://github.com/VagabondKingsman/open-super-agent-remake/pull/41) merge `5a1e0e7` |
 | AUDIT-F12 | Low. File `.osabak` ghi ra với quyền 0644 | File `.osabak` `chmod 0600`. | Done · cursor / `fix/audit-f1-f13` · [PR #41](https://github.com/VagabondKingsman/open-super-agent-remake/pull/41) merge `5a1e0e7` |
 | AUDIT-F13 | Low. Màn hình VNC của VM Instabox bị đổi thành 661x1619, `fit` cứ phóng lên 1280 mỗi thao tác | `fit` đọc `screen.availWidth/availHeight`, chỉ phóng tới màn hình thật. | Done · cursor / `fix/audit-f1-f13` · [PR #41](https://github.com/VagabondKingsman/open-super-agent-remake/pull/41) merge `5a1e0e7` |
-| AUDIT-F11 | Info. Nhánh mặc định GitHub là `main` cũ | Tin Tin đổi default branch sang `i18n-vi` trong Settings của repo, hoặc đồng bộ `main`. Cần Tin Tin quyết. | Chờ Tin Tin |
 | OPEN-INSTABOX-REPO | Bot không đọc được repo khi máy là Instabox: `OSA_COMPUTER_MOUNTS` chỉ áp cho backend Docker | Có cách đưa `.agents/` (hoặc repo) sang máy Instabox mà không phải chép tay từng tệp — hoặc chấp nhận chỉ dùng backend Docker cho việc đọc repo | Chưa nhận |
 | OPEN-RETRY-LIVE | Đường gọi lại stream của Router/Worker chưa xảy ra trên live | Bắt được một lượt live có `StreamStalled` hoặc "at capacity" giữa stream, thấy note gọi lại, `reset` trên UI, task không bị Watchdog hủy. Hiện chỉ có test và lần ép `idle_s` trên stream xAI thật. | Chưa nhận |
 | OPEN-DOCKER-DOC | `docs/docker.md` đã đổi sang tiếng Việt (PR #41) | Lần merge upstream sau sẽ xung đột ở file này: giữ bản VI, port nội dung mới của upstream vào. | Nhắc khi port upstream |
@@ -64,6 +63,12 @@ Cập nhật 11/11/2026 23:16, Asia/Saigon (UTC+7), base `14449fd` (merge PR #51
 | OPEN-TASK-ID | Low. `router.TASKS` lấy id tin nhắn làm khóa | Xóa Bot thì tin nhắn bị xóa, SQLite dùng lại id lớn nhất, task mới có thể trùng khóa với task cũ còn trong `TASKS`. Thấy khi viết eval (engine lọc task theo Bot và thời gian). Chưa thấy lỗi ngoài test. | Chưa nhận |
 
 ## Done · đã public
+
+- AUDIT-F11 15/11: 19:33 ICT (`2026-11-15T12:33Z`) nhánh mặc định của repo là `i18n-vi` — `gh api repos/… --jq .default_branch` trả `i18n-vi` sau một lần PATCH. Trước đó là `main` cũ.
+
+- Việc còn lại cần root trên box 15/11 (chưa làm được vì phiên không có sudo):
+  - cài logrotate: `sudo /home/boxes/osa/scripts/install-logrotate.sh` (log `osa-data/logs/osa.log` đang lớn dần, ~4 MB/ngày khi máy chạy thật).
+  - `osa-tailnet.service` tồn tại hai bản (bản system enabled, bản user disabled): `sudo systemctl disable --now osa-tailnet.service` rồi `systemctl --user enable --now osa-tailnet.service`, hoặc ngược lại — giữ đúng một.
 
 - PR #35–#41 (10/11/2026): E2E-B1–B6, TIP-04b, stream stall retry, CI sandbox, CI Chrome, deep audit cài đặt, sửa AUDIT-F1–F13. Merge commit, giờ và head ở [STATE](STATE.md#pr-3541-10112026).
 
