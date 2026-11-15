@@ -9,7 +9,7 @@ import logging
 import openai
 from .computer import tools as ctools
 from .config import CFG, call_kwargs, client_for, fallback_for
-from . import approvals, botadmin, bots, charter, dm, dsml, freedom, i18n, langcheck, local_checks, media, memories, memory, providers, registry, routines, skillpacks, skills, tasklog, verification
+from . import approvals, botadmin, bots, charter, clock, dm, dsml, freedom, i18n, langcheck, local_checks, media, memories, memory, providers, registry, routines, skillpacks, skills, tasklog, verification
 from . import builtin  # noqa: F401  导入即注册内置工具
 from . import worker as worker_mod
 from .worker import IncompleteAnswer, Task, TaskFailed, run_worker, run_heavy
@@ -647,9 +647,9 @@ class Router:
         所以放在状态块里（正文末尾），系统提示词那段前缀才能一直逐字相同、命中缓存。"""
         if self.chat.get("kind") != "group":
             return ""
-        now = time.time()
+        now = clock.now()
         rows = [t for t in TASKS.values() if t.chat_id == self.chat["id"] and t.bot_id in self.chat["bot_ids"]
-                and (t.status == "running" or now - t.last_progress < 600)]
+                and (t.status == "running" or clock.gap(t.last_progress, now) < 600)]
         if not rows:
             return ""
         lines = []
@@ -1372,7 +1372,7 @@ class Router:
         if task.status == "done" and task.quiet_ok and routines.is_quiet(task.result) and not task.side_effects:
             # 定时任务这次没有新内容：不发结果（也就不推送、不发到聊天软件），派发的那条在对话里和上下文里都不再出现
             task.quiet = True
-            memory.update_meta(task.msg_id or task.id, status="done", quiet=True, elapsed=round(time.time() - task.started), steps=task.steps)
+            memory.update_meta(task.msg_id or task.id, status="done", quiet=True, elapsed=round(clock.gap(task.started, clock.now())), steps=task.steps)
             await self.emit({"type": "task", "task": task.public()}, task.chat_id)
             return
         extra = {}
@@ -1380,9 +1380,9 @@ class Router:
         if task.side_effects:
             extra["side_effects"] = task.side_effects
             body += "\n\n" + i18n.t("这个任务还改动了资料库：{items}", items="; ".join(s["summary"] for s in task.side_effects))
-        memory.update_meta(task.msg_id or task.id, status=task.status, elapsed=round(time.time() - task.started), steps=task.steps, **extra)
+        memory.update_meta(task.msg_id or task.id, status=task.status, elapsed=round(clock.gap(task.started, clock.now())), steps=task.steps, **extra)
         await self.add("task", i18n.t("[任务 #{id} 结果]", id=task.id) + f"\n{body}", task.chat_id, kind="result", task_id=task.id,
-                       status=task.status, elapsed=round(time.time() - task.started),
+                       status=task.status, elapsed=round(clock.gap(task.started, clock.now())),
                        **({"attachments": task.files} if task.files else {}), **({"apps": task.apps} if task.apps else {}),
                        **({"lang_flag": task.lang_flag} if task.lang_flag else {}))
         await self.emit({"type": "task", "task": task.public()}, task.chat_id)
@@ -1410,7 +1410,7 @@ class Router:
         approvals.cancel_for_task(tid)
         t.handle.cancel()
         t.status, t.result = "cancelled", i18n.t("已取消：{reason}", reason=reason)
-        memory.update_meta(t.msg_id or tid, status="cancelled", elapsed=round(time.time() - t.started), steps=t.steps)
+        memory.update_meta(t.msg_id or tid, status="cancelled", elapsed=round(clock.gap(t.started, clock.now())), steps=t.steps)
         asyncio.create_task(tasklog.close(t, "cancelled", t.result))
         # 新记录靠 meta 的 kind 认出是取消；前端只给没有 meta 的旧记录按“[任务 #N 已取消”的原文认
         asyncio.create_task(self.add("task", _cancel_text(tid, reason), t.chat_id, kind="cancel", task_id=tid))

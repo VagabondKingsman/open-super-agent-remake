@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import pytest
 from conftest import find, until
 from fakellm import Call
-from osa import approvals, bots, channels, server
+from osa import approvals, bots, channels, clock, server
 from osa.memory import conn
 
 
@@ -91,7 +91,7 @@ def test_vm_shell_asks_once_per_task():
     assert not shell("ls", "local", task_id="chat:alice")
     approvals.end_task(7)
     assert shell("rm -rf build", "local", task_id=7)                # 任务结束：又从头问
-    approvals._vm_said[9] = time.time() - approvals.VM_SHELL_TTL - 1
+    approvals._vm_said[9] = clock.now() - approvals.VM_SHELL_TTL - 1
     assert shell("ls", "local", task_id=9)                          # 太久以前的记录不再算
 
 

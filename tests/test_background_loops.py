@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from osa import memory, router, search, tasklog, watchdog
+from osa import clock, memory, router, search, tasklog, watchdog
 from osa.config import CFG
 
 _real_sleep = asyncio.sleep
@@ -42,7 +42,7 @@ async def _run_loop(monkeypatch, module, coro_fn, iterations: int):
 
 
 def _task(tid, overdue=True):
-    ahead = 0.0 if overdue else time.time() + 3600
+    ahead = 0.0 if overdue else clock.now() + 3600   # started/last_progress đi theo đồng hồ không tính lúc máy ngủ
     return SimpleNamespace(id=tid, status="running", waiting_approval=False, started=ahead, paused_s=0.0,
                            last_progress=ahead, repeat_history={}, recent_calls=[])
 

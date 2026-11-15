@@ -19,7 +19,7 @@ import yaml
 
 from conftest import find, settle, until
 from fakellm import Call, HttpError, Stall
-from osa import (approvals, bots, i18n, local_checks, memories, memory, prices, providers, registry, router, routines,
+from osa import (approvals, bots, clock, i18n, local_checks, memories, memory, prices, providers, registry, router, routines,
                  server, skills, vault, watchdog)
 from osa.config import CFG
 
@@ -131,7 +131,8 @@ class Run:
         self.cleanups: list = []
         self.served: list[str] = []      # model replies served (for the step trace)
         # message ids are reused after a bot (and its chat) is deleted, so a run is told apart by time and bot, not by id
-        self.t0 = time.time()
+        self.t0 = time.time()          # 墙上时间：查数据库（llm_calls、messages 的 ts）
+        self.t0_mono = clock.now()     # 任务的 started/last_progress 用的是不随机器暂停走的钟
         self.failures: list[str] = []
 
     # ----- tiện ích -----
@@ -145,7 +146,7 @@ class Run:
 
     def tasks(self) -> list:
         ids = {b["id"] for b in self.bots.values()}
-        return [t for _, t in sorted(router.TASKS.items()) if t.bot_id in ids and t.started >= self.t0]
+        return [t for _, t in sorted(router.TASKS.items()) if t.bot_id in ids and t.started >= self.t0_mono]
 
     def pending(self) -> list[dict]:
         return [it for it in approvals.pending.values() if not it["future"].done()
