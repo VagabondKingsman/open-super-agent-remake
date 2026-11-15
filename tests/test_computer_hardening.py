@@ -43,3 +43,45 @@ async def test_unreachable_docker_is_unavailable_with_a_hint(monkeypatch, err):
     st = await local.LocalComputer(1).status()
     assert st["state"] == "unavailable" and st["reason"] == "docker_unreachable"
     assert "compose.computer.yaml" in st["detail"]
+
+
+async def test_extra_mounts_go_on_the_container_read_only_by_default(monkeypatch, tmp_path):
+    calls = []
+
+    async def fake_run(*args, stdin=None, timeout=120):
+        calls.append(args)
+        if args[:2] == ("docker", "inspect"):
+            return 1, "", "No such object"
+        return 0, "", ""
+
+    async def fake_platform():
+        return "linux/amd64"
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    monkeypatch.setenv("OSA_COMPUTER_MOUNTS", f"{repo}:/data/repo;{repo}:/data/w:rw")
+    monkeypatch.setattr(local, "_run", fake_run)
+    monkeypatch.setattr(local, "platform", fake_platform)
+    monkeypatch.setattr(local, "check_enabled", lambda: None)
+    await local.LocalComputer(1).start()
+    run = next(a for a in calls if a[:2] == ("docker", "run"))
+    assert f"{repo}:/data/repo:ro" in run and f"{repo}:/data/w:rw" in run
+    assert run[-1] == local.IMAGE
+
+
+@pytest.mark.parametrize("raw, bit", [
+    ("rel/path:/data/x", "绝对"),
+    ("/nonexistent-osa-dir:/data/x", "/nonexistent-osa-dir"),
+    ("/tmp", "/tmp"),                       # 少了容器那头
+    ("/tmp:/data/x:rx", ":rx"),
+])
+def test_a_broken_mount_entry_says_so(raw, bit):
+    from osa.computer.base import ComputerError
+    with pytest.raises(ComputerError) as e:
+        local.extra_mounts(raw)
+    assert bit in str(e.value)
+
+
+def test_no_mounts_no_flags(monkeypatch):
+    monkeypatch.delenv("OSA_COMPUTER_MOUNTS", raising=False)
+    assert local.extra_mounts() == []

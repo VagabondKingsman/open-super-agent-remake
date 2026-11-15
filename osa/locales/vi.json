@@ -1238,5 +1238,8 @@
   "再问一遍：": "Hỏi lại: ",
   "取消前做到：": "Đã làm tới:",
   "电脑 {s} 秒没有给画面：{error}": "Máy không đưa hình trong {s} giây: {error}",
-  "VNC 连接已关闭：{error}": "Kết nối VNC đã đóng: {error}"
+  "VNC 连接已关闭：{error}": "Kết nối VNC đã đóng: {error}",
+  "OSA_COMPUTER_MOUNTS 里的 {item} 不是 宿主:容器[:ro|:rw]": "Mục {item} trong OSA_COMPUTER_MOUNTS không phải dạng máy:trong-máy[:ro|:rw]",
+  "OSA_COMPUTER_MOUNTS 里的 {item} 两头都要是绝对路径": "Hai đầu của mục {item} trong OSA_COMPUTER_MOUNTS đều phải là đường dẫn tuyệt đối",
+  "OSA_COMPUTER_MOUNTS 里的 {host} 不存在": "Đường dẫn {host} trong OSA_COMPUTER_MOUNTS không có"
 }
