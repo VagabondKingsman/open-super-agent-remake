@@ -51,3 +51,4 @@ async def test_dispatch_does_not_overwrite_a_live_task(make_bot, monkeypatch):
     assert router.TASKS[first.id] is keep        # 老任务没被覆盖
     assert router.TASKS[second.id] is second
     assert first.goal == "việc một" and second.goal == "việc hai"
+
