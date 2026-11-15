@@ -12,6 +12,9 @@ services:
     image: open-super-agent:local
     pull_policy: never    # 镜像只在本机构建，不去 Docker Hub 找
     init: true            # 应用（MCP）是子进程，退出后要有人回收
+    # Linux 上把 OSA_UID/OSA_GID 设成 id -u / id -g：否则容器以 root 写 ./data，技能包、上传的
+    # 文件都成 root 的，宿主机用户删不掉（2026-11-15 实测：data/skill-packs 全 Permission denied）
+    user: "${OSA_UID:-0}:${OSA_GID:-0}"
     restart: unless-stopped
     env_file:
       - path: .env

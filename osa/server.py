@@ -1507,14 +1507,19 @@ async def pc_vnc(sock: WebSocket, bot_id: int):
     proto = "binary" if "binary" in (sock.headers.get("sec-websocket-protocol") or "") else None
     await sock.accept(subprotocol=proto)
     c = computer.get(bot_id)
+    c.viewers += 1                      # 有人在看画面：这段时间电脑不闲置暂停（见 computer.idle_pauser）
+    c.last_used = time.time()
     try:
-        await c.start()
-        recv, send, close = await c.open_vnc()
-    except Exception as e:
-        await sock.close(code=1011, reason=str(e)[:100])
-        return
-
-    await _vnc_bridge(sock, recv, send, close, on_action=lambda: setattr(c, "last_used", time.time()))
+        try:
+            await c.start()
+            recv, send, close = await c.open_vnc()
+        except Exception as e:
+            await sock.close(code=1011, reason=str(e)[:100])
+            return
+        await _vnc_bridge(sock, recv, send, close, on_action=lambda: setattr(c, "last_used", time.time()))
+    finally:
+        c.viewers = max(0, c.viewers - 1)
+        c.last_used = time.time()
 
 
 async def _vnc_bridge(sock, recv, send, close, on_action=None):
@@ -1528,31 +1533,21 @@ async def _vnc_bridge(sock, recv, send, close, on_action=None):
             if m["type"] == "websocket.disconnect":
                 return
             data = m.get("bytes") or (m.get("text") or "").encode()
-            log.warning("VNCUP got type=%s len=%s", m.get("type"), len(data or b""))
             if data:
                 if on_action:
                     on_action()
-                try:
-                    await send(data)
-                    log.warning("VNCUP sent %s", len(data))
-                except Exception as e:
-                    log.warning("VNCUP send failed: %r", e)
-                    raise
+                await send(data)
 
     async def down():
         try:
             while True:
-                _d = await recv()
-                await sock.send_bytes(_d)
-                log.warning("VNCBRIDGE sent %s to page", len(_d))
+                await sock.send_bytes(await recv())
         except Exception:
             lost.set()
             raise
 
     tasks = [asyncio.create_task(up()), asyncio.create_task(down())]
-    done, _pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
-    for t in done:
-        log.warning("VNCBRIDGE task %s done exc=%r", t.get_name(), t.exception() if not t.cancelled() else "cancel")
+    await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
     for t in tasks:
         t.cancel()
     try:
