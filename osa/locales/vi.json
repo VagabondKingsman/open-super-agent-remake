@@ -1241,5 +1241,7 @@
   "VNC 连接已关闭：{error}": "Kết nối VNC đã đóng: {error}",
   "OSA_COMPUTER_MOUNTS 里的 {item} 不是 宿主:容器[:ro|:rw]": "Mục {item} trong OSA_COMPUTER_MOUNTS không phải dạng máy:trong-máy[:ro|:rw]",
   "OSA_COMPUTER_MOUNTS 里的 {item} 两头都要是绝对路径": "Hai đầu của mục {item} trong OSA_COMPUTER_MOUNTS đều phải là đường dẫn tuyệt đối",
-  "OSA_COMPUTER_MOUNTS 里的 {host} 不存在": "Đường dẫn {host} trong OSA_COMPUTER_MOUNTS không có"
+  "OSA_COMPUTER_MOUNTS 里的 {host} 不存在": "Đường dẫn {host} trong OSA_COMPUTER_MOUNTS không có",
+  "应用地址要是 http:// 或 https://": "Địa chỉ ứng dụng phải bắt đầu bằng http:// hoặc https://",
+  "应用地址 {host} 是本机或内网地址，tools.mcp_filter 是 public 时只允许公网地址": "Địa chỉ ứng dụng {host} là máy này hoặc mạng nội bộ; khi tools.mcp_filter là public thì chỉ cho địa chỉ công khai"
 }
