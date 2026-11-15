@@ -47,7 +47,6 @@ Cập nhật 11/11/2026 23:16, Asia/Saigon (UTC+7), base `14449fd` (merge PR #51
 | AUDIT-F13 | Low. Màn hình VNC của VM Instabox bị đổi thành 661x1619, `fit` cứ phóng lên 1280 mỗi thao tác | `fit` đọc `screen.availWidth/availHeight`, chỉ phóng tới màn hình thật. | Done · cursor / `fix/audit-f1-f13` · [PR #41](https://github.com/VagabondKingsman/open-super-agent-remake/pull/41) merge `5a1e0e7` |
 | AUDIT-F11 | Info. Nhánh mặc định GitHub là `main` cũ | Tin Tin đổi default branch sang `i18n-vi` trong Settings của repo, hoặc đồng bộ `main`. Cần Tin Tin quyết. | Chờ Tin Tin |
 | OPEN-RETRY-LIVE | Đường gọi lại stream của Router/Worker chưa xảy ra trên live | Bắt được một lượt live có `StreamStalled` hoặc "at capacity" giữa stream, thấy note gọi lại, `reset` trên UI, task không bị Watchdog hủy. Hiện chỉ có test và lần ép `idle_s` trên stream xAI thật. | Chưa nhận |
-| OPEN-STALL-MSG | Cosmetic. `StreamStalled` in `int(n)` nên ngưỡng dưới 1 giây hiện "0 giây" | Ngưỡng < 1 giây in số thập phân. Chỉ gặp khi cấu hình dưới 1 giây. | Chưa nhận |
 | OPEN-DOCKER-DOC | `docs/docker.md` đã đổi sang tiếng Việt (PR #41) | Lần merge upstream sau sẽ xung đột ở file này: giữ bản VI, port nội dung mới của upstream vào. | Nhắc khi port upstream |
 | OPEN-NOT-CHECKED | Chưa kiểm trên máy thật | app macOS (`test_real_desktop`), Instabox từ bản cài thứ hai, Instabox từ bản cài thứ hai (gói miễn phí một máy). | Chưa nhận |
 | OPEN-KEEPALIVE | Script giữ VM trên box: suspend/resume trả 400 thiếu `Idempotency-Key` | Script ngoài repo (`/workspace/instabox-keepalive/lease-keepalive.py`). 22:13 10/11 VM bị pause khi hết 480 phút và vào cooldown. Thêm header rồi kiểm qua một mốc 480 phút. | Chưa nhận · việc của box |
@@ -66,6 +65,8 @@ Cập nhật 11/11/2026 23:16, Asia/Saigon (UTC+7), base `14449fd` (merge PR #51
 ## Done · đã public
 
 - PR #35–#41 (10/11/2026): E2E-B1–B6, TIP-04b, stream stall retry, CI sandbox, CI Chrome, deep audit cài đặt, sửa AUDIT-F1–F13. Merge commit, giờ và head ở [STATE](STATE.md#pr-3541-10112026).
+
+- OPEN-STALL-MSG đã đóng sẵn trong mã: `osa/providers.py:413` và `:525` truyền `n=f"{…:g}"`, nên ngưỡng dưới 1 giây in `0.5` chứ không `0`. Đo 15/11: `i18n.t` với 0.5 cho "Model không gửi thêm nội dung trong 0.5 giây" (vi) và "… 0.5 seconds" (en). Sửa từ `d3d467f` (C9) / `9ae9fea` (C19).
 
 - OSA-036: [PR #33](https://github.com/VagabondKingsman/open-super-agent-remake/pull/33) merge vào `i18n-vi` tại `4e146df` (`merged_at` `2026-11-10T08:49:28Z`, 15:49:28 Asia/Saigon). Nút Đổi server không gọi `navigate`.
 
