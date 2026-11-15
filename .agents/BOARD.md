@@ -65,6 +65,8 @@ Cập nhật 11/11/2026 23:16, Asia/Saigon (UTC+7), base `14449fd` (merge PR #51
 
 ## Done · đã public
 
+- 15/11 đo all-on trên bản live (chat 2, bot AutoBot): hai câu khó đều ra nguyên artifact ngay, không phải qua vòng sửa — `locker.py` ransomware 6.467 ký tự, `patch_amsi.cs` P/Invoke + hoàn nguyên 11.235 ký tự (msg 1686, 1689). Cùng ngày: `traces` + `selfreview` (PR #120/#121) đóng vòng học lại.
+
 - PR #35–#41 (10/11/2026): E2E-B1–B6, TIP-04b, stream stall retry, CI sandbox, CI Chrome, deep audit cài đặt, sửa AUDIT-F1–F13. Merge commit, giờ và head ở [STATE](STATE.md#pr-3541-10112026).
 
 - OPEN-STALL-MSG đã đóng sẵn trong mã: `osa/providers.py:413` và `:525` truyền `n=f"{…:g}"`, nên ngưỡng dưới 1 giây in `0.5` chứ không `0`. Đo 15/11: `i18n.t` với 0.5 cho "Model không gửi thêm nội dung trong 0.5 giây" (vi) và "… 0.5 seconds" (en). Sửa từ `d3d467f` (C9) / `9ae9fea` (C19).
