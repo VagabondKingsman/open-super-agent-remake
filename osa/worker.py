@@ -6,7 +6,7 @@ import time
 from dataclasses import dataclass, field
 from .config import CFG, call_kwargs, client_for, fallback_for
 from .providers import ProviderLimit, create_chat
-from . import applets, approvals, charter, dsml, freedom, i18n, local_checks, memories, memory, mcp_hub, providers, registry, skillpacks, tasklog, verification
+from . import applets, approvals, charter, clock, dsml, freedom, i18n, local_checks, memories, memory, mcp_hub, providers, registry, skillpacks, tasklog, verification
 from . import builtin  # noqa: F401  导入即注册内置工具
 from .computer import tools as ctools
 
@@ -71,8 +71,8 @@ class Task:
     bot_id: int = 0
     chat_id: int = 0
     status: str = "running"                # running | done | failed | cancelled
-    started: float = field(default_factory=time.time)
-    last_progress: float = field(default_factory=time.time)
+    started: float = field(default_factory=clock.now)
+    last_progress: float = field(default_factory=clock.now)
     steps: int = 0
     recent_calls: list = field(default_factory=list)  # 单 Worker 的最近调用，给 Watchdog 看
     repeat_history: dict = field(default_factory=dict)  # label -> 该 Worker 自己的重复检测历史
@@ -100,7 +100,7 @@ class Task:
 def _public(self) -> dict:
     return {"id": self.id, "goal": self.goal, "mode": self.mode, "status": self.status, "steps": self.steps,
             "bot_id": self.bot_id, "chat_id": self.chat_id, "started": self.started,
-            "waiting_approval": self.waiting_approval, "last_action": self.last_action, "elapsed": round(time.time() - self.started),
+            "waiting_approval": self.waiting_approval, "last_action": self.last_action, "elapsed": round(clock.gap(self.started, clock.now())),
             "quiet": self.quiet}
 
 
@@ -129,7 +129,7 @@ async def _reply(task: Task, log: tasklog.Log, role: str, client, model: str, ms
     attempt, fell_back = 0, False
     kw = call_kwargs(role) if kw is None else kw
     while True:
-        task.last_progress = time.time()   # 每次尝试都算一次进展：Watchdog 的 5 分钟从这一轮开始算
+        task.last_progress = clock.now()   # 每次尝试都算一次进展：Watchdog 的 5 分钟从这一轮开始算
         try:
             return await _reply_once(task, log, role, client, model, msgs, tools_, kw)
         except Exception as e:
@@ -145,10 +145,10 @@ async def _reply(task: Task, log: tasklog.Log, role: str, client, model: str, ms
                 note = i18n.t("这一轮模型调用中途出错（{err}），换备用模型 {model} 继续", err=providers.brief(e), model=model)
             else:
                 raise
-            task.last_progress = time.time()
+            task.last_progress = clock.now()
             await log.note(note, "error")
             await providers.retry_pause(attempt)
-            task.last_progress = time.time()
+            task.last_progress = clock.now()
 
 
 async def _reply_once(task: Task, log: tasklog.Log, role: str, client, model: str, msgs: list, tools_: list | None = None,
@@ -186,7 +186,7 @@ async def _reply_once(task: Task, log: tasklog.Log, role: str, client, model: st
     stats: dict = {}   # guard_stream 填：这次调用里最长的一段静默（见 providers.guard_stream）
     try:
         async for chunk in providers.guard_stream(stream, stats=stats):
-            task.last_progress = time.time()   # 还在出字就算有进展，Watchdog 不会当成卡住
+            task.last_progress = clock.now()   # 还在出字就算有进展，Watchdog 不会当成卡住
             if getattr(chunk, "usage", None):
                 usage = chunk.usage
             if not chunk.choices:
@@ -365,7 +365,7 @@ async def _run_calls(task: Task, log: tasklog.Log, calls: list, env: dict, histo
         else:
             out, status = await _call_tool(task, log, step, name, raw, progress_for(step), env, shots)
         await log.finish(step, status, out)
-        task.last_progress = time.time()
+        task.last_progress = clock.now()
         return out, shots
 
     results, i, blocked = [], 0, False
@@ -530,7 +530,7 @@ async def _run_worker(task: Task, goal: str, label: str = "") -> str:
         _compact_tools(msgs)          # C8：早先的工具结果占的地方太大，只留最近几条完整
         m = await _reply(task, log, "worker", client, model, msgs, schemas)
         task.steps += 1
-        task.last_progress = time.time()
+        task.last_progress = clock.now()
         if not m.get("tool_calls"):
             content = (m.get("content") or "").strip()
             if content and m.get("finish_reason") != "length":

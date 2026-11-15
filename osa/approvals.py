@@ -22,7 +22,7 @@ import json
 import posixpath
 import re
 import time
-from . import freedom, i18n, memory
+from . import clock, freedom, i18n, memory
 from .config import CFG
 from .memory import conn
 
@@ -215,7 +215,7 @@ def decide(tool: str, backend: str | None = None, args: dict | None = None, back
 # ---------- 临时允许 ----------
 def granted(task_id, tool: str, value: str | None) -> bool:
     """卡片上点过“本次任务内允许”（同一个任务）或者 minutes:N 还没到期的。"""
-    now = time.time()
+    now = clock.now()
     grants[:] = [g for g in grants if g["until"] is None or g["until"] > now]
     return any((g["task_id"] is None or g["task_id"] == task_id) and _hit(g["pattern"], tool, value, True) for g in grants)
 
@@ -232,11 +232,11 @@ _vm_said: dict = {}
 
 def shell_confirmed(task_id):
     """用户允许了终端命令：这个任务里后面的不再问（Docker / Instabox 电脑；见 decide）。"""
-    _vm_said[task_id] = time.time()
+    _vm_said[task_id] = clock.now()
 
 
 def vm_shell_said(task_id) -> bool:
-    now = time.time()
+    now = clock.now()
     for k, v in [(k, v) for k, v in _vm_said.items() if now - v > VM_SHELL_TTL]:
         _vm_said.pop(k, None)
     return task_id is not None and task_id in _vm_said
@@ -309,7 +309,7 @@ async def request(task, tool: str, args: dict, kind: str = "approval", once: boo
             **({"editable": [k for k in editable if isinstance(args.get(k), str)], "_args": args} if editable else {})}
     pending[aid] = item
     task.waiting_approval = aid
-    t0 = time.time()
+    t0 = clock.now()
     if notify:
         await notify(public(item) | {"type": "approval", "status": "pending"})
     try:
@@ -319,12 +319,12 @@ async def request(task, tool: str, args: dict, kind: str = "approval", once: boo
         if notify:
             await notify({"type": "approval", "id": aid, "status": "expired", "chat_id": chat_id})
     finally:
-        last_done = time.time()
+        last_done = clock.now()
         pending.pop(aid, None)
         task.waiting_approval = None
-        task.last_progress = time.time()
+        task.last_progress = clock.now()
         if hasattr(task, "paused_s"):
-            task.paused_s += time.time() - t0   # 等确认的时间不算进任务超时
+            task.paused_s += clock.gap(t0, clock.now())   # 等确认的时间不算进任务超时
     return ok, note
 
 
@@ -344,7 +344,7 @@ def resolve(aid: int, ok: bool, note: str = "", always: bool = False, edits: dic
         add_rule(pattern, "allow", i18n.N_("在确认卡片上点了总是允许这个命令前缀") if item["tool"] == SHELL
                  else i18n.N_("在确认卡片上点了总是允许"))
     elif scope == "minutes":
-        grants.append({"pattern": pattern, "task_id": None, "until": time.time() + minutes * 60})
+        grants.append({"pattern": pattern, "task_id": None, "until": clock.now() + minutes * 60})
     elif scope == "task":   # 同一个工具都不再问，终端也是整个放开（只到这个任务结束）
         grants.append({"pattern": item["tool"], "task_id": item["task_id"], "until": None})
     edited = {}

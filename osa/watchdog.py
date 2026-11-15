@@ -3,7 +3,7 @@ import asyncio
 import logging
 import time
 from .config import CFG
-from . import i18n, memory
+from . import clock, i18n, memory
 
 log = logging.getLogger(__name__)
 
@@ -26,7 +26,7 @@ async def watchdog():
     lim = CFG["limits"]
     while True:
         await asyncio.sleep(lim["watchdog_interval_s"])
-        now = time.time()
+        now = clock.now()
         for t in list(TASKS.values()):
             try:   # per task: one failure must not skip the other tasks or end the loop
                 if t.status != "running":
