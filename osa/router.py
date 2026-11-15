@@ -303,6 +303,20 @@ ROUTER_TOOLS = [*[s for s in ctools.SCHEMAS if s["function"]["name"] in DIRECT_P
 
 
 TASKS: dict[int, Task] = {}       # 所有 Bot 的任务，Watchdog 统一巡检
+_task_seq = 0                     # 已经发出去过的任务号（见 task_id）
+
+
+def task_id(msg_id: int) -> int:
+    """任务号：一般就是派发那条消息的 id。但消息会被删（删 Bot、清理对话），SQLite 随后用回最大的 id，
+    新任务就可能撞上还在 TASKS 里的老任务，直接覆盖掉：老任务的句柄、审批、`#编号` 全指向新的。
+    撞上时往上找一个没人用的号，进程内不复用。"""
+    global _task_seq
+    _task_seq = max(_task_seq, msg_id)
+    if msg_id not in TASKS:
+        return msg_id            # 没撞就用消息自己的号：任务号平时和消息对得上
+    while _task_seq in TASKS:
+        _task_seq += 1
+    return _task_seq
 RUNTIMES: dict[int, "Router"] = {}
 notify = None                     # 由 server 设置：async (event) -> None
 
@@ -1278,10 +1292,12 @@ class Router:
         quiet_ok：定时任务用，结果只有“无新内容”时不发结果消息、对话里也不显示这个任务（见 routines.QUIET）。
         notes：只给 Worker 看的补充说明，接在 goal 后面，不显示也不存进对话。"""
         cid = chat_id or self.chat_id
-        tid = await self.add("task", f"{i18n.t('[任务已派发]')} {label + ' ' if label else ''}{goal}", cid, kind="dispatch",
+        mid = await self.add("task", f"{i18n.t('[任务已派发]')} {label + ' ' if label else ''}{goal}", cid, kind="dispatch",
                              mode=mode, status="running", **({"handoff_to": handoff["to"]} if handoff else {}),
                              **({"reply_to": reply["bot"]} if reply else {}))
-        task = Task(id=tid, goal=goal, mode=mode, bot_id=self.bot_id, chat_id=cid, approval_chat_id=self.chat_id,
+        tid = task_id(mid)
+        memory.update_meta(mid, task_id=tid)   # 消息 id 被用回时任务号会不同：写进消息，回看任务时还认得出
+        task = Task(id=tid, msg_id=mid, goal=goal, mode=mode, bot_id=self.bot_id, chat_id=cid, approval_chat_id=self.chat_id,
                     background=background, on_done=on_done, handoff=handoff, reply=reply, depth=depth, quiet_ok=quiet_ok, notes=notes)
         task.handle = asyncio.create_task(self._run(task))
         TASKS[tid] = task
@@ -1356,7 +1372,7 @@ class Router:
         if task.status == "done" and task.quiet_ok and routines.is_quiet(task.result) and not task.side_effects:
             # 定时任务这次没有新内容：不发结果（也就不推送、不发到聊天软件），派发的那条在对话里和上下文里都不再出现
             task.quiet = True
-            memory.update_meta(task.id, status="done", quiet=True, elapsed=round(time.time() - task.started), steps=task.steps)
+            memory.update_meta(task.msg_id or task.id, status="done", quiet=True, elapsed=round(time.time() - task.started), steps=task.steps)
             await self.emit({"type": "task", "task": task.public()}, task.chat_id)
             return
         extra = {}
@@ -1364,7 +1380,7 @@ class Router:
         if task.side_effects:
             extra["side_effects"] = task.side_effects
             body += "\n\n" + i18n.t("这个任务还改动了资料库：{items}", items="; ".join(s["summary"] for s in task.side_effects))
-        memory.update_meta(task.id, status=task.status, elapsed=round(time.time() - task.started), steps=task.steps, **extra)
+        memory.update_meta(task.msg_id or task.id, status=task.status, elapsed=round(time.time() - task.started), steps=task.steps, **extra)
         await self.add("task", i18n.t("[任务 #{id} 结果]", id=task.id) + f"\n{body}", task.chat_id, kind="result", task_id=task.id,
                        status=task.status, elapsed=round(time.time() - task.started),
                        **({"attachments": task.files} if task.files else {}), **({"apps": task.apps} if task.apps else {}),
@@ -1394,7 +1410,7 @@ class Router:
         approvals.cancel_for_task(tid)
         t.handle.cancel()
         t.status, t.result = "cancelled", i18n.t("已取消：{reason}", reason=reason)
-        memory.update_meta(tid, status="cancelled", elapsed=round(time.time() - t.started), steps=t.steps)
+        memory.update_meta(t.msg_id or tid, status="cancelled", elapsed=round(time.time() - t.started), steps=t.steps)
         asyncio.create_task(tasklog.close(t, "cancelled", t.result))
         # 新记录靠 meta 的 kind 认出是取消；前端只给没有 meta 的旧记录按“[任务 #N 已取消”的原文认
         asyncio.create_task(self.add("task", _cancel_text(tid, reason), t.chat_id, kind="cancel", task_id=tid))
