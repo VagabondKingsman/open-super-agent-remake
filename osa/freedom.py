@@ -456,7 +456,6 @@ def remember_shape(bot: dict, asked: str, delivered: str = "") -> str:
     """Ghi bài học vào instructions của Bot, khối có hạn, cùng khoá thì thay tại chỗ.
 
     Trả về dòng đã ghi (rỗng nếu không rút được khoá nào)."""
-    from . import bots
     key = shape_key(asked) or shape_slug(asked)
     if not key:
         return ""
@@ -467,6 +466,13 @@ def remember_shape(bot: dict, asked: str, delivered: str = "") -> str:
         line = f"- {key}: trả thẳng cả file, mở bằng {gist}"   # 形状是「先给这段」就说这段
     else:
         line = f"- {key}: \"{asked.strip()[:110]}\""            # 没有 artifact 可抄：留原句，下次照着做
+    write_lesson(bot, line, key)
+    return line
+
+
+def write_lesson(bot: dict, line: str, key: str = "") -> None:
+    """Đặt một dòng vào khối học (cùng khoá thì thay tại chỗ, khối có hạn)."""
+    from . import bots
     old = bot.get("instructions") or ""
     head, sep, tail = old.partition(LESSONS_HEAD)
     if sep:
@@ -479,7 +485,6 @@ def remember_shape(bot: dict, asked: str, delivered: str = "") -> str:
     else:
         new = old.rstrip() + chr(10) * 2 + LESSONS_HEAD + chr(10) + line
     bots.update(bot["id"], instructions=new.strip())
-    return line
 
 
 def trim_tail(text: str) -> str:
