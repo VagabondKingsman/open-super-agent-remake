@@ -1,8 +1,29 @@
 """C46: 全开模式下新建的 Bot 生下来就带 mode 块，老的启动时补齐，块写一次就跟着 Bot 走（C46b）。
 
 幂等：带块的不重复、关掉就不动。"""
+import pytest
+
 from osa import bots, freedom
 from osa.config import CFG
+
+
+@pytest.fixture
+def restore_overrides():
+    """settings.save() 真写库并 apply()（连电脑设置一起），跑完把 overrides 与 CFG 还原。"""
+    from osa import settings
+    from osa.memory import conn
+    row = conn.execute("select value from settings where key='overrides'").fetchone()
+    before = row[0] if row else None
+    limits, computer = dict(CFG.get("limits") or {}), dict(CFG.get("computer") or {})
+    yield
+    if before is None:
+        conn.execute("delete from settings where key='overrides'")
+    else:
+        conn.execute("insert or replace into settings values('overrides', ?)", (before,))
+    conn.commit()
+    CFG["limits"].clear(); CFG["limits"].update(limits)
+    CFG["computer"].clear(); CFG["computer"].update(computer)
+    settings.apply()
 
 
 def _bare(bot_id: int):
@@ -81,7 +102,7 @@ def test_ensure_modes_does_nothing_when_off(monkeypatch):
         bots.delete(b["id"])
 
 
-def test_turning_the_switch_on_sweeps_immediately():
+def test_turning_the_switch_on_sweeps_immediately(restore_overrides):
     """C46b: 设置里刚打开全开，现有的 Bot 马上就补块，不用等重启。"""
     from osa import settings
     b = bots.create("Switchy")
@@ -92,4 +113,3 @@ def test_turning_the_switch_on_sweeps_immediately():
         assert freedom.MODE_MARKER in bots.get(b["id"])["instructions"]
     finally:
         bots.delete(b["id"])
-        settings.save({"limits": {"unrestricted": bool(CFG.get("limits", {}).get("unrestricted"))}})
