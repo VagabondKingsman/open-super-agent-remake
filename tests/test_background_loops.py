@@ -42,7 +42,8 @@ async def _run_loop(monkeypatch, module, coro_fn, iterations: int):
 
 
 def _task(tid, overdue=True):
-    ahead = 0.0 if overdue else clock.now() + 3600   # started/last_progress đi theo đồng hồ không tính lúc máy ngủ
+    # 就用 clock 的刻度：CI 是刚开机的 VM，monotonic 才几十秒，0 和“墙钟那种大数”都不算过期
+    ahead = clock.now() - 7200 if overdue else clock.now() + 3600
     return SimpleNamespace(id=tid, status="running", waiting_approval=False, started=ahead, paused_s=0.0,
                            last_progress=ahead, repeat_history={}, recent_calls=[])
 
