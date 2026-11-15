@@ -669,10 +669,10 @@ class Router:
             o = bots.get(self.turn["reply"]["bot"]) if self.turn.get("reply") else None
             return BOTADMIN_TURN + (BOTADMIN_EDITED.format(fields=", ".join(woke["edited"])) if woke.get("edited") else "") + \
                 (BOTADMIN_OWED.format(owed=o["name"]) if o else "")
-        name = bots.get(woke["from"])["name"] if bots.get(woke["from"]) else "deleted bot"
-        if woke["kind"] == "own_task":
+        if woke["kind"] == "own_task":   # 自己派的任务做完了：来由里没有 from，别去取（取过就 KeyError，整轮叫不醒）
             return ("(You just dispatched a task and its result has landed in this chat. Say briefly what came back - "
                     "the gist and any file it left - and what is still open. Do not repeat the result body.)")
+        name = bots.get(woke.get("from"))["name"] if bots.get(woke.get("from")) else "deleted bot"
         if woke["kind"] == "dm":
             return DM_TURN.format(name=name)
         owed = self.turn.get("reply")
