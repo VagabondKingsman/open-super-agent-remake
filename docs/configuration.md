@@ -111,6 +111,7 @@ pricing:
 - `provider_rate_retries`：普通 429（`rate_limit_exceeded`，以及没有额度码的 429）按响应头 `Retry-After` 再试几次。默认 1。没有这个头就等 1 秒。`provider_retry_cap_s`（默认 120）是最多等多少秒。
 - `provider_transient_retries`：408、409 和 5xx 再试几次。默认 5（和 `providers.RETRIES` 一致）。连接根本建不起来（`APIConnectionError`）也算暂时故障，同样重试。
 - `provider_connect_s`：TCP 建连最多等几秒，默认 15。0 表示交给 httpx 默认值。它只盖住“连不上”，不盖“连上之后没响应”——后者是 `provider_head_s`。以前连隧道卡住要白等满 `provider_head_s` 才重来（2026-11-14 任务 1632，两次各 120 秒）。
+- `provider_connect_retries`：建连失败时同一轮再试几次，默认 2（比 5xx 的 5 次少，因为每次都要白等一整个 `provider_connect_s`）。一个黑洞地址实测：5 次 105 秒，2 次 46 秒；主机整个死了要快点交给上层换模型。
 - `loop_lag_s`：事件循环的心跳超过几秒没动就记一条 WARNING 并把所有线程的栈打进日志。循环被同步调用堵住时，流的各项上限和 Watchdog 的计时器都跑不起来（2026-11-14 任务 #1610 就这样被取消）。默认 5。0 表示不查。
 - `stream_first_chunk_s`：流开了以后等第一块最多几秒。想得久的模型（高思考强度、不流式输出思考）第一块可能要两三分钟，所以和下一项分开算。默认 60（实测最长 11,9 秒；原来 170 等于白等三分钟）。比 Watchdog 短。0 表示不限。
 - `stream_idle_s`：第一块之后，两块之间最多等几秒，超过就关掉这条流。默认 60（实测两块之间中位 2,6 秒、p90 6,3 秒）。比 Watchdog 短。0 表示不限。
