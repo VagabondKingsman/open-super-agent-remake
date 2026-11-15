@@ -1,7 +1,7 @@
 """事件来源共用的小工具：联网抓取（挡内网、限大小）、网页转文字、截断。"""
 import html
 import re
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 import httpx
 from .. import tools
 
@@ -17,13 +17,24 @@ async def get(url: str, *, timeout: float = 20, max_bytes: int = 3_000_000, head
     async with httpx.AsyncClient(timeout=timeout, headers=UA | (headers or {}), follow_redirects=False,
                                  transport=TRANSPORT) as c:
         for _ in range(MAX_REDIRECTS + 1):
-            if why := await blocked(url):
-                raise ValueError(why)
-            r = await c.get(url, params=params)
+            # 解析一次、检查一次，连接就钉在那个地址上（DNS rebinding 挡在 tools.pin 里）
+            if TRANSPORT is not None:        # 桩里没有 DNS：只检查，照原网址连（好按网址配响应）
+                if why := await blocked(url):
+                    raise ValueError(why)
+                target = (httpx.URL(url), {}, {})
+            else:                             # 生产：解析一次，连接就钉在检查过的那个地址上
+                target = await tools.pin(url)
+                if isinstance(target, str):
+                    raise ValueError(target)
+            dest, extra, ext = target
+            hop = dict(extra or {})
+            if hop.get("Host") and (port := urlsplit(url).port):   # pin 给的 Host 只是主机名
+                hop["Host"] = f"{hop['Host']}:{port}"
+            r = await c.get(dest, headers=hop or None, extensions=ext or None, params=params)
             params = None
             if not (r.is_redirect and r.headers.get("location")):
                 break
-            url = urljoin(str(r.url), r.headers["location"])
+            url = urljoin(url, r.headers["location"])   # 用原网址拼，不用钉住的地址
         else:
             raise ValueError(f"跳转超过 {MAX_REDIRECTS} 次")
     if len(r.content) > max_bytes:

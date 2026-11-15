@@ -19,12 +19,10 @@ IMAGE_DIR = Path(__file__).parent / "image"
 HARDEN = ["--security-opt", "no-new-privileges", "--pids-limit", "4096", "--cap-drop", "NET_RAW", "--cap-drop", "MKNOD"]
 
 
-def extra_mounts(raw: str | None = None) -> list[str]:
-    """OSA_COMPUTER_MOUNTS 里的额外挂载，`宿主:容器[:ro|:rw]`，分号隔开。默认只读。
+def mount_pairs(raw: str | None = None) -> list[tuple[str, str, str]]:
+    """解析 OSA_COMPUTER_MOUNTS，返回 (宿主, 容器, ro|rw)。Docker 后端拿它拼 -v，Instabox 后端拿它推文件。
 
-    给 Bot 一份它自己看不到的东西（比如仓库、共享资料）：电脑是另一台机器，宿主的路径它本来没有。
-    写错的条目直接报错，不要默默少挂一块——用户会以为已经挂上了。
-    """
+    写错的条目直接报错，不要默默少挂一块——用户会以为已经挂上了。"""
     raw = (raw if raw is not None else os.environ.get("OSA_COMPUTER_MOUNTS", "")).strip()
     out = []
     for item in raw.split(";"):
@@ -40,6 +38,16 @@ def extra_mounts(raw: str | None = None) -> list[str]:
             raise ComputerError(i18n.t("OSA_COMPUTER_MOUNTS 里的 {item} 两头都要是绝对路径", item=item))
         if not Path(host).exists():
             raise ComputerError(i18n.t("OSA_COMPUTER_MOUNTS 里的 {host} 不存在", host=host))
+        out.append((host, dest, mode))
+    return out
+
+
+def extra_mounts(raw: str | None = None) -> list[str]:
+    """同 mount_pairs，拼成 docker 的 -v 参数。
+
+    给 Bot 一份它自己看不到的东西（比如仓库、共享资料）：电脑是另一台机器，宿主的路径它本来没有。"""
+    out = []
+    for host, dest, mode in mount_pairs(raw):
         out += ["-v", f"{host}:{dest}:{mode}"]
     return out
 

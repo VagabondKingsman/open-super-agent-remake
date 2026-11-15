@@ -303,20 +303,20 @@ ROUTER_TOOLS = [*[s for s in ctools.SCHEMAS if s["function"]["name"] in DIRECT_P
 
 
 TASKS: dict[int, Task] = {}       # 所有 Bot 的任务，Watchdog 统一巡检
-_task_seq = 0                     # 已经发出去过的任务号（见 task_id）
+_task_seq = 0                     # 任务号自己的计数器（见 task_id）
 
 
-def task_id(msg_id: int) -> int:
-    """任务号：一般就是派发那条消息的 id。但消息会被删（删 Bot、清理对话），SQLite 随后用回最大的 id，
-    新任务就可能撞上还在 TASKS 里的老任务，直接覆盖掉：老任务的句柄、审批、`#编号` 全指向新的。
-    撞上时往上找一个没人用的号，进程内不复用。"""
+def task_id(msg_id: int = 0) -> int:
+    """任务号从自己的一段号里取，不再借用消息 id（OPEN-TASK-ID）。
+
+    消息 id 会被用回：删 Bot、清理对话之后，SQLite 把最大的 id 重新发出去，新任务于是可能撞上还在
+    TASKS 里的老任务——老任务的句柄、审批、`#编号` 全被顶掉。任务号独立编号就没有这回事；
+    和消息对得上靠 Task.msg_id（派发那条消息自己记着它）。"""
     global _task_seq
-    _task_seq = max(_task_seq, msg_id)
-    if msg_id not in TASKS:
-        return msg_id            # 没撞就用消息自己的号：任务号平时和消息对得上
-    while _task_seq in TASKS:
+    while True:
         _task_seq += 1
-    return _task_seq
+        if _task_seq not in TASKS:
+            return _task_seq
 RUNTIMES: dict[int, "Router"] = {}
 notify = None                     # 由 server 设置：async (event) -> None
 

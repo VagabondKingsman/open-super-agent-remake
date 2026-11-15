@@ -1,10 +1,13 @@
 """界面上可修改的设置，存在数据库里，覆盖 config.yaml 的同名项。模型服务（地址、密钥）在 providers.py。"""
 import json
+import logging
 import os
 import time
 from . import avatars, computer, i18n, prices, providers, security
 from .config import CFG
 from .memory import conn
+
+log = logging.getLogger(__name__)
 
 EDITABLE_LIMITS = ["daily_token_budget", "worker_max_steps", "task_timeout_s", "approval_timeout_s",
                     "computer_wait_human_s", "unrestricted", "no_progress_s"]   # unrestricted: C28 全开模式
@@ -180,6 +183,9 @@ def save(data: dict) -> dict:
     conn.execute("insert or replace into settings values('overrides', ?)", (json.dumps(o),))
     conn.commit()
     apply()
+    from . import freedom
+    if (n := freedom.ensure_modes()):   # 刚把全开打开：现有的 Bot 立刻补块，不等下一次重启
+        log.info("unrestricted mode block added to %s bot(s) after a settings change", n)
     if "embedding" in data:
         from . import search
         search._wake.set()   # 换了模型：后台重新算向量

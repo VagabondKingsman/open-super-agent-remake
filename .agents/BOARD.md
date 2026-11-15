@@ -46,7 +46,7 @@ Cập nhật 11/11/2026 23:16, Asia/Saigon (UTC+7), base `14449fd` (merge PR #51
 | AUDIT-F12 | Low. File `.osabak` ghi ra với quyền 0644 | File `.osabak` `chmod 0600`. | Done · cursor / `fix/audit-f1-f13` · [PR #41](https://github.com/VagabondKingsman/open-super-agent-remake/pull/41) merge `5a1e0e7` |
 | AUDIT-F13 | Low. Màn hình VNC của VM Instabox bị đổi thành 661x1619, `fit` cứ phóng lên 1280 mỗi thao tác | `fit` đọc `screen.availWidth/availHeight`, chỉ phóng tới màn hình thật. | Done · cursor / `fix/audit-f1-f13` · [PR #41](https://github.com/VagabondKingsman/open-super-agent-remake/pull/41) merge `5a1e0e7` |
 | AUDIT-F11 | Info. Nhánh mặc định GitHub là `main` cũ | Tin Tin đổi default branch sang `i18n-vi` trong Settings của repo, hoặc đồng bộ `main`. Cần Tin Tin quyết. | Chờ Tin Tin |
-| OPEN-INSTABOX-REPO | Bot không đọc được repo khi máy là Instabox: `OSA_COMPUTER_MOUNTS` chỉ áp cho backend Docker | Có cách đưa `.agents/` (hoặc repo) sang máy Instabox mà không phải chép tay từng tệp — hoặc chấp nhận chỉ dùng backend Docker cho việc đọc repo | Chưa nhận |
+| OPEN-RETRY-LIVE | Đường gọi lại stream của Router/Worker chưa xảy ra trên live | Bắt được một lượt live có `StreamStalled` hoặc "at capacity" giữa stream, thấy note gọi lại, `reset` trên UI, task không bị Watchdog hủy. Hiện chỉ có test và lần ép `idle_s` trên stream xAI thật. | Chưa nhận |
 | OPEN-DOCKER-DOC | `docs/docker.md` đã đổi sang tiếng Việt (PR #41) | Lần merge upstream sau sẽ xung đột ở file này: giữ bản VI, port nội dung mới của upstream vào. | Nhắc khi port upstream |
 | OPEN-NOT-CHECKED | Chưa kiểm trên máy thật | app macOS (`test_real_desktop`), Instabox từ bản cài thứ hai, Instabox từ bản cài thứ hai (gói miễn phí một máy). | Chưa nhận |
 | OPEN-KEEPALIVE | Script giữ VM trên box: suspend/resume trả 400 thiếu `Idempotency-Key` | Script ngoài repo (`/workspace/instabox-keepalive/lease-keepalive.py`). 22:13 10/11 VM bị pause khi hết 480 phút và vào cooldown. Thêm header rồi kiểm qua một mốc 480 phút. | Chưa nhận · việc của box |
@@ -65,6 +65,7 @@ Cập nhật 11/11/2026 23:16, Asia/Saigon (UTC+7), base `14449fd` (merge PR #51
 ## Done · đã public
 
 - OPEN-RETRY-LIVE 15/11: đường gọi lại đã chạy live 15 lần (11–14/11, `osa.log.2.gz`), 13 lần có câu trả lời trong 4 phút sau đó, không lần nào bị Watchdog huỷ; dòng log `router stream failed mid-way (…) ; retrying`. "at capacity" chưa xuất hiện live (đã có test). B1 "never existed": lượt sửa thật giao thì lịch sử không còn nói task chưa từng tồn tại (`fabricated_then_dispatched`).
+- OPEN-INSTABOX-REPO 15/11: `OSA_COMPUTER_MOUNTS` giờ dùng được trên backend Instabox — `osa/computer/push.py` đóng gói từng mục (bỏ `.git`, `node_modules`), đẩy sang VM và giải nén đúng đường dẫn, sha trong `/data/.osa-mounts.json` để lần sau bỏ qua mục không đổi; mount `ro` (mặc định) `chmod -R a-w` sau khi giải nén. Gắn vào `instabox.start()`, lỗi chỉ cảnh báo. Việc chuyển `extra_mounts` sang `mount_pairs` dùng chung. 6 test `tests/test_computer_push.py`.
 
 - PR #35–#41 (10/11/2026): E2E-B1–B6, TIP-04b, stream stall retry, CI sandbox, CI Chrome, deep audit cài đặt, sửa AUDIT-F1–F13. Merge commit, giờ và head ở [STATE](STATE.md#pr-3541-10112026).
 

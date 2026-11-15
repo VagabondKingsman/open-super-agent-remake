@@ -117,6 +117,13 @@ def update_meta(msg_id: int, **fields):
         conn.commit()
 
 
+def dispatch_of(task_id: int) -> str | None:
+    """派发那条消息的正文。任务号不再等于消息 id（OPEN-TASK-ID），只能按 meta 里的 task_id 反查。"""
+    r = conn.execute("select content from messages where json_extract(meta,'$.kind')='dispatch' "
+                     "and json_extract(meta,'$.task_id')=? order by id desc limit 1", (task_id,)).fetchone()
+    return r[0] if r else None
+
+
 def page(chat_id: int, before: int | None = None, limit: int = 60) -> list[dict]:
     """前端翻页用：某个对话里 id < before 的最近 limit 条消息，按时间正序返回。
     下面有讨论串的消息带上 thread（见 bots.thread_summaries）。"""
@@ -581,8 +588,11 @@ def usage_stats() -> dict:
 
     by_role = conn.execute("""select role, model, sum(cost), sum(cache_hit+cache_miss+output), count(*) from llm_calls
         where ts >= ? and err is null group by role, model order by 3 desc""", (now - 30 * 86400,)).fetchall()
-    by_task = conn.execute("""select u.task_id, sum(u.cost), sum(u.cache_hit+u.cache_miss+u.output), m.content
-        from llm_calls u left join messages m on m.id = u.task_id where u.task_id is not null
+    # 任务号不再等于消息 id（OPEN-TASK-ID）：按派发消息 meta 里的 task_id 找它的目标
+    by_task = conn.execute("""select u.task_id, sum(u.cost), sum(u.cache_hit+u.cache_miss+u.output),
+        (select m.content from messages m where json_extract(m.meta,'$.task_id') = u.task_id
+         and json_extract(m.meta,'$.kind')='dispatch' order by m.id desc limit 1)
+        from llm_calls u where u.task_id is not null
         group by u.task_id order by u.task_id desc limit 20""").fetchall()
     by_day = conn.execute("""select date(ts, 'unixepoch', 'localtime') d, sum(cost) from llm_calls
         where ts >= ? group by d order by d""", (now - 30 * 86400,)).fetchall()
