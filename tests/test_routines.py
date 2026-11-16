@@ -3,7 +3,7 @@ import pytest
 
 from conftest import find, settle, until
 from fakellm import Call
-from osa import bots, channels, i18n, memory, registry, routines, server, skills, tasklog
+from osa import bots, channels, freedom, i18n, memory, registry, routines, server, skills, tasklog
 
 
 def _routine(bot: dict, kind: str = "every") -> dict:
@@ -239,3 +239,41 @@ def test_goal_uses_default_vietnamese(monkeypatch):
     r = {"name": "Audit ping", "bot_id": 0, "skill": "", "prompt": "",
          "trigger": {"kind": "every", "minutes": 60}}
     assert routines.goal_for(r) == 'Đây là lần chạy của lịch "Audit ping" (Mỗi 1 giờ).'
+
+def test_a_new_bot_is_born_with_the_self_improve_routine(make_bot, monkeypatch):
+    monkeypatch.setattr(freedom, "on", lambda: True)
+    b = make_bot("Tự cải thiện")
+    r = [x for x in routines.list_for(b["id"]) if x["name"] == "self-improve"]
+    assert len(r) == 1
+    assert "git clone" in r[0]["prompt"] and "gh pr create" in r[0]["prompt"]
+    assert r[0]["trigger"]["kind"] == "daily" and r[0]["enabled"]
+
+
+def test_the_self_improve_routine_is_not_installed_twice(make_bot, monkeypatch):
+    monkeypatch.setattr(freedom, "on", lambda: True)
+    b = make_bot("Hai lần")
+    routines.seed_self_improve(b["id"])
+    assert len([x for x in routines.list_for(b["id"]) if x["name"] == "self-improve"]) == 1
+
+
+def test_off_leaves_a_new_bot_without_the_routine(make_bot, monkeypatch):
+    monkeypatch.setattr(freedom, "on", lambda: False)
+    b = make_bot("Không lịch")
+    assert [x for x in routines.list_for(b["id"]) if x["name"] == "self-improve"] == []
+
+
+def test_the_start_minute_is_staggered_per_bot(make_bot, monkeypatch):
+    monkeypatch.setattr(freedom, "on", lambda: True)
+    minutes = set()
+    for i in range(3):
+        b = make_bot(f"Bot {i}")
+        minutes.add(routines.list_for(b["id"])[0]["trigger"]["times"][0])
+    assert len(minutes) == 3
+
+
+def test_backfill_gives_it_to_bots_that_predate_it(make_bot, monkeypatch):
+    monkeypatch.setattr(freedom, "on", lambda: False)
+    old = make_bot("Bot cũ")
+    monkeypatch.setattr(freedom, "on", lambda: True)
+    assert routines.seed_self_improve_all() >= 1
+    assert [x for x in routines.list_for(old["id"]) if x["name"] == "self-improve"]
