@@ -56,10 +56,10 @@ vi:   # Bản cài khi giao diện là tiếng Việt, xem docs/templates.md
     - name: ban-tin-sang
       description: Gom tin trong 24 giờ qua thành một trang bản tin sáng
       body: |
-        1. Với từng lĩnh vực trong phần chỉ dẫn, dùng @exa chạy vài lượt tìm tin trong 24 giờ qua (từ khóa tiếng Anh cho kết quả tốt hơn); tin tiếng Việt thì tìm bằng trình duyệt
+        1. Với từng lĩnh vực trong phần hướng dẫn, dùng @exa chạy vài lượt tìm tin trong 24 giờ qua (từ khóa tiếng Anh cho kết quả tốt hơn); tin tiếng Việt thì tìm bằng trình duyệt
         2. Chọn 8–12 tin quan trọng nhất, mở bài gốc bằng @fetch để đối chiếu, loại tin trùng và tin giật tít
         3. Nhóm theo lĩnh vực. Mỗi tin ghi: tiêu đề (kèm đường dẫn bài gốc), hai hoặc ba câu nói rõ chuyện gì đã xảy ra và vì sao đáng chú ý
         4. Mở đầu bằng ba câu tóm "Điều quan trọng nhất hôm nay"
-        5. Lưu thành trang bằng save_page, đặt tiêu đề "Bản tin sáng <ngày>", và gửi kèm đường dẫn trang trong câu trả lời
+        5. Lưu thành trang bằng save_page, đặt tiêu đề "Bản tin sáng <ngày>", rồi gửi kèm đường dẫn trang trong câu trả lời
   routines:
     - name: Bản tin sáng hằng ngày
