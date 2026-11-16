@@ -56,6 +56,14 @@ class Stall:
     reasoning: str = "..."
 
 
+@dataclass
+class MidError:
+    """流开了、出了一些正文之后报一个 SSE `error` 事件（服务忙、被限流的那种），连接没断。"""
+    content: str = "nửa đầu"
+    message: str = "The model is currently at capacity due to high demand."
+    code: str = "at_capacity"
+
+
 async def _stalled(reply: Stall):
     yield f"data: {json.dumps(_chunk({'role': 'assistant', 'reasoning_content': reply.reasoning}), ensure_ascii=False)}\n\n".encode()
     await asyncio.Event().wait()
@@ -180,6 +188,12 @@ class FakeLLM:
                 if worker and self.gap:
                     await asyncio.sleep(self.gap)
                 reply = self._next(role, name, body)
+                if isinstance(reply, MidError):
+                    ev = _chunk({"role": "assistant", "content": reply.content})
+                    err = {"error": {"message": reply.message, "type": "server_error", "code": reply.code}}
+                    head = f"data: {json.dumps(ev, ensure_ascii=False)}\n\n"
+                    tail = f"event: error\ndata: {json.dumps(err, ensure_ascii=False)}\n\n"
+                    return httpx.Response(200, headers={"content-type": "text/event-stream"}, content=(head + tail).encode())
                 if isinstance(reply, HttpError):
                     payload = reply.body if isinstance(reply.body, str) else json.dumps(reply.body)
                     headers = {"content-type": "application/json", **{str(k).lower(): str(v) for k, v in reply.headers.items()}}
