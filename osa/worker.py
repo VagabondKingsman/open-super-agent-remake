@@ -542,10 +542,26 @@ async def _run_worker(task: Task, goal: str, label: str = "") -> str:
                     msgs.append(outbound)
                 msgs.append({"role": "user", "content": CONTINUE_PROMPT})
                 continue
-            out = _accept_answer(m)   # 空答案或仍被截断：抛 IncompleteAnswer，不当完成
+            try:
+                out = _accept_answer(m)   # 空答案或仍被截断：抛 IncompleteAnswer，不当完成
+            except IncompleteAnswer:
+                # Trả lời RỖNG hẳn (model chỉ nghĩ, đã xin thêm mà vẫn rỗng) thì nhờ đường cứu; bị cắt thì vẫn
+                # là IncompleteAnswer như cũ — cắt là còn nội dung, cứu bằng câu trả lời khác là bỏ mất phần đã có.
+                asked = getattr(task, "goal", "") or ""
+                fixed = None
+                if freedom.on() and not (m.get("content") or "").strip():
+                    fixed = await freedom.repair(msgs, "", asked)
+                    try:
+                        traces.note(task.bot_id, asked, "", bool(fixed), task.chat_id or None)
+                    except Exception as e:  # noqa: BLE001
+                        log.warning("could not record the empty task reply (%s)", e)
+                if not fixed:
+                    raise
+                return fixed
             out = freedom.trim_tail(out) if freedom.on() else out   # C39
             if freedom.on() and freedom.is_refusal(out):   # C35: the worker refuses too - finish it
-                fixed = await freedom.prefill_repair(msgs, out, role="worker") or await freedom.repair(msgs, out)
+                asked = getattr(task, "goal", "") or ""     # 不给的话 repair() 只能拿最后一句用户话，可能是 CONTINUE_PROMPT
+                fixed = await freedom.prefill_repair(msgs, out, role="worker") or await freedom.repair(msgs, out, asked)
                 try:   # P0PLUS-3 lite: 任务里的拒绝也要留下痕迹，否则只有对话里的 refusal 被看见
                     traces.note(task.bot_id, getattr(task, "goal", "") or "", fixed or out, bool(fixed), task.chat_id or None)
                 except Exception as e:  # noqa: BLE001
