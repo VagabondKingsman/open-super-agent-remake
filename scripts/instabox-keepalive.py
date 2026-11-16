@@ -8,7 +8,12 @@ trong `osa/computer/instabox.py` (lỗi 400 của 10/11 là của script cũ, ng
     .venv/bin/python scripts/instabox-keepalive.py           # chạy mãi, mặc định 200 giây một lần
     .venv/bin/python scripts/instabox-keepalive.py --once    # một lần rồi thoát (cho cron/systemd timer)
 
-Mã thoát: 0 bình thường, 1 không đăng nhập được hoặc máy không lên.
+Mã thoát của `--once`: 0 máy đang chạy (hoặc đang dựng); 1 không đăng nhập được, gọi OSA hỏng, hoặc
+máy vẫn pause / không có máy. Chế độ chạy mãi không thoát: lần nào hỏng thì in lý do ra stderr và đi tiếp.
+Mỗi dòng có số lần, để kiểm "qua một mốc 480 phút" bằng `journalctl --user -u instabox-keepalive`:
+đếm số dòng và so mốc thời gian, không phải tin vào một lần chạy.
+
+Mật khẩu: `OSA_PASSWORD` (biến môi trường, hoặc .env của repo) — unit systemd chạy được mà không cần .env.
 """
 import argparse
 import http.cookiejar
@@ -23,6 +28,11 @@ import _paths
 
 BASE = _paths.base()
 EVERY = 200          # giây: ngắn hơn nhiều so với trần, đủ thưa để không spam API
+OK_STATES = ("running", "starting")   # starting = desktop đang dựng, máy vẫn đang được giữ
+
+
+def _now() -> str:
+    return time.strftime("%Y-%m-%d %H:%M:%S")
 
 
 def _opener():
@@ -34,14 +44,14 @@ def _opener():
 
 
 def wake(op, bot_id: int) -> str:
-    """Đánh thức máy của bot. Trả về trạng thái máy sau đó."""
+    """Đánh thức máy của bot. Trả về trạng thái máy sau đó ('?' nếu OSA không trả JSON)."""
     req = urllib.request.Request(f"{BASE}/api/bots/{bot_id}/computer/start", data=b"{}",
                                  headers={"Content-Type": "application/json"})
     op.open(req, timeout=180).read()          # start() 可能要等桌面装好，给足时间
     st = op.open(f"{BASE}/api/bots/{bot_id}/computer", timeout=30).read()
     try:
-        return json.loads(st).get("state", "?")
-    except ValueError:
+        return str(json.loads(st).get("state", "?"))
+    except (ValueError, AttributeError):
         return "?"
 
 
@@ -56,17 +66,29 @@ def main() -> int:
     except urllib.error.URLError as e:
         print(f"không đăng nhập được OSA: {e}", file=sys.stderr)
         return 1
+    n = 0
     while True:
+        n += 1
+        ok = True
         try:
             state = wake(op, a.bot)
-            print(f"{time.strftime('%Y-%m-%d %H:%M:%S')} bot {a.bot}: {state}", flush=True)
         except urllib.error.HTTPError as e:
-            print(f"{time.strftime('%Y-%m-%d %H:%M:%S')} HTTP {e.code}: {e.read()[:200]!r}", flush=True)
-            op = _opener()                     # phiên hết hạn thì đăng nhập lại
+            ok = False
+            print(f"{_now()} lần {n}: HTTP {e.code}: {e.read()[:200]!r}", file=sys.stderr, flush=True)
+            try:
+                op = _opener()                 # phiên hết hạn thì đăng nhập lại
+            except urllib.error.URLError as e2:
+                print(f"{_now()} lần {n}: không đăng nhập lại được: {e2}", file=sys.stderr, flush=True)
         except urllib.error.URLError as e:
-            print(f"{time.strftime('%Y-%m-%d %H:%M:%S')} không gọi được OSA: {e}", flush=True)
+            ok = False
+            print(f"{_now()} lần {n}: không gọi được OSA: {e}", file=sys.stderr, flush=True)
+        else:
+            ok = state in OK_STATES
+            print(f"{_now()} bot {a.bot}: {state} (lần {n})", flush=True)
+            if not ok:
+                print(f"{_now()} lần {n}: máy không lên (state={state})", file=sys.stderr, flush=True)
         if a.once:
-            return 0
+            return 0 if ok else 1
         time.sleep(max(30, a.every))
 
 

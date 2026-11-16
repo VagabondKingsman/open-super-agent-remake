@@ -2,6 +2,9 @@
 #   cp deploy/instabox-keepalive.service ~/.config/systemd/user/
 #   systemctl --user daemon-reload && systemctl --user enable --now instabox-keepalive
 # Chỉ có nghĩa khi backend computer là Instabox; backend Docker không cần (container không bị nền tảng pause).
+# Mật khẩu: `OSA_PASSWORD` trong môi trường (hoặc .env của repo). Unit chạy dưới systemd không có .env của
+# người dùng, nên đường gọn là `EnvironmentFile=%h/.config/osa-keepalive.env` với một dòng `OSA_PASSWORD=...`.
+# Muốn nhận cảnh báo thay vì chỉ log: dùng timer + `--once` (mã thoát 1 khi máy không lên) với `OnFailure=`.
 [Unit]
 Description=OSA: giữ máy ảo Instabox khỏi bị tạm dừng
 After=osa.service

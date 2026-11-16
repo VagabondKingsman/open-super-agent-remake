@@ -47,7 +47,8 @@ def base() -> str:
 
 
 def password() -> str:
-    pw = _dotenv("OSA_PASSWORD")
+    """OSA_PASSWORD: biến môi trường trước, rồi .env. Unit systemd/timer chạy không có .env của người dùng."""
+    pw = os.environ.get("OSA_PASSWORD", "").strip() or _dotenv("OSA_PASSWORD")
     if not pw:
-        raise SystemExit("OSA_PASSWORD không có trong .env")
+        raise SystemExit("OSA_PASSWORD không có trong biến môi trường lẫn .env")
     return pw
