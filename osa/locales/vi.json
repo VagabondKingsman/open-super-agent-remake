@@ -291,6 +291,7 @@
   "正在连接…": "Đang kết nối…",
   "正在重启，稍后再试": "Đang khởi động lại; thử lại sau",
   "步数用完了，根据已有信息写结果": "Hết số bước; viết kết quả từ thông tin đã có",
+  "坏了": "Hỏng",
   "每 {n} 分钟": "Mỗi {n} phút",
   "每 {n} 小时": "Mỗi {n} giờ",
   "每个 Bot 最多 {n} 个技能": "Mỗi Bot có tối đa {n} kỹ năng",
