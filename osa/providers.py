@@ -291,6 +291,20 @@ def _effort_key(base: str, model: str) -> str:
     return f"{base.rstrip('/')}|{model}"
 
 
+def tools_rejected(base: str, model: str) -> bool:
+    """Model này không nhận `tools` (gateway báo "route is not declared to support tools")."""
+    return model in _effort_rejects().get("tools|" + base, [])
+
+
+def remember_tools_reject(base: str, model: str):
+    d = _effort_rejects()
+    k = "tools|" + base
+    if model not in d.get(k, []):
+        d[k] = d.get(k, []) + [model]
+        conn.execute("insert or replace into settings values('effort_rejects', ?)", (json.dumps(d),))
+        conn.commit()
+
+
 def effort_rejected(base: str, model: str, effort: str) -> bool:
     return effort in _effort_rejects().get(_effort_key(base, model), [])
 
@@ -406,6 +420,9 @@ async def create_chat(client, **kwargs):
     base = str(getattr(client, "base_url", "") or "")
     if kwargs.get("reasoning_effort") and effort_rejected(base, kwargs.get("model", ""), kwargs["reasoning_effort"]):
         kwargs.pop("reasoning_effort")   # 以前这个模型就不认这个思考强度：直接不带
+    if kwargs.get("tools") and tools_rejected(base, kwargs.get("model", "")):
+        kwargs.pop("tools")              # 以前这个 model 不认 tools（gateway 没声明）：不带工具，仍能回答
+        kwargs.pop("tool_choice", None)
     async def open_stream():
         """流式请求：连接/响应头也就等 provider_head_s 秒，卡住当成流中途卡住（可以重来、可以换备用模型）。"""
         head = provider_head_s() if kwargs.get("stream") else 0
@@ -417,6 +434,23 @@ async def create_chat(client, **kwargs):
         try:
             return await open_stream()
         except openai.BadRequestError as e:
+            msg0 = str(e).lower()
+            # gateway 没给这个 model 声明 tool 支持（vd dolphin-mistral-24b-venice-edition）：把工具去掉再试一次，记下来
+            # Chỉ đúng nghĩa "model/gateway không khai báo hỗ trợ tools". 400 về tool_choice là chuyện khác:
+            # bỏ tools theo nó thì mọi lượt sau mất luôn dispatch (đo được: 32 test đỏ vì cái này).
+            no_tools = ("not declared" in msg0 and "tool" in msg0) or "does not support tools" in msg0 \
+                or "tools are not supported" in msg0
+            if kwargs.get("tools") and no_tools and "tool_choice" not in msg0:
+                model0 = kwargs.get("model", "")
+                kwargs.pop("tools", None)
+                kwargs.pop("tool_choice", None)
+                try:
+                    r = await open_stream()
+                except Exception:
+                    raise e from None
+                remember_tools_reject(base, model0)
+                log.warning("model %s does not take tools (400); retried without them", model0)
+                return r
             # 有的模型不认 reasoning_effort（比如 xAI 不收 max，有的推理模型什么强度都不收）：去掉再试一次，记下来以后不带
             effort = kwargs.pop("reasoning_effort", None)
             if not effort:
