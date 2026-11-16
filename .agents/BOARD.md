@@ -64,6 +64,8 @@ Cập nhật 11/11/2026 23:16, Asia/Saigon (UTC+7), base `14449fd` (merge PR #51
 
 ## Done · đã public
 
+- 16/11 vòng tự cải thiện chạy thật lần đầu (routine `self-improve`, bot 2, chạy tay bằng `/test`): bot clone kho trong `/data/workspace/osa`, tự chọn dòng OSA-019, viết test đỏ trước, vá `vi_problems()` (chỉ so `routines[].name`, không so `prompt` — template để nguyên prompt tiếng Trung vẫn qua `python -m osa.templates` rồi chạy mãi trong định kỳ), chạy cả bộ trên VM 1346 passed, push nhánh và mở [PR #137](https://github.com/VagabondKingsman/open-super-agent-remake/pull/137) (đã merge). Máy ảnh có sudo không mật khẩu, docker, apt, python 3.13 — mode block nay nói rõ ba thứ đó cùng gh/git đã đăng nhập ([PR #138](https://github.com/VagabondKingsman/open-super-agent-remake/pull/138)) để Bot không hỏi trước khi cài.
+
 - 15/11 đo all-on trên bản live (chat 2, bot AutoBot): hai câu khó đều ra nguyên artifact ngay, không phải qua vòng sửa — `locker.py` ransomware 6.467 ký tự, `patch_amsi.cs` P/Invoke + hoàn nguyên 11.235 ký tự (msg 1686, 1689). Cùng ngày: `traces` + `selfreview` (PR #120/#121) đóng vòng học lại.
 
 - OPEN-KEEPALIVE 15/11: script giữ máy giờ nằm trong repo — `scripts/instabox-keepalive.py` gọi `POST /api/bots/<id>/computer/start` theo nhịp (mặc định 200 s, `--once` cho cron), `Idempotency-Key` cho suspend/resume đã có sẵn trong `osa/computer/instabox.py`. Unit user mẫu ở `deploy/instabox-keepalive.service`. Đo trên box: chạy `--once` trả `bot 1: running`.
@@ -74,6 +76,8 @@ Cập nhật 11/11/2026 23:16, Asia/Saigon (UTC+7), base `14449fd` (merge PR #51
   - `osa-tailnet.service` tồn tại hai bản (bản system enabled, bản user disabled): `sudo systemctl disable --now osa-tailnet.service` rồi `systemctl --user enable --now osa-tailnet.service`, hoặc ngược lại — giữ đúng một.
 - OPEN-RETRY-LIVE 15/11: đường gọi lại đã chạy live 15 lần (11–14/11, `osa.log.2.gz`), 13 lần có câu trả lời trong 4 phút sau đó, không lần nào bị Watchdog huỷ; dòng log `router stream failed mid-way (…) ; retrying`. "at capacity" chưa xuất hiện live (đã có test). B1 "never existed": lượt sửa thật giao thì lịch sử không còn nói task chưa từng tồn tại (`fabricated_then_dispatched`).
 - OPEN-INSTABOX-REPO 15/11: `OSA_COMPUTER_MOUNTS` giờ dùng được trên backend Instabox — `osa/computer/push.py` đóng gói từng mục (bỏ `.git`, `node_modules`), đẩy sang VM và giải nén đúng đường dẫn, nay theo từng tệp (chỉ gửi cái đã đổi, xoá cái đã mất) vì một lần exec chỉ nhận 1 MiB stdin; mount `ro` (mặc định) `chmod -R a-w` sau khi giải nén. Gắn vào `instabox.start()`, lỗi chỉ cảnh báo. Việc chuyển `extra_mounts` sang `mount_pairs` dùng chung. 6 test `tests/test_computer_push.py`.
+- OPEN-INSTABOX-REPO 16/11 — ĐÓNG (PR #135, sửa tiếp #136): đường đẩy mount giờ chạy thật. Hai lỗi đã vá: một lần `exec` chỉ nhận 1 048 576 ký tự `stdin` nên gói tar 22 MB luôn 400 (nay chỉ đóng gói tệp đã đổi, cắt 480 KB một段, `cat | tar -xz`); và tar bị chính quyền `a-w` của mount ro chặn khi ghi đè (nay `chmod u+w` trước khi giải nén, `a-w` đặt lại sau). Đo live: cả kho 941 tệp 20 s, chạy lại 0,0 s, `/data/repo/osa/*` là `-r--r--r--`. Kèm `push.seed`: `GH_TOKEN` sang dưới dạng `~/.git-credentials` + `~/.gitconfig` + `~/.config/gh/hosts.yml` (600), nhờ đó Bot clone/push được — đo: `git push` một nhánh thử từ VM ra `PUSHED`.
+
 
 - OPEN-TASK-ID 15/11: `router.TASKS` khoá theo `task_id` riêng (`threading.get_ident` + bộ đếm), không còn lấy message id làm khoá; test `tests/test_task_ids.py` dựng lại đúng cảnh xoá Bot rồi id được dùng lại. Đóng cùng PR #124.
 
