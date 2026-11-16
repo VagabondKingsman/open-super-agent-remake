@@ -14,7 +14,7 @@ File `OpenSuperAgent-v1.0-arm64-debug.apk`. Ký bằng khóa debug của Android
 
 ## Cách nối
 
-1. Mở app, nhập địa chỉ, bấm Kết nối. App gọi `GET /manifest.json` trước. Không tới được thì ở lại trang nhập và hiện lỗi.
+1. Mở app, nhập địa chỉ, bấm Kết nối. App gọi `GET /manifest.json` trước. Không tới được, hoặc tới được mà câu trả lời không phải manifest của OSA (trang captive portal của Wi-Fi, trang của dịch vụ khác) thì ở lại trang nhập và hiện lỗi — vé đăng nhập một lần không bị gửi đi.
 2. Trang mật khẩu là form của server, `POST /login`. Đúng mật khẩu thì vào giao diện web.
 3. QR `opensuperagent://pair?u=<server>&t=<vé>`. Vé do `POST /api/pair` phát, sống 5 phút, dùng một lần. App mở `/login/ticket?t=...`.
 
@@ -22,7 +22,7 @@ Bản `v1.0` đã phát hành dùng ô `type=url`, nên phải gõ đủ `http:/
 
 ## Việc app làm và không làm
 
-- Nhớ server lần mở sau. Probe lại trước khi nhảy vào trang. Probe cũ không ghi đè server vừa chọn.
+- Nhớ server lần mở sau. Probe lại trước khi nhảy vào trang: đọc body, đòi JSON có `name` và `start_url` = `/` như `web/public/manifest.json`, không chỉ nhìn mã 200. Probe cũ không ghi đè server vừa chọn.
 - Không gọi `WebviewWindow::navigate`. Hàng đợi webview Android của wry 0.57.2 chỉ chứa 8 lệnh. `navigate` làm đầy hàng thì process chết.
 - Sau khi vào trang chính, app cập nhật shortcut "pending" theo số thẻ chờ duyệt. Lệnh này chạy trên UI thread. Exception JNI được xóa trước khi thread detach, để app không chết ngay sau đăng nhập.
 - Trang nổi cùng server (`openSheet`) và link khác server mở bằng trình duyệt máy.
