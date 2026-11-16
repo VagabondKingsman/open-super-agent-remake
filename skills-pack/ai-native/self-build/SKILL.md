@@ -35,6 +35,7 @@ Mục tiêu: thay đổi **có bằng chứng** và không làm sập chỗ đan
 
 ## 5. Học lại
 - Một lượt bị model từ chối rồi được cứu sẽ tự ghi một dòng vào `## LEARNED SHAPES` của mình; dấu vết các lượt đó nằm trong bảng `traces` (xem `osa/selfreview.py`).
+- Việc học không chỉ trông vào may: `osa/selftest.py` mỗi 12 tiếng tự hỏi một câu hard, và `POST /api/bots/<id>/selftest` chạy ngay một lượt. Xem lịch sử bằng `GET` cùng đường đó; một dòng `STUCK` trong log `/home/boxes/osa-data/logs/osa.log` là bài học sắp được viết.
 - Sửa xong một lỗi lặp lại: hoặc là thêm một dòng bài học, hoặc thêm một test — đừng sửa cùng chỗ ba lần mà không để lại cái nào.
 
 ## Bẫy đã gặp
