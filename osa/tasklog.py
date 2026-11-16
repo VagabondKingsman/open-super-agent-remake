@@ -128,7 +128,9 @@ def _task(row) -> dict:
             "chat_id": chat_id, "bot_id": bot_id, "handoff_to": m.get("handoff_to")}
 
 
-DISPATCH = "role='task' and (json_extract(meta, '$.kind')='dispatch' or content like '[任务已派发]%')"
+# json_extract 遇到不是 JSON 的 meta 会抛 malformed JSON；包在 case 里，顺序才有保证
+DISPATCH = ("role='task' and (case when json_valid(meta) then json_extract(meta, '$.kind') end='dispatch' "
+            "or content like '[任务已派发]%')")
 
 
 def list_tasks(bot_id: int | None = None, chat_id: int | None = None, before: int | None = None,

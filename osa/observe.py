@@ -99,10 +99,12 @@ def _usage_groups(w: dict, bot: int | None) -> dict:
 def _tasks(a: float, b: float, bot: int | None) -> list[dict]:
     ws, args = _bot_sql(bot)
     rows = conn.execute(f"select id, ts, content, meta, chat_id, bot_id from messages where {tasklog.DISPATCH} "
-                        f"and ts>=? and ts<?{ws} order by ts desc", (a, b, *args)).fetchall()
+                        f"and coalesce(json_valid(meta), 0) and ts>=? and ts<?{ws} order by ts desc", (a, b, *args)).fetchall()
     out = []
     for i, ts, content, meta, chat_id, bot_id in rows:
-        m = json.loads(meta or "{}")
+        m = _json(meta) or {}
+        if not isinstance(m, dict):
+            m = {"status": "?", "broken_meta": str(meta)[:40]}
         hit = ROUTINE.match(content or "")
         out.append({"id": m.get("task_id") or i, "msg_id": i, "ts": ts, "goal": ROUTINE.sub("", content or "").removeprefix("[任务已派发]").strip(),
                     "status": m.get("status", "done"), "elapsed": m.get("elapsed"), "steps": m.get("steps"),
@@ -110,9 +112,11 @@ def _tasks(a: float, b: float, bot: int | None) -> list[dict]:
                     "routine": hit.group(1) if hit else None})
     # langcheck stores lang_flag on the task's result message, not the dispatch one. Flagged results are rare, so one
     # query over the window (no IN list that could hit SQLite's variable limit) and match ids here.
-    flags = {tid: json.loads(f) for tid, f in conn.execute(
-        """select json_extract(meta, '$.task_id'), json_extract(meta, '$.lang_flag') from messages where role='task'
-        and json_extract(meta, '$.kind')='result' and json_extract(meta, '$.lang_flag') is not null and ts>=?""", (a,))}
+    flags = {}
+    for row in conn.execute("""select meta from messages where role='task' and meta like '%lang_flag%' and ts>=?""", (a,)):
+        d = _json(row[0])
+        if isinstance(d, dict) and d.get("task_id") and d.get("lang_flag") is not None:
+            flags[d["task_id"]] = d["lang_flag"]
     for t in out:
         t["lang_flag"] = flags.get(t["id"])
     return out
@@ -140,12 +144,19 @@ def _costs(ids: list[int]) -> dict[int, tuple[float, int]]:
 
 
 # ---------- 工具 ----------
+def _json(raw) -> dict | list | None:
+    """meta / lang_flag 里存的东西不一定是 JSON（旧版、改过的库、别的分支写的行）：坏就当空，别让整页 500。"""
+    try:
+        v = json.loads(raw)
+    except (TypeError, ValueError):
+        return None
+    return v
 def _tools(a: float, b: float, bot: int | None) -> list[dict]:
     ws, args = _bot_sql(bot, "m.bot_id")
     rows = conn.execute(f"""select coalesce(nullif(s.name,''), s.title), count(*),
         sum(case when s.status='error' then 1 else 0 end), sum(case when s.status='rejected' then 1 else 0 end),
         avg(case when s.status='done' then s.dur end), max(s.ts)
-        from task_steps s join messages m on m.id=(select d.id from messages d where json_extract(d.meta,'$.task_id')=s.task_id order by d.id desc limit 1) where s.kind='tool' and s.ts>=? and s.ts<?{ws}
+        from task_steps s join messages m on m.id=(select d.id from messages d where coalesce(json_valid(d.meta),0) and json_extract(d.meta,'$.task_id')=s.task_id order by d.id desc limit 1) where s.kind='tool' and s.ts>=? and s.ts<?{ws}
         group by 1 order by 2 desc""", (a, b, *args)).fetchall()
     return [{"name": n, "calls": c, "errors": e, "rejected": r, "avg_s": round(d, 1) if d is not None else None, "last": l}
             for n, c, e, r, d, l in rows]
@@ -158,11 +169,17 @@ def _problems(a: float, b: float, bot: int | None, tasks: list[dict]) -> list[di
     bad = [t for t in tasks if t["status"] in ("failed", "interrupted")]
     if bad:
         q = ",".join("?" * len(bad))
-        why = {tid: c for tid, c in conn.execute(
-            f"""select json_extract(meta, '$.task_id'), content from messages where role='task'
-            and json_extract(meta, '$.kind')='result' and json_extract(meta, '$.task_id') in ({q})""", [t["id"] for t in bad])}
+        why_rows = conn.execute(
+            f"""select meta, content from messages where role='task'
+            and case when json_valid(meta) then json_extract(meta, '$.kind') end='result'
+            and case when json_valid(meta) then json_extract(meta, '$.task_id') end in ({q})""", [t["id"] for t in bad])
+        why = {}
+        for row in why_rows:
+            m = _json(row[0]) or {}
+            if isinstance(m, dict) and m.get("task_id"):
+                why[m["task_id"]] = row[1]
         for t in bad:
-            detail = re.sub(r"^\[任务 #\d+ 结果\]\n?", "", why.get(t["id"], ""))[:300]   # i18n-ignore：存在消息里的标记
+            detail = re.sub(r"^\[任务 #\d+ 结果\]\n?", "", why.get(t["id"]) or "")[:300]   # i18n-ignore：存在消息里的标记
             items.append({"kind": "task", "status": t["status"], "ts": t["ts"], "bot_id": t["bot_id"], "task_id": t["id"],
                           "chat_id": t["chat_id"], "title": t["goal"][:120], "detail": detail, "routine": t["routine"]})
     ws, args = _bot_sql(bot)
@@ -174,7 +191,7 @@ def _problems(a: float, b: float, bot: int | None, tasks: list[dict]) -> list[di
     ws, args = _bot_sql(bot, "m.bot_id")
     for ts, name, body, task_id, bot_id, chat_id in conn.execute(
             f"""select s.ts, coalesce(nullif(s.name,''), s.title), s.body, s.task_id, m.bot_id, m.chat_id
-            from task_steps s join messages m on m.id=(select d.id from messages d where json_extract(d.meta,'$.task_id')=s.task_id order by d.id desc limit 1) where s.kind='tool' and s.status='error'
+            from task_steps s join messages m on m.id=(select d.id from messages d where coalesce(json_valid(d.meta),0) and json_extract(d.meta,'$.task_id')=s.task_id order by d.id desc limit 1) where s.kind='tool' and s.status='error'
             and s.ts>=? and s.ts<?{ws} order by s.ts desc limit 500""", (a, b, *args)):
         items.append({"kind": "tool", "ts": ts, "bot_id": bot_id, "task_id": task_id, "chat_id": chat_id,
                       "title": name, "detail": (body or "")[:300]})

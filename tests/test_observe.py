@@ -183,3 +183,24 @@ def test_rows_from_old_versions_are_moved_once(make_bot):
     memory._move_legacy_usage()   # 再来一次不会重复
     rows = memory.conn.execute("select role, bot_id, chat_id, cost from llm_calls where model='old-model' order by ts").fetchall()
     assert rows == [("worker", a["id"], a["chat_id"], 0.02), ("router", None, None, 0.01)]
+
+
+# ---- dòng dữ liệu bẩn: một dòng hỏng không được làm cả trang 500 ----
+def test_a_result_message_with_null_content_does_not_500(make_bot):
+    b = make_bot("Null result")
+    tid = _task(b, "nhiệm vụ hỏng", "failed")
+    memory.conn.execute("insert into messages(chat_id, role, content, meta, ts) values(?,?,NULL,?,?)",
+                        (b["chat_id"], "task", '{"kind": "result", "task_id": %d}' % tid, time.time()))
+    memory.conn.commit()
+    s = observe.stats("today", TZ, b["id"])
+    assert [p["task_id"] for p in s["problems"]] == [tid]
+    assert s["problems"][0]["detail"] == ""
+
+
+def test_a_dispatch_message_with_broken_meta_is_skipped_or_read(make_bot):
+    b = make_bot("Meta hỏng")
+    memory.conn.execute("insert into messages(chat_id, role, content, meta, ts) values(?,?,?,?,?)",
+                        (b["chat_id"], "task", "[任务已派发] việc gì đó", "not json", time.time()))
+    memory.conn.commit()
+    s = observe.stats("today", TZ, b["id"])      # không ném
+    assert s["kpi"]["tasks"] == 0                 # json_extract trên meta hỏng không được làm sập truy vấn
