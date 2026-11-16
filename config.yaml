@@ -61,9 +61,11 @@ security:
 limits:
   unrestricted: true          # 全开模式（2026-11-13）：按执行器答，不要前言/政策句；被拒时走 C31 修复
   # 全开：被拒时换到这些重问，按顺序试；前一个死了（401/402/404）或也拒绝才走下一个。最强的放最前。
+  # 2026-11-16: bậc đầu là dolphin ($0,20/$0,90 mỗi triệu — rẻ nhất trong ba bậc, chủ máy chọn), bậc sau là
+  # hàng mạnh để còn đường khi dolphin không ra gì. Đo live: dolphin ra file chạy được ở đề locker (1 628 ký tự).
   unrestricted_fallback:
+    - {provider: deepseek, model: dolphin-mistral-24b-venice-edition, max_tokens: 8192}
     - {provider: deepseek, model: glm-5.3-uncensored, reasoning_effort: high}
-    - {provider: deepseek, model: deepseek-v4.1-flash-uncensored, reasoning_effort: high}
   worker_max_steps: 30        # 电脑操作一步一个动作，步数要多一些
   repeat_tool_limit: 3        # 同一个工具调用连续这么多次就停下，改要最终答案。0 表示不查
   answer_continuations: 1     # 最终答案是空的，或 finish_reason=length 时，再要一次完整答案
