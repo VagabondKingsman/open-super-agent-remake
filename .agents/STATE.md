@@ -115,3 +115,12 @@ Emulator API 34 x86_64, APK debug cùng commit: nối `http://10.0.2.2:8799` m�
 Append. BOARD cũ ghi P0-2 chưa nhận và EVAL-SUITE chờ PR. Đó là trạng thái lúc viết.
 
 [PR #44](https://github.com/VagabondKingsman/open-super-agent-remake/pull/44) merge tại `feeae4c`, `merged_at` `2026-11-10T17:18:58Z`. [PR #43](https://github.com/VagabondKingsman/open-super-agent-remake/pull/43) merge tại `b961870`, `merged_at` `2026-11-10T17:19:21Z`. CI push trên `b961870` FAIL: e27 XPASS strict vì YAML còn `xfail` sau khi `resolve_approval` đã chặn bot. Sửa nằm ở OSA-038.
+
+## Bổ sung · E2E-OPEN-RUST: probe Android đọc manifest, không chỉ mã 200 · selfbuild · 16/11/2026
+
+Dòng BOARD E2E-OPEN còn mục `cargo test` Android. `cargo test` trong `android/src-tauri` vốn đã xanh 10 test, nên phần đáng làm là lỗ mà bộ test bỏ qua: `connect::probe` chỉ nhìn mã HTTP, nên captive portal hay dịch vụ nào trả 200 cho `/manifest.json` cũng được coi là server OSA — app lưu địa chỉ đó, cấp capability cho origin đó, rồi mở `/login/ticket?t=…`, tức vé đăng nhập một lần bay sang máy lạ.
+
+Đã sửa: `connect::looks_like_osa` đòi JSON object có `name` không rỗng và `start_url` = `/` như `web/public/manifest.json`; probe đọc tối đa 64 KiB body. Test đỏ trước `probe_rejects_a_200_that_is_not_osa` (server thật trả 200 + HTML trang Wi-Fi), xanh sau; thêm `shipped_manifest_passes_the_check` đọc thẳng file manifest thật để đổi `start_url` trong web là fail. `cargo test --offline`: 13 passed (trước 10). `./scripts/test.sh`: 1352 passed / 5 skipped / 6 failed — 6 ca bwrap (`Can't mount proc on /proc`) fail y hệt ở base `06cf898`, là giới hạn kernel máy ảo, không phải hồi quy.
+
+[PR #140](https://github.com/VagabondKingsman/open-super-agent-remake/pull/140) base `i18n-vi`, head `67c6e70`, branch `selfbuild/e2e-open-android-manifest`, chưa merge. `cargo test` chưa gắn CI (runner cần webkit2gtk) — để PR riêng. E2E-OPEN còn Filter live và APK `NOT_CHECKED`, cả hai cần máy thật.
+
