@@ -4,10 +4,13 @@
 需要 Instabox 的 API key（scope 至少 machines:write）：界面里填的（加密存在保险库里）优先，没填用环境变量 INSTABOX_API_KEY。
 """
 import asyncio
+import base64
 import logging
 import os
 import time
 import uuid
+import shlex
+
 import httpx
 import websockets
 
@@ -233,11 +236,12 @@ class InstaboxComputer(Computer):
             # 和本地后端保持一致的工作目录；桌面已在运行时分辨率可能不是配置值，以实际为准
             # OPEN-INSTABOX-REPO: 这台机器上没有 docker 挂载，OSA_COMPUTER_MOUNTS 由 push.py 推过来；
             # 推失败不算启动失败（读写仓库只是加分项），但要留一行日志
-            try:
-                if got := await push.deliver(self):
-                    logging.getLogger(__name__).info("pushed mounts into the computer: %s", ", ".join(got))
-            except Exception as e:  # noqa: BLE001
-                logging.getLogger(__name__).warning("mount push failed (%s)", e)
+            for step, name in ((push.seed, "git credentials"), (push.deliver, "mounts")):
+                try:
+                    if got := await step(self):
+                        logging.getLogger(__name__).info("pushed %s into the computer: %s", name, ", ".join(got))
+                except Exception as e:  # noqa: BLE001
+                    logging.getLogger(__name__).warning("%s push failed (%s)", name, e)
             r = await self.exec("mkdir -p /data/workspace; DISPLAY=:1 xdpyinfo 2>/dev/null | awk '/dimensions:/{print $2}'", timeout=20)
             try:
                 self.width, self.height = map(int, r.stdout.strip().split("x"))
@@ -264,9 +268,22 @@ class InstaboxComputer(Computer):
             self._ls_cache[key] = (now, out)
         return [dict(e) for e in out]
 
+    CHUNK = 512 << 10        # exec 的 stdin 上限是 1 MiB（base64 后），留一半余量
+
     async def write_bytes(self, path: str, data: bytes):
+        """写文件。大文件走分块追加：一次 exec 的 stdin 装不下整个 tar 包（opened: 400 body too large）。"""
         self._ls_cache.clear()
-        await super().write_bytes(path, data)
+        if len(data) <= self.CHUNK:
+            return await super().write_bytes(path, data)
+        q = shlex.quote(path)
+        r = await self._wake_retry(lambda: self._exec_once(f"mkdir -p \"$(dirname {q})\" && : > {q}", 60))
+        if r.exit_code:
+            raise ComputerError(r.stderr or i18n.t("写入失败"))
+        for i in range(0, len(data), self.CHUNK):
+            part = base64.b64encode(data[i:i + self.CHUNK]).decode()
+            r = await self._wake_retry(lambda: self._exec_once(f"base64 -d >> {q}", 120, part))
+            if r.exit_code:
+                raise ComputerError(r.stderr or i18n.t("写入失败"))
 
     async def rm(self, path: str):
         self._ls_cache.clear()

@@ -2,7 +2,6 @@
   "注意：设置了 OSA_DATA_DIR（{data}），但 memory.db 是绝对路径 {db}，数据库不在数据目录里。备份和迁移时别漏了它。": "Note: OSA_DATA_DIR is set ({data}), but memory.db is the absolute path {db}, so the database is outside the data directory. Include it when you back up or migrate.",
   " 等 {n} 个": " ({n} bots)",
   "**↩️ {name} 回信**": "**↩️ {name} replied**",
-  "3 分钟没有进展": "No progress for 3 minutes",
   "{n} 秒没有进展": "No progress for {n} seconds",
   "App ID 应该以 cli_ 开头，在开发者后台应用的“凭证与基础信息”里": "The App ID should start with cli_. You'll find it under \"Credentials & Basic Info\" for the app in the developer console",
   "App ID 或 App Secret 不对（{error}）": "Wrong App ID or App Secret ({error})",
@@ -1288,8 +1287,6 @@
   ],
   "未设置 OSA_PASSWORD：网页不用登录就能访问，只能在本机或内网使用": "OSA_PASSWORD is not set: the web UI needs no login, so use it only on this machine or a private network",
   "没有这个接口": "No such endpoint",
-  "（已选中）": "(checked)",
-  "（屏幕外）": "(offscreen)",
   "{scroll}，视口高 {vh}": "{scroll}, viewport height {vh}",
   "（更正：这一轮还没真的派出任务，上面说已经交给 worker 是不对的。）": "(Correction: nothing was actually dispatched in this turn; the claim above that the Worker had it is wrong.)",
   "（超时）": "(timeout)",
@@ -1313,5 +1310,9 @@
   "OSA_COMPUTER_MOUNTS 里的 {item} 两头都要是绝对路径": "Both sides of OSA_COMPUTER_MOUNTS entry {item} must be absolute paths",
   "OSA_COMPUTER_MOUNTS 里的 {host} 不存在": "OSA_COMPUTER_MOUNTS path {host} does not exist",
   "应用地址要是 http:// 或 https://": "An app URL must start with http:// or https://",
-  "应用地址 {host} 是本机或内网地址，tools.mcp_filter 是 public 时只允许公网地址": "App URL {host} is this machine or a private network; with tools.mcp_filter set to public only public addresses are allowed"
+  "应用地址 {host} 是本机或内网地址，tools.mcp_filter 是 public 时只允许公网地址": "App URL {host} is this machine or a private network; with tools.mcp_filter set to public only public addresses are allowed",
+  "解开 {dest} 失败：{error}": "Could not unpack {dest}: {error}",
+  "挂载 {dest} 权限没设好：{error}": "Could not set permissions on mount {dest}: {error}",
+  "（已选中）": "(checked)",
+  "（屏幕外）": "(offscreen)"
 }

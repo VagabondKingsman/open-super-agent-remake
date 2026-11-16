@@ -2,7 +2,6 @@
   "注意：设置了 OSA_DATA_DIR（{data}），但 memory.db 是绝对路径 {db}，数据库不在数据目录里。备份和迁移时别漏了它。": "Lưu ý: đã đặt OSA_DATA_DIR ({data}), nhưng memory.db là đường dẫn tuyệt đối {db}, nên cơ sở dữ liệu nằm ngoài thư mục dữ liệu. Nhớ mang theo nó khi sao lưu hoặc chuyển máy.",
   " 等 {n} 个": " (cùng {n} Bot)",
   "**↩️ {name} 回信**": "**↩️ {name} đã trả lời**",
-  "3 分钟没有进展": "Không có tiến triển trong 3 phút",
   "{n} 秒没有进展": "Không có tiến triển trong {n} giây",
   "App ID 应该以 cli_ 开头，在开发者后台应用的“凭证与基础信息”里": "App ID phải bắt đầu bằng cli_; lấy ở phần thông tin xác thực trong trang quản trị ứng dụng",
   "App ID 或 App Secret 不对（{error}）": "App ID hoặc App Secret không đúng ({error})",
@@ -1219,8 +1218,6 @@
   "有 {n} 个密钥解不开（主密钥换过），没有带上：{names}": "{n} khóa bí mật không giải mã được (khóa chính đã đổi) nên không được đưa vào: {names}",
   "未设置 OSA_PASSWORD：网页不用登录就能访问，只能在本机或内网使用": "Chưa đặt OSA_PASSWORD: trang web không cần đăng nhập, chỉ dùng trên máy này hoặc mạng nội bộ",
   "没有这个接口": "Không có endpoint này",
-  "（已选中）": "(đã chọn)",
-  "（屏幕外）": "(ngoài màn hình)",
   "{scroll}，视口高 {vh}": "{scroll}, cao {vh}",
   "（更正：这一轮还没真的派出任务，上面说已经交给 worker 是不对的。）": "(Đính chính: lượt này chưa thật sự giao tác vụ nào, câu nói ở trên rằng đã giao cho worker là sai.)",
   "（超时）": "(quá hạn)",
@@ -1244,5 +1241,9 @@
   "OSA_COMPUTER_MOUNTS 里的 {item} 两头都要是绝对路径": "Hai đầu của mục {item} trong OSA_COMPUTER_MOUNTS đều phải là đường dẫn tuyệt đối",
   "OSA_COMPUTER_MOUNTS 里的 {host} 不存在": "Đường dẫn {host} trong OSA_COMPUTER_MOUNTS không có",
   "应用地址要是 http:// 或 https://": "Địa chỉ ứng dụng phải bắt đầu bằng http:// hoặc https://",
-  "应用地址 {host} 是本机或内网地址，tools.mcp_filter 是 public 时只允许公网地址": "Địa chỉ ứng dụng {host} là máy này hoặc mạng nội bộ; khi tools.mcp_filter là public thì chỉ cho địa chỉ công khai"
+  "应用地址 {host} 是本机或内网地址，tools.mcp_filter 是 public 时只允许公网地址": "Địa chỉ ứng dụng {host} là máy này hoặc mạng nội bộ; khi tools.mcp_filter là public thì chỉ cho địa chỉ công khai",
+  "解开 {dest} 失败：{error}": "Không giải nén được {dest}: {error}",
+  "挂载 {dest} 权限没设好：{error}": "Không đặt được quyền cho mục được gắn {dest}: {error}",
+  "（已选中）": "(đã chọn)",
+  "（屏幕外）": "(ngoài màn hình)"
 }
