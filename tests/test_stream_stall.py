@@ -293,13 +293,17 @@ async def test_router_stall_before_any_text_is_retried(fast_idle, monkeypatch, e
     assert not [e for e in events.of("error") if e.get("chat_id") == b["chat_id"]]
 
 
-async def test_router_does_not_retry_after_text_was_shown(fast_idle, monkeypatch, events, make_bot):
+async def test_router_retries_after_text_was_shown(fast_idle, monkeypatch, events, make_bot):
+    """Trước đây chữ đã đẩy lên là không gọi lại (sợ trùng) — lượt nào lỗi sau vài chữ thì trả lời rỗng.
+    Giao diện đã xoá được phần đã hiện bằng `reset`, nên gọi lại và trả lời tiếp."""
     client = Client([Chunk(Delta(content="Một nửa câu")), _capacity()], [Chunk(Delta(content="khác")), Chunk(Delta(), "stop")])
     monkeypatch.setattr(providers, "client", lambda name, timeout=None: client)
     b = make_bot("Halfy")
     await server.safe_handle(bots.chat(b["chat_id"]), "chào")
     await settle()
-    assert client.calls == 1   # 正文已经推到界面上，重来会重复，所以照旧报错
+    assert client.calls == 2
+    assert any(e.get("reset") for e in events.of("stream"))
+    assert find(b["chat_id"], role="assistant")[-1]["content"] == "khác"
 
 
 async def test_router_retry_resets_shown_thinking_and_records_usage(fast_idle, monkeypatch, events, make_bot):

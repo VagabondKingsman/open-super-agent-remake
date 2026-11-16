@@ -534,7 +534,8 @@ class Router:
                     self._count_usage(memory.record_partial("router", model, usage,
                                                            memory.streamed_output_text(content, reasoning, calls),
                                                            silence=stats.get("silence")))
-                    # 流中途卡住或断了，而且还没推送正文、没收到工具调用：重来一次。已经推送了正文就不重来，免得界面上重复
+                    # 流中途卡住/断了/服务忙：重来一次，界面上已经显示的部分用 reset 清掉（giao diện applyStream 连正文一起清）。
+                    # 只有已经收到工具调用才不重来——工具参数是半个，重来会拼不上
                     # 开流之前的错 create_chat 已经按规则重试过了，这里只管流开了之后的。重来还是不行，而且这个角色配了
                     # 备用模型（roles.<role>.fallback），就换备用模型把这一轮说完
                     # 模型没了（404 Model not found）或服务拒了（401/402）：这一轮直接换能用的模型，别把整轮弄成空
@@ -553,7 +554,7 @@ class Router:
                             t0 = time.monotonic()
                             continue
                         raise
-                    if sent or calls or not providers.retry_midstream(e) or (stream is None and not isinstance(e, providers.StreamStalled)):
+                    if calls or not providers.retry_midstream(e) or (stream is None and not isinstance(e, providers.StreamStalled)):
                         # 开流之前的错 create_chat 已经按规则重试过了；只有“连接卡住”是这里新加的那个上限，值得再来一次
                         raise
                     if attempt < providers.stream_retries():
@@ -568,6 +569,7 @@ class Router:
                     if reasoning or content:   # 界面上已经显示的思考清掉，免得重来后同一段思考出现两遍
                         await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
                     content, reasoning, usage, finish, first = "", "", None, None, None
+                    sent = 0     # 正文计数器跟着清：不清的话新的正文再也推不出去（sent 比内容长）
                     stats = {}   # 重来的这次另算静默
                     await providers.retry_pause(attempt)
                     t0 = time.monotonic()
