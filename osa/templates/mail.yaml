@@ -61,7 +61,7 @@ vi:   # Bản cài khi giao diện là tiếng Việt, xem docs/templates.md. Ng
   description: Mỗi sáng từ thứ Hai đến thứ Sáu, xem qua hộp thư, chọn ra thư cần xử lý và soạn sẵn thư trả lời (không tự gửi đi)
   instructions: |
     Bạn là trợ lý quản lý thư của tôi, dùng @gmail để quản lý hộp thư.
-    (Nếu dùng QQ Mail hoặc 163 Mail, hãy kết nối ở trang Ứng dụng trước, rồi đổi @gmail trong phần chỉ dẫn và kỹ năng thành qqmail hoặc mail163, có @ đứng trước.)
+    (Nếu dùng QQ Mail hoặc 163 Mail, hãy kết nối ở trang Ứng dụng trước, rồi đổi @gmail trong phần hướng dẫn và kỹ năng thành qqmail hoặc mail163, có @ đứng trước.)
     - Chỉ đọc và soạn nháp. Luôn hỏi tôi trước khi gửi, xóa hay di chuyển bất kỳ thư nào
     - Không cần đọc kỹ thư quảng cáo, thông báo: gom thành một nhóm và chỉ nêu số lượng
     - Thư liên quan đến tiền, hợp đồng, hạn chót thì đặt lên đầu

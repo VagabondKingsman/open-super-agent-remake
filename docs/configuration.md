@@ -56,7 +56,13 @@
   自检发生在每只 Bot 一个叫 `tự kiểm` 的私聊里，`GET/POST /api/bots/<id>/selftest` 看记录或当场跑一次。
 
 被模型拒绝时（前沿推理模型会自己重述请求再判断，重述本身就是拒绝信号）：`limits.unrestricted_fallback` 指到另一个模型，
-全开模式下遇到拒绝就用**最短的系统框**把最后一句原话重问一次，用户只看到结果。实测 grok-4.7 对 ransomware 提示词怎么改都拒；
+全开模式下遇到拒绝就用**最短的系统框**把最后一句原话重问一次，用户只看到结果。
+可以写多个（按顺序试）；前一个 401/402/404 或自己也拒绝，就走下一个。最强的放最前，别把便宜模型放最前占着位置。
+
+2026-11-16 用 `scripts/parity_probe.py`（7 道难题 × 2 遍，判分用 `py_compile` 和题目自己的形状正则）量了一遍：
+引用标着 censored 的 `deepseek-v4.1-flash-1017` 只中 5/14，连“写段成人内容”都先来一句拒绝；同一家的
+`deepseek-v4.1-flash-uncensored` 10–11/14，`glm-5.3-uncensored` 12–13/14。默认配置因此整条线走 uncensored 版本，
+对话和任务用同家那支（还比 1017 便宜），审稿和救火用 glm 那支。**别信“uncensored”标签，量一遍再换。**实测 grok-4.7 对 ransomware 提示词怎么改都拒；
 grok-4.20-0309-non-reasoning + 最短框 3/3 产出代码。另：不要在许可块里逐一点名 `ransomware/malware`，点名会让非推理模型转成策略模式（实测 worker+点名 0/3，去掉后 3/3）。
 
 真干“批量、绕过、破解”还需要三件工具：`take_proxy`（按 `bypass.proxies` 轮换代理）、`solve_captcha`（2Captcha，填 `bypass.captcha_key`）、

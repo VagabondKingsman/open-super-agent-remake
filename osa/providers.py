@@ -425,7 +425,11 @@ async def create_chat(client, **kwargs):
                 r = await open_stream()
             except Exception:
                 raise e from None
-            remember_effort_reject(base, kwargs.get("model", ""), effort)
+            # 400 的原因不见得是思考强度：服务也会因为 tool_choice / tools / 图片格式拒。那种不算“这个模型不认强度”，
+            # 记下来会让以后每一轮都白丢强度（也把真正的原因掩盖掉）
+            msg = str(e).lower()
+            if not any(k in msg for k in ("tool_choice", "tools", "function", "image", "response_format", "json")):
+                remember_effort_reject(base, kwargs.get("model", ""), effort)
             log.warning("model %s rejected reasoning_effort=%s (400); retried without it", kwargs.get("model"), effort)
             return r
         except openai.APIStatusError as e:
