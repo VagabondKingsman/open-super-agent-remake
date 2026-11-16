@@ -24,7 +24,7 @@ backup.apply_pending()   # 确认过的恢复：在打开数据库之前换上
 LOG_FORMAT = "%(asctime)s %(levelname).1s %(name)s: %(message)s"
 logging.basicConfig(level=os.environ.get("OSA_LOG_LEVEL", "INFO").upper(), format=LOG_FORMAT)
 from . import applets, approvals, auth, avatars, botadmin, bots, catalog, channels, charter, computer, dm, events, freedom, groups, i18n, library, mcp_hub, media, memories, memory, push, router as rt, routines
-from . import mcpapps, observe, outputs, prices, providers, search, security, selfreview, settings, skills, skillpacks, tasklog, teach, templates, unfurl, vault
+from . import mcpapps, observe, outputs, prices, providers, search, security, selfreview, selftest, settings, skills, skillpacks, tasklog, teach, templates, unfurl, vault
 from . import worker as worker_mod
 from . import config
 from .computer import link
@@ -111,7 +111,7 @@ async def lifespan(app):
     bg = [asyncio.create_task(watchdog()), asyncio.create_task(looplag.watch()), asyncio.create_task(routines.scheduler()),
           asyncio.create_task(computer.idle_pauser()), asyncio.create_task(search.embed_loop()),
           asyncio.create_task(prices.loop()), asyncio.create_task(tasklog.prune_loop()), asyncio.create_task(media.gc_loop()),
-          asyncio.create_task(selfreview.loop())]
+          asyncio.create_task(selfreview.loop()), asyncio.create_task(selftest.loop())]
     if os.environ.get("OSA_PARENT_PID", "").isdigit():
         bg.append(asyncio.create_task(parent_watch(int(os.environ["OSA_PARENT_PID"]))))
     search.sync()   # 补上旧数据的索引；配了 embedding 的话后台开始算向量
@@ -846,6 +846,23 @@ async def system_restart(when: str = "", max: int = 1800):
 
 
 # ---------- 长期记忆 ----------
+@app.get("/api/bots/{bot_id}/selftest")
+async def selftest_list(bot_id: int):
+    """Các lần tự kiểm của Bot, mới nhất trước."""
+    _bot_or_404(bot_id)
+    return selftest.recent(bot_id)
+
+
+@app.post("/api/bots/{bot_id}/selftest")
+async def selftest_run(bot_id: int):
+    """Chạy một lượt tự kiểm ngay (không chờ nhịp) — Bot phải đang rảnh."""
+    b = _bot_or_404(bot_id)
+    r = await selftest.probe(b)
+    if not r:
+        raise HTTPException(409, i18n.t("Bot đang bận, thử lại sau"))
+    return r
+
+
 @app.get("/api/bots/{bot_id}/memories")
 async def list_memories(bot_id: int):
     _bot_or_404(bot_id)
