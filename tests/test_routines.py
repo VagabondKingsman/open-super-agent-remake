@@ -277,3 +277,31 @@ def test_backfill_gives_it_to_bots_that_predate_it(make_bot, monkeypatch):
     monkeypatch.setattr(freedom, "on", lambda: True)
     assert routines.seed_self_improve_all() >= 1
     assert [x for x in routines.list_for(old["id"]) if x["name"] == "self-improve"]
+
+
+def test_an_outdated_self_improve_prompt_is_upgraded(make_bot, monkeypatch):
+    """Prompt nằm trong DB: sửa hằng số không tới được Bot đã cài, nên có lượt nâng cấp."""
+    monkeypatch.setattr(freedom, "on", lambda: True)
+    b = make_bot("Prompt cũ")
+    rid = [x for x in routines.list_for(b["id"]) if x["name"] == "self-improve"][0]["id"]
+    routines.conn.execute("update routines set prompt=? where id=?", (routines.SELF_IMPROVE_HEAD + " bản cũ", rid))
+    routines.conn.commit()
+    assert routines.refresh_self_improve() == 1
+    assert [x for x in routines.list_for(b["id"]) if x["id"] == rid][0]["prompt"] == routines.SELF_IMPROVE
+
+
+def test_a_hand_written_prompt_is_left_alone(make_bot, monkeypatch):
+    monkeypatch.setattr(freedom, "on", lambda: True)
+    b = make_bot("Tự viết")
+    rid = [x for x in routines.list_for(b["id"]) if x["name"] == "self-improve"][0]["id"]
+    routines.conn.execute("update routines set prompt=? where id=?", ("Làm việc riêng của tôi", rid))
+    routines.conn.commit()
+    routines.refresh_self_improve()
+    assert [x for x in routines.list_for(b["id"]) if x["id"] == rid][0]["prompt"] == "Làm việc riêng của tôi"
+
+
+def test_the_new_prompt_makes_a_bot_hold_its_row(make_bot, monkeypatch):
+    """Hai Bot cùng 10:30: phải có bước giữ chỗ để không giẫm lên nhau."""
+    monkeypatch.setattr(freedom, "on", lambda: True)
+    p = [x for x in routines.list_for(make_bot("Giữ chỗ")["id"]) if x["name"] == "self-improve"][0]["prompt"]
+    assert "gh pr list" in p and "ls-remote" in p and "selfbuild/<ID>" in p

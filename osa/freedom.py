@@ -108,17 +108,29 @@ def is_refusal(text: str, tools: bool = False) -> bool:
     return bool(REFUSAL.search(head)) and len(t) < 800 and "```" not in early
 
 
+def fallbacks() -> list[tuple[str, str, dict]]:
+    """limits.unrestricted_fallback: {provider, model, reasoning_effort?} hoặc một danh sách như vậy.
+
+    Danh sách là để một model cứu hộ chết (402/401/404) không làm mất luôn đường cứu: thử lần lượt."""
+    raw = (CFG.get("limits") or {}).get("unrestricted_fallback") or []
+    specs = raw if isinstance(raw, list) else [raw]
+    out = []
+    for spec in specs:
+        if not isinstance(spec, dict):
+            continue
+        model = str(spec.get("model") or "").strip()
+        if not model:
+            continue
+        kw = {}
+        if spec.get("reasoning_effort"):
+            kw["reasoning_effort"] = spec["reasoning_effort"]
+        out.append((str(spec.get("provider") or "xai"), model, kw))
+    return out
+
+
 def fallback() -> tuple[str, str, dict] | None:
-    """limits.unrestricted_fallback: {provider, model, reasoning_effort?} — 被拒时换到哪一个模型上重问。"""
-    spec = (CFG.get("limits") or {}).get("unrestricted_fallback") or {}
-    model = str(spec.get("model") or "").strip()
-    if not model:
-        return None
-    prov = str(spec.get("provider") or "xai")
-    kw = {}
-    if spec.get("reasoning_effort"):
-        kw["reasoning_effort"] = spec["reasoning_effort"]
-    return prov, model, kw
+    """Đường cứu đầu tiên (vòng tự duyệt chỉ cần một)."""
+    return (fallbacks() or [None])[0]
 
 
 def do_it_hint() -> str:
@@ -136,29 +148,32 @@ async def repair(msgs: list[dict], text: str, asked: str = "") -> str | None:
     重问时不带 OSA 的系统提示：同一句话，系统提示越长越像“该被审查的请求”，
     最短的框反而让模型直接产东西（2026-11-12 实测：minimal 3/3，worker+PERMISSIONS 0/3）。"""
     from . import providers
-    fb = fallback()
-    if not fb:
+    fbs = fallbacks()
+    if not fbs:
         return None
-    prov, model, kw = fb
     said = [m.get("content") or "" for m in msgs if m.get("role") == "user" and (m.get("content") or "").strip()]
     # 最后一句话常常是平台自己那句“(System: …)”，不是人问的：有原始请求就用它
     question = asked.strip() or (said[-1] if said else text)
     body = [{"role": "system", "content": MINIMAL}, {"role": "user", "content": question}]
-    out = ""
-    try:
-        client = providers.client(prov)   # 服务商没配（默认配置里没有它）也要落在 except 里，别把整轮弄挂
-        stream = await providers.create_chat(client, model=model, messages=body, stream=True,
-                                            stream_options={"include_usage": True}, **kw)
-        async for chunk in stream:
-            if chunk.choices:
-                d = chunk.choices[0].delta
-                if d is not None and getattr(d, "content", None):
-                    out += d.content
-    except Exception as e:  # noqa: BLE001 - 修不好就算了，原答复照旧
-        log.warning("refusal repair failed (%s)", providers.brief(e))
-        return None
-    out = out.strip()
-    return out if out and not is_refusal(out) else None
+    for prov, model, kw in fbs:      # model 死于 402/401/404 时换 đường cứu sau, đừng bỏ luôn đường cứu
+        out = ""
+        try:
+            client = providers.client(prov)   # 服务商没配（默认配置里没有它）也要落在 except 里，别把整轮弄挂
+            stream = await providers.create_chat(client, model=model, messages=body, stream=True,
+                                                stream_options={"include_usage": True}, **kw)
+            async for chunk in stream:
+                if chunk.choices:
+                    d = chunk.choices[0].delta
+                    if d is not None and getattr(d, "content", None):
+                        out += d.content
+        except Exception as e:  # noqa: BLE001 - 修不好就算了，原答复照旧
+            log.warning("refusal repair failed on %s/%s (%s)", prov, model, providers.brief(e))
+            continue
+        out = out.strip()
+        if out and not is_refusal(out):
+            return out
+        log.info("refusal repair on %s/%s refused too", prov, model)
+    return None
 
 
 # ---- prefill repair (C33) --------------------------------------------------

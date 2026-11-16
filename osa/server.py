@@ -106,6 +106,10 @@ async def lifespan(app):
         logging.getLogger("osa").info("unrestricted mode block added to %s bot(s)", n)
     skillpacks.ensure_defaults()
     routines.import_legacy(bots.primary()["id"])
+    if routines.refresh_self_improve():   # prompt 定时任务 nằm trong DB: bản của mình đã cũ thì nâng cấp
+        logging.getLogger("osa").info("self-improve routine prompt refreshed")
+    if (n := routines.seed_self_improve_all()):   # Bot cũ chưa có lịch tự cải thiện thì bù ngay
+        logging.getLogger("osa").info("self-improve routine seeded for %s bot(s)", n)
     await mcp_hub.start()
     await channels.start()
     bg = [asyncio.create_task(watchdog()), asyncio.create_task(looplag.watch()), asyncio.create_task(routines.scheduler()),

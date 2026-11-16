@@ -484,7 +484,7 @@ class Router:
         recorded = False
         sent = 0   # 正文推送到哪了：DeepSeek 写进正文的工具调用（见 dsml.py）不推送
         try:
-            attempt, fell_back = 0, False
+            attempt, fell_back, rescue_n = 0, False, 0
             while True:
                 stream = None
                 stats: dict = {}   # guard_stream 填：这次流里最长的一段静默（见 providers.guard_stream）
@@ -539,8 +539,12 @@ class Router:
                     # 备用模型（roles.<role>.fallback），就换备用模型把这一轮说完
                     # 模型没了（404 Model not found）或服务拒了（401/402）：这一轮直接换能用的模型，别把整轮弄成空
                     if stream is None and isinstance(e, (openai.NotFoundError, openai.PermissionDeniedError, openai.RateLimitError)):
-                        fb = fallback_for("router", model) or freedom.fallback()
-                        if not fell_back and fb:
+                        fb = fallback_for("router", model)
+                        if fb is None:      # 全开模式配的可能是一串 cứu hộ: chết cái đầu thì đi cái sau
+                            fbs = freedom.fallbacks()
+                            fb = fbs[rescue_n] if rescue_n < len(fbs) else None
+                            rescue_n += 1 if fb else 0
+                        if fb:
                             client, model, kw = fb
                             fell_back = True
                             log.warning("router model unavailable (%s); continuing on %s", providers.brief(e), model)
