@@ -77,3 +77,52 @@ def test_vi_problems_flags_drift():
                           "description: Every morning, turns news on the topics you follow into a brief and saves it to your Library")
     assert any("vi.description 和 en 一样" in p for p in templates.vi_problems(copied))
     assert templates.vi_problems("osa_template: 1\nname: x\n") == []
+
+
+def _routine_template(vi_prompt: str | None, en_prompt: str | None = "Every morning write the brief") -> str:
+    """Một template có đúng một定时任务; prompt của nó là phần văn xuôi duy nhất trong routines của khối vi:.
+    vi_prompt=None 表示 vi: 不写 prompt；en_prompt=None 表示 en: 也不写（越南语界面就退到中文 prompt）。"""
+    vi_routine = "{name: viec-dinh-ky}" if vi_prompt is None else "{name: viec-dinh-ky, prompt: %s}" % vi_prompt
+    en_routine = "{name: routine-en}" if en_prompt is None else "{name: routine-en, prompt: %s}" % en_prompt
+    return ("osa_template: 1\n"
+            "name: 原文\ndescription: 中文说明\ninstructions: 中文人设\n"
+            "skills: [{name: 技能, body: 做点事}]\n"
+            "routines:\n  - {name: 例行, skill: 技能, prompt: 每天早上写早报, trigger: {kind: daily, times: ['08:00']}}\n"
+            "en:\n"
+            "  name: English name\n  description: English description\n  instructions: English persona\n"
+            "  skills: [{name: skill-en, body: do things, description: does things}]\n"
+            f"  routines: [{en_routine}]\n"
+            "vi:\n"
+            "  name: Tên Việt\n  description: Mô tả tiếng Việt\n  instructions: Nhân vật tiếng Việt\n"
+            "  skills: [{name: ky-nang, body: làm việc, description: làm được việc}]\n"
+            f"  routines: [{vi_routine}]\n")
+
+
+def test_vi_problems_flags_routine_prompt_not_translated():
+    # vi: 没写 prompt 时，越南语界面装的定时任务退到 en:（en 也没有就退到中文），装完就写死进任务里一直跑
+    found = " ".join(templates.vi_problems(_routine_template(None)))
+    assert "vi.routines[0].prompt 和 en 一样" in found, found
+    assert templates.parse(_routine_template(None), "vi")["routines"][0]["prompt"] == "Every morning write the brief"
+    # 写了但还是中文，一样要报
+    found = " ".join(templates.vi_problems(_routine_template("每天早上写早报")))
+    assert "vi.routines[0].prompt 里还有中文" in found, found
+
+
+def test_vi_problems_flags_routine_prompt_falling_back_to_chinese():
+    text = _routine_template(None, en_prompt=None)
+    found = " ".join(templates.vi_problems(text))
+    assert "vi.routines[0].prompt 里还有中文" in found, found
+    assert templates.parse(text, "vi")["routines"][0]["prompt"] == "每天早上写早报"
+
+
+def test_vi_problems_flags_routine_prompt_copied_from_en():
+    found = " ".join(templates.vi_problems(_routine_template("Every morning write the brief")))
+    assert "vi.routines[0].prompt 和 en 一样" in found, found
+
+
+def test_vi_problems_accepts_translated_routine_prompt():
+    text = _routine_template("Mỗi sáng viết bản tin")
+    assert templates.vi_problems(text) == []
+    assert templates.parse(text, "vi")["routines"][0]["prompt"] == "Mỗi sáng viết bản tin"
+    # /技能 调用和短指令不判“没翻”，越南语和英语一样是正常的
+    assert templates.vi_problems(_routine_template("/ban-tin-sang")) == []

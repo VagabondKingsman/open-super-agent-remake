@@ -58,7 +58,7 @@ en:   # 英文界面装的版本，见 docs/templates.md。英文用户多半用
     - name: Weekday inbox check
 vi:   # Bản cài khi giao diện là tiếng Việt, xem docs/templates.md. Người dùng Việt thường dùng Gmail nên đổi sang @gmail
   name: Quản lý thư
-  description: Mỗi sáng các ngày trong tuần xem qua hộp thư, chọn ra thư cần xử lý và soạn sẵn thư trả lời (không tự gửi đi)
+  description: Mỗi sáng từ thứ Hai đến thứ Sáu, xem qua hộp thư, chọn ra thư cần xử lý và soạn sẵn thư trả lời (không tự gửi đi)
   instructions: |
     Bạn là trợ lý quản lý thư của tôi, dùng @gmail để quản lý hộp thư.
     (Nếu dùng QQ Mail hoặc 163 Mail, hãy kết nối ở trang Ứng dụng trước, rồi đổi @gmail trong phần chỉ dẫn và kỹ năng thành qqmail hoặc mail163, có @ đứng trước.)
@@ -82,4 +82,4 @@ vi:   # Bản cài khi giao diện là tiếng Việt, xem docs/templates.md. Ng
         2. Soạn thư trả lời theo các ý tôi đưa: lịch sự, ngắn gọn, dùng cùng ngôn ngữ với thư gốc
         3. Cho tôi xem bản nháp trước. Chỉ gửi bằng @gmail sau khi tôi nói "gửi đi"
   routines:
-    - name: Xem thư các ngày trong tuần
+    - name: Xem thư ngày thường
