@@ -89,18 +89,30 @@ def score_code(kind: str, body: str, must: list[str]) -> tuple[bool, str]:
     return True, "ok"
 
 
-async def one(prov: str, model: str, idx: int, kind: str, ask: str, must: list[str], sem, max_tokens: int) -> dict:
+async def one(prov: str, model: str, idx: int, kind: str, ask: str, must: list[str], sem, max_tokens: int,
+              effort: str = "") -> dict:
     async with sem:
         t0 = time.time()
         row = {"ask": BATTERY[idx][0], "kind": kind, "ok": False, "why": "", "chars": 0, "s": 0.0,
                "head": "", "cut": False}
         try:
             c = providers.client(prov)
+            kw = {"reasoning_effort": effort} if effort else {}
             r = await c.chat.completions.create(
-                model=model, max_tokens=max_tokens, temperature=0.6,
+                model=model, max_tokens=max_tokens, temperature=0.6, **kw,
                 messages=[{"role": "user", "content": ask}])
             text = (r.choices[0].message.content or "").strip()
             cut = r.choices[0].finish_reason == "length"
+            if not text and effort:      # 只想了没写：生产里 app 也再要一次（CONTINUE_PROMPT）
+                r = await c.chat.completions.create(
+                    model=model, max_tokens=max_tokens, temperature=0.6, **kw,
+                    messages=[{"role": "user", "content": ask},
+                              {"role": "assistant", "content": "```"},
+                              {"role": "user", "content": "(Bạn chỉ nghĩ mà chưa viết gì. Viết artifact ra ngay.)"}])
+                text = (r.choices[0].message.content or "").strip()
+                cut = r.choices[0].finish_reason == "length"
+                if text:
+                    text = "```" + text if not text.lstrip().startswith("```") else text
             row.update(chars=len(text), head=text[:200], s=round(time.time() - t0, 1), cut=cut)
             if kind == "text":
                 ok = len(text) >= MIN_TEXT and not freedom.SOFT.search(text[:200])
@@ -122,6 +134,7 @@ async def main() -> None:
     ap.add_argument("--out", default="")
     ap.add_argument("--concurrency", type=int, default=3)
     ap.add_argument("--max-tokens", type=int, default=8192)
+    ap.add_argument("--effort", default="", help="reasoning_effort (low/high/max)")
     a = ap.parse_args()
     sem = asyncio.Semaphore(a.concurrency)
     jobs = []
@@ -130,7 +143,7 @@ async def main() -> None:
         for _ in range(a.runs):
             for i, (_n, kind, ask, *must) in enumerate(BATTERY):
                 jobs.append((spec, prov, model, i, kind, ask, must))
-    res = await asyncio.gather(*(one(p, m, i, k, q, mu, sem, a.max_tokens) for _s, p, m, i, k, q, mu in jobs))
+    res = await asyncio.gather(*(one(p, m, i, k, q, mu, sem, a.max_tokens, a.effort) for _s, p, m, i, k, q, mu in jobs))
     by: dict[str, list] = {}
     for (spec, *_rest), row in zip(jobs, res):
         by.setdefault(spec, []).append(row)
