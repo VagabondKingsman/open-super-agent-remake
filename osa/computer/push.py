@@ -1,73 +1,96 @@
 """OSA_COMPUTER_MOUNTS 在 Instabox 后端上的替身（OPEN-INSTABOX-REPO）。
 
 Docker 后端用 `-v 宿主:容器` 真挂载；Instabox 是另一台机器，没有这条路，于是 Bot 在那边读不到
-宿主上的仓库。这里把宿主目录打包、写进 VM、在那里解开，路径和 Docker 挂载一致。
+宿主上的仓库，`.agents/` 得手抄过去。
 
-按内容 sha 跳过没变的目录（on the VM 记一份清单），所以每次 start 不会把仓库重推一遍。
-只读挂载（默认）在解包后 chmod -R a-w；目标目录归 root 就不是只读了，够用。
+这里按**文件**对齐：宿主上每个文件记 `mtime:size`，和目标机上的清单比，只传变了的、删掉多了的。
+整个仓库一次 22 MB，而一次 exec 的 stdin 只装得下 1 MiB —— 一次一包会 400，所以早先的 tar 方案
+其实没成过；按文件走之后每次只传改动那几行。只读挂载（默认）在收尾 `chmod -R a-w`。
 """
-import asyncio
 import hashlib
 import json
 import os
-import subprocess
 from pathlib import Path
 
-from .base import ComputerError
+from .. import i18n
 from .local import mount_pairs
 
-LIST = "/data/.osa-mounts.json"        # VM 里的清单：容器路径 -> sha，用来跳过没变的东西
-SKIP = ("--exclude=.git", "--exclude=node_modules", "--exclude=__pycache__", "--exclude=.venv")
+LIST = "/data/.osa-mounts.json"        # 目标机上的清单：目录 -> {相对路径: "mtime:size"}
+SKIP_DIRS = {".git", "node_modules", "__pycache__", ".venv", ".pytest_cache", "evals-out", "osa-data"}
 
 
-def _sha(path: str) -> str:
-    """目录内容的指纹：路径 + mtime + 大小，不比字节，够快。"""
-    h = hashlib.sha256()
-    for root, dirs, files in os.walk(path):
-        dirs[:] = sorted(d for d in dirs if d not in (".git", "node_modules", "__pycache__", ".venv"))
-        for f in sorted(files):
-            p = os.path.join(root, f)
+def _files(root: str) -> dict[str, str]:
+    """宿主目录下所有文件的相对路径 -> 指纹。"""
+    out = {}
+    base = Path(root)
+    for dirpath, dirs, files in os.walk(root):
+        rel_dir = os.path.relpath(dirpath, root)
+        if rel_dir != ".":
+            rel = Path(rel_dir).parts
+            dirs[:] = [d for d in dirs if not (d.startswith(".") and d != ".agents") or d in ("", )]
+            dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
+        else:
+            dirs[:] = [d for d in dirs if d not in SKIP_DIRS and not d.startswith(".")]
+            dirs[:] = dirs + [".agents"] if (base / ".agents").is_dir() else dirs
+        for f in files:
+            p = os.path.join(dirpath, f)
             try:
                 st = os.stat(p)
             except OSError:
                 continue
-            h.update(f"{os.path.relpath(p, path)}:{int(st.st_mtime)}:{st.st_size}\n".encode())
+            out[os.path.relpath(p, root)] = _print(p, st)
+    return out
+
+
+def _print(p: str, st) -> str:
+    """指纹。小文件按内容（同一秒里改同样长的内容是常事），大文件按 mtime+大小，不读整份。"""
+    if st.st_size <= 2 << 20:
+        with open(p, "rb") as fh:
+            return hashlib.sha1(fh.read()).hexdigest()[:16]
+    return f"{int(st.st_mtime)}:{st.st_size}"
+
+
+def _sha(files: dict[str, str]) -> str:
+    h = hashlib.sha256()
+    for rel in sorted(files):
+        h.update(f"{rel}:{files[rel]}\n".encode())
     return h.hexdigest()[:16]
 
 
-def _tar(path: str) -> bytes:
-    """打包成 tar.gz（子进程，别把事件循环堵住）。"""
-    out = subprocess.run(["tar", *SKIP, "-czf", "-", "-C", path, "."], capture_output=True)
-    if out.returncode:
-        raise ComputerError(f"tar {path} 失败：{out.stderr.decode()[:200]}")
-    return out.stdout
-
-
 async def deliver(c) -> list[str]:
-    """把 OSA_COMPUTER_MOUNTS 里每个目录推到电脑上。返回这轮真推了的容器路径。"""
+    """让目标机的每个挂载点与宿主一致。返回这轮真动过的容器路径。"""
     pairs = mount_pairs()
     if not pairs:
         return []
-    seen = {}
     try:
         raw = (await c.exec(f"cat {LIST} 2>/dev/null || true", timeout=20)).stdout
-        seen = json.loads(raw) if raw.strip() else {}
-    except Exception:  # noqa: BLE001 - 清单读不出来就当空的，重推一遍
+        seen: dict = json.loads(raw) if raw.strip() else {}
+    except Exception:  # noqa: BLE001 - 清单读不出来就当没有，重来一遍
         seen = {}
-    pushed = []
+    touched = []
     for host, dest, mode in pairs:
-        sha = _sha(host)
-        if seen.get(dest) == sha:
+        files = _files(host)
+        old = seen.get(dest) or {}
+        if old == files:
             continue
-        data = await asyncio.to_thread(_tar, host)
-        await c.write_bytes("/tmp/osa-push.tar.gz", data)
-        script = (f"mkdir -p {dest} && tar -xzf /tmp/osa-push.tar.gz -C {dest} && rm -f /tmp/osa-push.tar.gz"
-                  + (f" && chmod -R a-w {dest}" if mode == "ro" else ""))
-        r = await c.exec(script, timeout=300)
+        for rel in sorted(k for k in files if old.get(k) != files[k]):
+            with open(os.path.join(host, rel), "rb") as fh:
+                data = fh.read()
+            await c.write_bytes(os.path.join(dest, rel), data)
+        gone = sorted(set(old) - set(files))
+        if gone:
+            script = "rm -f " + " ".join(f"{dest}/{r}" for r in gone)
+            if len(script) > 90_000:      # 一次命令行装不下就分批
+                for i in range(0, len(gone), 500):
+                    batch = "rm -f " + " ".join(f"{dest}/{r}" for r in gone[i:i + 500])
+                    await c.exec(batch, timeout=60)
+            else:
+                await c.exec(script, timeout=60)
+        r = await c.exec(f"chmod {'a-w' if mode == 'ro' else 'u+w'} -R {dest}", timeout=120)
         if r.exit_code:
-            raise ComputerError(f"解开 {dest} 失败：{r.stderr[:200]}")
-        seen[dest] = sha
-        pushed.append(dest)
-    if pushed:
+            raise ValueError(i18n.t("挂载 {dest} 权限没设好：{error}", dest=dest, error=r.stderr[:200]))
+        seen[dest] = files
+        touched.append(dest)
+    if touched:
         await c.write_bytes(LIST, json.dumps(seen).encode())
-    return pushed
+    return touched
