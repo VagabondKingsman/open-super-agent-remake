@@ -1,6 +1,7 @@
 //! Address and pairing rules for the Android shell.
 //! The shell does not run OSA. It opens the server's own web UI.
 
+use std::io::Read;
 use std::time::Duration;
 use url::Url;
 
@@ -62,20 +63,46 @@ impl ProbeGate {
     }
 }
 
+/// The manifest is small (`web/public/manifest.json`). Anything longer is not it.
+const MANIFEST_MAX: u64 = 64 * 1024;
+
+/// The status alone does not say the answer came from OSA: a captive portal, a router page or any
+/// other service answers 200 to `/manifest.json` too. The body does: the file the web app ships
+/// has a non-empty `name` and `start_url` = `/`. The phone only sends the one-time login ticket
+/// after this passes, so a wrong answer here leaks the ticket to a stranger.
+pub fn looks_like_osa(body: &[u8]) -> bool {
+    let Ok(v) = serde_json::from_slice::<serde_json::Value>(body) else { return false };
+    let Some(obj) = v.as_object() else { return false };
+    let name = obj.get("name").and_then(|n| n.as_str()).is_some_and(|n| !n.trim().is_empty());
+    name && obj.get("start_url").and_then(|s| s.as_str()) == Some("/")
+}
+
 /// GET `/manifest.json`. A transport or TLS failure is an error string.
 /// A panic inside the HTTP stack becomes that same error, so the process stays up.
 pub fn probe(origin: &Url) -> Result<(), String> {
     let url = origin.join("/manifest.json").map_err(|e| e.to_string())?;
     let probed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         let agent = ureq::AgentBuilder::new().timeout(Duration::from_secs(15)).build();
-        agent.get(url.as_str()).call().map(|_| ()).map_err(|e| e.to_string())
+        let resp = agent.get(url.as_str()).call().map_err(|e| e.to_string())?;
+        let mut body = Vec::new();
+        std::io::Read::take(resp.into_reader(), MANIFEST_MAX)
+            .read_to_end(&mut body)
+            .map_err(|e| e.to_string())?;
+        if looks_like_osa(&body) {
+            Ok(())
+        } else {
+            Err(NOT_OSA.to_string())
+        }
     }));
     match probed {
         Ok(Ok(())) => Ok(()),
+        Ok(Err(e)) if e == NOT_OSA => Err(e),
         Ok(Err(e)) => Err(format!("Không tới được địa chỉ này: {e}")),
         Err(_) => Err("Không tới được địa chỉ này.".into()),
     }
 }
+
+const NOT_OSA: &str = "Địa chỉ này trả lời nhưng không phải Open Super Agent.";
 
 #[cfg(test)]
 mod tests {
@@ -132,7 +159,7 @@ mod tests {
             let Ok((mut sock, _)) = listener.accept() else { return };
             let mut buf = [0u8; 2048];
             let _ = std::io::Read::read(&mut sock, &mut buf);
-            let body = br#"{"name":"osa"}"#;
+            let body = include_str!("../../../web/public/manifest.json").as_bytes();
             let head = format!(
                 "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
                 body.len()
@@ -179,5 +206,44 @@ mod tests {
             !src.contains(".navigate("),
             "navigate() fills the Android webview pipe and the process dies"
         );
+    }
+
+    /// A captive portal answers 200 to anything it does not know. Probe must read the body, not
+    /// only the status: otherwise the phone saves that address and then sends the one-time login
+    /// ticket (`/login/ticket?t=…`) to whoever answered.
+    #[test]
+    fn probe_rejects_a_200_that_is_not_osa() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            let Ok((mut sock, _)) = listener.accept() else { return };
+            let mut buf = [0u8; 2048];
+            let _ = std::io::Read::read(&mut sock, &mut buf);
+            let body = b"<html><head><title>Wi-Fi login</title></head><body>Sign in to continue</body></html>";
+            let head = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                body.len()
+            );
+            let _ = std::io::Write::write_all(&mut sock, head.as_bytes());
+            let _ = std::io::Write::write_all(&mut sock, body);
+        });
+        let origin = Url::parse(&format!("http://127.0.0.1:{port}/")).unwrap();
+        assert!(probe(&origin).is_err(), "a 200 from a captive portal must not pass as OSA");
+    }
+
+    #[test]
+    fn manifest_check_wants_a_name_and_start_url() {
+        assert!(!looks_like_osa(b"{\"name\":\"osa\"}"));
+        assert!(!looks_like_osa(b"{\"name\":\" \",\"start_url\":\"/\"}"));
+        assert!(!looks_like_osa(b"{\"name\":\"x\",\"start_url\":\"/apps\"}"));
+        assert!(!looks_like_osa(b"[1,2,3]"));
+        assert!(!looks_like_osa(b""));
+        assert!(looks_like_osa(br#"{"name":"Open Super Agent","start_url":"/"}"#));
+    }
+
+    /// Tie the check to the file the web app really ships: change `start_url` there and this fails.
+    #[test]
+    fn shipped_manifest_passes_the_check() {
+        assert!(looks_like_osa(include_str!("../../../web/public/manifest.json").as_bytes()));
     }
 }
