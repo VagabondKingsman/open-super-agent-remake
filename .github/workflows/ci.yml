@@ -83,6 +83,36 @@ jobs:
       - run: npm test
       - run: npm run build
 
+  android:
+    # 13 ca Rust của vỏ Android (connect/store/pipe). Bộ pytest không chạm tới mã này: một lần bỏ
+    # phép so manifest trong `connect.rs` (quay lại nhận captive portal 200) vẫn merge xanh.
+    # Runner Ubuntu không có webkit2gtk nên phải cài trước khi `cargo test`; đây là lý do job này
+    # bị hoãn từ E2E-OPEN-RUST ("để PR riêng"). `--locked`: Cargo.toml lệch Cargo.lock là đỏ.
+    runs-on: ubuntu-latest
+    timeout-minutes: 40   # ~400 phụ thuộc tauri: lần đầu ~8 phút trên runner 2 core, có cache ~2 phút
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install webkit2gtk
+        # Điều kiện Linux của Tauri v2. Bỏ `libwebkit2gtk-4.1-dev` là build đỏ, nên gói này có test giữ.
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config libssl-dev libgtk-3-dev \
+            libwebkit2gtk-4.1-dev libxdo-dev librsvg2-dev
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            android/src-tauri/target
+          key: cargo-android-${{ hashFiles('android/src-tauri/Cargo.lock') }}
+          restore-keys: cargo-android-
+      - name: Toolchain
+        run: rustc --version && cargo --version
+      - name: cargo test
+        working-directory: android/src-tauri
+        run: cargo test --locked
+
   docker:
     runs-on: ubuntu-latest
     timeout-minutes: 20
