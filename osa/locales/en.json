@@ -1312,5 +1312,7 @@
   "应用地址要是 http:// 或 https://": "An app URL must start with http:// or https://",
   "应用地址 {host} 是本机或内网地址，tools.mcp_filter 是 public 时只允许公网地址": "App URL {host} is this machine or a private network; with tools.mcp_filter set to public only public addresses are allowed",
   "解开 {dest} 失败：{error}": "Could not unpack {dest}: {error}",
-  "挂载 {dest} 权限没设好：{error}": "Could not set permissions on mount {dest}: {error}"
+  "挂载 {dest} 权限没设好：{error}": "Could not set permissions on mount {dest}: {error}",
+  "（已选中）": "(checked)",
+  "（屏幕外）": "(offscreen)"
 }

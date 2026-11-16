@@ -1243,5 +1243,7 @@
   "应用地址要是 http:// 或 https://": "Địa chỉ ứng dụng phải bắt đầu bằng http:// hoặc https://",
   "应用地址 {host} 是本机或内网地址，tools.mcp_filter 是 public 时只允许公网地址": "Địa chỉ ứng dụng {host} là máy này hoặc mạng nội bộ; khi tools.mcp_filter là public thì chỉ cho địa chỉ công khai",
   "解开 {dest} 失败：{error}": "Không giải nén được {dest}: {error}",
-  "挂载 {dest} 权限没设好：{error}": "Không đặt được quyền cho mục được gắn {dest}: {error}"
+  "挂载 {dest} 权限没设好：{error}": "Không đặt được quyền cho mục được gắn {dest}: {error}",
+  "（已选中）": "(đã chọn)",
+  "（屏幕外）": "(ngoài màn hình)"
 }
