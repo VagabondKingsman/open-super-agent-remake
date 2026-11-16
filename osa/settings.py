@@ -186,6 +186,9 @@ def save(data: dict) -> dict:
     from . import freedom
     if (n := freedom.ensure_modes()):   # 刚把全开打开：现有的 Bot 立刻补块，不等下一次重启
         log.info("unrestricted mode block added to %s bot(s) after a settings change", n)
+    from . import routines
+    if (n := routines.seed_self_improve_all()):   # 刚打开全开：现有 Bot 立刻排上自改，不等重启
+        log.info("self-improve routine seeded for %s bot(s)", n)
     if "embedding" in data:
         from . import search
         search._wake.set()   # 换了模型：后台重新算向量

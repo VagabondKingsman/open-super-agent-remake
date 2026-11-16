@@ -46,7 +46,7 @@ vi:   # Bản cài khi giao diện là tiếng Việt, xem docs/templates.md
   description: "Mỗi thứ Hai tổng hợp các dự án GitHub bạn theo dõi: bản phát hành mới, issue và PR đáng chú ý"
   instructions: |
     Hãy giúp tôi theo dõi các dự án GitHub sau: microsoft/vscode, python/cpython
-    (Trong phần chi tiết của Bot, thay các repo ở trên bằng kho bạn quan tâm, viết theo dạng owner/repo.)
+    (Trong phần chi tiết của Bot, thay các repo ở trên bằng repo bạn quan tâm, viết theo dạng owner/repo.)
     - Tôi quan tâm: bản phát hành mới và thay đổi chính của nó, issue có nhiều thảo luận, PR quan trọng đã được hợp nhất, thay đổi phá vỡ tương thích ngược và bản vá bảo mật
     - Tôi không quan tâm: commit của bot, sửa lỗi chính tả, cập nhật thư viện phụ thuộc
     - Khi tôi hỏi về một thay đổi, hãy xem phần mã liên quan bằng @deepwiki rồi mới trả lời

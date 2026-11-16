@@ -1097,7 +1097,7 @@
   "新发票 / PDF 自动归档": "Tự động lưu trữ hóa đơn / PDF mới",
   "新的 PDF 是发票的话，记下金额、改好名字放进发票文件夹": "Nếu PDF mới là hóa đơn thì ghi lại số tiền, đổi tên và bỏ vào thư mục hóa đơn",
   "发票归档": "Lưu trữ hóa đơn",
-  "有新的 PDF。打开看看是不是发票：是的话记下开票方、金额、日期，改名成“日期-开票方-金额.pdf”，挪到 ~/Documents/发票/年-月/ 里，告诉我一句；不是发票的写 [无新内容]。": "Có PDF mới. Mở ra xem có phải hóa đơn không: nếu phải thì ghi lại bên xuất hóa đơn, số tiền, ngày, đổi tên thành \"ngày-bên xuất-số tiền.pdf\", chuyển vào \"~/Documents/Hóa đơn/YYYY-MM/\" (nhớ quote đường dẫn) rồi báo tôi một dòng; nếu không phải hóa đơn thì ghi [không có nội dung mới].",
+  "有新的 PDF。打开看看是不是发票：是的话记下开票方、金额、日期，改名成“日期-开票方-金额.pdf”，挪到 ~/Documents/发票/年-月/ 里，告诉我一句；不是发票的写 [无新内容]。": "Có PDF mới. Mở ra xem có phải hóa đơn không: nếu phải thì ghi lại bên xuất hóa đơn, số tiền, ngày, đổi tên thành \"ngày-bên-xuất-số-tiền.pdf\", chuyển vào ~/Documents/Hoa-don/YYYY-MM/ rồi báo tôi một dòng; nếu không phải hóa đơn thì ghi [không có nội dung mới].",
   "截图文件夹有新截图时识别内容": "Nhận diện nội dung khi thư mục ảnh chụp màn hình có ảnh mới",
   "截了图，Bot 看看图里是什么": "Khi bạn chụp màn hình, Bot xem trong ảnh có gì",
   "截图识别": "Đọc ảnh chụp màn hình",
