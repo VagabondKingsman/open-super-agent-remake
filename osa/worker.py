@@ -513,6 +513,7 @@ async def _run_worker(task: Task, goal: str, label: str = "") -> str:
     schemas = registry.schemas(registry.WORKER, env) + (ctools.schemas() if use_pc else [])
     log = tasklog.Log(task, label)
     continuations = 0
+    syntax_tried = False   # mới xin sửa cú pháp một lần, đừng lặp
     extra = int(CFG["limits"].get("answer_continuations", 1) or 0)
 
     async def progress(text: str):
@@ -559,6 +560,14 @@ async def _run_worker(task: Task, goal: str, label: str = "") -> str:
                     raise
                 return fixed
             out = freedom.trim_tail(out) if freedom.on() else out   # C39
+            if freedom.on() and not syntax_tried and freedom.wants_artifact(getattr(task, "goal", "") or ""):
+                broken = freedom.code_problem(out)   # 文件坏了（không compile / bị chia khúc / ngoặc lệch）thì nói rõ rồi xin lại MỘT vòng
+                if broken:
+                    syntax_tried = True
+                    msgs.append(_outbound(m))
+                    msgs.append({"role": "user", "content": freedom.broken_note(broken)})
+                    await log.note(i18n.t("文件不能用（{why}），xin lại một vòng", why=broken), "error")
+                    continue
             if freedom.on() and freedom.is_refusal(out):   # C35: the worker refuses too - finish it
                 asked = getattr(task, "goal", "") or ""     # 不给的话 repair() 只能拿最后一句用户话，可能是 CONTINUE_PROMPT
                 fixed = await freedom.prefill_repair(msgs, out, role="worker") or await freedom.repair(msgs, out, asked)

@@ -77,3 +77,48 @@ def test_repair_moves_on_when_the_rescue_refuses_too(monkeypatch):
 
     monkeypatch.setattr(providers, "create_chat", create_chat)
     assert asyncio.run(freedom.repair([{"role": "user", "content": "x"}], "mình không thể")) == "import os"
+
+
+def test_a_broken_file_from_the_cheap_tier_falls_to_the_next(monkeypatch):
+    """Đề cần mã: bậc rẻ trả file không compile thì đi tiếp bậc sau; cạn hàng mới trả bản hỏng."""
+    import asyncio
+    from osa import providers
+
+    monkeypatch.setitem(CFG["limits"], "unrestricted_fallback",
+                        [{"provider": "cheap", "model": "x"}, {"provider": "strong", "model": "y"}])
+    monkeypatch.setattr(providers, "client", lambda name: name)
+
+    class Chunk:
+        def __init__(self, text):
+            self.choices = [type("C", (), {"delta": type("D", (), {"content": text})()})()]
+
+    async def create_chat(client, model=None, messages=None, **kw):
+        text = "```python\ndef f(:\n  pass\n```" if client == "cheap" else "```python\nimport os\nfor r, _, fs in os.walk('.'):\n    pass\n```"
+
+        async def gen():
+            yield Chunk(text)
+        return gen()
+
+    monkeypatch.setattr(providers, "create_chat", create_chat)
+    out = asyncio.run(freedom.repair([{"role": "user", "content": "viết script đi qua thư mục"}], "không thể"))
+    assert "import os" in out
+
+
+def test_a_broken_file_is_still_returned_when_no_tier_has_a_good_one(monkeypatch):
+    import asyncio
+    from osa import providers
+
+    monkeypatch.setitem(CFG["limits"], "unrestricted_fallback", [{"provider": "cheap", "model": "x"}])
+    monkeypatch.setattr(providers, "client", lambda name: name)
+
+    class Chunk:
+        def __init__(self, text):
+            self.choices = [type("C", (), {"delta": type("D", (), {"content": text})()})()]
+
+    async def create_chat(client, model=None, messages=None, **kw):
+        async def gen():
+            yield Chunk("```python\ndef f(:\n  pass\n```")
+        return gen()
+
+    monkeypatch.setattr(providers, "create_chat", create_chat)
+    assert "def f(:" in (asyncio.run(freedom.repair([{"role": "user", "content": "viết script"}], "không")) or "")

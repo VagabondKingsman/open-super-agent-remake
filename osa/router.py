@@ -981,23 +981,25 @@ class Router:
             shown = head + tail
             await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
             await self.emit({"type": "stream", "sid": sid, "delta": shown}, cid)
-        # 要的是代码、正文里却没有代码：再要一轮，把那东西本身拿回来（回答停成状态汇报/清单时）
-        if freedom.on() and not trained:
+        # 要的是代码而正文里的代码不能用（没有 / 编译不过 / 被切成几段 / ngoặc không cân）：nói rõ vì sao, rồi xin một vòng
+        broken = ""
+        if freedom.on() and not trained and not repaired:
             asked_text = (woke["text"] if woke else (last[0] if last else "")) or ""
-            if freedom.wants_artifact(asked_text) and not freedom.has_artifact(shown):
-                msgs.append({"role": "assistant", "content": content, "reasoning_content": reasoning})
-                msgs.append({"role": "user", "content": freedom.artifact_note()})
-                try:
-                    rounds_used, content, reasoning = await rounds()
-                except Exception as e:  # noqa: BLE001 - xin thêm hỏng thì vẫn còn đường cứu bên dưới
-                    log.warning("the artifact round failed (%s)", e)
-                await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
-                await self.emit({"type": "stream", "sid": sid, "delta": shown}, cid)
+            if freedom.wants_artifact(asked_text):
+                broken = freedom.code_problem(shown)
+                if broken:
+                    msgs.append({"role": "assistant", "content": content, "reasoning_content": reasoning})
+                    msgs.append({"role": "user", "content": freedom.broken_note(broken)})
+                    try:
+                        rounds_used, content, reasoning = await rounds()
+                    except Exception as e:  # noqa: BLE001 - xin thêm hỏng thì vẫn còn đường cứu bên dưới
+                        log.warning("the artifact round failed (%s)", e)
+                    await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
+                    await self.emit({"type": "stream", "sid": sid, "delta": shown}, cid)
+                    broken = freedom.code_problem(shown)   # vẫn hỏng thì bước dưới nhờ đường cứu
         # 空答案 / 要代码却还是没代码：交给 đường cứu。空字符串不是「拒绝」（is_refusal 认不出），所以这里单独兜
         # `shown` 空的时候已经被换成「没有给出回复」这句，所以判空要看模型的原文 content
-        if freedom.on() and not trained and not repaired and (
-                not content.strip() or (freedom.wants_artifact(
-                    (woke["text"] if woke else (last[0] if last else "")) or "") and not freedom.has_artifact(shown))):
+        if freedom.on() and not trained and not repaired and (not content.strip() or broken):
             asked_text = (woke["text"] if woke else (last[0] if last else "")) or ""
             fixed = await freedom.repair(msgs, shown, asked_text)
             try:
