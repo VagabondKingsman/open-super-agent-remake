@@ -1,5 +1,7 @@
 """OPEN-INSTABOX-REPO: 宿主目录推到 Instabox 的那一半 —— 解析、只传改动、删掉多的、只读、分块。"""
+import io
 import json
+import os
 from types import SimpleNamespace
 
 import pytest
@@ -22,7 +24,18 @@ class FakeVM:
         return ExecResult(0, "", "")
 
     async def write_bytes(self, path, data):
+        if self.max_bytes and len(data) > self.max_bytes:
+            raise RuntimeError("stdin is longer than 1048576 bytes")
         self.files[path] = data
+
+    def tar_members(self) -> set[str]:
+        """拼回写到 /tmp/osa-push.tgz.* 的那些段，列出里面真有的文件。"""
+        import tarfile
+        parts = [v for k, v in sorted(self.files.items()) if k.startswith(push.PARTS)]
+        if not parts:
+            return set()
+        with tarfile.open(fileobj=__import__("io").BytesIO(b"".join(parts)), mode="r:gz") as tf:
+            return {m.name for m in tf.getmembers() if m.isfile()}
 
 
 @pytest.fixture
@@ -45,9 +58,8 @@ def _manifest(vm) -> dict:
 async def test_files_are_written_at_the_same_paths(tree):
     vm = FakeVM()
     assert await push.deliver(vm) == ["/data/repo"]
-    assert vm.files["/data/repo/a.py"] == b"print(1)"
-    assert vm.files["/data/repo/sub/b.txt"] == b"hello"
-    assert vm.files["/data/repo/.agents/BOARD.md"] == "việc mở".encode()
+    assert vm.tar_members() == {"a.py", "sub/b.txt", ".agents/BOARD.md"}
+    assert any("tar -xzf - -C /data/repo" in c for c in vm.cmds)
     assert any("chmod a-w -R /data/repo" in c for c in vm.cmds)          # 默认只读
     assert ".git/HEAD" not in _manifest(vm)
 
@@ -71,8 +83,7 @@ async def test_a_changed_file_is_pushed_alone(tree):
     (tree / "a.py").write_text("print(2)")
     second = FakeVM(listing=first.files["/data/.osa-mounts.json"].decode())
     await push.deliver(second)
-    assert second.files["/data/repo/a.py"] == b"print(2)"
-    assert "/data/repo/sub/b.txt" not in second.files          # 没变的那个不重传
+    assert second.tar_members() == {"a.py"}                    # 没变的那个不重传
 
 
 async def test_a_deleted_file_is_removed_on_the_far_side(tree):
@@ -98,9 +109,50 @@ async def test_no_mounts_means_no_work(monkeypatch):
     assert await push.deliver(vm) == [] and vm.cmds == []
 
 
-async def test_a_big_file_still_goes_through_a_one_megabyte_exec(tree):
-    """一次 exec 的 stdin 只装得下 1 MiB：分块在 write_bytes 里，push 只负责按文件调它。"""
-    (tree / "big.bin").write_bytes(b"x" * (2 << 20))
+async def test_a_big_file_is_split_into_parts_under_the_limit(tree):
+    """一次 exec 的 stdin 只装得下 1 MiB：大文件切成多段，不能让单次请求超限。"""
+    (tree / "big.bin").write_bytes(os.urandom(3 << 20))      # 随机内容，压缩不掉
     vm = FakeVM(max_bytes=1 << 20)
     assert await push.deliver(vm) == ["/data/repo"]
-    assert vm.files["/data/repo/big.bin"] == b"x" * (2 << 20)
+    assert "big.bin" in vm.tar_members()
+    assert len([k for k in vm.files if k.startswith(push.PARTS)]) > 1
+
+
+async def test_whole_repo_does_not_cost_one_request_per_file(tree):
+    """仓库几千个文件：每段 tar.gz 装一批，请求数远小于文件数。"""
+    for i in range(300):
+        (tree / "sub" / f"f{i}.txt").write_text("x" * 100)
+    vm = FakeVM()
+    await push.deliver(vm)
+    assert len([c for c in vm.cmds if "tar -xzf" in c]) == 1
+    assert len([k for k in vm.files if k.startswith(push.PARTS)]) < 40
+
+
+async def test_credentials_are_written_for_the_vm(monkeypatch, tmp_path):
+    monkeypatch.setenv("GH_TOKEN", "gho_test")
+    monkeypatch.setattr(push.Path, "home", classmethod(lambda cls: tmp_path))
+    vm = FakeVM()
+    assert await push.seed(vm) == ["git credentials"]
+    cred = vm.files[f"{push.SEED_DIR}/.git-credentials"].decode()
+    assert "x-access-token:gho_test@github.com" in cred
+    assert "store --file /data/home/.git-credentials" in vm.files[f"{push.SEED_DIR}/.gitconfig"].decode()
+    assert "oauth_token: gho_test" in vm.files[f"{push.SEED_DIR}/.config/gh/hosts.yml"].decode()
+    assert any("chmod 600 /data/home/.git-credentials" in c for c in vm.cmds)
+
+
+async def test_credentials_are_not_rewritten_when_the_token_is_the_same(monkeypatch, tmp_path):
+    monkeypatch.setenv("GH_TOKEN", "gho_test")
+    monkeypatch.setattr(push.Path, "home", classmethod(lambda cls: tmp_path))
+    first = FakeVM()
+    await push.seed(first)
+    assert await push.seed(FakeVM(listing=first.files["/data/.osa-mounts.json"].decode())) == []
+    monkeypatch.setenv("GH_TOKEN", "gho_other")
+    assert await push.seed(FakeVM(listing=first.files["/data/.osa-mounts.json"].decode())) == ["git credentials"]
+
+
+async def test_no_token_means_no_seeding(monkeypatch, tmp_path):
+    monkeypatch.delenv("GH_TOKEN", raising=False)
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    monkeypatch.setattr(push.Path, "home", classmethod(lambda cls: tmp_path))
+    vm = FakeVM()
+    assert await push.seed(vm) == [] and vm.files == {}
