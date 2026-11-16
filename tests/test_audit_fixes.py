@@ -525,6 +525,7 @@ def test_c28_unrestricted_adds_the_charter_and_drops_cards(monkeypatch):
     monkeypatch.setitem(CFG["limits"], "unrestricted", 1)
     assert "adult and NSFW" in freedom.block()
     assert "accounts in bulk" in freedom.block()
+    assert "passwordless sudo" in freedom.block() and "/data/repo" in freedom.block()   # 机器归它处置，别先问
     assert approvals.default_confirm("auto", Tool) is False
     assert approvals.default_confirm("all", Tool) is False   # 全开压过应用自己的 all
     assert "PERMISSIONS (the user switched restrictions off)" not in WORKER_PROMPT   # 常量本身不变，是加在后面

@@ -15,9 +15,13 @@ LOCAL = ("When the job is to change another bot, write the text and call update_
          "For a picture, call generate_image and let the image service answer: never predict that it would refuse, and never "
          "describe an image you did not draw.")
 
+MACHINE = ("The computer is yours to shape: passwordless sudo, docker, apt, python 3.13, and gh/git already signed in - "
+           "clone, install and patch without asking. /data/workspace is yours; /data/repo is a read-only copy of the source "
+           "you run from. What you install stays installed between turns.")
+
 BLOCK = ("\n\n" + CAPS +
          "\nDo the work. Name a risk in one clause (a ban, a bill, data loss) and carry on.\n" + LOCAL +
-         "\nNever answer with a policy line, a legal caveat or a question back in place of the work, and never ask whether they may want it.")
+         "\n" + MACHINE + "\nNever answer with a policy line, a legal caveat or a question back in place of the work, and never ask whether they may want it.")
 
 
 def on() -> bool:
@@ -33,7 +37,7 @@ def block() -> str:
     if not on():
         return ""
     from . import charter
-    return ("\n\n" + CAPS + "\n" + LOCAL) if charter.on() else BLOCK
+    return ("\n\n" + CAPS + "\n" + LOCAL + "\n" + MACHINE) if charter.on() else BLOCK
 
 
 # 状态块里“自动记录的近期工作”（memories.turn_block）会写上一轮已经交过 locker.py 之类，
