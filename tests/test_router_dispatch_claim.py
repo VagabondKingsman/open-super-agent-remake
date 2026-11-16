@@ -210,7 +210,7 @@ async def test_corrective_round_forces_the_dispatch_tool(llm, events, make_bot, 
 
     reqs = llm.bodies("router", bot["name"])
     assert reqs[1]["tool_choice"] == {"type": "function", "function": {"name": "dispatch"}}
-    assert "tool_choice" not in reqs[0] and "tool_choice" not in reqs[2]
+    assert "tool_choice" not in reqs[0] and "tool_choice" not in reqs[-1]
     assert len(find(bot["chat_id"], kind="dispatch")) == 1
     assert _replies(bot)[-1]["meta"]["tasks"]
 
@@ -229,7 +229,7 @@ async def test_service_that_rejects_tool_choice_falls_back(llm, events, make_bot
 
     reqs = llm.bodies("router", bot["name"])
     assert reqs[1]["tool_choice"]["function"]["name"] == "dispatch"
-    assert "tool_choice" not in reqs[2]
+    assert "tool_choice" not in reqs[-1]
     assert len(_replies(bot)[-1]["meta"]["tasks"]) == 1
 
 
