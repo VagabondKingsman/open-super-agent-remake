@@ -59,7 +59,6 @@ Cập nhật 11/11/2026 23:16, Asia/Saigon (UTC+7), base `14449fd` (merge PR #51
 | BOT-MENU | Menu bot trên thanh bên và nút sao chép ID | Chuột phải hoặc nhấn giữ: sao chép ID, đánh dấu chưa đọc, ẩn, mở chi tiết, xóa. Chi tiết bot có ô ID. Bot chính không xóa được. | Done · cursor / `cursor/bot-context-menu-efeb` · [PR #54](https://github.com/VagabondKingsman/open-super-agent-remake/pull/54) merge `8bc4119` |
 | EVAL-SUITE | P0+ #5. Bộ eval offline chạy trong CI | 27 kịch bản. Đã merge [PR #44](https://github.com/VagabondKingsman/open-super-agent-remake/pull/44) tại `feeae4c`. e27 hết xfail sau P0-2. | Done · [PR #44](https://github.com/VagabondKingsman/open-super-agent-remake/pull/44) |
 | P0-2 | Chỉ người dùng mới duyệt được thẻ xác nhận | `resolve_approval` chỉ cho `origin=user`. Đã merge [PR #43](https://github.com/VagabondKingsman/open-super-agent-remake/pull/43) tại `b961870`. e27 PASS, đã bỏ xfail. | Done · [PR #43](https://github.com/VagabondKingsman/open-super-agent-remake/pull/43) |
-| P0PLUS-3 | P0+ #3. Trace và replay từng turn | Việc tiếp theo sau EVAL-SUITE. Điểm móc ghi trong log eval-suite. Bản cassette của SuperGrok Craft (`osa/cassette.py`, commit `4783db6`) chưa đưa vào, xem lại khi làm việc này. | Chưa nhận |
 
 ## Done · đã public
 
@@ -75,6 +74,12 @@ Cập nhật 11/11/2026 23:16, Asia/Saigon (UTC+7), base `14449fd` (merge PR #51
 - OPEN-INSTABOX-REPO 15/11: `OSA_COMPUTER_MOUNTS` giờ dùng được trên backend Instabox — `osa/computer/push.py` đóng gói từng mục (bỏ `.git`, `node_modules`), đẩy sang VM và giải nén đúng đường dẫn, sha trong `/data/.osa-mounts.json` để lần sau bỏ qua mục không đổi; mount `ro` (mặc định) `chmod -R a-w` sau khi giải nén. Gắn vào `instabox.start()`, lỗi chỉ cảnh báo. Việc chuyển `extra_mounts` sang `mount_pairs` dùng chung. 6 test `tests/test_computer_push.py`.
 
 - OPEN-TASK-ID 15/11: `router.TASKS` khoá theo `task_id` riêng (`threading.get_ident` + bộ đếm), không còn lấy message id làm khoá; test `tests/test_task_ids.py` dựng lại đúng cảnh xoá Bot rồi id được dùng lại. Đóng cùng PR #124.
+
+- P0PLUS-3 / OPEN-SELFLEARN 16/11: vòng học đã kín — `traces` ghi lượt bị từ chối (cả khi cứu được lẫn khi không),
+  `selfreview` đọc chúng thành bài học, và **`selftest`** tự tạo dấu vết: mỗi Bot 12 tiếng tự nhận một câu hard
+  (locker/AMSI/keygen/EDR/licence/C2), đi qua đường thật; không ra code thì ghi VẪN KẸT. API `GET/POST
+  /api/bots/<id>/selftest`. Không còn phải chờ tình cờ gặp refusal. Bản cassette `osa/cassette.py` vẫn chưa
+  đưa vào (replay theo cassette là việc riêng, không chặn vòng học này).
 
 - PR #35–#41 (10/11/2026): E2E-B1–B6, TIP-04b, stream stall retry, CI sandbox, CI Chrome, deep audit cài đặt, sửa AUDIT-F1–F13. Merge commit, giờ và head ở [STATE](STATE.md#pr-3541-10112026).
 

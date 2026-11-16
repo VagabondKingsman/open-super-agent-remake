@@ -334,6 +334,7 @@
   "没有权限（403）：可能没开通这个模型，或者账户欠费。{detail}": "No permission (403). The model may not be enabled, or the account is out of credit. {detail}",
   "没有等待恢复的备份，请重新上传": "No backup is waiting to be restored. Upload it again",
   "没有这个 Bot": "Bot not found",
+  "Bot đang bận, thử lại sau": "The bot is busy, try again later",
   "没有这个任务": "Task not found",
   "没有这个对话": "Chat not found",
   "没有这个应用": "App not found",

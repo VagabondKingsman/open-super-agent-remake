@@ -319,6 +319,7 @@
   "没有权限（403）：可能没开通这个模型，或者账户欠费。{detail}": "Không có quyền (403): có thể chưa bật model hoặc tài khoản hết số dư. {detail}",
   "没有等待恢复的备份，请重新上传": "Không có bản sao lưu chờ khôi phục; hãy tải lên lại",
   "没有这个 Bot": "Không có Bot này",
+  "Bot đang bận, thử lại sau": "Bot đang bận, thử lại sau",
   "没有这个任务": "Không có task này",
   "没有这个对话": "Không có hội thoại này",
   "没有这个应用": "Không có ứng dụng này",
