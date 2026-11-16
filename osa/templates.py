@@ -334,7 +334,7 @@ def _tokens(text: str) -> list[str]:
 
 
 def vi_problems(text: str) -> list[str]:
-    """vi: 版本要和 en: 版本对得上：字段一个不少、@应用、工具名（save_page 这类）、owner/repo、<占位符> 的个数一样，且不留中文。
+    """vi: 版本要和 en: 版本对得上：字段一个不少（含定时任务的 prompt）、@应用、工具名（save_page 这类）、owner/repo、<占位符> 的个数一样，且不留中文。
     没写 vi: 的模板返回空（越南语界面退到 en:）。"""
     t = yaml.safe_load(text)
     if not isinstance(t, dict) or not isinstance(t.get("vi"), dict):
@@ -344,11 +344,15 @@ def vi_problems(text: str) -> list[str]:
     def fields(x):
         return {"name": x["name"], "description": x["description"], "instructions": x["instructions"],
                 **{f"skills[{i}].{k}": s[k] for i, s in enumerate(x["skills"]) for k in ("name", "description", "body")},
-                **{f"routines[{i}].name": r["name"] for i, r in enumerate(x["routines"])}}
+                **{f"routines[{i}].{k}": r[k] for i, r in enumerate(x["routines"]) for k in ("name", "prompt")}}
     out = []
     ef, vf = fields(en), fields(vi)
     for k in ef:
-        if vf[k] == ef[k] and not (k.startswith("routines") or k.endswith(".name") or k == "name") and ef[k]:
+        # 名字（Bot、技能、定时任务）和 /技能 调用本来就该和 en 一样，不判“没翻”；定时任务的 prompt 是写进任务里跑的正文，要判
+        prose = not (k.endswith(".name") or k == "name")
+        if prose and k.startswith("routines[") and (len(ef[k]) < 12 or ef[k].startswith("/")):
+            prose = False
+        if prose and vf[k] == ef[k] and ef[k]:
             out.append(f"vi.{k} 和 en 一样，没有翻")
         if i18n.CJK.search(vf[k]):
             out.append(f"vi.{k} 里还有中文")
