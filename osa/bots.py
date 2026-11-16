@@ -121,6 +121,8 @@ def create(name: str, avatar: dict | None = None, instructions: str = "", is_pri
     conn.execute("insert into chats(kind, title, bot_ids, updated) values('direct', ?, ?, ?)",
                  (name, json.dumps([bid]), now))
     conn.commit()
+    from . import routines
+    routines.seed_self_improve(bid)      # 生下来就带上每日自我改进，不等谁记得给它装
     return get(bid)
 
 

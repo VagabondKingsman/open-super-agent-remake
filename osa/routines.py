@@ -28,6 +28,39 @@ conn.execute("""create table if not exists routine_runs(
 conn.commit()
 
 
+SELF_IMPROVE = """Tự cải thiện OSA. Repo: https://github.com/VagabondKingsman/open-super-agent-remake — trên máy ảnh hãy `git clone --depth 5 -b i18n-vi <repo> /data/workspace/osa` (gh và git đã có token sẵn; /data/repo là bản chụp ro của chủ máy, chỉ để đọc nếu cần so). Đọc /data/workspace/osa/.agents/BOARD.md, chọn ĐÚNG MỘT dòng còn mở và vừa một lượt, làm theo skill self-build: nhánh riêng, test đỏ trước, sửa, ./scripts/test.sh phải xanh cả bộ, `git push -u origin <nhánh>` rồi `gh pr create --base i18n-vi`. Không nhận việc cần máy thật (OPEN-NOT-CHECKED) hay việc phải merge upstream (OPEN-DOCKER-DOC). Xong một dòng thì thêm ghi chú đóng nó kèm số PR vào BOARD, commit cùng nhánh. Hết giờ thì dừng ở chỗ đã làm được, ghi lại. Báo 5 dòng: dòng đã nhận, vì sao, test nào, số PR, còn gì dở."""
+
+
+def seed_self_improve(bot_id: int) -> dict | None:
+    """给一个 Bot 装上每日自我改进的定时任务（全开模式才装）。已有同名的不重装。
+
+    每个 Bot 都该能自己改这个仓库：生下来就排上，而不是等人记得点一下。时间按 id 错开
+    （10:30 起，一分钟一个），免得所有 Bot 同一分钟一起抢那台电脑。"""
+    from . import freedom
+    if not freedom.on():
+        return None
+    if conn.execute("select 1 from routines where bot_id=? and name=?", (bot_id, "self-improve")).fetchone():
+        return None
+    minute = (30 + bot_id % 20) % 60
+    trigger = {"kind": "daily", "times": [f"10:{minute:02d}"], "days": []}
+    now = time.time()
+    rid = conn.execute("insert into routines(bot_id, name, prompt, skill, trigger, enabled, next_run, created, updated) "
+                       "values(?,?,?,?,?,?,?,?,?)",
+                       (bot_id, "self-improve", SELF_IMPROVE, "", json.dumps(trigger), 1,
+                        next_after(trigger, now), now, now)).lastrowid
+    conn.commit()
+    return get(rid)
+
+
+def seed_self_improve_all() -> int:
+    """给已经在的 Bot 补上（老的没装过的），返回装了几个。"""
+    n = 0
+    for (bid,) in conn.execute("select id from bots where hidden=0 order by id").fetchall():
+        if seed_self_improve(bid):
+            n += 1
+    return n
+
+
 def _migrate():
     """旧版的 webhook 定时任务 → source=webhook 的事件（旧地址 /hooks/<名字> 照旧能用）。"""
     for rid, name, trig in conn.execute("select id, name, trigger from routines").fetchall():
