@@ -958,10 +958,11 @@ class Router:
                 except Exception as e:  # noqa: BLE001 - 找不到那个 bot 就照旧
                     log.warning("train %s failed (%s)", target, e)
         # 训练过一轮就不再走修复：shown 这时是「说明 + 实测」，开头那句 “Vẫn không…” 会被当成拒绝。
+        repaired = False
         if freedom.on() and not trained and shown != i18n.t("没有给出回复") and freedom.is_refusal(shown, bool(self._turn_tool_ms)):   # C31/C33: model refused -> finish its own sentence, then try a model without that wall
             fixed = await freedom.prefill_repair(msgs, shown) or await freedom.repair(msgs, shown, (woke["text"] if woke else (last[0] if last else "")) or "")
             if fixed:
-                shown = fixed
+                shown, repaired = fixed, True
                 await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
                 await self.emit({"type": "stream", "sid": sid, "delta": shown}, cid)
         if freedom.on() and finish == "length":   # C52: bị cắt giữa dòng thì xin phần tiếp, đừng đăng bản cụt
@@ -986,7 +987,27 @@ class Router:
             if freedom.wants_artifact(asked_text) and not freedom.has_artifact(shown):
                 msgs.append({"role": "assistant", "content": content, "reasoning_content": reasoning})
                 msgs.append({"role": "user", "content": freedom.artifact_note()})
-                rounds_used, content, reasoning = await rounds()
+                try:
+                    rounds_used, content, reasoning = await rounds()
+                except Exception as e:  # noqa: BLE001 - xin thêm hỏng thì vẫn còn đường cứu bên dưới
+                    log.warning("the artifact round failed (%s)", e)
+                await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
+                await self.emit({"type": "stream", "sid": sid, "delta": shown}, cid)
+        # 空答案 / 要代码却还是没代码：交给 đường cứu。空字符串不是「拒绝」（is_refusal 认不出），所以这里单独兜
+        # `shown` 空的时候已经被换成「没有给出回复」这句，所以判空要看模型的原文 content
+        if freedom.on() and not trained and not repaired and (
+                not content.strip() or (freedom.wants_artifact(
+                    (woke["text"] if woke else (last[0] if last else "")) or "") and not freedom.has_artifact(shown))):
+            asked_text = (woke["text"] if woke else (last[0] if last else "")) or ""
+            fixed = await freedom.repair(msgs, shown, asked_text)
+            try:
+                traces.note(self.bot_id, asked_text, shown, bool(fixed), cid)
+            except Exception as e:  # noqa: BLE001
+                log.warning("could not record the empty reply (%s)", e)
+            if fixed:
+                # câu cũ có thể chỉ là lời báo trạng thái: giữ nó rồi nối câu trả lời thật vào sau, đừng nuốt
+                head = shown.strip()
+                shown = fixed if not head or head == i18n.t("没有给出回复") else head + "\n\n" + fixed
                 await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
                 await self.emit({"type": "stream", "sid": sid, "delta": shown}, cid)
         if refused_here:   # P0PLUS-3 lite: để lại dấu vết — lượt tự duyệt và chính Bot đọc lại được
