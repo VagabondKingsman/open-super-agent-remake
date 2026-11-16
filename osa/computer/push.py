@@ -137,7 +137,9 @@ async def _extract(c, host: str, rels: list[str], dest: str):
     names = [f"{PARTS}.{i:05d}" for i in range(len(parts))]
     for name, chunk in zip(names, parts):
         await c.write_bytes(name, chunk)
-    r = await c.exec(f"mkdir -p {dest} && cat {' '.join(names)} | tar -xzf - -C {dest} && rm -f {PARTS}.*", timeout=300)
+    # 先 mkdir + chmod u+w：只读挂载整棵树是 a-w 的，tar 直接写会被拒（Cannot open: File exists）
+    r = await c.exec(f"mkdir -p {dest} && chmod u+w -R {dest} 2>/dev/null; "
+                     f"cat {' '.join(names)} | tar -xzf - -C {dest} && rm -f {PARTS}.*", timeout=300)
     if r.exit_code:
         raise ValueError(i18n.t("解开 {dest} 失败：{error}", dest=dest, error=r.stderr[:200]))
 

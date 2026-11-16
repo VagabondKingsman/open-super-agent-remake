@@ -96,6 +96,17 @@ async def test_a_deleted_file_is_removed_on_the_far_side(tree):
     assert any("rm -f /data/repo/sub/b.txt" in c for c in second.cmds)
 
 
+async def test_writable_before_extracting_so_read_only_trees_can_be_overwritten(tree):
+    """只读挂载整棵树是 a-w 的：解包前必须先 chmod u+w，否则 tar 写不进已存在的文件。"""
+    first = FakeVM()
+    await push.deliver(first)
+    (tree / "a.py").write_text("print(2)")
+    second = FakeVM(listing=first.files["/data/.osa-mounts.json"].decode())
+    await push.deliver(second)
+    order = [i for i, c in enumerate(second.cmds) if "chmod u+w -R /data/repo" in c or "tar -xzf" in c]
+    assert "chmod u+w" in second.cmds[order[0]] and "tar -xzf" in second.cmds[order[-1]]
+
+
 async def test_rw_mount_is_left_writable(tree, monkeypatch):
     monkeypatch.setenv("OSA_COMPUTER_MOUNTS", f"{tree}:/data/repo:rw")
     vm = FakeVM()
