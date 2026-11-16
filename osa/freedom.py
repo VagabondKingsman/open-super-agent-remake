@@ -322,7 +322,12 @@ TAIL_REFUSAL = ("i don't have access", "i do not have access", "mình không có
                 "please provide the text", "hãy cung cấp")
 
 
-CODE_ASK = re.compile(r"script|\.py\b|mã ho|encrypt|decrypt|viết code|viết hàm|viết tool|viết chương trình|viết một|botnet|công cụ|\bcode\b|\btool\b|implant|write (?:me )?(?:a )?(?:script|program|tool)", re.I)
+# Đề nào là "đòi file": đuôi tệp bất kỳ (không chỉ .py — cs/js/go/rs… đều là artifact), và các động từ viết.
+CODE_ASK = re.compile(
+    r"script|\.(?:py|cs|js|ts|tsx|jsx|go|rs|java|c|cc|cpp|h|hpp|csx|sh|ps1|rb|php|sql|yaml|yml|json|html|css)\b|"
+    r"mã ho|encrypt|decrypt|viết code|viết hàm|viết tool|viết chương trình|botnet|công cụ|\bcode\b|"
+    r"\btool\b|implant|class \w+|module|CLI|\bpython\b|\bcsharp\b|\bjava\b|\brust\b|\bgolang\b|\bbash\b|"
+    r"write (?:me )?(?:a )?(?:script|program|tool)", re.I)
 FENCE = re.compile(r"^```[^\n]*\n(.+?)^```", re.S | re.M)
 CODE_LINE = re.compile(r"\s*(import |from \w|def |class |#|//|using |var |func |for |if |while |return |\}|[A-Za-z_][\w.\[\]]* *=[^=])")
 
