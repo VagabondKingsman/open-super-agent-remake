@@ -51,6 +51,14 @@ Có mặc định trong code, có dòng comment trong `limits:` của `config.ya
 
 Biến môi trường của script: `OSA_PORT` (mặc định 8765), `OSA_START_TIMEOUT` (giây chờ `/manifest.json`, mặc định 60), `OSA_STOP_TIMEOUT` (giây chờ process thoát, mặc định 20). Server luôn nghe `127.0.0.1`.
 
+## Nodecode trên box: giữ, khởi động lại, và chốt PR
+
+Box bị treo là chuyện thường (16/11: 22 lần, 7,9 giờ trong một turn) — lệnh shell đứng theo máy, nên đừng giữ một vòng `for i in $(seq 1 40); do …; sleep 10; done` trong lúc chờ.
+
+- Khởi động lại nodecode: `scripts/nc-restart.sh` (xem trước bằng `--dry-run`). Mặc định **chỉ giết gateway**, để yên CLI. Giết CLI là mất màn hình của người: daemon dựng lại một CLI mới nhưng nó **không mở session nào**, phải `nodecode resume <session-id>`. Chỉ `--all` khi thật cần, và kèm `--session ID`.
+- Chốt PR: `scripts/pr-merge-wait.sh <PR…>`. Nó bật `gh pr merge --auto --merge` để GitHub tự merge khi xanh; chỉ khi repo tắt auto-merge mới chờ checks (nhịp 30 giây, có trần `--cap` phút). Mã thoát: 2 xung đột, 1 không chốt được. Repo đã bật `allow_auto_merge` (16/11).
+- Đếm process nodecode thì đọc `/proc/*/exe` (wrapper `bash` có `exe=/usr/bin/bash` nên không lọt), nhưng **phân loại theo cmdline** rồi mới kill: `gateway run` là gateway, còn lại là CLI.
+
 ## Deploy và restart
 
 Chỉ làm khi Tin Tin giao. Code đã merge vào `i18n-vi`, CI xanh, và đã test trong worktree.

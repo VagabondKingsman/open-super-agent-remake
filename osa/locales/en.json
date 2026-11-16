@@ -298,6 +298,7 @@
   "正在连接…": "Connecting…",
   "正在重启，稍后再试": "Restarting. Try again in a moment",
   "步数用完了，根据已有信息写结果": "Out of steps, writing the result from what's been found",
+  "坏了": "Broken",
   "每 {n} 分钟": [
     "Every minute",
     "Every {n} minutes"

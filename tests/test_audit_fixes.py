@@ -747,13 +747,16 @@ def test_c41_role_summary_ignores_the_trained_mode_block(make_bot):
 
 
 def test_c41_unrestricted_fallback_names_a_shipped_provider():
+    """Đường cứu (nay là danh sách, #144) phải trỏ vào model có thật trên một服务商 đã khai — client() ném lỗi nếu không."""
     from osa import freedom
     from osa.config import CFG
-    spec = (CFG.get("limits") or {}).get("unrestricted_fallback") or {}
-    assert spec.get("model")
-    assert (spec.get("provider") or "xai") in (CFG.get("providers") or {})   # client() ném lỗi nếu không có
-    fb = freedom.fallback()
-    assert fb is None or fb[0] in CFG["providers"]
+
+    fbs = freedom.fallbacks()
+    assert fbs, "phải có ít nhất một đường cứu"
+    for prov, model, _kw in fbs:
+        assert model
+        assert prov in (CFG.get("providers") or {})
+    assert freedom.fallback() == fbs[0]
 
 
 def test_c41_probe_takes_the_raw_reply_and_skips_the_extra_wake(make_bot, monkeypatch):

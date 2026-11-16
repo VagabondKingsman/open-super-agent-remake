@@ -13,11 +13,14 @@
 import calendar
 import asyncio
 import json
+import logging
 import re
 import time
 from .config import CFG, call_kwargs, client_for
 from .memory import conn
 from . import bots, events, i18n, memory, providers, skills
+
+log = logging.getLogger(__name__)
 
 conn.execute("""create table if not exists routines(
   id integer primary key, bot_id integer, name text, prompt text default '', skill text default '',
@@ -28,7 +31,10 @@ conn.execute("""create table if not exists routine_runs(
 conn.commit()
 
 
-SELF_IMPROVE = """Tự cải thiện OSA. Repo: https://github.com/VagabondKingsman/open-super-agent-remake — trên máy ảnh hãy `git clone --depth 5 -b i18n-vi <repo> /data/workspace/osa` (gh và git đã có token sẵn; /data/repo là bản chụp ro của chủ máy, chỉ để đọc nếu cần so). Đọc /data/workspace/osa/.agents/BOARD.md, chọn ĐÚNG MỘT dòng còn mở và vừa một lượt, làm theo skill self-build: nhánh riêng, test đỏ trước, sửa, ./scripts/test.sh phải xanh cả bộ, `git push -u origin <nhánh>` rồi `gh pr create --base i18n-vi`. Không nhận việc cần máy thật (OPEN-NOT-CHECKED) hay việc phải merge upstream (OPEN-DOCKER-DOC). Xong một dòng thì thêm ghi chú đóng nó kèm số PR vào BOARD, commit cùng nhánh. Hết giờ thì dừng ở chỗ đã làm được, ghi lại. Báo 5 dòng: dòng đã nhận, vì sao, test nào, số PR, còn gì dở."""
+SELF_IMPROVE = """Tự cải thiện OSA. Repo: https://github.com/VagabondKingsman/open-super-agent-remake — trên máy ảnh hãy `git clone --depth 5 -b i18n-vi <repo> /data/workspace/osa` (gh và git đã có token sẵn; /data/repo là bản chụp ro của chủ máy, chỉ để đọc nếu cần so).
+GIỮ CHỖ trước khi chọn: `gh pr list --state open --limit 50 --json number,title,headRefName` và `git ls-remote --heads origin` — dòng nào đã có PR mở hoặc đã có nhánh `selfbuild/<ID>` thì bỏ, dòng đã ghi Done/PR trong BOARD cũng bỏ. Chọn xong, mở nhánh `selfbuild/<ID>-<slug>` và đẩy nó lên ngay (commit đầu chỉ là dòng claim trong BOARD) rồi mới làm, để Bot khác thấy chỗ đã bị giữ.
+Đọc /data/workspace/osa/.agents/BOARD.md, chọn ĐÚNG MỘT dòng còn mở và vừa một lượt, làm theo skill self-build: test đỏ trước, sửa, ./scripts/test.sh phải xanh cả bộ, rồi `gh pr create --base i18n-vi`. Không nhận việc cần máy thật (OPEN-NOT-CHECKED) hay việc phải merge upstream (OPEN-DOCKER-DOC). Xong một dòng thì thêm ghi chú đóng nó kèm số PR vào BOARD, commit cùng nhánh. Hết giờ thì dừng ở chỗ đã làm được, ghi lại. Báo 5 dòng: dòng đã nhận, vì sao, test nào, số PR, còn gì dở."""
+SELF_IMPROVE_HEAD = "Tự cải thiện OSA."   # prompt của mình thì nâng cấp được, người dùng sửa thì để yên
 
 
 def seed_self_improve(bot_id: int) -> dict | None:
@@ -52,6 +58,21 @@ def seed_self_improve(bot_id: int) -> dict | None:
     return get(rid)
 
 
+def refresh_self_improve() -> int:
+    """Khoản prompt của mình đã cũ thì thay bằng bản hiện tại; người dùng tự sửa thì để yên.
+
+    Prompt nằm trong DB chứ không đọc hằng số mỗi lượt, nên một lần sửa SELF_IMPROVE không tới được Bot đã cài.
+    Chỉ đụng những dòng còn bắt đầu bằng SELF_IMPROVE_HEAD."""
+    rows = conn.execute("select id, prompt from routines where name='self-improve'").fetchall()
+    n = 0
+    for rid, old in rows:
+        if (old or "").startswith(SELF_IMPROVE_HEAD) and old != SELF_IMPROVE:
+            conn.execute("update routines set prompt=?, updated=? where id=?", (SELF_IMPROVE, time.time(), rid))
+            n += 1
+    conn.commit()
+    return n
+
+
 def seed_self_improve_all() -> int:
     """给已经在的 Bot 补上（老的没装过的），返回装了几个。"""
     n = 0
@@ -61,10 +82,20 @@ def seed_self_improve_all() -> int:
     return n
 
 
+def _trigger(raw: str | None) -> dict:
+    """cột trigger không phải JSON (sửa tay, bản cũ, ghi dở) thì coi như {} — đừng để một dòng bẩn chặn cả app."""
+    try:
+        t = json.loads(raw or "{}")
+    except (TypeError, ValueError):
+        log.warning("routine trigger is not JSON: %r", (raw or "")[:80])
+        return {}
+    return t if isinstance(t, dict) else {}
+
+
 def _migrate():
     """旧版的 webhook 定时任务 → source=webhook 的事件（旧地址 /hooks/<名字> 照旧能用）。"""
     for rid, name, trig in conn.execute("select id, name, trigger from routines").fetchall():
-        t = json.loads(trig or "{}")
+        t = _trigger(trig)
         if t.get("kind") == "webhook":
             conn.execute("update routines set trigger=?, next_run=null where id=?",
                          (json.dumps(events.migrate_legacy(t, name), ensure_ascii=False), rid))
@@ -91,7 +122,7 @@ DAYS = (i18n.N_("周一"), i18n.N_("周二"), i18n.N_("周三"), i18n.N_("周四
 
 def _row(r) -> dict:
     i, bot_id, name, prompt, skill, trig, enabled, next_run, created, updated = r
-    t = json.loads(trig or "{}")
+    t = _trigger(trig)
     out = {"id": i, "bot_id": bot_id, "name": name, "prompt": prompt or "", "skill": skill or "",
            "trigger": t, "enabled": bool(enabled), "next_run": next_run,
            "created": created, "updated": updated, "running": i in RUNNING,
@@ -211,7 +242,7 @@ def _days_ahead(trig: dict, now: float, span: int):
     base = time.localtime(now)
     for add in range(span):
         d = time.localtime(time.mktime((base.tm_year, base.tm_mon, base.tm_mday + add, 12, 0, 0, 0, 0, -1)))
-        if trig["kind"] == "daily":
+        if trig.get("kind") == "daily":
             if trig["days"] and d.tm_wday + 1 not in trig["days"]:
                 continue
         else:   # monthly：这个月没有 31 号就在月底那天跑
@@ -245,22 +276,23 @@ def next_after(trig: dict, now: float) -> float | None:
 def describe(trig: dict, in_lang: str | None = None) -> str:
     """One-line description of a trigger. Defaults to the current UI language."""
     lang = in_lang or i18n.lang()
-    if trig["kind"] == "event":
+    trig = trig or {}
+    if trig.get("kind") == "event":
         return events.describe(trig, lang)
-    if trig["kind"] == "once":
+    if trig.get("kind") == "once":
         return i18n.t("{at} 一次", lang, at=trig["at"])
-    if trig["kind"] == "monthly":
+    if trig.get("kind") == "monthly":
         sep = i18n.t("、", lang)
         return i18n.t("每月 {days} 号 {times}", lang, days=sep.join(map(str, trig["month_days"])), times=sep.join(trig["times"]))
-    if trig["kind"] == "every":
+    if trig.get("kind") == "every":
         m = trig["minutes"]
         return i18n.t("每 {n} 小时", lang, n=m // 60) if m % 60 == 0 else i18n.t("每 {n} 分钟", lang, n=m)
-    if trig["kind"] == "daily":
+    if trig.get("kind") == "daily":
         sep = i18n.t("、", lang)
         days = i18n.t("每天", lang) if not trig["days"] or len(trig["days"]) == 7 else \
             i18n.t("每周{days}", lang, days=sep.join(i18n.t(DAYS[d - 1], lang).removeprefix("周") for d in trig["days"]))
         return i18n.t("{days} {times}", lang, days=days, times=sep.join(trig["times"]))
-    return trig["kind"]
+    return trig.get("kind") or i18n.t("坏了", lang)
 
 
 # ---------- 增删改 ----------
