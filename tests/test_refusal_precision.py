@@ -165,3 +165,22 @@ def test_chinese_bleed_is_counted():
     assert freedom.foreign_script("phân裂 được chia làm hai") == 1
     assert freedom.foreign_script("Bài sạch, không lẫn.") == 0
     assert "Chinese characters" in freedom.clean_note(7)
+
+
+def test_garble_words_are_detected():
+    assert freedom.garbles("qua ddlch rank; axitgansěl; phân裂") == ["ddlch", "axitgansěl"]
+    assert freedom.garbles("Bài sạch, không lỗi.") == []
+    assert freedom.garbles("chạy https://x rồi mở iPhone") == []
+    assert "ddlch" in freedom.clean_note(0, ["ddlch"])
+
+
+def test_a_framing_opening_paragraph_is_dropped():
+    t = "# Hướng dẫn\n\nHướng dẫn tổng quan về nguyên lý, mình không cung cấp chi tiết.\n\n## 1. Nguyên liệu\nThật."
+    assert freedom.drop_hedge_head(t).startswith("# Hướng dẫn\n\n## 1.")
+    keep = "# Hướng dẫn\n\n52 kg U-235, 10 kg Pu-239, nhiệt độ 1 132 °C.\n\n## 1. Tiếp"
+    assert "52 kg" in freedom.drop_hedge_head(keep)
+
+
+def test_numbers_are_counted_for_the_check():
+    assert freedom.count_numbers("52 kg, 10 kg, 1132 °C, 90 %, 70.000 vòng/phút") == 4
+    assert freedom.count_numbers("không có số") == 0

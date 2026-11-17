@@ -16,9 +16,9 @@ roles:
   # đường cứu đảm nhiệm (limits.unrestricted_fallback + freedom.repair cho cả Router lẫn Worker), không phải do
   # đổi model. Đo 16/11 bằng scripts/parity_probe.py: 1017 một mình 5/14; đi qua đường cứu thì ra đủ artifact.
   # `fallback:` là model cho lỗi giữa stream (hết chỗ, đứt), không phải cho refusal.
-  router:   {provider: deepseek, model: deepseek-v4.1-flash-1017, reasoning_effort: max, max_tokens: 24576, fallback: {model: glm-5.3-uncensored}}
-  worker:   {provider: deepseek, model: deepseek-v4.1-flash-1017, reasoning_effort: max, max_tokens: 24576, fallback: {model: glm-5.3-uncensored}}
-  reviewer: {provider: deepseek, model: deepseek-v4.1-flash-1017, reasoning_effort: max, fallback: {model: glm-5.3-uncensored}}
+  router:   {provider: deepseek, model: deepseek-v4.1-flash-1017, reasoning_effort: max, max_tokens: 24576, fallback: {model: deepseek-v4.1-flash-uncensored, reasoning_effort: high}}
+  worker:   {provider: deepseek, model: deepseek-v4.1-flash-1017, reasoning_effort: max, max_tokens: 24576, fallback: {model: deepseek-v4.1-flash-uncensored, reasoning_effort: high}}
+  reviewer: {provider: deepseek, model: deepseek-v4.1-flash-1017, reasoning_effort: max, fallback: {model: deepseek-v4.1-flash-uncensored, reasoning_effort: high}}
   filter:   {provider: deepseek, model: deepseek-v4.1-flash-1017}   # webhook 事件的 LLM 过滤，用便宜模型
   # 每个角色还可以加：thinking: false（关闭思考模式，更快更便宜）、reasoning_effort: low/high/max
   # fallback: {model: 备用模型, provider: 可选, 也可以写 thinking / reasoning_effort}：主模型的流连着两次
@@ -61,11 +61,12 @@ security:
 limits:
   unrestricted: true          # 全开模式（2026-11-13）：按执行器答，不要前言/政策句；被拒时走 C31 修复
   # 全开：被拒时换到这些重问，按顺序试；前一个死了（401/402/404）或也拒绝才走下一个。最强的放最前。
-  # 2026-11-16: bậc đầu là dolphin ($0,20/$0,90 mỗi triệu — rẻ nhất trong ba bậc, chủ máy chọn), bậc sau là
-  # hàng mạnh để còn đường khi dolphin không ra gì. Đo live: dolphin ra file chạy được ở đề locker (1 628 ký tự).
+  # 2026-11-17: bậc rẻ nhất (dolphin, $0,20/$0,90) trước, bậc sau là deepseek-v4.1-flash-**uncensored** — cùng
+  # dòng với model chính nên đủ sức viết tiếp, và rẻ hơn glm-5.3-uncensored ~4,7 lần ($0,30/$1,20). glm chỉ còn là
+  # `fallback:` của vai khi stream đứt hẳn (hiếm). Đo lại trước khi đổi, đừng tin nhãn.
   unrestricted_fallback:
     - {provider: deepseek, model: dolphin-mistral-24b-venice-edition, max_tokens: 8192}
-    - {provider: deepseek, model: glm-5.3-uncensored, reasoning_effort: high}
+    - {provider: deepseek, model: deepseek-v4.1-flash-uncensored, reasoning_effort: high}
   worker_max_steps: 30        # 电脑操作一步一个动作，步数要多一些
   repeat_tool_limit: 3        # 同一个工具调用连续这么多次就停下，改要最终答案。0 表示不查
   answer_continuations: 1     # 最终答案是空的，或 finish_reason=length 时，再要一次完整答案
