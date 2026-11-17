@@ -61,6 +61,13 @@ Cập nhật 11/11/2026 23:16, Asia/Saigon (UTC+7), base `14449fd` (merge PR #51
 | EVAL-SUITE | P0+ #5. Bộ eval offline chạy trong CI | 27 kịch bản. Đã merge [PR #44](https://github.com/VagabondKingsman/open-super-agent-remake/pull/44) tại `feeae4c`. e27 hết xfail sau P0-2. | Done · [PR #44](https://github.com/VagabondKingsman/open-super-agent-remake/pull/44) |
 | P0-2 | Chỉ người dùng mới duyệt được thẻ xác nhận | `resolve_approval` chỉ cho `origin=user`. Đã merge [PR #43](https://github.com/VagabondKingsman/open-super-agent-remake/pull/43) tại `b961870`. e27 PASS, đã bỏ xfail. | Done · [PR #43](https://github.com/VagabondKingsman/open-super-agent-remake/pull/43) |
 
+## 17/11 · giao diện: cách gửi + nút copy báo sai
+
+- **Cách gửi**: công tắc dưới ô nhập "Enter gửi / Ctrl+Enter gửi", lưu theo máy; ở chế độ Ctrl+Enter thì Enter chỉ xuống dòng. Đo trên UI thật: mặc định Enter gửi (ô rỗng đi), chuyển chế độ thì Enter để lại chữ, Ctrl+Enter mới gửi (PR #167).
+- **Nút copy báo sai**: 10 chỗ gọi `navigator.clipboard?.writeText()` **không `await`**, `?.` nuốt việc API không có — trên trang http thì chữ không vào clipboard mà nút vẫn báo "đã sao chép". Nay mọi nút đi qua `copyText()` (API → textarea → contentEditable), nhãn chỉ đổi khi thật sự được; đo bằng CDP: clipboard nhận **đúng nội dung khối mã**, chặn hai đường thì hiện "không sao chép được".
+- CI bắt thêm hai lỗi i18n ở PR đầu (câu gợi ý ghép chuỗi; một khoá worker chưa dịch) — đã tách thành khoá trọn vẹn và dịch đủ (PR #168). `python -m osa.i18n` 0 thiếu/0 thừa; `node --test` 54 passed.
+- Lưu ý: `document.execCommand('copy')` **không chạy trong Chrome headless của máy này**, nên đường dự phòng chỉ có unit test chứng minh, không chứng minh được bằng trình duyệt ở đây; máy thật cần thử khi gặp.
+
 ## 17/11 · hết rò từ, soát số, học khung
 
 - **Rò từ**: dò theo TỪ (phụ âm không nguyên âm "ddlch", dính hoa "thổithermAlMe", ký tự lạ "axitgansěl"), nêu tên từng từ rồi xin một vòng viết lại sạch — không chỉ đếm ký tự Hán (PR #164). Đo lại: 0 Hán, 0 từ rác ở cả hai đề.
