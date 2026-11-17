@@ -1399,5 +1399,15 @@
   "已隐藏的 Bot": "Hidden bots",
   "重新连接": "Reconnect",
   "已重新连上": "Connected again",
-  "还是连不上这台服务器": "Still can't reach this server"
+  "还是连不上这台服务器": "Still can't reach this server",
+  "发送方式": "How to send",
+  "按 Enter 发送": "Send with Enter",
+  "按 Ctrl+Enter 发送，Enter 换行": "Send with Ctrl+Enter, Enter for a new line",
+  "Enter 发送": "Enter to send",
+  "Ctrl+Enter 发送": "Ctrl+Enter to send",
+  "Ctrl+Enter 发送 · Enter 换行": "Ctrl+Enter to send · Enter for a new line",
+  "发送（Ctrl+Enter）": "Send (Ctrl+Enter)",
+  "复制没成功，手动选中代码再按 Ctrl+C": "Copy failed — select the code and press Ctrl+C",
+  " · @ 指定应用 · / 调用技能": " · @ an app · / for a skill",
+  " · @ 指定 Bot 或应用": " · @ a bot or app"
 }

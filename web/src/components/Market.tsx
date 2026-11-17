@@ -6,6 +6,7 @@ import { t, tc, tn } from '../i18n'
 import { ask } from './Dialog'
 import { desktop } from '../desktop'
 import { useBack } from '../swipe'
+import { copyText } from '../copyText'
 
 const HOW: Record<string, string> = { oauth: t('登录即用'), token: t('填一个密钥'), none: t('免配置') }
 // 登录授权的应用也可能要先填几项（比如自己建的 OAuth 客户端），填好再登录
@@ -296,10 +297,11 @@ function CopyBox({ label, text, rows }: { label: string; text: string; rows?: nu
   const value = text.split('{callback}').join(callback)
   const ref = useRef<HTMLInputElement & HTMLTextAreaElement>(null)
   const [copied, setCopied] = useState(false)
-  const copy = () => {
+  const copy = async () => {
     ref.current?.select()
-    const ok = navigator.clipboard ? navigator.clipboard.writeText(value) : Promise.resolve(document.execCommand('copy'))
-    ok.then(() => setCopied(true), () => {})
+    const good = await copyText(value)
+    setCopied(good)
+    if (!good) setTimeout(() => setCopied(false), 2200)
   }
   const btn = <button type="button" className="btn" onClick={copy}>{copied ? t('已复制') : t('复制')}</button>
   return (

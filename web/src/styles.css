@@ -156,6 +156,9 @@ a { color: var(--link); text-decoration: none; } a:hover { text-decoration: unde
 .send { width: 36px; height: 36px; border-radius: 50%; background: var(--bg3); color: var(--fg3); font-size: 18px; font-weight: 700; flex: none; }
 .send.on { background: var(--acc); color: var(--acc-fg); }
 .composer-hint { text-align: center; color: var(--fg3); font-size: 11.5px; margin-top: 6px; }
+.composer-hint .sendmode { margin-left: 8px; display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; vertical-align: middle; }
+.composer-hint .sendmode button { font: inherit; font-size: 11px; padding: 1px 8px; background: none; border: 0; color: var(--fg3); cursor: pointer; }
+.composer-hint .sendmode button.on { background: var(--bg3); color: var(--fg); }
 
 /* Markdown */
 .md { word-break: break-word; }

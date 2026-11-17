@@ -8,6 +8,7 @@ import { ask } from './Dialog'
 import { isEnter } from '../keys'
 import { useBack } from '../swipe'
 import { AppletFrame } from './Applet'
+import { copyText } from '../copyText'
 
 const when = (ts: number) => new Date(ts * 1000).toLocaleString(locale, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 export const size = (n: number) => n < 1024 ? `${n} B` : n < 1 << 20 ? `${(n / 1024).toFixed(1)} KB` : `${(n / (1 << 20)).toFixed(1)} MB`
@@ -117,7 +118,7 @@ function PageView({ id }: { id: number }) {
     setP({ ...p!, ...x })
     if (on) copy(x.share_token)
   }
-  const copy = (token: string) => { navigator.clipboard?.writeText(shareUrl(token)); setCopied(true); setTimeout(() => setCopied(false), 1500) }
+  const copy = async (token: string) => { const good = await copyText(shareUrl(token)); setCopied(good); setTimeout(() => setCopied(false), good ? 1500 : 2200) }
   const del = async () => {
     if (!(await ask(t('删除页面「{title}」？分享链接也会失效。', { title: p!.title }), { ok: t('删除'), danger: true }))) return
     await api(`/api/pages/${id}`, { method: 'DELETE' }); openLibrary()

@@ -5,6 +5,7 @@ import BotAvatar from './BotAvatar'
 import Markdown from './Markdown'
 import { t, tn } from '../i18n'
 import { isEnter } from '../keys'
+import { copyText } from '../copyText'
 
 // Bot 模板：新建 Bot 时从模板装；Bot 详情里导出、分享；/template/<token> 是分享出去的公开页
 export type TemplateCard = { id: string; name: string; description: string; avatar: Avatar; apps: string[]; skills: number; routines: number }
@@ -125,7 +126,7 @@ export function ShareTemplate({ bot }: { bot: Bot }) {
   useEffect(() => { api(`/api/bots/${bot.id}/template/share`).then(r => setToken(r.token)) }, [bot.id])
   const toggle = async (on: boolean) => setToken((await api(`/api/bots/${bot.id}/template/share`, { method: 'POST', body: { on } })).token)
   const url = token ? `${location.origin}/template/${token}` : ''
-  const copy = async () => { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1500) }
+  const copy = async () => { const good = await copyText(url); setCopied(good); setTimeout(() => setCopied(false), good ? 1500 : 2200) }
   return (
     <div>
       <h4>{t('做成模板')}</h4>
@@ -152,7 +153,7 @@ export function SharedTemplate({ token }: { token: string }) {
   useEffect(() => { api(`/api/shared/templates/${token}`).then(x => { setP(x); document.title = t('Bot 模板：{name}', { name: x.name }) }).catch((e: any) => setErr(e.message)) }, [token])
   if (err) return <div className="shared"><div className="shared-empty">{err}</div></div>
   if (!p) return <div className="loading">◆</div>
-  const copy = async () => { await navigator.clipboard.writeText(location.href); setCopied(true); setTimeout(() => setCopied(false), 1500) }
+  const copy = async () => { const good = await copyText(location.href); setCopied(good); setTimeout(() => setCopied(false), good ? 1500 : 2200) }
   return (
     <div className="shared">
       <header className="shared-head"><BotAvatar avatar={p.avatar} size={22} /><b>{t('Bot 模板：{name}', { name: p.name })}</b>

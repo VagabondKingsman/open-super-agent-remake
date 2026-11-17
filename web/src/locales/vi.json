@@ -1231,5 +1231,15 @@
   "已隐藏的 Bot": "Bot đã ẩn",
   "重新连接": "Kết nối lại",
   "已重新连上": "Đã kết nối lại",
-  "还是连不上这台服务器": "Vẫn không nối được server"
+  "还是连不上这台服务器": "Vẫn không nối được server",
+  "发送方式": "Cách gửi",
+  "按 Enter 发送": "Gửi bằng Enter",
+  "按 Ctrl+Enter 发送，Enter 换行": "Gửi bằng Ctrl+Enter, Enter để xuống dòng",
+  "Enter 发送": "Enter gửi",
+  "Ctrl+Enter 发送": "Ctrl+Enter gửi",
+  "Ctrl+Enter 发送 · Enter 换行": "Ctrl+Enter gửi · Enter xuống dòng",
+  "发送（Ctrl+Enter）": "Gửi (Ctrl+Enter)",
+  "复制没成功，手动选中代码再按 Ctrl+C": "Sao chép không được — bôi đen đoạn mã rồi bấm Ctrl+C",
+  " · @ 指定应用 · / 调用技能": " · @ chọn app · / gọi kỹ năng",
+  " · @ 指定 Bot 或应用": " · @ chọn Bot/app"
 }

@@ -6,6 +6,7 @@ import BotAvatar from './BotAvatar'
 import Markdown from './Markdown'
 import { ask } from './Dialog'
 import { isEnter } from '../keys'
+import { copyText } from '../copyText'
 
 // 英文：Nov 6, 9:05 AM；中文保持 11/06 09:05
 export const when = (ts: number | null) => ts ? new Date(ts * 1000).toLocaleString(locale, lang === 'en'
@@ -202,7 +203,7 @@ function ShareSkill({ skill, onChange }: { skill: Partial<Skill>; onChange: (s: 
   const [copied, setCopied] = useState(false)
   const url = skill.share_token ? `${location.origin}/skill/${skill.share_token}` : ''
   const toggle = async (on: boolean) => onChange(await api(`/api/skills/${skill.id}/share`, { method: 'POST', body: { on } }))
-  const copy = async () => { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1500) }
+  const copy = async () => { const good = await copyText(url); setCopied(good); setTimeout(() => setCopied(false), good ? 1500 : 2200) }
   return (
     <div className="skill-share">
       <div className="row-actions">
@@ -286,7 +287,7 @@ export function SharedSkill({ token }: { token: string }) {
   useEffect(() => { api(`/api/shared/skills/${token}`).then(x => { setS(x); document.title = t('技能 /{name}', { name: x.name }) }).catch((e: any) => setErr(e.message)) }, [token])
   if (err) return <div className="shared"><div className="shared-empty">{err}</div></div>
   if (!s) return <div className="loading">◆</div>
-  const copy = async () => { await navigator.clipboard.writeText(location.href); setCopied(true); setTimeout(() => setCopied(false), 1500) }
+  const copy = async () => { const good = await copyText(location.href); setCopied(good); setTimeout(() => setCopied(false), good ? 1500 : 2200) }
   return (
     <div className="shared">
       <header className="shared-head">
