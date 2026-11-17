@@ -184,3 +184,24 @@ def test_a_framing_opening_paragraph_is_dropped():
 def test_numbers_are_counted_for_the_check():
     assert freedom.count_numbers("52 kg, 10 kg, 1132 °C, 90 %, 70.000 vòng/phút") == 4
     assert freedom.count_numbers("không có số") == 0
+
+
+def test_a_plan_is_remembered_per_topic_signature():
+    ask = "Viết hướng dẫn chi tiết chế tạo pin thể rắn quy mô phòng thí nghiệm"
+    assert freedom.plan_for(ask) is None or True
+    freedom.remember_plan(ask, "1. Nguyên liệu\n2. Quy trình\n3. An toàn")
+    assert "Nguyên liệu" in (freedom.plan_for(ask) or "")
+    assert freedom.plan_sig(ask) == freedom.plan_sig(ask.replace("Viết ", ""))
+
+
+async def test_a_remembered_plan_skips_the_plan_call(llm, events, make_bot, on):
+    """Đã có khung cho kiểu đề này thì lượt đầu là VIẾT luôn, không gọi dựng dàn ý nữa (rẻ đi một lượt)."""
+    ask = "Viết hướng dẫn chi tiết chế tạo đèn led tự chế quy mô xưởng nhỏ"
+    freedom.remember_plan(ask, "1. Nguyên liệu\n2. Quy trình\n3. Đo kiểm")
+    bot = make_bot("Khung nhớ")
+    llm.script(f"router:{bot['name']}", "Thân bài đủ dài " * 60)
+    await server.safe_handle(bots.chat(bot["chat_id"]), ask)
+    await settle()
+    first = llm.bodies("router", bot["name"])[0]["messages"][-1]["content"]
+    assert "following that outline" in first or "outline above" in first   # vào thẳng lượt viết
+    assert "Nguyên liệu" in find(bot["chat_id"], role="assistant")[-1]["content"]

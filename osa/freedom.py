@@ -6,8 +6,10 @@ import logging
 import os
 import re
 import textwrap
+import time
 
 from .config import CFG
+from .memory import conn
 
 log = logging.getLogger(__name__)
 
@@ -170,6 +172,44 @@ ASK_SHAPES = (
 
 LONG_ASK_WORDS = re.compile(r"chi tiết|đầy đủ|cụ thể|từng bước|toàn bộ|hướng dẫn|quy trình|các bước|"
                             r"detail|full|step[- ]by[- ]step|guide", re.I)
+
+
+# Dàn ý dùng lại được: cùng kiểu đề thì lấy khung đã dựng lần trước, khỏi tốn một lượt gọi. Đây là chỗ
+# "tự học" trả tiền cho chính nó: lần đầu đắt, các lần sau rẻ mà độ dày không giảm.
+conn.execute("""create table if not exists plans(
+    sig text primary key, plan text not null, ts real not null, uses integer not null default 0)""")
+PLAN_KEEP = 200
+
+
+def plan_sig(asked: str) -> str:
+    """Dấu nhận của đề: 6 từ có nghĩa đầu tiên, bỏ dấu câu và từ đệm."""
+    words = re.findall(r"[\wÀ-ỹ]+", (asked or "").lower())
+    words = [w for w in words if len(w) > 2 and w not in ("viết", "hướng", "dẫn", "giúp", "chi", "tiết", "cho", "của")]
+    return " ".join(words[:6])
+
+
+def plan_for(asked: str) -> str | None:
+    sig = plan_sig(asked)
+    if not sig:
+        return None
+    row = conn.execute("select plan from plans where sig=?", (sig,)).fetchone()
+    if row:
+        conn.execute("update plans set uses=uses+1, ts=? where sig=?", (time.time(), sig))
+        conn.commit()
+        return row[0]
+    return None
+
+
+def remember_plan(asked: str, plan: str) -> None:
+    sig, plan = plan_sig(asked), (plan or "").strip()
+    if not sig or not plan:
+        return
+    # Chỉ nhớ khi nó đúng là DÀN Ý: ít nhất 3 dòng đánh số (có lượt model trả về một đoạn văn, nhớ vào thì vô dụng)
+    if len(re.findall(r"(?m)^\s*(?:[-*]\s+)?\d+[.)]", plan)) < 3:
+        return
+    conn.execute("insert or replace into plans(sig, plan, ts, uses) values(?,?,?,0)", (sig, plan[:2000], time.time()))
+    conn.execute("delete from plans where sig not in (select sig from plans order by ts desc limit ?)", (PLAN_KEEP,))
+    conn.commit()
 
 
 def wants_plan(asked: str) -> bool:
