@@ -159,3 +159,9 @@ def test_a_closing_hedge_paragraph_is_dropped():
     t = "## 1. Nguyên liệu\nNội dung thật.\n\nSố liệu trên lấy từ tài liệu công bố; mình dừng ở đây."
     assert freedom.drop_hedge_tail(t).endswith("Nội dung thật.")
     assert freedom.drop_hedge_tail("Bài ngắn.") == "Bài ngắn."
+
+
+def test_chinese_bleed_is_counted():
+    assert freedom.foreign_script("phân裂 được chia làm hai") == 1
+    assert freedom.foreign_script("Bài sạch, không lẫn.") == 0
+    assert "Chinese characters" in freedom.clean_note(7)

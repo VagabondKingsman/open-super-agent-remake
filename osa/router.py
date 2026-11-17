@@ -841,6 +841,15 @@ class Router:
                 except Exception as e:  # noqa: BLE001
                     log.warning("the expand round failed (%s)", e)
                     break
+            # Lẫn chữ Hán (model mạnh rò token): một vòng viết lại sạch tiếng Việt
+            n_cjk = freedom.foreign_script(shown)
+            if freedom.on() and n_cjk >= 5:
+                msgs.append({"role": "assistant", "content": content, "reasoning_content": reasoning})
+                msgs.append({"role": "user", "content": freedom.clean_note(n_cjk)})
+                try:
+                    rounds_used, content, reasoning = await rounds()
+                except Exception as e:  # noqa: BLE001
+                    log.warning("the clean round failed (%s)", e)
             # Vẫn mỏng: nhờ bậc cứu MẠNH viết lại cho dày (bản flash censored không tự dày được)
             if planned and len(shown) - len(plan) < 1500:
                 deeper = await freedom.deepen(msgs, shown, asked_plan)
