@@ -1315,5 +1315,6 @@
   "解开 {dest} 失败：{error}": "Could not unpack {dest}: {error}",
   "挂载 {dest} 权限没设好：{error}": "Could not set permissions on mount {dest}: {error}",
   "（已选中）": "(checked)",
-  "（屏幕外）": "(offscreen)"
+  "（屏幕外）": "(offscreen)",
+  "文件不能用（{why}），xin lại một vòng": "The file is unusable ({why}), asking again once"
 }
