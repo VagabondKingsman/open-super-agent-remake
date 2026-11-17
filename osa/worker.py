@@ -570,7 +570,7 @@ async def _run_worker(task: Task, goal: str, label: str = "") -> str:
                     continue
             if freedom.on() and freedom.is_refusal(out):   # C35: the worker refuses too - finish it
                 asked = getattr(task, "goal", "") or ""     # 不给的话 repair() 只能拿最后一句用户话，可能是 CONTINUE_PROMPT
-                fixed = await freedom.prefill_repair(msgs, out, role="worker") or await freedom.repair(msgs, out, asked)
+                fixed = await freedom.prefill_repair(msgs, out, role="worker", asked=asked) or await freedom.repair(msgs, out, asked)
                 try:   # P0PLUS-3 lite: 任务里的拒绝也要留下痕迹，否则只有对话里的 refusal 被看见
                     traces.note(task.bot_id, getattr(task, "goal", "") or "", fixed or out, bool(fixed), task.chat_id or None)
                 except Exception as e:  # noqa: BLE001
