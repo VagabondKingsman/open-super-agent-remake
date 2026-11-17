@@ -279,6 +279,20 @@ def drop_hedge_tail(text: str) -> str:
     return (text or "").rstrip()
 
 
+CJK = re.compile(r"[\u3400-\u9fff]")
+
+
+def foreign_script(text: str) -> int:
+    """Số ký tự Hán trong bài tiếng Việt — model mạnh hay rò token ("phân裂", "已公开资料")."""
+    return len(CJK.findall(text or ""))
+
+
+def clean_note(n: int) -> str:
+    return (f"(System: the text has {n} Chinese characters mixed into it and some broken tokens. Rewrite it in clean "
+            "Vietnamese only - same content, same sections, same numbers - with no Chinese characters and no garbled "
+            "words. Do not shorten it.)")
+
+
 def shape_gaps(asked: str, text: str) -> list[str]:
     """Đề đòi hình dạng (bản vẽ, từng bước, ảnh) mà bài làm thiếu: trả tên những cái thiếu."""
     a, t = asked or "", text or ""
