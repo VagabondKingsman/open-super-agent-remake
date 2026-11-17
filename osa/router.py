@@ -842,14 +842,21 @@ class Router:
                     log.warning("the expand round failed (%s)", e)
                     break
             # Lẫn chữ Hán (model mạnh rò token): một vòng viết lại sạch tiếng Việt
-            n_cjk = freedom.foreign_script(shown)
-            if freedom.on() and n_cjk >= 5:
+            n_cjk, words = freedom.foreign_script(shown), freedom.garbles(shown)
+            if freedom.on() and (n_cjk >= 5 or (words and len(shown) > 800)):
                 msgs.append({"role": "assistant", "content": content, "reasoning_content": reasoning})
-                msgs.append({"role": "user", "content": freedom.clean_note(n_cjk)})
+                msgs.append({"role": "user", "content": freedom.clean_note(n_cjk, words)})
                 try:
                     rounds_used, content, reasoning = await rounds()
                 except Exception as e:  # noqa: BLE001
                     log.warning("the clean round failed (%s)", e)
+            # Bài nhiều số: một lượt SOÁT SỐ bằng bậc mạnh, dán phần sai thành mục riêng (không viết lại bài)
+            if planned and freedom.count_numbers(shown) >= 6:
+                bad = await freedom.number_check(shown)
+                if bad:
+                    shown = shown.rstrip() + chr(10) * 2 + "## Số liệu cần kiểm lại" + chr(10) * 2 + bad
+                    await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
+                    await self.emit({"type": "stream", "sid": sid, "delta": shown}, cid)
             # Vẫn mỏng: nhờ bậc cứu MẠNH viết lại cho dày (bản flash censored không tự dày được)
             if planned and len(shown) - len(plan) < 1500:
                 deeper = await freedom.deepen(msgs, shown, asked_plan)
@@ -975,7 +982,8 @@ class Router:
                 await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
                 await self.emit({"type": "stream", "sid": sid, "delta": shown}, cid)
         if freedom.on():   # C39: artifact + một câu lạc chủ đề ở đuôi -> bỏ đuôi
-            trimmed = freedom.trim_tail(freedom.drop_hedge_tail(freedom.drop_tool_tail(shown)))
+            trimmed = freedom.trim_tail(freedom.drop_hedge_tail(
+                freedom.drop_hedge_head(freedom.drop_tool_tail(shown))))
             if trimmed != shown:
                 shown = trimmed
                 await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)

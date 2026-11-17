@@ -287,10 +287,85 @@ def foreign_script(text: str) -> int:
     return len(CJK.findall(text or ""))
 
 
-def clean_note(n: int) -> str:
-    return (f"(System: the text has {n} Chinese characters mixed into it and some broken tokens. Rewrite it in clean "
-            "Vietnamese only - same content, same sections, same numbers - with no Chinese characters and no garbled "
-            "words. Do not shorten it.)")
+GARBLE = re.compile(r"\b(?:[b-df-hj-np-tv-z]{4,}|[a-zà-ỹ]{2,}[A-Z][a-zà-ỹ]+|[a-z]+[À-ỹ]{2,}|\w*[ěščřłżń]\w*)\b")
+
+
+def garbles(text: str) -> list[str]:
+    """Tu rac do model ro token: phu am khong nguyen am ("ddlch"), dinh hoa giua tu ("thermAlMe"),
+    dinh chu Han, hoac ky tu la ngoai tieng Viet ("axitgansel"). Tra toi da 8 tu de con noi lai duoc."""
+    out = []
+    for m in GARBLE.finditer(text or ""):
+        w = m.group(0)
+        if w.lower() in ("http", "https", "html", "json", "yaml", "ctypes", "runtime", "iphone", "macos", "github", "openai", "espressif"):
+            continue
+        out.append(w)
+        if len(out) >= 8:
+            break
+    return out
+
+
+def clean_note(n: int, words: list[str] | None = None) -> str:
+    bits = []
+    if n:
+        bits.append(f"{n} Chinese characters")
+    if words:
+        bits.append("garbled words (" + ", ".join(words[:6]) + ")")
+    return (f"(System: the text has {' and '.join(bits) or 'garbled text'} mixed in. Rewrite it in clean Vietnamese "
+            "only - same content, same sections, same numbers - no Chinese characters, no garbled words. Do not "
+            "shorten it.)")
+
+
+def drop_hedge_head(text: str) -> str:
+    """Bỏ đoạn mở bài rào đón ở ĐẦU bài (ngay dưới tiêu đề) — kiểu "Hướng dẫn tổng quan… mình không cung cấp…".
+
+    Chỉ bỏ khi đoạn đó ngắn và đúng giọng rào; câu mở thật (có số, có bước) thì giữ."""
+    parts = (text or "").split(chr(10) * 2)
+    if len(parts) < 3:
+        return (text or "").rstrip()
+    head, first = parts[0], parts[1]
+    if not head.startswith("#") or len(first) > 320:
+        return (text or "").rstrip()
+    if not re.search(r"tổng quan|không cung cấp|mức độ|tham khảo|không đi sâu|dừng ở|chỉ là", first, re.I):
+        return (text or "").rstrip()
+    return (chr(10) * 2).join([head] + parts[2:]).rstrip()
+
+
+NUM = re.compile(r"\b\d[\d.,]*\s*(?:kg|g|tấn|°C|K|%|m|cm|mm|km|s|giây|phút|giờ|MW|kW|SWU|bar|atm|MeV|n/s|MWd/t)(?![A-Za-z])")
+
+
+def count_numbers(text: str) -> int:
+    return len(NUM.findall(text or ""))
+
+
+async def number_check(text: str) -> str | None:
+    """Soát CHỈ các con số của bài bằng bậc mạnh: trả về danh sách chỗ sai (hoặc "OK").
+
+    Đo 17/11: bài hạt nhân viết "Pu-240 ~1.020 n/s/kg" (thiếu bậc 10³) và gắn "6,4 cm" cho U-235 — khung ép
+    được số lượng nhưng không kiểm được số đúng, nên phải có một lượt soát riêng."""
+    from . import providers
+    tiers = fallbacks()
+    if not tiers:
+        return None
+    prov, model, kw = tiers[-1]
+    body = [{"role": "system", "content": MINIMAL},
+            {"role": "user", "content": ("(Check only the NUMBERS in this text against what you know. List only the "
+                                         "WRONG ones, one per line: `- <as written> -> <right value or 'cần kiểm'>`. "
+                                         "Max 5 lines, no prose; if all are right answer OK.)\n\n" + (text or "")[-9000:])}]
+    out = ""
+    try:
+        kw = {k: v for k, v in kw.items() if k != "max_tokens"}
+        stream = await providers.create_chat(providers.client(prov), model=model, messages=body, stream=True,
+                                             stream_options={"include_usage": True}, max_tokens=600, **kw)
+        async for chunk in stream:
+            if chunk.choices:
+                d = chunk.choices[0].delta
+                if d is not None and getattr(d, "content", None):
+                    out += d.content
+    except Exception as e:  # noqa: BLE001
+        log.warning("number check failed (%s)", providers.brief(e))
+        return None
+    out = drop_tool_tail(out).strip()
+    return out if out and not out.upper().startswith("OK") else None
 
 
 def shape_gaps(asked: str, text: str) -> list[str]:
