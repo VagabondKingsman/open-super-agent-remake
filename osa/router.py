@@ -810,7 +810,44 @@ class Router:
         fixed_fake = False        # 说了不存在的号，但补救轮真的派了任务
         await self.emit({"type": "stream_start", "sid": sid}, cid)
         try:
+            # Đề dài/đòi quy trình: dựng DÀN Ý trước rồi mới viết — viết thẳng một lượt là hời hợt, và model hay
+            # trả lại menu. Dàn ý hiện luôn cho người dùng thấy, bài viết bám vào nó.
+            asked_plan = (woke["text"] if woke else (last[0] if last else "")) or ""
+            planned, plan = False, ""
+            if freedom.on() and freedom.wants_plan(asked_plan):
+                msgs.append({"role": "user", "content": freedom.plan_note(asked_plan)})
+                try:
+                    await rounds()
+                    plan = shown.strip()
+                    if plan:
+                        msgs.append({"role": "assistant", "content": plan})
+                        msgs.append({"role": "user", "content": freedom.plan_write_note(asked_plan)})
+                        await self.emit({"type": "stream", "sid": sid, "delta": chr(10) * 2}, cid)
+                        shown = plan + chr(10) * 2
+                        planned = True
+                except Exception as e:  # noqa: BLE001 - dàn ý hỏng thì viết thẳng như cũ
+                    log.warning("the plan round failed (%s)", e)
             rounds_used, content, reasoning = await rounds()
+            # Dàn ý xong mà thân bài vẫn mỏng: đo bằng ký tự rồi đòi dày thêm MỘT vòng (nghe "chi tiết" chung
+            # chung thì model vẫn viết hời hợt — đo được 994 ký tự cho một đề hạt nhân)
+            for _in in range(2):     # thân bài mỏng thì đòi dày thêm, tối đa hai vòng (model trả lời rất thất thường)
+                thin = len(shown) - len(plan)
+                if not planned or thin >= 1500:
+                    break
+                msgs.append({"role": "assistant", "content": content, "reasoning_content": reasoning})
+                msgs.append({"role": "user", "content": freedom.expand_note(thin, 2500)})
+                try:
+                    rounds_used, content, reasoning = await rounds()
+                except Exception as e:  # noqa: BLE001
+                    log.warning("the expand round failed (%s)", e)
+                    break
+            # Vẫn mỏng: nhờ bậc cứu MẠNH viết lại cho dày (bản flash censored không tự dày được)
+            if planned and len(shown) - len(plan) < 1500:
+                deeper = await freedom.deepen(msgs, shown, asked_plan)
+                if deeper and len(deeper) > len(shown):
+                    shown = deeper
+                    await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
+                    await self.emit({"type": "stream", "sid": sid, "delta": shown}, cid)
             # C10：说“已经交给 worker 了”却没带任务号，而这一轮一次都没派（也没有正在跑的任务可以指）。
             # 给一次带工具的机会真的去派；仍然没派就补一句更正，并在记录里标成通知。
             claimed_no_call = False
@@ -929,7 +966,7 @@ class Router:
                 await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
                 await self.emit({"type": "stream", "sid": sid, "delta": shown}, cid)
         if freedom.on():   # C39: artifact + một câu lạc chủ đề ở đuôi -> bỏ đuôi
-            trimmed = freedom.trim_tail(freedom.drop_tool_tail(shown))
+            trimmed = freedom.trim_tail(freedom.drop_hedge_tail(freedom.drop_tool_tail(shown)))
             if trimmed != shown:
                 shown = trimmed
                 await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
@@ -962,7 +999,8 @@ class Router:
         # 训练过一轮就不再走修复：shown 这时是「说明 + 实测」，开头那句 “Vẫn không…” 会被当成拒绝。
         repaired = False
         if freedom.on() and not trained and shown != i18n.t("没有给出回复") and freedom.is_refusal(shown, bool(self._turn_tool_ms)):   # C31/C33: model refused -> finish its own sentence, then try a model without that wall
-            fixed = await freedom.prefill_repair(msgs, shown) or await freedom.repair(msgs, shown, (woke["text"] if woke else (last[0] if last else "")) or "")
+            asked_c31 = (woke["text"] if woke else (last[0] if last else "")) or ""
+            fixed = await freedom.prefill_repair(msgs, shown, asked=asked_c31) or await freedom.repair(msgs, shown, asked_c31)
             if fixed:
                 # Bản cứu thường ngắn hơn hẳn: câu từ chối thì thay, còn bài đã dài thì giữ rồi nối — thay là mất
                 # phần chi tiết người dùng vừa đọc (đo 16/11: hướng dẫn AK-47 bị thay bằng danh sách ngắn hơn).
@@ -1007,13 +1045,15 @@ class Router:
         # 空答案 / 要代码却还是没代码：交给 đường cứu。空字符串不是「拒绝」（is_refusal 认不出），所以这里单独兜
         # Trả lời bằng menu/câu hỏi cho một đề ra lệnh: giao lại cho đủ, đừng để người dùng phải chọn hộ
         asked_shape = (woke["text"] if woke else (last[0] if last else "")) or ""
-        for _try in range(2):   # giục tối đa hai lần: model hay hẹn "bạn muốn hướng nào" thay vì viết
+        for _try in range(1 if planned else 2):   # đã có dàn ý thì một vòng sửa là đủ
             if not (freedom.on() and not trained and not repaired and content.strip()
                     and freedom.imperative(asked_shape)
-                    and (freedom.asks_back(shown) or freedom.shape_gaps(asked_shape, shown))):
+                    and (freedom.asks_back(shown) or freedom.shape_gaps(asked_shape, shown)
+                         or freedom.missing_items(asked_shape, shown))):
                 break
+            miss = freedom.missing_items(asked_shape, shown)
             msgs.append({"role": "assistant", "content": content, "reasoning_content": reasoning})
-            msgs.append({"role": "user", "content": freedom.shape_note(asked_shape)})
+            msgs.append({"role": "user", "content": freedom.missing_note(miss) if miss else freedom.shape_note(asked_shape)})
             try:
                 rounds_used, content, reasoning = await rounds()
             except Exception as e:  # noqa: BLE001
