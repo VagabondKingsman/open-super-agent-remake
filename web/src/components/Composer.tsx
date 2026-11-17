@@ -4,7 +4,8 @@ import type { Attachment, Bot } from '../types'
 import { locale, t, tc } from '../i18n'
 import { desktop } from '../desktop'
 import { shrinkImage, uploadMedia } from './Media'
-import { isEnter } from '../keys'
+import { isEnter, shouldSend } from '../keys'
+import { setSendMode, useSendMode } from '../sendMode'
 
 type Pending = Attachment & { key: string; busy: boolean; preview?: string }   // 输入框上面还没发出去的附件
 
@@ -28,6 +29,7 @@ export default function Composer({ chatId, bot, members, busy, onSend, inThread 
   const [text, setText] = useState('')
   const ref = useRef<HTMLTextAreaElement>(null)
   const composing = useRef(false)
+  const mode = useSendMode()   // Enter 发 / Ctrl+Enter 才发：每条设备自己选
   const apps = useStore(s => s.apps)
   const catalog = useStore(s => s.catalog)
   const skills = useStore(s => (bot ? s.skills[bot.id] : undefined))
@@ -213,16 +215,22 @@ export default function Composer({ chatId, bot, members, busy, onSend, inThread 
               }
               if (isEnter(e) || e.key === 'Tab') { e.preventDefault(); choose(matches[pick % matches.length].key); return }
             }
-            if (isEnter(e) && !e.shiftKey && !composing.current) { e.preventDefault(); submit() }
+            if (shouldSend(e, mode) && !composing.current) { e.preventDefault(); submit() }
           }} />
         {Speech && <button className={'mic' + (listening ? ' on' : '')} onClick={toggleMic} title={listening ? t('停止语音输入') : t('语音输入')}
           aria-label={t('语音输入')}>{listening ? '■' : '🎙'}</button>}
-        <button className={'send' + (ready ? ' on' : '')} onClick={submit} title={t('发送（Enter）')} aria-label={t('发送')}>↑</button>
+        <button className={'send' + (ready ? ' on' : '')} onClick={submit} title={mode === 'ctrl' ? t('发送（Ctrl+Enter）') : t('发送（Enter）')} aria-label={t('发送')}>↑</button>
       </div>
       {listening && <div className="composer-hint">{t('正在听…说完点 ■ 停止，确认文字后再发送')}</div>}
       {(uploading || upErr) && <div className={'composer-hint' + (upErr ? ' bad' : '')}>{upErr || t('正在上传 {name}…（第一次会先开机）', { name: uploading!.name })}</div>}
       <div className={'composer-hint' + (busy ? '' : ' keys')}>{busy ? t('{name} 正在回复…你可以继续发消息', { name: busy })
-        : inThread ? t('Enter 发送 · Shift+Enter 换行 · Esc 关闭') : group ? t('Enter 发送 · Shift+Enter 换行 · @ 指定 Bot 或应用 · @所有人') : t('Enter 发送 · Shift+Enter 换行 · @ 指定应用 · / 调用技能')}</div>
+        : (mode === 'ctrl' ? t('Ctrl+Enter 发送 · Enter 换行') + (inThread ? ' · Esc 关闭' : group ? ' · @ 指定 Bot 或应用' : t(' · @ 指定应用 · / 调用技能'))
+          : inThread ? t('Enter 发送 · Shift+Enter 换行 · Esc 关闭') : group ? t('Enter 发送 · Shift+Enter 换行 · @ 指定 Bot 或应用 · @所有人') : t('Enter 发送 · Shift+Enter 换行 · @ 指定应用 · / 调用技能'))}
+        <span className="sendmode" role="group" aria-label={t('发送方式')}>
+          <button type="button" className={mode === 'enter' ? 'on' : ''} onClick={() => setSendMode('enter')} title={t('按 Enter 发送')}>{t('Enter 发送')}</button>
+          <button type="button" className={mode === 'ctrl' ? 'on' : ''} onClick={() => setSendMode('ctrl')} title={t('按 Ctrl+Enter 发送，Enter 换行')}>{t('Ctrl+Enter 发送')}</button>
+        </span>
+      </div>
     </div>
   )
 }

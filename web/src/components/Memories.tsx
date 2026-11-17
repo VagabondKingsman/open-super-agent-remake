@@ -3,6 +3,7 @@ import { api } from '../store'
 import { lang, locale, t, tc } from '../i18n'
 import type { Bot, Memory, MemoryList } from '../types'
 import { useSearch } from './Library'
+import { copyText } from '../copyText'
 
 // 英文：Nov 6；中文保持 11/06
 const day = (ts: number) => new Date(ts * 1000).toLocaleDateString(locale, lang !== 'zh' ? { month: 'short', day: 'numeric' } : { month: '2-digit', day: '2-digit' })
@@ -139,7 +140,7 @@ function ImportMemories({ bot, onDone }: { bot: Bot; onDone: () => void }) {
       <p className="muted small">{t('1. 把下面这句话发给 ChatGPT、Claude 等助手：')}</p>
       <div className="export-prompt">
         <span>{EXPORT_PROMPT}</span>
-        <button className="ghost-btn" onClick={() => { navigator.clipboard?.writeText(EXPORT_PROMPT); setCopied(true); setTimeout(() => setCopied(false), 1200) }}>{copied ? t('已复制') : t('复制')}</button>
+        <button className="ghost-btn" onClick={async () => { const good = await copyText(EXPORT_PROMPT); setCopied(good); setTimeout(() => setCopied(false), good ? 1200 : 2200) }}>{copied ? t('已复制') : t('复制')}</button>
       </div>
       <p className="muted small">{t('2. 把它的回答粘贴到这里，{name} 会整理成一条条记忆：', { name: bot.name })}</p>
       <textarea className="full" rows={9} value={text} onChange={e => setText(e.target.value)} placeholder={t('粘贴导出的内容')} />

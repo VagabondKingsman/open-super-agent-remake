@@ -1,21 +1,31 @@
-import { memo } from 'react'
+import { memo, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
 import { t } from '../i18n'
+import { copyText } from '../copyText'
 import { openImage } from './Media'
 import { LinkEmbed, MAX_EMBEDS, isMedia, parseEmbed } from './Embeds'
 import { PageEmbed } from './Applet'
 
 function CodeBlock(props: any) {
   const { children, ...rest } = props
-  const copy = (e: React.MouseEvent) => {
+  const btn = useRef<HTMLButtonElement>(null)
+  const [state, setState] = useState<'idle' | 'ok' | 'bad'>('idle')
+  const copy = async (e: React.MouseEvent) => {
+    e.preventDefault()
     const pre = (e.currentTarget as HTMLElement).parentElement?.querySelector('code')
-    navigator.clipboard?.writeText(pre?.textContent || '')
-    ;(e.currentTarget as HTMLElement).textContent = t('已复制')
-    setTimeout(() => ((e.target as HTMLElement).textContent = t('复制')), 1200)
+    const ok = await copyText(pre?.textContent || '')
+    setState(ok ? 'ok' : 'bad')
+    window.setTimeout(() => setState('idle'), ok ? 1200 : 2200)
+    if (!ok && btn.current) btn.current.title = t('复制没成功，手动选中代码再按 Ctrl+C')
   }
-  return <div className="code-wrap"><button className="code-copy" onClick={copy}>{t('复制')}</button><pre {...rest}>{children}</pre></div>
+  return <div className="code-wrap">
+    <button ref={btn} className={'code-copy' + (state === 'bad' ? ' bad' : '')} onClick={copy}>
+      {state === 'ok' ? t('已复制') : state === 'bad' ? t('复制失败') : t('复制')}
+    </button>
+    <pre {...rest}>{children}</pre>
+  </div>
 }
 
 // 模型常在表格单元格里写 <br> 换行。网页里的 HTML 一律不当真（防注入），只把单独的 <br> 换成真的换行

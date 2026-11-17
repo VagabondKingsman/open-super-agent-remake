@@ -16,6 +16,7 @@ import { cardFor, registerCard, type CardProps } from '../cards'
 import { chatLabel } from '../chatLabel'
 import { McpAppView } from './Applet'
 import type { AppView } from '../mcpapp'
+import { copyText } from '../copyText'
 
 // Stored headers can use any supported language, regardless of the current UI language.
 const TASK_DISPATCH = /^\[(?:任务已派发|Task dispatched|Đã giao tác vụ)\]\s*/ // i18n-ignore: stored headers
@@ -55,7 +56,8 @@ function Thinking({ text, seconds, live }: { text: string; seconds?: number; liv
 
 function CopyBtn({ text }: { text: string }) {
   const [ok, setOk] = useState(false)
-  return <button className="ghost-btn" onClick={() => { navigator.clipboard?.writeText(text); setOk(true); setTimeout(() => setOk(false), 1200) }}>{ok ? t('已复制') : t('复制')}</button>
+  const copy = async () => { const good = await copyText(text); setOk(good); setTimeout(() => setOk(false), good ? 1200 : 2200) }
+  return <button className="ghost-btn" onClick={copy}>{ok ? t('已复制') : t('复制')}</button>
 }
 
 // 群聊里每条消息上面标出是哪个 Bot 说的

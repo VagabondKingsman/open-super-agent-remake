@@ -4,6 +4,7 @@ import type { Bot, EventSource, EventTrigger, Routine, Scenario, SourceField } f
 import { t } from '../i18n'
 import { ask } from './Dialog'
 import { Runs, STATUS, describe, when } from './Routines'
+import { copyText } from '../copyText'
 
 // 事件：某件事发生时（收到 webhook、订阅源有新文章、网页变了……），Bot 在后台处理一次。
 // 和定时任务存在同一张表里（category 区分），来源和每种来源要填的参数从 /api/event-sources 拿
@@ -22,7 +23,7 @@ export const hookUrl = (r: Routine) => r.event?.hook ? location.origin + r.event
 
 function Copy({ text }: { text: string }) {
   const [ok, setOk] = useState(false)
-  return <button className="btn" onClick={async () => { await navigator.clipboard.writeText(text); setOk(true); setTimeout(() => setOk(false), 1500) }}>
+  return <button className="btn" onClick={async () => { const good = await copyText(text); setOk(good); setTimeout(() => setOk(false), good ? 1500 : 2200) }}>
     {ok ? t('已复制') : t('复制')}</button>
 }
 
