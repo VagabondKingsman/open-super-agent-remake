@@ -814,11 +814,19 @@ class Router:
             # trả lại menu. Dàn ý hiện luôn cho người dùng thấy, bài viết bám vào nó.
             asked_plan = (woke["text"] if woke else (last[0] if last else "")) or ""
             planned, plan = False, ""
-            if freedom.on() and freedom.wants_plan(asked_plan):
+            cached_plan = freedom.plan_for(asked_plan) if freedom.on() and freedom.wants_plan(asked_plan) else None
+            if cached_plan:          # đã học được khung cho kiểu đề này: khỏi tốn một lượt gọi
+                msgs.append({"role": "assistant", "content": cached_plan})
+                msgs.append({"role": "user", "content": freedom.plan_write_note(asked_plan)})
+                shown = cached_plan + chr(10) * 2
+                planned = True
+                await self.emit({"type": "stream", "sid": sid, "delta": cached_plan + chr(10) * 2}, cid)
+            elif freedom.on() and freedom.wants_plan(asked_plan):
                 msgs.append({"role": "user", "content": freedom.plan_note(asked_plan)})
                 try:
                     await rounds()
                     plan = shown.strip()
+                    freedom.remember_plan(asked_plan, plan)   # nhớ khung: lần sau kiểu đề này rẻ đi một lượt
                     if plan:
                         msgs.append({"role": "assistant", "content": plan})
                         msgs.append({"role": "user", "content": freedom.plan_write_note(asked_plan)})
