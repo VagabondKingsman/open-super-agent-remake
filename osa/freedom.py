@@ -103,6 +103,18 @@ SOFT = re.compile(
     r"liên hệ quản trị viên|chỉ có thể (đưa|cung cấp) (lời khuyên|bản) (phòng thủ|an toàn)", re.IGNORECASE)
 
 
+def said_text(msg: dict) -> str:
+    """Nội dung một tin thành chuỗi.
+
+    Tin có ảnh/tệp đính kèm mang `content` là **danh sách các phần** ({"type": "text", "text": …}, ảnh…),
+    không phải chuỗi — gọi .strip() lên nó là AttributeError và cả lượt chữa cháy chết (đo 17/11 13:19,
+    chat có ảnh)."""
+    c = msg.get("content")
+    if isinstance(c, list):
+        return " ".join(str(p.get("text") or "") for p in c if isinstance(p, dict)).strip()
+    return str(c or "").strip()
+
+
 def is_refusal(text: str, tools: bool = False) -> bool:
     """这段答复是不是一句拒绝 — theo THỨ TỰ chắc đến lỏng.
 
@@ -517,7 +529,7 @@ async def repair(msgs: list[dict], text: str, asked: str = "") -> str | None:
     fbs = fallbacks()
     if not fbs:
         return None
-    said = [m.get("content") or "" for m in msgs if m.get("role") == "user" and (m.get("content") or "").strip()]
+    said = [x for m in msgs if m.get("role") == "user" and (x := said_text(m))]
     # 最后一句话常常是平台自己那句“(System: …)”，不是人问的：有原始请求就用它
     question = asked.strip() or (said[-1] if said else text)
     body = [{"role": "system", "content": MINIMAL}, {"role": "user", "content": question}]
@@ -587,7 +599,7 @@ async def prefill_repair(msgs: list[dict], text: str, role: str = "router", aske
     还不行就交给 repair（换成没有那道墙的模型）。"""
     from . import providers
     from .config import call_kwargs, client_for
-    said = [m.get("content") or "" for m in msgs if m.get("role") == "user" and (m.get("content") or "").strip()]
+    said = [x for m in msgs if m.get("role") == "user" and (x := said_text(m))]
     # Câu user CUỐI có thể là ghi chú của chính khung (dàn ý/đòi dày) — không phải đề; đề do nơi gọi đưa vào
     ask = asked.strip() or (said[-1] if said else text)
     if not wants_artifact(ask):

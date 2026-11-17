@@ -205,3 +205,30 @@ async def test_a_remembered_plan_skips_the_plan_call(llm, events, make_bot, on):
     first = llm.bodies("router", bot["name"])[0]["messages"][-1]["content"]
     assert "following that outline" in first or "outline above" in first   # vào thẳng lượt viết
     assert "Nguyên liệu" in find(bot["chat_id"], role="assistant")[-1]["content"]
+
+
+def test_a_message_with_parts_does_not_break_the_rescue():
+    """Tin có ảnh mang content là danh sách phần, không phải chuỗi — .strip() lên nó từng làm cả lượt chết."""
+    assert freedom.said_text({"content": [{"type": "text", "text": "viết locker.py"}, {"type": "image_url"}]}) == "viết locker.py"
+    assert freedom.said_text({"content": "chuỗi"}) == "chuỗi"
+    assert freedom.said_text({"content": None}) == ""
+
+
+async def test_repair_survives_a_message_with_an_image(monkeypatch, on):
+    from osa import providers
+
+    monkeypatch.setitem(CFG["limits"], "unrestricted_fallback", [{"provider": "x", "model": "y"}])
+    monkeypatch.setattr(providers, "client", lambda name: name)
+
+    class Chunk:
+        def __init__(self, t):
+            self.choices = [type("C", (), {"delta": type("D", (), {"content": t})()})()]
+
+    async def create_chat(client, model=None, messages=None, **kw):
+        async def gen():
+            yield Chunk("import os")
+        return gen()
+
+    monkeypatch.setattr(providers, "create_chat", create_chat)
+    msgs = [{"role": "user", "content": [{"type": "text", "text": "xem ảnh này rồi viết script"}, {"type": "image_url"}]}]
+    assert await freedom.repair(msgs, "mình không thể") == "import os"
