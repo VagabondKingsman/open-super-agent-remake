@@ -183,6 +183,32 @@ CLAIM_NO_CALL_NOTE = ("(System, not the user: your reply says the work was alrea
                       "dispatch — but this turn made no dispatch tool call, so nothing is running. Saying it does not start "
                       "anything. Call dispatch now with the goal, or tell the user plainly that nothing was dispatched yet.)")
 
+TASK_FAILED_NOTE = ("(System, not the user: task {id} failed — {error}. It produced no output this time. "
+                    "Do not present results, numbers, exit codes or a PASS/FAIL table for it: say what failed, "
+                    "why, and what you will try next. If you have no real output, say that plainly.)")
+
+
+def failed_result_rule() -> str:
+    """Câu dán sau kết quả của một tác vụ lỗi: chặn việc trình bày kết quả không có thật."""
+    return i18n.t("⚠ 这一步没有任何输出：只写失败原因和下一步，不要写结果、数字、exit code 或 PASS/FAIL 表。")
+
+
+def result_body(task) -> str:
+    """Thân tin [任务 #N 结果]: tác vụ lỗi thì kèm luật, để model không dựng lại kết quả."""
+    body = task.result or ""
+    if getattr(task, "status", "") == "failed" and body.strip():
+        body = body.rstrip() + "\n\n" + failed_result_rule()
+    return body
+
+
+_RESULT_CLAIM = re.compile(r"(?i)(\|\s*pass\s*\||\bPASS\b|\bFAIL\b|exit\s*=\s*\d+|✅|❌)")
+
+
+def claims_results(text: str) -> bool:
+    """Câu trả lời có trình bày kết quả (bảng PASS/FAIL, exit code, dấu ✅) — để hậu kiểm khi tác vụ đã lỗi."""
+    return bool(_RESULT_CLAIM.search(text or ""))
+
+
 GROUP_PROMPT = """
 
 You are in the group chat "{title}", not a private chat. Members:
@@ -747,6 +773,8 @@ class Router:
         self._turn_waits = 0              # 本轮弹出的新建 / 修改 / 删除 Bot 的卡片：有了结果会再叫醒这个 Bot
         self._turn_files = []             # 本轮 send_file 发的文件，挂在这条回复下面显示
         self._turn_tool_ms = []           # 本轮调过的工具（C6：上一轮的要清掉，否则每轮越记越长，回复下面挂一排旧工具）
+        self._unsupported_results = None
+        self._last_failed = getattr(self, "_last_failed", None)
         self._turn_outputs = []             # C3：本轮工具吐出来的文字（数出处）
         self._self_check = []               # C3：改过一轮仍对不上工具结果的数
         self._turn_usage = {"in": 0, "out": 0, "cache": 0, "cost": 0.0, "ttft": None, "est": False}   # A4：本轮各次模型调用的合计
@@ -1114,9 +1142,19 @@ class Router:
                 traces.note(self.bot_id, asked_now, shown, not freedom.is_refusal(shown, bool(self._turn_tool_ms)), cid)
             except Exception as e:  # noqa: BLE001 - 记不上不影响这一轮
                 log.warning("could not record the refusal (%s)", e)
+        # 工具/任务返回错误、这一轮又没有任何工具输出，却在报结果：补一句更正，别让编出来的表格留在记录里
+        failed = getattr(self, "_last_failed", None)
+        if (failed and not self._turn_outputs and claims_results(shown)
+                and "⚠" not in shown and time.time() - failed["ts"] < 1800):
+            fix = i18n.t("（更正：任务 #{id} 失败了（{error}），这一轮没有任何输出 —— 上面那张结果表不是真的。）",
+                         id=failed["id"], error=failed["error"])
+            shown = shown.rstrip() + "\n\n" + fix
+            await self.emit({"type": "stream", "sid": sid, "delta": "\n\n" + fix}, cid)
+            self._unsupported_results = {"task_id": failed["id"], "error": failed["error"]}
         await self.add("assistant", shown.strip(), cid, reasoning=reasoning, thinking=thinking,
                        thought_s=round(time.time() - started, 1), sid=sid, tasks=self._turn_tasks,
                        **({"usage": usage_meta} if usage_meta else {}),
+                       **({"unsupported_results": self._unsupported_results} if getattr(self, "_unsupported_results", None) else {}),
                        **({"lang_flag": flag} if flag else {}),
                        **({"fabricated_task_ids": fake} if fake else {}),
                        **({"fabricated_then_dispatched": True} if fake and fixed_fake else {}),
@@ -1518,11 +1556,13 @@ class Router:
             await self.emit({"type": "task", "task": task.public()}, task.chat_id)
             return
         extra = {}
-        body = task.result or ""
+        body = result_body(task)
         if task.side_effects:
             extra["side_effects"] = task.side_effects
             body += "\n\n" + i18n.t("这个任务还改动了资料库：{items}", items="; ".join(s["summary"] for s in task.side_effects))
         memory.update_meta(task.msg_id or task.id, status=task.status, elapsed=round(clock.gap(task.started, clock.now())), steps=task.steps, **extra)
+        if task.status == "failed":   # hậu kiểm dùng: câu trả lời ngay sau đó không được trình bày kết quả
+            self._last_failed = {"id": task.id, "error": (task.result or "")[:200], "ts": time.time()}
         await self.add("task", i18n.t("[任务 #{id} 结果]", id=task.id) + f"\n{body}", task.chat_id, kind="result", task_id=task.id,
                        status=task.status, elapsed=round(clock.gap(task.started, clock.now())),
                        **({"attachments": task.files} if task.files else {}), **({"apps": task.apps} if task.apps else {}),
