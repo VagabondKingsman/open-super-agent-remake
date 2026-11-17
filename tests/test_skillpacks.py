@@ -126,6 +126,36 @@ def test_symlinks_bad_offsets_and_binary(pack, make_bot, tmp_path):
         assert "error" in json.loads(skillpacks.load_skill(bot["id"], name))
 
 
+def test_stored_files_are_readable_without_a_pack(make_bot, tmp_path, monkeypatch):
+    """Skill lưu file trong DB (không cài pack) vẫn phải đọc được: liệt kê, nội dung, phân trang, chặn đường dẫn."""
+    monkeypatch.setattr(skillpacks, "resource_root", lambda: tmp_path / "empty-runtime")
+    bot = make_bot()
+    body = "Tiếng Việt\n" * 1200 + "END-MARKER"
+    skills.save(bot["id"], "db-files", "body", files={"ui.py": body, "run.sh": "#!/bin/sh\necho hi\n"})
+    listing = json.loads(skillpacks.read_resource(bot["id"], "db-files"))
+    assert listing["kind"] == "file-list"
+    assert "run.sh" in listing["content"] and "ui.py" in listing["content"]
+    assert _read_all(lambda o: skillpacks.read_resource(bot["id"], "db-files", "ui.py", o)) == body
+    assert skillpacks.read_resource(bot["id"], "db-files", "run.sh").count("echo hi") == 1
+    for path in ["../secret", "/etc/passwd", "missing.py", "sub/../ui.py"]:
+        assert "error" in json.loads(skillpacks.read_resource(bot["id"], "db-files", path))
+    loaded = json.loads(skillpacks.load_skill(bot["id"], "db-files"))
+    assert loaded["files"] == ["run.sh", "ui.py"] and "read_skill_resource" in loaded["resource_hint"]
+
+
+def test_pack_file_wins_over_stored_copy(pack, make_bot):
+    root, _ = pack
+    bot = make_bot()
+    skillpacks.install(root, bot["id"])
+    skills.save(bot["id"], "refinery", "body", files={"scripts/helper.py": "# stored copy\n"})
+    on_disk = json.loads(skillpacks.read_resource(bot["id"], "refinery", "scripts/helper.py"))["content"]
+    assert "stored copy" not in on_disk
+    # file chỉ có trong DB của cùng skill vẫn đọc được
+    skills.save(bot["id"], "refinery", "body", files={"scripts/helper.py": "# stored copy\n", "extra.md": "db only"})
+    assert json.loads(skillpacks.read_resource(bot["id"], "refinery", "extra.md"))["content"] == "db only"
+    assert "extra.md" in json.loads(skillpacks.read_resource(bot["id"], "refinery"))["content"]
+
+
 def test_invalid_source_fails_before_db_mutation(pack, make_bot):
     root, source = pack
     bot = make_bot()

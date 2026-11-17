@@ -328,37 +328,62 @@ def load_skill(bot_id: int, name: str, offset: int = 0) -> str:
                 out["method_source"] = {"tool": "read_skill_resource", "name": s["name"],
                                         "path": "SKILL.source.md", "offset": 0,
                                         "required": "This is an adapter, not the method. Read every source page before applying it."}
+        elif s.get("files"):
+            out["resource_hint"] = "Files are stored with the skill; use read_skill_resource with an empty path to list them."
+            out["files"] = sorted(s["files"])
         return json.dumps(out, ensure_ascii=False)
     except ValueError as e:
         return json.dumps({"error": str(e)})
 
 
+def _pack_dir(name: str):
+    """Thư mục pack trên đĩa của một skill, hoặc None nếu chưa cài pack."""
+    directory = resource_root() / name
+    if directory.is_symlink() or not directory.is_dir():
+        return None
+    return directory
+
+
+def _stored_files(bot_id: int, name: str) -> dict:
+    """Các file lưu kèm skill trong kho của OSA (cột files)."""
+    return dict((skills.find(bot_id, name) or {}).get("files") or {})
+
+
 def read_resource(bot_id: int, name: str, path: str = "", offset: int = 0) -> str:
-    """Read pack text only, with pagination. No arbitrary file access or execution."""
+    """Read skill text: the pack on disk first, then the files stored with the skill in OSA's store.
+    Paginated, no arbitrary file access and no execution."""
     if not isinstance(name, str) or not skills.NAME_RE.fullmatch(name) or not skills.find(bot_id, name):
         return json.dumps({"error": "Skill not found or not visible"})
     try:
-        directory = resource_root() / name
-        if directory.is_symlink() or not directory.is_dir():
-            raise ValueError("No installed resources")
-        base = directory.resolve()
+        directory = _pack_dir(name)
+        stored = _stored_files(bot_id, name)
         if not isinstance(path, str):
             raise ValueError("Invalid resource path")
         relative = Path(path)
         if relative.is_absolute() or ".." in relative.parts:
             raise ValueError("Path must stay inside the skill directory")
-        target = directory / relative
-        # Reject even internal symlinks: resources must be copied, not linked.
-        if any(p.is_symlink() for p in [target, *target.parents] if p != base.parent):
-            raise ValueError("Symlinks are not allowed")
-        if not target.resolve().is_relative_to(base):
-            raise ValueError("Path must stay inside the skill directory")
         if not path:
-            listing = "\n".join(p.relative_to(directory).as_posix() for p in _files(directory))
+            listing = [p.relative_to(directory).as_posix() for p in _files(directory)] if directory else []
+            listing = "\n".join(sorted(set(listing) | set(stored)))
+            if not listing:
+                raise ValueError("No installed resources")
             return json.dumps({"name": name, "kind": "file-list", **_page(listing, offset)}, ensure_ascii=False)
-        if not target.is_file() or target.stat().st_size > 2_000_000:
+        if directory is not None:
+            base = directory.resolve()
+            target = directory / relative
+            # Reject even internal symlinks: resources must be copied, not linked.
+            if any(p.is_symlink() for p in [target, *target.parents] if p != base.parent):
+                raise ValueError("Symlinks are not allowed")
+            if not target.resolve().is_relative_to(base):
+                raise ValueError("Path must stay inside the skill directory")
+            if target.is_file() and target.stat().st_size <= 2_000_000:
+                text = target.read_text(encoding="utf-8")
+                return json.dumps({"name": name, "path": path, **_page(text, offset)}, ensure_ascii=False)
+        key = skills.clean_path(path)
+        text = stored.get(key)
+        if not text or len(text.encode("utf-8")) > 2_000_000:
             raise ValueError("Resource missing or too large")
-        return json.dumps({"name": name, "path": path, **_page(target.read_text(encoding="utf-8"), offset)}, ensure_ascii=False)
+        return json.dumps({"name": name, "path": key, **_page(text, offset)}, ensure_ascii=False)
     except (ValueError, OSError, UnicodeError) as e:
         return json.dumps({"error": str(e)})
 
