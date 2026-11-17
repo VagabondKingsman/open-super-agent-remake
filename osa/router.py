@@ -737,6 +737,8 @@ class Router:
             state += "\n\n" + TRACES_HEAD.format(spots=spots)   # 自己卡过哪儿：别第三次卡在同一处
         memory.remember_state(cid, self.bot_id, state)   # C14：原样存下这一轮的状态，下一轮的正文才是它的延长
         msgs = [{"role": "system", "content": system}] + with_state(history, state)
+        if freedom.on() and freedom.is_meta_ask((woke["text"] if woke else (last[0] if last else "")) or ""):
+            msgs.append({"role": "user", "content": freedom.meta_note()})   # hỏi VỀ lượt trước: đừng mở lại chủ đề
         self._turn_context = "\n".join(str(m.get("content") or "") for m in msgs)
         sid, started = f"s{time.time_ns()}", time.time()
         self._turn_tasks = []             # 本轮派发的任务，挂在这条回复下面显示
@@ -927,7 +929,7 @@ class Router:
                 await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
                 await self.emit({"type": "stream", "sid": sid, "delta": shown}, cid)
         if freedom.on():   # C39: artifact + một câu lạc chủ đề ở đuôi -> bỏ đuôi
-            trimmed = freedom.trim_tail(shown)
+            trimmed = freedom.trim_tail(freedom.drop_tool_tail(shown))
             if trimmed != shown:
                 shown = trimmed
                 await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
@@ -962,6 +964,11 @@ class Router:
         if freedom.on() and not trained and shown != i18n.t("没有给出回复") and freedom.is_refusal(shown, bool(self._turn_tool_ms)):   # C31/C33: model refused -> finish its own sentence, then try a model without that wall
             fixed = await freedom.prefill_repair(msgs, shown) or await freedom.repair(msgs, shown, (woke["text"] if woke else (last[0] if last else "")) or "")
             if fixed:
+                # Bản cứu thường ngắn hơn hẳn: câu từ chối thì thay, còn bài đã dài thì giữ rồi nối — thay là mất
+                # phần chi tiết người dùng vừa đọc (đo 16/11: hướng dẫn AK-47 bị thay bằng danh sách ngắn hơn).
+                dup = shown.strip()[:60] and shown.strip()[:60] in fixed   # bản cứu lặp lại đúng mở bài: thay, không nối
+                if len(shown.strip()) > 800 and len(fixed) < len(shown) and not dup:
+                    fixed = shown.rstrip() + chr(10) * 2 + fixed
                 shown, repaired = fixed, True
                 await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
                 await self.emit({"type": "stream", "sid": sid, "delta": shown}, cid)
@@ -998,6 +1005,31 @@ class Router:
                     await self.emit({"type": "stream", "sid": sid, "delta": shown}, cid)
                     broken = freedom.code_problem(shown)   # vẫn hỏng thì bước dưới nhờ đường cứu
         # 空答案 / 要代码却还是没代码：交给 đường cứu。空字符串不是「拒绝」（is_refusal 认不出），所以这里单独兜
+        # Trả lời bằng menu/câu hỏi cho một đề ra lệnh: giao lại cho đủ, đừng để người dùng phải chọn hộ
+        asked_shape = (woke["text"] if woke else (last[0] if last else "")) or ""
+        for _try in range(2):   # giục tối đa hai lần: model hay hẹn "bạn muốn hướng nào" thay vì viết
+            if not (freedom.on() and not trained and not repaired and content.strip()
+                    and freedom.imperative(asked_shape)
+                    and (freedom.asks_back(shown) or freedom.shape_gaps(asked_shape, shown))):
+                break
+            msgs.append({"role": "assistant", "content": content, "reasoning_content": reasoning})
+            msgs.append({"role": "user", "content": freedom.shape_note(asked_shape)})
+            try:
+                rounds_used, content, reasoning = await rounds()
+            except Exception as e:  # noqa: BLE001
+                log.warning("the asks-back round failed (%s)", e)
+                break
+            await self.emit({"type": "stream", "sid": sid, "reset": True}, cid)
+            await self.emit({"type": "stream", "sid": sid, "delta": shown}, cid)
+        # Đuôi thoái hoá thành một cụm lặp: nói rõ rồi xin một vòng; bản giao luôn được cắt phần lặp
+        if freedom.on() and not trained and not repaired and freedom.repeats(shown):
+            msgs.append({"role": "assistant", "content": content, "reasoning_content": reasoning})
+            msgs.append({"role": "user", "content": freedom.loop_note()})
+            try:
+                rounds_used, content, reasoning = await rounds()
+            except Exception as e:  # noqa: BLE001
+                log.warning("the loop round failed (%s)", e)
+        shown = freedom.collapse_tail(shown)
         # `shown` 空的时候已经被换成「没有给出回复」这句，所以判空要看模型的原文 content
         if freedom.on() and not trained and not repaired and (not content.strip() or broken):
             asked_text = (woke["text"] if woke else (last[0] if last else "")) or ""
