@@ -61,6 +61,16 @@ Cập nhật 11/11/2026 23:16, Asia/Saigon (UTC+7), base `14449fd` (merge PR #51
 | EVAL-SUITE | P0+ #5. Bộ eval offline chạy trong CI | 27 kịch bản. Đã merge [PR #44](https://github.com/VagabondKingsman/open-super-agent-remake/pull/44) tại `feeae4c`. e27 hết xfail sau P0-2. | Done · [PR #44](https://github.com/VagabondKingsman/open-super-agent-remake/pull/44) |
 | P0-2 | Chỉ người dùng mới duyệt được thẻ xác nhận | `resolve_approval` chỉ cho `origin=user`. Đã merge [PR #43](https://github.com/VagabondKingsman/open-super-agent-remake/pull/43) tại `b961870`. e27 PASS, đã bỏ xfail. | Done · [PR #43](https://github.com/VagabondKingsman/open-super-agent-remake/pull/43) |
 
+## 17/11 · hết rò từ, soát số, học khung
+
+- **Rò từ**: dò theo TỪ (phụ âm không nguyên âm "ddlch", dính hoa "thổithermAlMe", ký tự lạ "axitgansěl"), nêu tên từng từ rồi xin một vòng viết lại sạch — không chỉ đếm ký tự Hán (PR #164). Đo lại: 0 Hán, 0 từ rác ở cả hai đề.
+- **Soát số**: bài ≥6 số kèm đơn vị thì một lượt rẻ (600 token, bậc mạnh) liệt kê **chỉ chỗ sai**, dán thành mục "Số liệu cần kiểm lại"; không viết lại bài.
+- **Câu khung**: bỏ đoạn mở rào đón ngay dưới tiêu đề khi nó ngắn và đúng giọng rào.
+- **Bậc cứu**: bỏ `glm-5.3-uncensored` ($1,40/$4,40) → `dolphin` rồi `deepseek-v4.1-flash-uncensored` ($0,30/$1,20); `fallback:` của vai cũng sang deepseek-unc.
+- **Tự học khung** (PR #165): dàn ý nhớ theo dấu kiểu đề (6 từ có nghĩa), lần sau vào thẳng lượt viết — rẻ một lượt mà không giảm độ dày; bảng `plans` giữ 200 dấu, chỉ nhớ khi đúng là dàn ý ≥3 dòng.
+- Đo live: hạt nhân 6 619 ký tự (0 Hán, 0 từ rác, PUREX/TBP/k_eff), meth 5 574 (đủ hai tuyến), pin thể rắn 10 506 → 25 915 (lượt 2 dùng khung nhớ).
+- Còn: số vẫn có thể sai (soát số là gợi ý, không phải bảo đảm); cache khung chỉ theo 6 từ đầu nên đề cùng chủ đề khác cách viết có thể trượt.
+
 ## 17/11 · dàn ý trước rồi viết (đề dài)
 
 - Trần còn lại: bản mặc định viết đúng hình dạng nhưng **hời hợt**; cùng đề hàng mạnh viết 8 400 ký tự có SWU/khối lượng tới hạn/Pu-240, bản mặc định 1 500.
