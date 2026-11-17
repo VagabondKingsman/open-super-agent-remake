@@ -1246,5 +1246,6 @@
   "解开 {dest} 失败：{error}": "Không giải nén được {dest}: {error}",
   "挂载 {dest} 权限没设好：{error}": "Không đặt được quyền cho mục được gắn {dest}: {error}",
   "（已选中）": "(đã chọn)",
-  "（屏幕外）": "(ngoài màn hình)"
+  "（屏幕外）": "(ngoài màn hình)",
+  "文件不能用（{why}），xin lại một vòng": "Tệp không dùng được ({why}), xin lại một vòng"
 }

@@ -179,6 +179,17 @@ export default function Composer({ chatId, bot, members, busy, onSend, inThread 
   }
   const ready = (text.trim() || atts.length) && !uploading
 
+  // Cau goi y tach han theo che do: moi cau la mot khoa tron ven, khong ghep chuoi (bo kiem i18n doc duoc)
+  const hint = busy
+    ? t('{name} 正在回复…你可以继续发消息', { name: busy })
+    : mode === 'ctrl'
+      ? (inThread ? t('Ctrl+Enter 发送 · Enter 换行 · Esc 关闭')
+        : group ? t('Ctrl+Enter 发送 · Enter 换行 · @ 指定 Bot 或应用')
+        : t('Ctrl+Enter 发送 · Enter 换行 · @ 指定应用 · / 调用技能'))
+      : (inThread ? t('Enter 发送 · Shift+Enter 换行 · Esc 关闭')
+        : group ? t('Enter 发送 · Shift+Enter 换行 · @ 指定 Bot 或应用 · @所有人')
+        : t('Enter 发送 · Shift+Enter 换行 · @ 指定应用 · / 调用技能'))
+
   return (
     <div className="composer-wrap">
       {dragging && <div className="drop-overlay">{t('松开鼠标，上传到电脑的 uploads 目录')}</div>}
@@ -223,9 +234,7 @@ export default function Composer({ chatId, bot, members, busy, onSend, inThread 
       </div>
       {listening && <div className="composer-hint">{t('正在听…说完点 ■ 停止，确认文字后再发送')}</div>}
       {(uploading || upErr) && <div className={'composer-hint' + (upErr ? ' bad' : '')}>{upErr || t('正在上传 {name}…（第一次会先开机）', { name: uploading!.name })}</div>}
-      <div className={'composer-hint' + (busy ? '' : ' keys')}>{busy ? t('{name} 正在回复…你可以继续发消息', { name: busy })
-        : (mode === 'ctrl' ? t('Ctrl+Enter 发送 · Enter 换行') + (inThread ? ' · Esc 关闭' : group ? ' · @ 指定 Bot 或应用' : t(' · @ 指定应用 · / 调用技能'))
-          : inThread ? t('Enter 发送 · Shift+Enter 换行 · Esc 关闭') : group ? t('Enter 发送 · Shift+Enter 换行 · @ 指定 Bot 或应用 · @所有人') : t('Enter 发送 · Shift+Enter 换行 · @ 指定应用 · / 调用技能'))}
+      <div className={'composer-hint' + (busy ? '' : ' keys')}>{hint}
         <span className="sendmode" role="group" aria-label={t('发送方式')}>
           <button type="button" className={mode === 'enter' ? 'on' : ''} onClick={() => setSendMode('enter')} title={t('按 Enter 发送')}>{t('Enter 发送')}</button>
           <button type="button" className={mode === 'ctrl' ? 'on' : ''} onClick={() => setSendMode('ctrl')} title={t('按 Ctrl+Enter 发送，Enter 换行')}>{t('Ctrl+Enter 发送')}</button>
