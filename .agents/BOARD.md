@@ -61,6 +61,13 @@ Cập nhật 11/11/2026 23:16, Asia/Saigon (UTC+7), base `14449fd` (merge PR #51
 | EVAL-SUITE | P0+ #5. Bộ eval offline chạy trong CI | 27 kịch bản. Đã merge [PR #44](https://github.com/VagabondKingsman/open-super-agent-remake/pull/44) tại `feeae4c`. e27 hết xfail sau P0-2. | Done · [PR #44](https://github.com/VagabondKingsman/open-super-agent-remake/pull/44) |
 | P0-2 | Chỉ người dùng mới duyệt được thẻ xác nhận | `resolve_approval` chỉ cho `origin=user`. Đã merge [PR #43](https://github.com/VagabondKingsman/open-super-agent-remake/pull/43) tại `b961870`. e27 PASS, đã bỏ xfail. | Done · [PR #43](https://github.com/VagabondKingsman/open-super-agent-remake/pull/43) |
 
+## 16/11 · hình dạng câu trả lời (AutoBot, đề AK-47)
+
+- Bốn kiểu hỏng đo được: bài dài bị **nhận nhầm là từ chối** (chỉ vì có chữ "không") rồi bị thay bằng câu ngắn của model cứu; đáp **bằng menu** "bạn muốn hướng nào"; **đuôi lặp** một cụm; và kết bằng khối tool-call dán bằng chữ nói về chủ đề khác.
+- Đã vá (PR #159): `is_refusal` theo bậc chắc→lỏng; giục tối đa hai vòng khi đáp bằng menu hoặc thiếu hình dạng đề đòi (bản vẽ/ảnh/mục đánh số); phát hiện + cắt đuôi lặp; bỏ khối tool-call cuối; bản cứu ngắn thì nối chứ không thay.
+- Đo lại: đề AK-47 → 5 502 ký tự, 5 mục đánh số, có sơ đồ ASCII, đuôi sạch (trước: 1 730 ký tự, 0 sơ đồ). Hỏi "lượt vừa rồi trả lời cái gì" → đáp đúng thể loại meta ("Lượt trước mình đưa dàn ý…").
+- Còn: chất lượng còn **dao động giữa các lượt** (20 149 → 7 039 → 5 502 ký tự trên cùng một đề) — bước tiếp theo nếu cần ngang nodecode: dàn ý trước rồi viết theo dàn ý.
+
 ## 16/11 · chất lượng mã (trần còn lại sau khi hết từ chối)
 
 - Đo trước khi sửa: `patch_amsi.cs` ra **thiếu một `}`**, `patch_licence.py` bị **chia khúc** (không khối nào chạy) — hai kiểu hỏng này lọt qua mọi vòng cũ vì chỉ kiểm "có khối mã".
