@@ -1318,5 +1318,8 @@
  "（屏幕外）": "(offscreen)",
  "文件不能用（{why}），xin lại một vòng": "The file is unusable ({why}), asking again once",
  "⚠ 这一步没有任何输出：只写失败原因和下一步，不要写结果、数字、exit code 或 PASS/FAIL 表。": "⚠ This step produced no output: report only what failed and what comes next — no results, numbers, exit codes or PASS/FAIL table.",
- "（更正：任务 #{id} 失败了（{error}），这一轮没有任何输出 —— 上面那张结果表不是真的。）": "(Correction: task #{id} failed ({error}) and this turn produced no output — the results table above is not real.)"
+ "（更正：任务 #{id} 失败了（{error}），这一轮没有任何输出 —— 上面那张结果表不是真的。）": "(Correction: task #{id} failed ({error}) and this turn produced no output — the results table above is not real.)",
+ "[这一轮超过 {n} 秒未结束，已停止并放开排队]": "[This turn ran longer than {n} seconds without finishing, so it was stopped and the queue released]",
+ "{n} 秒没有进展（工具 {tool} 还在跑）": "No progress for {n} seconds (tool {tool} is still running)",
+ "这个工具超过 {n} 秒没有返回，这一步放弃了；任务继续，可以换个办法再做。": "This tool did not return within {n} seconds, so this step was abandoned; the task continues — try another way."
 }

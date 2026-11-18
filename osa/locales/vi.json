@@ -1249,5 +1249,8 @@
  "（屏幕外）": "(ngoài màn hình)",
  "文件不能用（{why}），xin lại một vòng": "Tệp không dùng được ({why}), xin lại một vòng",
  "⚠ 这一步没有任何输出：只写失败原因和下一步，不要写结果、数字、exit code 或 PASS/FAIL 表。": "⚠ Bước này không có output: chỉ nêu lỗi và việc làm tiếp — không viết kết quả, số liệu, exit code hay bảng PASS/FAIL.",
- "（更正：任务 #{id} 失败了（{error}），这一轮没有任何输出 —— 上面那张结果表不是真的。）": "(Đính chính: tác vụ #{id} đã lỗi ({error}) và lượt này không có output — bảng kết quả phía trên không có thật.)"
+ "（更正：任务 #{id} 失败了（{error}），这一轮没有任何输出 —— 上面那张结果表不是真的。）": "(Đính chính: tác vụ #{id} đã lỗi ({error}) và lượt này không có output — bảng kết quả phía trên không có thật.)",
+ "[这一轮超过 {n} 秒未结束，已停止并放开排队]": "[Lượt này chạy quá {n} giây chưa xong, đã dừng lại và mở hàng đợi]",
+ "{n} 秒没有进展（工具 {tool} 还在跑）": "Không có tiến triển trong {n} giây (công cụ {tool} vẫn đang chạy)",
+ "这个工具超过 {n} 秒没有返回，这一步放弃了；任务继续，可以换个办法再做。": "Công cụ này không trả về trong {n} giây, nên bỏ bước này; tác vụ vẫn tiếp tục, có thể làm cách khác."
 }
