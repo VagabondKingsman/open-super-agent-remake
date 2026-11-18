@@ -1,6 +1,6 @@
-// 复制要真把内容放进剪贴板，并且「已复制」只在真的成功时才显示。
-// 网页常常开在 http（尾网地址不是 https），此时 navigator.clipboard 不在或直接拒绝 —— 旧代码用 ?. 把它吞掉，
-// 按钮照样变「已复制」，剪贴板里却什么都没有。
+// Copy must really reach the clipboard, and "copied" may only show when it did.
+// Android Chrome and WebViews return true from execCommand('copy') while copying nothing, so the
+// helper trusts the browser's own copy event instead, and falls back to a hand-copy panel.
 const test = require('node:test')
 const assert = require('node:assert')
 const fs = require('node:fs')
@@ -20,59 +20,82 @@ try {
   fs.rmSync(dir, { recursive: true, force: true })
 }
 
+const node = () => ({
+  value: '', textContent: '', contentEditable: '', children: [], removed: false,
+  style: { cssText: '' },
+  setAttribute() {}, remove() { this.removed = true }, select() {}, setSelectionRange() {},
+  focus() {}, append(...kids) { this.children.push(...kids) }, appendChild(kid) { this.children.push(kid) },
+})
+
+// A document small enough to reason about: execCommand either fires the browser's copy event
+// (which is what a real copy looks like) or just returns a value.
 function load(env) {
   const mod = { exports: {} }
+  const listeners = []
+  const body = node()
   const doc = {
-    body: { appendChild() {}, removeChild() {} },
-    createElement: () => ({ value: '', style: {}, setAttribute() {}, select() {}, remove() {}, setSelectionRange() {} }),
-    execCommand: env.execCommand,
-    queryCommandSupported: env.queryCommandSupported,
+    documentElement: { lang: env.lang || 'vi-VN' },
+    body,
+    createElement: () => node(),
+    createRange: () => ({ selectNodeContents() {} }),
+    addEventListener(type, fn) { if (type === 'copy') listeners.push(fn) },
+    removeEventListener(type, fn) { const i = listeners.indexOf(fn); if (i >= 0) listeners.splice(i, 1) },
+    execCommand() {
+      const ret = env.execCommand
+      if (ret && ret.fire) {
+        for (const fn of [...listeners]) fn({ clipboardData: { setData: (_, value) => { env.clipboard = value } }, preventDefault() {} })
+      }
+      return !!(ret && ret.ok)
+    },
   }
+  const win = { isSecureContext: !!env.secure, getSelection: () => ({ removeAllRanges() {}, addRange() {} }) }
   new Function('module', 'exports', 'navigator', 'window', 'document', 'setTimeout', js)(
-    mod, mod.exports, env.navigator, env.window, doc, setTimeout)
-  return mod.exports.copyText
+    mod, mod.exports, env.navigator || {}, win, doc, setTimeout)
+  return { copyText: mod.exports.copyText, body }
 }
 
-test('dùng clipboard API khi trang là https', async () => {
+test('trang https thì đi thẳng clipboard API', async () => {
   let written = ''
-  const copyText = load({
+  const { copyText, body } = load({
+    secure: true,
     navigator: { clipboard: { writeText: async (t) => { written = t } } },
-    window: { isSecureContext: true }, execCommand: () => false,
+    execCommand: { ok: false },
   })
   assert.equal(await copyText('xin chào'), true)
   assert.equal(written, 'xin chào')
+  assert.equal(body.children.length, 0, 'không mở bảng thủ công khi đã copy được')
 })
 
-test('không có clipboard API trên http thì vẫn copy được bằng textarea', async () => {
-  let copied = ''
-  const copyText = load({
-    navigator: {},                       // http: không có navigator.clipboard
-    window: { isSecureContext: false },
-    execCommand: () => { copied = 'da copy'; return true },
-  })
-  assert.equal(await copyText('abc'), true)
-  assert.equal(copied, 'da copy')
-})
-
-test('clipboard API từ chối (http) thì rơi xuống textarea, không báo thành công giả', async () => {
-  const copyText = load({
-    navigator: { clipboard: { writeText: async () => { throw new Error('denied') } } },
-    window: { isSecureContext: false },
-    execCommand: () => true,
-  })
+test('http không có clipboard API: copy qua copy event, chữ do mình đặt', async () => {
+  const { copyText } = load({ secure: false, execCommand: { ok: true, fire: true } })
   assert.equal(await copyText('abc'), true)
 })
 
-test('cả hai đường đều hỏng thì trả false để UI báo thất bại', async () => {
-  const copyText = load({
-    navigator: { clipboard: { writeText: async () => { throw new Error('denied') } } },
-    window: { isSecureContext: true },
-    execCommand: () => false,
-  })
+test('execCommand trả true mà không có copy event (Android) thì KHÔNG báo thành công', async () => {
+  const { copyText, body } = load({ secure: false, execCommand: { ok: true, fire: false } })
   assert.equal(await copyText('abc'), false)
+  const sheet = body.children.at(-1)
+  assert.ok(sheet, 'phải mở bảng copy thủ công')
+})
+
+test('bảng thủ công chứa đúng đoạn chữ để người dùng tự copy', async () => {
+  const { copyText, body } = load({ secure: false, execCommand: { ok: false } })
+  assert.equal(await copyText('nội dung cần copy'), false)
+  const find = (n) => n.value === 'nội dung cần copy' || (n.children || []).some(find)
+  assert.ok(body.children.some(find), 'chữ phải nằm trong bảng để còn cách copy')
+})
+
+test('clipboard API bị từ chối thì vẫn thử đường execCommand', async () => {
+  const { copyText } = load({
+    secure: true,
+    navigator: { clipboard: { writeText: async () => { throw new Error('denied') } } },
+    execCommand: { ok: true, fire: true },
+  })
+  assert.equal(await copyText('abc'), true)
 })
 
 test('không có gì để copy thì không giả vờ thành công', async () => {
-  const copyText = load({ navigator: {}, window: { isSecureContext: false }, execCommand: () => true })
+  const { copyText, body } = load({ secure: false, execCommand: { ok: true, fire: true } })
   assert.equal(await copyText(''), false)
+  assert.equal(body.children.length, 0)
 })
