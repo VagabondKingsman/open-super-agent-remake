@@ -73,6 +73,8 @@ class Task:
     status: str = "running"                # running | done | failed | cancelled
     started: float = field(default_factory=clock.now)
     last_progress: float = field(default_factory=clock.now)
+    tool_name: str = ""                  # tool running right now: lets the watchdog tell a live step from a hung one
+    tool_started: float = 0.0             # when it began (0 = nothing in flight)
     steps: int = 0
     recent_calls: list = field(default_factory=list)  # 单 Worker 的最近调用，给 Watchdog 看
     repeat_history: dict = field(default_factory=dict)  # label -> 该 Worker 自己的重复检测历史
@@ -101,7 +103,8 @@ def _public(self) -> dict:
     return {"id": self.id, "goal": self.goal, "mode": self.mode, "status": self.status, "steps": self.steps,
             "bot_id": self.bot_id, "chat_id": self.chat_id, "started": self.started,
             "waiting_approval": self.waiting_approval, "last_action": self.last_action, "elapsed": round(clock.gap(self.started, clock.now())),
-            "quiet": self.quiet}
+            "quiet": self.quiet, "tool": self.tool_name,
+            "tool_s": round(clock.gap(self.tool_started, clock.now()), 1) if self.tool_started else 0}
 
 
 Task.public = _public
@@ -321,6 +324,40 @@ async def _call_tool(task: Task, log: tasklog.Log, step: dict, name: str, raw: s
         return i18n.t("工具出错：{error}", error=e), "error"
 
 
+async def _run_with_ceiling(task: Task, coro, ceiling: float):
+    """Await CORO, giving up only when the task has shown no sign of life for CEILING seconds.
+
+    A tool that keeps reporting progress is waited out however long it takes - a long build, a
+    desk handed to the user, a model thinking. A tool that has gone silent for CEILING seconds
+    is abandoned, and only that step: the model gets an error and the task goes on. 0 waits
+    forever. This is the difference between a live step and a dead one the watchdog could not
+    make before (Nova, 2026-11-18: a 926 s computer_shell step cost the whole task)."""
+    if ceiling <= 0:
+        return await coro
+    run = asyncio.ensure_future(coro)
+    try:
+        while True:
+            done, _ = await asyncio.wait({run}, timeout=min(15.0, ceiling))
+            if done:
+                return run.result()
+            if clock.now() - task.last_progress > ceiling:
+                run.cancel()
+                raise asyncio.TimeoutError
+    finally:
+        if not run.done():
+            run.cancel()
+
+
+def tool_timeout_s() -> float:
+    """How long one tool call may run before that STEP is given up and the task goes on.
+    0 turns it off. Kept below the watchdog's no-progress window, so a hung tool comes back
+    to the model as an error instead of costing the whole task."""
+    try:
+        return float(CFG["limits"].get("tool_timeout_s", 600) or 0)
+    except (KeyError, TypeError, ValueError):
+        return 600.0
+
+
 def _lane(call: dict, env: dict) -> tuple[str, int] | None:
     """这个调用能不能和相邻的只读调用一起跑：能就返回 (组, 同组同时最多几个)。
     只有标了 parallel 的（只读、不改任何东西），而且这次不用问用户；电脑工具、写的、要确认的都不行。"""
@@ -348,6 +385,7 @@ async def _run_calls(task: Task, log: tasklog.Log, calls: list, env: dict, histo
         async def progress(text: str):
             task.last_action = text
             log.current = step
+            task.last_progress = clock.now()   # a tool that is talking is alive, however long it takes
             await log.update(step, title=text)
             if PROGRESS:
                 await PROGRESS(task, text)
@@ -357,14 +395,27 @@ async def _run_calls(task: Task, log: tasklog.Log, calls: list, env: dict, histo
 
     async def one(call: dict, step: dict, sem: asyncio.Semaphore | None, skip: bool) -> tuple[str, list]:
         name, raw, shots = call["function"]["name"], call["function"]["arguments"], []
+        task.tool_name, task.tool_started = name, clock.now()
         if skip:
             out, status = skipped, "error"
-        elif sem:
-            async with sem:
-                out, status = await _call_tool(task, log, step, name, raw, progress_for(step), env, shots)
         else:
-            out, status = await _call_tool(task, log, step, name, raw, progress_for(step), env, shots)
+            async def run_step():
+                if sem:
+                    async with sem:
+                        return await _call_tool(task, log, step, name, raw, progress_for(step), env, shots)
+                return await _call_tool(task, log, step, name, raw, progress_for(step), env, shots)
+
+            ceiling = tool_timeout_s()
+            try:
+                out, status = await _run_with_ceiling(task, run_step(), ceiling)
+            except (asyncio.TimeoutError, TimeoutError):
+                # One step is abandoned, the task is not: the model gets a result it can
+                # work around instead of the whole task disappearing (Nova, 2026-11-18:
+                # a 926 s computer_shell step, whose task the watchdog then cancelled).
+                out = i18n.t("这个工具超过 {n} 秒没有返回，这一步放弃了；任务继续，可以换个办法再做。", n=f"{ceiling:g}")
+                status = "error"
         await log.finish(step, status, out)
+        task.tool_name, task.tool_started = "", 0.0
         task.last_progress = clock.now()
         return out, shots
 

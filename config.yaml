@@ -72,6 +72,8 @@ limits:
   answer_continuations: 1     # 最终答案是空的，或 finish_reason=length 时，再要一次完整答案
   save_page_approval: false   # true：Worker 的 save_page 先等确认。命中“自动允许”规则时仍直接写
   task_timeout_s: 600
+  tool_timeout_s: 600         # 一个工具多少秒没有任何信号就放弃*这一步*（任务照常继续，把错误交给模型）；0 = 不限
+                              # 按 last_progress 算：工具还在报进度就一直等（长 build、用户接管电脑、模型思考）
   turn_timeout_s: 1800        # một lượt chat tối đa bao nhiêu giây rồi bỏ và nhả lock của Bot (0 = không giới hạn)
                               # 2026-11-18 Nova: một bước tool 926s xong lượt không kết thúc, giữ lock 2,5 giờ
   worker_compact_chars: 60000 # 任务里工具结果总长超过这么多字就把早先的截短（0 = 不截）
