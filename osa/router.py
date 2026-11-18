@@ -14,7 +14,18 @@ from . import builtin  # noqa: F401  导入即注册内置工具
 from . import worker as worker_mod
 from .worker import IncompleteAnswer, Task, TaskFailed, run_worker, run_heavy
 
+
+def _turn_timeout_seconds() -> float:
+    '''How long one chat turn may run before it is abandoned and its lock released.
+    0 turns the ceiling off.'''
+    try:
+        return float(CFG['limits'].get('turn_timeout_s', 1800) or 0)
+    except (KeyError, TypeError, ValueError):
+        return 1800.0
+
+
 log = logging.getLogger(__name__)
+
 
 def _times(x: float) -> str:
     """2.0 → "2"，2.5 → "2.5"：写进给模型看的那句话里的倍数。"""
@@ -467,7 +478,16 @@ class Router:
             who = memory.WHO.set({"bot_id": self.bot_id, "chat_id": chat_id})   # 这一轮的模型调用记到这个 Bot 头上
             try:
                 try:
-                    shown = await self._think(bots.chat(chat_id))
+                    _limit = _turn_timeout_seconds()
+                    # A chat turn needs a ceiling: a stuck _think() would otherwise hold
+                    # this bot's lock for hours and every later message would queue
+                    # behind it in silence (Nova, 2026-11-18: 2.5 h after a 926 s step).
+                    shown = (await asyncio.wait_for(self._think(bots.chat(chat_id)), _limit)
+                             if _limit > 0 else await self._think(bots.chat(chat_id)))
+                except (asyncio.TimeoutError, TimeoutError):
+                    log.warning('turn for bot %s exceeded %ss; releasing the turn lock', self.bot_id, _limit)
+                    await self.add('task', i18n.t('[这一轮超过 {n} 秒未结束，已停止并放开排队]', n=f'{_limit:g}'), chat_id, kind='turn-timeout')
+                    shown = ''
                 except Exception as e:
                     if owed:
                         await dm.answer(self.bot_id, owed, i18n.t("（{name} 处理时出错：{error}）",

@@ -38,7 +38,9 @@ async def watchdog():
                 if now - t.started - t.paused_s > lim["task_timeout_s"]:
                     reason = i18n.t("运行超过 {n} 秒", n=lim["task_timeout_s"])
                 elif now - t.last_progress > no_progress_s():
-                    reason = i18n.t("{n} 秒没有进展", n=f"{no_progress_s():g}")
+                    busy = getattr(t, "tool_name", "") or ""
+                    reason = (i18n.t("{n} 秒没有进展（工具 {tool} 还在跑）", n=f"{no_progress_s():g}", tool=busy)
+                              if busy else i18n.t("{n} 秒没有进展", n=f"{no_progress_s():g}"))
                 elif _stuck_loop(t):
                     reason = i18n.t("连续重复同一个工具调用，疑似死循环")
                 elif memory.tokens_today() > lim["daily_token_budget"]:
